@@ -1178,7 +1178,7 @@ end;
 
 { TGNodeList }
 
-procedure TGNodeList.SetItem ( aIndex : DWord ; const aItem : TNode ) ;
+procedure TGNodeList.SetItem ( aIndex : DWord ; const aItem : T ) ;
 begin
   inherited SetItem( aIndex, aItem );
 end;
