@@ -130,7 +130,15 @@ function SDLKeyEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 var ASCII : Char;
 begin
   ASCII := Char(event^.key.keysym.unicode);
-  if Ord(ASCII) in VKEY_PRINTABLESET then
+  // Dirty patch to make diagonal keys work on Mac. Probably other PC keys are also broken.
+  // Looks like on Mac we only have reliable information in event^.key.keysym.sym.
+  // The function should be rewritten to utilize it.
+  if (Ord(ASCII) in VKEY_PRINTABLESET)
+    and (event^.key.keysym.sym <> SDLK_PAGEDOWN)
+    and (event^.key.keysym.sym <> SDLK_PAGEUP)
+    and (event^.key.keysym.sym <> SDLK_HOME)
+    and (event^.key.keysym.sym <> SDLK_END)
+  then
   begin
     Result := PrintableToIOEvent( ASCII );
     if event^.type_ = SDL_KEYUP then Result.EType := VEVENT_KEYUP;
