@@ -280,6 +280,21 @@ function make.svnrevision()
     }
 end
 
+function make.gitrevision()
+	os.execute( "git rev-parse --short HEAD > revision.info" )
+	local revision = os.readsingleline( "revision.info" )
+
+	os.execute( "git diff-index --quiet HEAD -- || echo modified > mod.info" )
+	local mod = os.readsingleline( "mod.info" )
+
+	return {
+		full    = revision,
+		working = tonumber(revision, 16),
+		current = tonumber(revision, 16),
+		mod     = mod
+	}
+end
+
 function make.svncheck( data )
 	if data.working ~= data.current then
 		print( "Working copy not equal to HEAD! Please svn update!")
