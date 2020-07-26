@@ -408,7 +408,7 @@ end;
 procedure TConUIMenu.RecalcDimensions;
 begin
   inherited RecalcDimensions;
-  FVisibleCount := Min( Max(FCount, FVisibleCount), FAbsolute.h );
+  FVisibleCount := Min( LongInt( Max(FCount, FVisibleCount) ), FAbsolute.h );
 end;
 
 { TConUIStringList }
@@ -426,7 +426,7 @@ begin
   iCon.Init( TConUIRoot(FRoot).Renderer );
   iCon.ClearRect( FAbsolute, FBackColor );
   if (FContent <> nil) and (FContent.Size > 0) then
-  for c := 1+FScroll to Min( FScroll+FVisibleCount, FContent.Size ) do
+  for c := 1+FScroll to Min( LongInt( FScroll+FVisibleCount ), FContent.Size ) do
      if ( FExStyle ) then
        iCon.PrintEx( FAbsolute.Pos + Point(0,c-1-FScroll), FOffset, FFont, FForeColor, FBackColor, FContent[ c-1 ], FCodedContent )
      else
@@ -456,7 +456,7 @@ begin
   iCon.Init( TConUIRoot(FRoot).Renderer );
   iCon.ClearRect( FAbsolute, FBackColor );
   if (FContent <> nil) and (FContent.Size > 0) then
-  for c := 1+FScroll to Min( FScroll+FVisibleCount, FContent.Size ) do
+  for c := 1+FScroll to Min( LongInt( FScroll+FVisibleCount ), FContent.Size ) do
      if ( FExStyle ) then
        iCon.PrintEx( FAbsolute.Pos + Point(0,c-1-FScroll), FOffset, FFont, FForeColor, FBackColor, FContent[ c-1 ], FCodedContent )
      else
@@ -485,7 +485,7 @@ begin
   iCon.Init( TConUIRoot(FRoot).Renderer );
   iCon.ClearRect( FAbsolute, FBackColor );
   if (FContent <> nil) and (FContent.Size > 0) then
-  for c := 1+FScroll to Min( FScroll+FVisibleCount, FContent.Size ) do
+  for c := 1+FScroll to Min( LongInt( FScroll+FVisibleCount ), FContent.Size ) do
      iCon.Print( FAbsolute.Pos + Point(0,c-1-FScroll), FContent[ c-1 ], FForeColor, FBackColor, FAbsolute );
 end;
 
@@ -513,7 +513,7 @@ begin
   inherited OnRedraw;
   iCon.Init( TConUIRoot(FRoot).Renderer );
   iCon.ClearRect( FAbsolute, FBackColor );
-  iMax := Min( FScroll+FVisibleCount, FContent.Size );
+  iMax := Min( LongInt( FScroll+FVisibleCount ), FContent.Size );
   if FContent.Size > 0 then
   for i := 1+FScroll to iMax do
   begin
