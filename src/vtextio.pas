@@ -284,7 +284,7 @@ begin
   try if FMouse then DoneMouse; except on Exception do end;
   try DoneVideo except on Exception do end;
   //Unknown to myself, I have no clue why I get an access violation here...
-  {$IFDEF UNIX}Shell('reset');{$ENDIF}
+  {$IFDEF UNIX}fpSystem('reset');{$ENDIF}
   inherited Destroy;
 end;
 
