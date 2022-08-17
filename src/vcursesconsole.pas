@@ -24,12 +24,13 @@ type TCursesConsoleRenderer = class( TIOConsoleRenderer )
 private
   procedure ClearArray( var A : TCursesArray; aClear : DWord );
 private
-  FClearCell    : Word;
-  FOutputCMask  : DWord;
-  FCursesPos    : TPoint;
-  FCursesArray  : TCursesArray;
-  FNewArray     : TCursesArray;
-  FUpdateNeeded : Boolean;
+  FClearCell     : Word;
+  FOutputCMask   : DWord;
+  FCursesPos     : TPoint;
+  FCursesArray   : TCursesArray;
+  FNewArray      : TCursesArray;
+  FCursorVisible : Boolean;
+  FUpdateNeeded  : Boolean;
 end;
 
 implementation
@@ -59,6 +60,8 @@ begin
   FCursesPos.x := 1;
   FCursesPos.y := 1;
   FUpdateNeeded := True;
+  FCursorType    := VIO_CURSOR_SMALL;
+  FCursorVisible := True;
   SetLength( FCursesArray, FSizeY, FSizeX );
   ClearArray( FCursesArray, 0 );
   SetLength( FNewArray, FSizeY, FSizeX );
@@ -139,26 +142,35 @@ end;
 
 procedure TCursesConsoleRenderer.ShowCursor;
 begin
-  //if VIO_CON_CURSOR in FCapabilities then
-  //  SetCursorType( FCursorType );
+  if not FCursorVisible then
+    if VIO_CON_CURSOR in FCapabilities then
+      SetCursorType( FCursorType );
+  FCursorVisible := True;
 end;
 
 procedure TCursesConsoleRenderer.HideCursor;
 begin
-  //video.SetCursorType( crHidden );
+  if FCursorVisible then
+  begin
+    FCursorVisible := False;
+    nCurses.curs_set( 0 );
+  end;
 end;
 
 procedure TCursesConsoleRenderer.SetCursorType ( aType : TIOCursorType ) ;
 begin
-//  if VIO_CON_CURSOR in FCapabilities then
-//  begin
-//    FCursorType  := aType;
-//    case aType of
-//      VIO_CURSOR_SMALL : video.SetCursorType( crUnderLine );
-//      VIO_CURSOR_HALF  : video.SetCursorType( crHalfBlock );
-//      VIO_CURSOR_BLOCK : video.SetCursorType( crBlock );
-//    end;
-//  end;
+    if VIO_CON_CURSOR in FCapabilities then
+    begin
+      FCursorType  := aType;
+      if FCursorVisible then
+      begin
+        case aType of
+        VIO_CURSOR_SMALL : nCurses.curs_set( 1 );
+        VIO_CURSOR_HALF  : nCurses.curs_set( 1 );
+        VIO_CURSOR_BLOCK : nCurses.curs_set( 2 );
+        end;
+      end;
+    end;
 end;
 
 procedure TCursesConsoleRenderer.Update;
@@ -172,6 +184,7 @@ begin
   iRefresh := False;
   if FUpdateNeeded then
   begin
+    nCurses.curs_set( 0 );
     for y := 0 to FSizeY-1 do
       for x := 0 to FSizeX-1 do
         if FNewArray[y][x] <> FCursesArray[y][x] then
@@ -191,7 +204,9 @@ begin
               iOut := iOut - 128;
               iOut := iOut or A_ALTCHARSET;
             end;
-            if iFr > 7 then
+            if iFr = 8 then
+              iOut := iOut or COLOR_PAIR( 8*8 + iBk*8 ) or A_BOLD
+            else if iFr > 7 then
               iOut := iOut or COLOR_PAIR( iFr - 8 + iBk*8 ) or A_BOLD
             else
               iOut := iOut or COLOR_PAIR( iFr + iBk*8 );
@@ -204,6 +219,7 @@ begin
     if iRefresh then
       nCurses.refresh();
     nCurses.move( FCursesPos.y-1, FCursesPos.x-1 );
+    SetCursorType( FCursorType );
     FUpdateNeeded := false;
   end;
 end;

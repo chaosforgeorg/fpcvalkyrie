@@ -55,7 +55,7 @@ begin
   FSizeY := aRows;
 //  PDC_save_key_modifiers( true );
   c := COLOR_BLACK;
-  for i := 1 to 7 do 
+  for i := 0 to 8 do 
   begin
     case i of 
     1 : c := COLOR_BLUE;
@@ -65,6 +65,7 @@ begin
     5 : c := COLOR_MAGENTA;
     6 : c := COLOR_YELLOW;
     7 : c := COLOR_WHITE;
+    8 : c := COLOR_BLACK;
     end;
     init_pair( 1 + 8 * i, COLOR_BLUE, c );
     init_pair( 2 + 8 * i, COLOR_GREEN, c );
@@ -74,6 +75,9 @@ begin
     init_pair( 6 + 8 * i, COLOR_YELLOW, c );
     init_pair( 7 + 8 * i, COLOR_WHITE, c );
   end;
+
+  init_pair( 8 * 8, COLOR_BLACK, COLOR_BLACK );
+
 
   clear();
   refresh();
