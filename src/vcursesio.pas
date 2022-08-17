@@ -34,6 +34,7 @@ uses
   nCurses, math, dateutils;
 
 constructor TCursesIODriver.Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False );
+var i,c : Word;
 begin
   inherited Create;
   ClearInterrupts;
@@ -53,13 +54,26 @@ begin
   FSizeX := aCols;
   FSizeY := aRows;
 //  PDC_save_key_modifiers( true );
-  init_pair( 1, COLOR_BLUE, 0 );
-  init_pair( 2, COLOR_GREEN, 0 );
-  init_pair( 3, COLOR_CYAN, 0 );
-  init_pair( 4, COLOR_RED, 0 );
-  init_pair( 5, COLOR_MAGENTA, 0 );
-  init_pair( 6, COLOR_YELLOW, 0 );
-  init_pair( 7, COLOR_WHITE, 0 );
+  c := COLOR_BLACK;
+  for i := 1 to 7 do 
+  begin
+    case i of 
+    1 : c := COLOR_BLUE;
+    2 : c := COLOR_GREEN;
+    3 : c := COLOR_CYAN;
+    4 : c := COLOR_RED;
+    5 : c := COLOR_MAGENTA;
+    6 : c := COLOR_YELLOW;
+    7 : c := COLOR_WHITE;
+    end;
+    init_pair( 1 + 8 * i, COLOR_BLUE, c );
+    init_pair( 2 + 8 * i, COLOR_GREEN, c );
+    init_pair( 3 + 8 * i, COLOR_CYAN, c );
+    init_pair( 4 + 8 * i, COLOR_RED, c );
+    init_pair( 5 + 8 * i, COLOR_MAGENTA, c );
+    init_pair( 6 + 8 * i, COLOR_YELLOW, c );
+    init_pair( 7 + 8 * i, COLOR_WHITE, c );
+  end;
 
   clear();
   refresh();

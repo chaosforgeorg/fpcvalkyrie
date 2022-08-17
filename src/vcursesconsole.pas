@@ -70,6 +70,11 @@ procedure TCursesConsoleRenderer.OutputChar ( x, y : Integer; aColor : TIOColor;
 var iValue : Word;
 begin
   if aColor = ColorNone then Exit;
+  if aColor = Black then
+  begin
+    aChar  := ' ';
+    aColor := LightGray;
+  end;
   iValue := Ord(aChar) + ((aColor and FOutputCMask) shl 8);
   if ( FNewArray[y-1][x-1] <> iValue ) then
   begin
@@ -88,8 +93,13 @@ begin
   end;
   if aFrontColor = ColorNone then
   begin
-    FNewArray[y-1][x-1] := (aBackColor and ForeColorMask) shl 12;
+    FNewArray[y-1][x-1] :=  Ord(' ') + (aBackColor and ForeColorMask) shl 12;
     Exit;
+  end;
+  if ( aFrontColor = Black ) and ( aBackColor = Black ) then
+  begin
+    aChar       := ' ';
+    aFrontColor := LightGray;
   end;
 
   iValue := Ord(aChar) + (aFrontColor and ForeColorMask) shl 8;
@@ -157,10 +167,11 @@ var iRefresh : Boolean;
     iValue   : DWord;
     iChar    : Char;
     iFr, iBk : TIOColor; 
+    iOut     : QWord;
 begin
+  iRefresh := False;
   if FUpdateNeeded then
   begin
-    iRefresh := False;
     for y := 0 to FSizeY-1 do
       for x := 0 to FSizeX-1 do
         if FNewArray[y][x] <> FCursesArray[y][x] then
@@ -171,11 +182,21 @@ begin
           if iFr > 0 then
           begin
             iBk    := ( iValue div 256 ) div 16;
+            if iBk > 7 then 
+              iBk := iBk - 8;
+
+            iOut := QWord(iChar);
+            if Byte(iChar) > 127 then
+            begin
+              iOut := iOut - 128;
+              iOut := iOut or A_ALTCHARSET;
+            end;
             if iFr > 7 then
-              nCurses.attrset( COLOR_PAIR( iFr - 8 ) or A_BOLD )
+              iOut := iOut or COLOR_PAIR( iFr - 8 + iBk*8 ) or A_BOLD
             else
-              nCurses.attrset( COLOR_PAIR( iFr ) );
-            nCurses.mvaddch( y-1, x-1, QWord(iChar) );
+              iOut := iOut or COLOR_PAIR( iFr + iBk*8 );
+
+            nCurses.mvaddch( y, x, iOut );
             iRefresh := True;
           end;
           FCursesArray[y][x] := iValue;
