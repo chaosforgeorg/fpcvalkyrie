@@ -22,12 +22,15 @@ TParams = class(TVObject)
 
 implementation
 
+uses StrUtils;
+
 { TParams }
 
 constructor TParams.Create;
 var Count : Word;
     Param : string;
     Last  : string;
+    Split : TStringArray;
 begin
   Params := TParamsHashMap.Create;
   Main   := '';
@@ -39,9 +42,18 @@ begin
     if Param[1] = '-' then
     begin
       Delete(Param,1,1);
-      Param := LowerCase(Param);
-      Params[Param] := '';
-      Last := Param;
+      Split := SplitString( Param, '=' );
+      if High( Split ) > 0 then
+      begin
+        Param := LowerCase(Split[0]);
+        Params[Param] := Split[1];
+      end
+      else
+      begin
+        Param := LowerCase(Param);
+        Params[Param] := '';
+        Last := Param;
+      end;
     end
     else
       if Last = ''
