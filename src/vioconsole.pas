@@ -3,9 +3,9 @@ unit vioconsole;
 interface
 uses Classes, SysUtils, vnode, vioevent, viotypes;
 
-type TIOConsoleCap    = ( VIO_CON_BGCOLOR, VIO_CON_CURSOR, VIO_CON_EXTCOLOR, VIO_CON_BGSTABLE, VIO_CON_EXTOUT );
+type TIOConsoleCap    = ( VIO_CON_BGCOLOR, VIO_CON_CURSOR, VIO_CON_EXTCOLOR );
 type TIOConsoleCapSet = set of TIOConsoleCap;
-const IOConsoleCapNames  : array[TIOConsoleCap] of AnsiString = ( 'CON_BGCOLOR', 'CON_CURSOR', 'CON_EXTCOLOR', 'CON_BGSTABLE', 'CON_EXTOUT' );
+const IOConsoleCapNames  : array[TIOConsoleCap] of AnsiString = ( 'CON_BGCOLOR', 'CON_CURSOR', 'CON_EXTCOLOR' );
 
 function IOConsoleCapToString( aConsoleCap : TIOConsoleCap ) : AnsiString;
 function IOConsoleCapSetToString( aConsoleCaps : TIOConsoleCapSet ) : AnsiString;
@@ -70,9 +70,6 @@ begin
   FCapabilities := aReqCapabilities;
   if aReqCapabilities - GetSupportedCapabilities <> [] then
     raise EIOSupportException.Create( ClassName+' : Capabilities ['+IOConsoleCapSetToString( aReqCapabilities - GetSupportedCapabilities )+'] not supported!' );
-
-  if (VIO_CON_BGSTABLE in FCapabilities) and (not (VIO_CON_BGCOLOR in FCapabilities)) then
-    raise EIOSupportException.Create( ClassName+' : Capability '+IOConsoleCapToString( VIO_CON_BGSTABLE )+' requested without '+IOConsoleCapToString( VIO_CON_BGCOLOR )+'!');
 
   FSizeX := aSizeX;
   FSizeY := aSizeY;

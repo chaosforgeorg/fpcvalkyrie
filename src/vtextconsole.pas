@@ -41,9 +41,8 @@ begin
   else
     video.SetCursorType( crHidden );
 
-  if (VIO_CON_BGCOLOR in FCapabilities) and (not (VIO_CON_BGSTABLE in FCapabilities))
-    then FOutputCMask := ColorMask
-    else FOutputCMask := ForeColorMask;
+  if VIO_CON_BGCOLOR in FCapabilities then
+    FOutputCMask := ForeColorMask;
 
   FClearCell := Ord(' ')+(LightGray shl 8);
 end;
@@ -56,8 +55,7 @@ begin
   iIndex := (x-1)+(y-1)*ScreenWidth;
   if (iIndex < 0) or (iIndex > FSizeX * FSizeY) then Exit;
   iValue := Ord(aChar) + ((aColor and FOutputCMask) shl 8);
-  if VIO_CON_BGSTABLE in FCapabilities then
-    iValue += (VideoBuf^[iIndex] shr 12) shl 12;
+  iValue += (VideoBuf^[iIndex] shr 12) shl 12;
   VideoBuf^[iIndex] := iValue;
 end;
 
@@ -157,7 +155,7 @@ end;
 
 function TTextConsoleRenderer.GetSupportedCapabilities : TIOConsoleCapSet;
 begin
-  Result := [ VIO_CON_BGCOLOR, VIO_CON_CURSOR, VIO_CON_BGSTABLE ];
+  Result := [ VIO_CON_BGCOLOR, VIO_CON_CURSOR ];
 end;
 
 

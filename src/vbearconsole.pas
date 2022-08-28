@@ -117,7 +117,7 @@ end;
 
 function TBearConsoleRenderer.GetSupportedCapabilities: TIOConsoleCapSet;
 begin
-  Result := [ VIO_CON_BGCOLOR, VIO_CON_CURSOR, VIO_CON_EXTCOLOR, VIO_CON_BGSTABLE, VIO_CON_EXTOUT ];
+  Result := [ VIO_CON_BGCOLOR, VIO_CON_CURSOR, VIO_CON_EXTCOLOR ];
 end;
 
 procedure TBearConsoleRenderer.HideCursor;

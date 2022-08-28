@@ -147,7 +147,7 @@ begin
   if FBSupport then
   begin
     iBackColor := (aColor and BColorMask) shr 4;
-    if (iBackColor <> 0) or (not (VIO_CON_BGSTABLE in FCapabilities)) then
+    if iBackColor <> 0 then
     begin
       OutputChar( x, y, aColor, iBackColor, aChar );
       Exit;
@@ -156,9 +156,7 @@ begin
   iCoord := FSizeX*Clamp( y-1, 0, FSizeY-1 )+Clamp( x-1, 0, FSizeX-1 );
   aColor := aColor and FColorMask;
   if (FASCII[ iCoord ] = aChar) and (FColor[ iCoord ] = aColor) then Exit;
-  if VIO_CON_BGSTABLE in FCapabilities
-    then SetData( iCoord, aChar, aColor, FBColor[ iCoord ] )
-    else SetData( iCoord, aChar, aColor, 0 );
+  SetData( iCoord, aChar, aColor, FBColor[ iCoord ] )
 end;
 
 procedure TGLConsoleRenderer.OutputChar ( x, y : Integer; aFrontColor, aBackColor : TIOColor; aChar : char ) ;
@@ -426,7 +424,7 @@ end;
 
 function TGLConsoleRenderer.GetSupportedCapabilities : TIOConsoleCapSet;
 begin
-  Result := [ VIO_CON_BGCOLOR, VIO_CON_CURSOR, VIO_CON_EXTCOLOR, VIO_CON_BGSTABLE ];
+  Result := [ VIO_CON_BGCOLOR, VIO_CON_CURSOR, VIO_CON_EXTCOLOR ];
 end;
 
 procedure TGLConsoleRenderer.SetPositionScale ( x, y : Integer; aLineSpace : Word; aScale : Byte ) ;

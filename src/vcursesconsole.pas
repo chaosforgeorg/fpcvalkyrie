@@ -251,7 +251,7 @@ end;
 
 function TCursesConsoleRenderer.GetSupportedCapabilities : TIOConsoleCapSet;
 begin
-  Result := [ VIO_CON_BGCOLOR, VIO_CON_CURSOR, VIO_CON_BGSTABLE ];
+  Result := [ VIO_CON_BGCOLOR, VIO_CON_CURSOR ];
 end;
 
 
