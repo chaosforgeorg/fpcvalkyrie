@@ -114,34 +114,45 @@ begin
   Result     := VKEY_NONE;
   case CursesResult of
     nCurses.KEY_BACKSPACE : Result := VKEY_BACK;
-    {9?}KEY_STAB          : Result := VKEY_TAB;
+
+    9                     : Result := VKEY_TAB;
+    nCurses.KEY_STAB      : Result := VKEY_TAB;
+
     10                    : Result := VKEY_ENTER;
     nCurses.KEY_ENTER     : Result := VKEY_ENTER;
+
     27                    : Result := VKEY_ESCAPE;
-    {27?}KEY_CANCEL   : Result := VKEY_ESCAPE;
+    nCurses.KEY_CANCEL    : Result := VKEY_ESCAPE;
+
     nCurses.KEY_UP    : Result := VKEY_UP;
     nCurses.KEY_DOWN  : Result := VKEY_DOWN;
     nCurses.KEY_LEFT  : Result := VKEY_LEFT;
     nCurses.KEY_RIGHT : Result := VKEY_RIGHT;
+
     nCurses.KEY_PPAGE : Result := VKEY_PGUP;
+    nCurses.KEY_A3    : Result := VKEY_PGUP;
     nCurses.KEY_NPAGE : Result := VKEY_PGDOWN;
+    nCurses.KEY_C3    : Result := VKEY_PGDOWN;
     nCurses.KEY_HOME  : Result := VKEY_HOME;
+    nCurses.KEY_A1    : Result := VKEY_HOME;
     nCurses.KEY_END   : Result := VKEY_END;
-//    kbdInsert         : Result := VKEY_INSERT;
-//    kbdDelete         : Result := VKEY_DELETE;
-//    19456             : Result := VKEY_CENTER;
-//    kbdF1             : Result := VKEY_F1;
-//    kbdF2             : Result := VKEY_F2;
-//    kbdF3             : Result := VKEY_F3;
-//    kbdF4             : Result := VKEY_F4;
-//    kbdF5             : Result := VKEY_F5;
-//    kbdF6             : Result := VKEY_F6;
-//    kbdF7             : Result := VKEY_F7;
-//    kbdF8             : Result := VKEY_F8;
-//    kbdF9             : Result := VKEY_F9;
-//    kbdF10            : Result := VKEY_F10;
-//    kbdF11            : Result := VKEY_F11;
-//    kbdF12            : Result := VKEY_F12;
+    nCurses.KEY_C1    : Result := VKEY_END;
+    nCurses.KEY_B2    : Result := VKEY_CENTER;
+    nCurses.KEY_DC    : Result := VKEY_DELETE;
+    nCurses.KEY_IC    : Result := VKEY_INSERT;
+
+    nCurses.KEY_F1    : Result := VKEY_F1;
+    nCurses.KEY_F2    : Result := VKEY_F2;
+    nCurses.KEY_F3    : Result := VKEY_F3;
+    nCurses.KEY_F4    : Result := VKEY_F4;
+    nCurses.KEY_F5    : Result := VKEY_F5;
+    nCurses.KEY_F6    : Result := VKEY_F6;
+    nCurses.KEY_F7    : Result := VKEY_F7;
+    nCurses.KEY_F8    : Result := VKEY_F8;
+    nCurses.KEY_F9    : Result := VKEY_F9;
+    nCurses.KEY_F10   : Result := VKEY_F10;
+    nCurses.KEY_F11   : Result := VKEY_F11;
+    nCurses.KEY_F12   : Result := VKEY_F12;
   else
     if (CursesResult < 256) and (Ord(CursesResult) in VKEY_SCANSET) then
       Exit( CursesResult );
@@ -169,13 +180,11 @@ begin
       Exit( True );
     end;
   end;
-  Log( '%d', [FLastGet] );
   aEvent.EType        := VEVENT_KEYDOWN;
   aEvent.Key.ASCII    := #0;
   aEvent.Key.Code     := CursesToKeyCode( FLastGet );
   aEvent.Key.Pressed  := True;
   aEvent.Key.ModState := [];
-
 
   // Check the control and shift states
   // TODO: obviously there is an ERROR here :P
