@@ -31,6 +31,7 @@ private
   FNewArray      : TCursesArray;
   FCursorVisible : Boolean;
   FUpdateNeeded  : Boolean;
+  FHighASCII     : array[128..255] of QWord;
 end;
 
 implementation
@@ -55,6 +56,62 @@ begin
 //    SetCursorType( VIO_CURSOR_SMALL )
 //  else
 //    video.SetCursorType( crHidden );
+  FillQWord( FHighASCII, 128, 0 );
+  FHighASCII[ 219 ] := 97 or A_ALTCHARSET; // full box
+  FHighASCII[ 176 ] := 97 or A_ALTCHARSET; // shaded box
+  FHighASCII[ 177 ] := 97 or A_ALTCHARSET; // shaded box
+  FHighASCII[ 178 ] := 97 or A_ALTCHARSET; // shaded box
+
+  FHighASCII[ 249 ] := 126 or A_ALTCHARSET; // |
+  FHighASCII[ 250 ] := 126 or A_ALTCHARSET; // |
+
+  FHighASCII[ 217 ] := 106 or A_ALTCHARSET; // _|
+  FHighASCII[ 191 ] := 107 or A_ALTCHARSET; // ^|
+  FHighASCII[ 218 ] := 108 or A_ALTCHARSET; // |^
+  FHighASCII[ 192 ] := 109 or A_ALTCHARSET; // |_
+  FHighASCII[ 197 ] := 110 or A_ALTCHARSET; // +
+  FHighASCII[ 196 ] := 113 or A_ALTCHARSET; // -
+  FHighASCII[ 195 ] := 116 or A_ALTCHARSET; // |-
+  FHighASCII[ 180 ] := 117 or A_ALTCHARSET; // -|
+  FHighASCII[ 193 ] := 118 or A_ALTCHARSET; // _|_
+  FHighASCII[ 194 ] := 119 or A_ALTCHARSET; // ^|^
+  FHighASCII[ 179 ] := 120 or A_ALTCHARSET; // |
+
+  // Doubles
+  FHighASCII[ 188 ] := 106 or A_ALTCHARSET; // _|
+  FHighASCII[ 187 ] := 107 or A_ALTCHARSET; // ^|
+  FHighASCII[ 201 ] := 108 or A_ALTCHARSET; // |^
+  FHighASCII[ 200 ] := 109 or A_ALTCHARSET; // |_
+  FHighASCII[ 206 ] := 110 or A_ALTCHARSET; // +
+  FHighASCII[ 205 ] := 113 or A_ALTCHARSET; // -
+  FHighASCII[ 204 ] := 116 or A_ALTCHARSET; // |-
+  FHighASCII[ 185 ] := 117 or A_ALTCHARSET; // -|
+  FHighASCII[ 202 ] := 118 or A_ALTCHARSET; // _|_
+  FHighASCII[ 203 ] := 119 or A_ALTCHARSET; // ^|^
+  FHighASCII[ 186 ] := 120 or A_ALTCHARSET; // |
+
+  // Mixed VDouble
+  FHighASCII[ 189 ] := 106 or A_ALTCHARSET; // _|
+  FHighASCII[ 183 ] := 107 or A_ALTCHARSET; // ^|
+  FHighASCII[ 214 ] := 108 or A_ALTCHARSET; // |^
+  FHighASCII[ 211 ] := 109 or A_ALTCHARSET; // |_
+  FHighASCII[ 215 ] := 110 or A_ALTCHARSET; // +
+  FHighASCII[ 199 ] := 116 or A_ALTCHARSET; // |-
+  FHighASCII[ 182 ] := 117 or A_ALTCHARSET; // -|
+  FHighASCII[ 208 ] := 118 or A_ALTCHARSET; // _|_
+  FHighASCII[ 210 ] := 119 or A_ALTCHARSET; // ^|^
+
+  // Mixed HDouble
+  FHighASCII[ 190 ] := 106 or A_ALTCHARSET; // _|
+  FHighASCII[ 184 ] := 107 or A_ALTCHARSET; // ^|
+  FHighASCII[ 213 ] := 108 or A_ALTCHARSET; // |^
+  FHighASCII[ 212 ] := 109 or A_ALTCHARSET; // |_
+  FHighASCII[ 216 ] := 110 or A_ALTCHARSET; // +
+  FHighASCII[ 198 ] := 116 or A_ALTCHARSET; // |-
+  FHighASCII[ 181 ] := 117 or A_ALTCHARSET; // -|
+  FHighASCII[ 207 ] := 118 or A_ALTCHARSET; // _|_
+  FHighASCII[ 209 ] := 119 or A_ALTCHARSET; // ^|^
+
   FOutputCMask := ColorMask;
   FClearCell := Ord(' ')+(LightGray shl 8);
   FCursesPos.x := 1;
@@ -199,10 +256,10 @@ begin
               iBk := iBk - 8;
 
             iOut := QWord(iChar);
-            if Byte(iChar) > 127 then
+            if (iOut > 127) and (iOut < 256) then
             begin
-              iOut := iOut - 128;
-              iOut := iOut or A_ALTCHARSET;
+              if FHighASCII[iOut] <> 0 then
+                iOut := FHighASCII[iOut];
             end;
             if iFr = 8 then
               iOut := iOut or COLOR_PAIR( 8*8 + iBk*8 ) or A_BOLD
