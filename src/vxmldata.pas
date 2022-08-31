@@ -56,6 +56,8 @@ TVXMLDataFile = class( TVObject )
   function GetLastBackup : AnsiString;
   function Load : Boolean; virtual;
   procedure Save; virtual;
+  procedure Lock;
+  procedure Unlock;
   destructor Destroy; override;
 protected
   procedure CreateNew; virtual;
@@ -67,6 +69,7 @@ protected
   FKey2       : AnsiString;
   FMaxBackup  : DWord;
   FXML        : TVXMLDocument;
+  FHandle     : THandle;
 public
   property FilePath  : AnsiString    read FFilePath;
   property RootID    : AnsiString    read FRootID;
@@ -93,7 +96,7 @@ end;
 
 implementation
 
-uses zstream, vutil;
+uses zstream, vutil, vdebug;
 
 { TScoreEntryEumerator }
 
@@ -125,6 +128,7 @@ begin
   FKey2       := '';
   FBackupPath := '';
   FMaxBackup  := 0;
+  FHandle     := 0;
 end;
 
 procedure TVXMLDataFile.SetCRC(const aKey1, aKey2: AnsiString);
@@ -279,9 +283,33 @@ begin
     CreateNew;
 end;
 
+procedure TVXMLDataFile.Lock;
+var iCounter : Integer;
+begin
+  iCounter := 0;
+  repeat 
+    FHandle := FileCreate( FFilePath + '.lock', fmShareExclusive or fmOpenReadWrite, 0 );
+    if FHandle <> -1 then break;
+    Sleep(50);
+    Inc( iCounter );
+  until iCounter > 100;
+  if FHandle = -1 then
+  begin
+    Log( LOGERROR, 'file cannot be read - lock can''t be created ( '+ FFilePath +' ), remove .lock file!');
+    raise Exception.Create('file cannot be read - lock can''t be created ( '+ FFilePath +' ), remove .lock file!');
+  end;
+end;
+
+procedure TVXMLDataFile.Unlock;
+begin
+  FileClose( FHandle );
+  DeleteFile( FFilePath + '.lock' );
+end;
+
 destructor TVXMLDataFile.Destroy;
 begin
-  Save;
+  if FHandle = 0 then
+    Save;
   inherited Destroy;
 end;
 
