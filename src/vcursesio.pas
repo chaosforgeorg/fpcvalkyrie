@@ -49,6 +49,8 @@ begin
   nodelay  ( stdscr, true );
   intrflush( stdscr, false );
   keypad   ( stdscr, true );
+  ESCDELAY := 0;
+
 
   start_color();
   FSizeX := aCols;
