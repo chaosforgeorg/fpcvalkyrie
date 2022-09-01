@@ -289,11 +289,11 @@ begin
   iCounter := 0;
   repeat 
     FHandle := FileCreate( FFilePath + '.lock', fmShareExclusive or fmOpenReadWrite, 0 );
-    if FHandle <> -1 then break;
+    if FHandle <> THandle(-1) then break;
     Sleep(50);
     Inc( iCounter );
   until iCounter > 100;
-  if FHandle = -1 then
+  if FHandle = THandle(-1) then
   begin
     Log( LOGERROR, 'file cannot be read - lock can''t be created ( '+ FFilePath +' ), remove .lock file!');
     raise Exception.Create('file cannot be read - lock can''t be created ( '+ FFilePath +' ), remove .lock file!');
