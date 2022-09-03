@@ -31,6 +31,7 @@ private
   FNewArray      : TCursesArray;
   FCursorVisible : Boolean;
   FUpdateNeeded  : Boolean;
+  FUpdateCursor  : Boolean;
   FHighASCII     : array[128..255] of QWord;
 end;
 
@@ -117,6 +118,7 @@ begin
   FCursesPos.x := 1;
   FCursesPos.y := 1;
   FUpdateNeeded := True;
+  FUpdateCursor := True;
   FCursorType    := VIO_CURSOR_SMALL;
   FCursorVisible := True;
   SetLength( FCursesArray, FSizeY, FSizeX );
@@ -191,9 +193,12 @@ procedure TCursesConsoleRenderer.MoveCursor ( x, y : Integer ) ;
 begin
   if VIO_CON_CURSOR in FCapabilities then
   begin
-    FCursesPos.X := x;
-    FCursesPos.Y := x;
-    nCurses.move( FCursesPos.y-1, FCursesPos.x-1 );
+    if ( FCursesPos.X <> x ) or ( FCursesPos.Y <> y ) then
+    begin
+      FCursesPos.X  := x;
+      FCursesPos.Y  := y;
+      FUpdateCursor := True;
+    end;
   end;
 end;
 
@@ -241,7 +246,6 @@ begin
   iRefresh := False;
   if FUpdateNeeded then
   begin
-    nCurses.curs_set( 0 );
     for y := 0 to FSizeY-1 do
       for x := 0 to FSizeX-1 do
         if FNewArray[y][x] <> FCursesArray[y][x] then
@@ -268,16 +272,24 @@ begin
             else
               iOut := iOut or COLOR_PAIR( iFr + iBk*8 );
 
+            if not iRefresh then
+            begin
+              nCurses.curs_set( 0 );
+              iRefresh := True;
+            end;
             nCurses.mvaddch( y, x, iOut );
-            iRefresh := True;
           end;
           FCursesArray[y][x] := iValue;
         end;
-    if iRefresh then
-      nCurses.refresh();
-    nCurses.move( FCursesPos.y-1, FCursesPos.x-1 );
-    SetCursorType( FCursorType );
     FUpdateNeeded := false;
+  end;
+  if iRefresh or FUpdateCursor then
+  begin
+    if iRefresh then
+      SetCursorType( FCursorType );
+    nCurses.move( FCursesPos.y-1, FCursesPos.x-1 );
+    nCurses.refresh();
+    FUpdateCursor := False;
   end;
 end;
 
