@@ -156,7 +156,10 @@ begin
   iCoord := FSizeX*Clamp( y-1, 0, FSizeY-1 )+Clamp( x-1, 0, FSizeX-1 );
   aColor := aColor and FColorMask;
   if (FASCII[ iCoord ] = aChar) and (FColor[ iCoord ] = aColor) then Exit;
-  SetData( iCoord, aChar, aColor, FBColor[ iCoord ] )
+  if FBSupport then
+    SetData( iCoord, aChar, aColor, FBColor[ iCoord ] )
+  else
+    SetData( iCoord, aChar, aColor, Black );
 end;
 
 procedure TGLConsoleRenderer.OutputChar ( x, y : Integer; aFrontColor, aBackColor : TIOColor; aChar : char ) ;
