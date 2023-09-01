@@ -131,12 +131,16 @@ end;
 procedure TTextConsoleRenderer.ClearRect ( x1, y1, x2, y2 : Integer; aBackColor : TIOColor ) ;
 var x,y    : Word;
     iColor : Word;
+    iValue : Word;
 begin
   if aBackColor = ColorNone then
   begin
     for y := y1 to y2 do
       for x := x1 to x2 do
-        VideoBuf^[(x-1)+(y-1)*ScreenWidth] := ((VideoBuf^[(x-1)+(y-1)*ScreenWidth]) shr 8) shl 8;
+      begin
+        iValue := DWord((VideoBuf^[(x-1)+(y-1)*ScreenWidth]) shr 8) shl 8;
+        VideoBuf^[(x-1)+(y-1)*ScreenWidth] := TVideoCell(iValue);
+      end;
     Exit;
   end;
   iColor := Ord(' ')+LightGray shl 8;

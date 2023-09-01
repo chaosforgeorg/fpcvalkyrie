@@ -284,8 +284,11 @@ function make.gitrevision()
 	os.execute( "git rev-parse --short HEAD > revision.info" )
 	local revision = os.readsingleline( "revision.info" )
 
-	os.execute( "git diff-index --quiet HEAD -- || echo modified > mod.info" )
-	local mod = os.readsingleline( "mod.info" )
+	local mod = ""
+	if OS ~= "WINDOWS" then
+		os.execute( "git diff-index --quiet HEAD -- || echo modified > mod.info" )
+		mod = os.readsingleline( "mod.info" )
+	end
 
 	return {
 		full    = revision,
