@@ -5,7 +5,7 @@ const
 
 type
   THandle     = Cardinal;
-  TSDL_Bool   = LongBool;
+  SDL_Bool    = LongBool;
 
   UInt8       = Byte;
   SInt8       = ShortInt;
@@ -27,6 +27,8 @@ type
 
   TUInt8Array = array [0..MAXINT shr 1] of UInt8;
   PUInt8Array = ^TUInt8Array;
+
+  PPUInt8     = ^PUInt8;
 
 // SDL_rwops.h types
   PSDL_RWops = ^TSDL_RWops;
@@ -207,6 +209,7 @@ type
     callback : SDL_AudioCallback;
     userdata : Pointer;
   end;
+  PSDL_AudioSpec = ^TSDL_AudioSpec;
 
   TSDL_AudioCVT = record
     needed : Integer;
@@ -221,6 +224,9 @@ type
     filters : array[0..SDL_AUDIOCVT_MAX_FILTERS] of SDL_AudioFilter;
     filter_index : Integer;
   end;
+
+  SDL_AudioStream  = record;
+  PSDL_AudioStream = ^SDL_AudioStream;
 
 type
   SDL_HintCallback = procedure(userdata: Pointer; name: PChar; oldValue: PChar; newValue: PChar); cdecl;

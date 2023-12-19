@@ -321,7 +321,7 @@ const
 
 const
   SDL_FIRSTEVENT              = 0;
-  SDL_QUIT                    = $100;
+  SDL_QUIT_                   = $100;
   SDL_APP_TERMINATING         = $101;
   SDL_APP_LOWMEMORY           = $102;
   SDL_APP_WILLENTERBACKGROUND = $103;
