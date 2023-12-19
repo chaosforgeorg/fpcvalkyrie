@@ -177,8 +177,9 @@ type
     parameters : SDL_WindowShapeParams;
   end;
 
-  SDL_TouchID = SInt64;
-  SDL_FingerID = SInt64;
+  SDL_TouchID   = SInt64;
+  SDL_FingerID  = SInt64;
+  SDL_GestureID = SInt64;
 
   SDL_Finger = record
     id: SDL_FingerID;
@@ -428,12 +429,6 @@ type
   end;
 
 type
-  SDL_Event  = record;
-  PSDL_Event = ^SDL_Event;
-
-  // SDL_EventFilter
-  SDL_EventFilter = function(userdata: Pointer; event: PSDL_Event): Integer; cdecl;
-
   // SDL_TimerCallback
   SDL_TimerCallback = function(interval: Uint32; param: Pointer): Uint32; cdecl;
 
@@ -464,5 +459,275 @@ type
       1: (dummy: array[0..63] of Uint8);
   end;
 
+const
+  SDL_TEXTEDITINGEVENT_TEXT_SIZE = 32;
+  SDL_TEXTINPUTEVENT_TEXT_SIZE   = 32;
+
+type
+  SDL_CommonEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+  end;
+
+  SDL_WindowEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    windowID : Uint32;
+    event : Uint8;
+    padding1 : Uint8;
+    padding2 : Uint8;
+    padding3 : Uint8;
+    data1 : Sint32;
+    data2 : Sint32;
+  end;
+
+  SDL_KeyboardEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    windowID : Uint32;
+    state : Uint8;
+    repeat_ : Uint8;
+    padding2 : Uint8;
+    padding3 : Uint8;
+    keysym : SDL_Keysym;
+  end;
+
+  SDL_TextEditingEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    windowID : Uint32;
+    text : array[0..SDL_TEXTEDITINGEVENT_TEXT_SIZE - 1] of Char;
+    start : Sint32;
+    length : Sint32;
+  end;
+
+  SDL_TextInputEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    windowID : Uint32;
+    text : array[0..SDL_TEXTINPUTEVENT_TEXT_SIZE - 1] of Char;
+  end;
+
+  SDL_MouseMotionEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    windowID : Uint32;
+    which : Uint32;
+    state : Uint32;
+    x : Sint32;
+    y : Sint32;
+    xrel : Sint32;
+    yrel : Sint32;
+  end;
+
+  SDL_MouseButtonEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    windowID : Uint32;
+    which : Uint32;
+    button : Uint8;
+    state : Uint8;
+    padding1 : Uint8;
+    padding2 : Uint8;
+    x : Sint32;
+    y : Sint32;
+  end;
+
+  SDL_MouseWheelEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    windowID : Uint32;
+    which : Uint32;
+    x : Sint32;
+    y : Sint32;
+  end;
+
+  SDL_JoyAxisEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    which : SDL_JoystickID;
+    axis : Uint8;
+    padding1 : Uint8;
+    padding2 : Uint8;
+    padding3 : Uint8;
+    value : Sint16;
+    padding4 : Uint16;
+  end;
+
+  SDL_JoyBallEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    which : SDL_JoystickID;
+    ball : Uint8;
+    padding1 : Uint8;
+    padding2 : Uint8;
+    padding3 : Uint8;
+    xrel : Sint16;
+    yrel : Sint16;
+  end;
+
+  SDL_JoyHatEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    which : SDL_JoystickID;
+    hat : Uint8;
+    value : Uint8;
+    padding1 : Uint8;
+    padding2 : Uint8;
+  end;
+
+  SDL_JoyButtonEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    which : SDL_JoystickID;
+    button : Uint8;
+    state : Uint8;
+    padding1 : Uint8;
+    padding2 : Uint8;
+  end;
+
+  SDL_JoyDeviceEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    which : Sint32;
+  end;
+
+  SDL_ControllerAxisEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    which : SDL_JoystickID;
+    axis : Uint8;
+    padding1 : Uint8;
+    padding2 : Uint8;
+    padding3 : Uint8;
+    value : Sint16;
+    padding4 : Uint16;
+  end;
+
+  SDL_ControllerButtonEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    which : SDL_JoystickID;
+    button : Uint8;
+    state : Uint8;
+    padding1 : Uint8;
+    padding2 : Uint8;
+  end;
+
+  SDL_ControllerDeviceEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    which : Sint32;
+  end;
+
+  SDL_TouchFingerEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    touchId : SDL_TouchID;
+    fingerId : SDL_FingerID;
+    x : Single;
+    y : Single;
+    dx : Single;
+    dy : Single;
+    pressure : Single;
+  end;
+
+  SDL_MultiGestureEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    touchId : SDL_TouchID;
+    dTheta : Single;
+    dDist : Single;
+    x : Single;
+    y : Single;
+    numFingers : Uint16;
+    padding : Uint16;
+  end;
+
+  SDL_DollarGestureEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    touchId : SDL_TouchID;
+    gestureId : SDL_GestureID;
+    numFingers : Uint32;
+    error : Single;
+    x : Single;
+    y : Single;
+  end;
+
+  SDL_DropEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    file_ : PChar;
+  end;
+
+  SDL_QuitEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+  end;
+
+  SDL_OSEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+  end;
+
+  SDL_UserEvent = record
+    type_ : Uint32;
+    timestamp : Uint32;
+    windowID : Uint32;
+    code : Sint32;
+    data1 : Pointer;
+    data2 : Pointer;
+  end;
+
+  // Forward declaration for SDL_SysWMmsg
+  SDL_SysWMmsg = record;
+  PSDL_SysWMmsg = ^SDL_SysWMmsg;
+
+  // SDL_SysWMEvent
+  SDL_SysWMEvent = record
+    type_: Uint32;
+    timestamp: Uint32;
+    msg: PSDL_SysWMmsg;
+  end;
+
+  // SDL_Event (Union)
+  SDL_Event = record
+    case Integer of
+      0: (type_: Uint32);
+      1: (common: SDL_CommonEvent);
+      2: (window: SDL_WindowEvent);
+      3: (key: SDL_KeyboardEvent);
+      4: (edit: SDL_TextEditingEvent);
+      5: (text: SDL_TextInputEvent);
+      6: (motion: SDL_MouseMotionEvent);
+      7: (button: SDL_MouseButtonEvent);
+      8: (wheel: SDL_MouseWheelEvent);
+      9: (jaxis: SDL_JoyAxisEvent);
+      10: (jball: SDL_JoyBallEvent);
+      11: (jhat: SDL_JoyHatEvent);
+      12: (jbutton: SDL_JoyButtonEvent);
+      13: (jdevice: SDL_JoyDeviceEvent);
+      14: (caxis: SDL_ControllerAxisEvent);
+      15: (cbutton: SDL_ControllerButtonEvent);
+      16: (cdevice: SDL_ControllerDeviceEvent);
+      17: (quit: SDL_QuitEvent);
+      18: (user: SDL_UserEvent);
+      19: (syswm: SDL_SysWMEvent);
+      20: (tfinger: SDL_TouchFingerEvent);
+      21: (mgesture: SDL_MultiGestureEvent);
+      22: (dgesture: SDL_DollarGestureEvent);
+      23: (drop: SDL_DropEvent);
+      24: (padding: array[0..55] of Uint8);
+  end;
+
+  // SDL_EventFilter
+  PSDL_Event      = ^SDL_Event;
+  SDL_EventFilter = function(userdata: Pointer; event: PSDL_Event): Integer; cdecl;
+
+const
+  SDL_ADDEVENT  = 0;
+  SDL_PEEKEVENT = 1;
+  SDL_GETEVENT  = 2;
 
 

@@ -328,8 +328,8 @@ const
   SDL_APP_DIDENTERBACKGROUND  = $104;
   SDL_APP_WILLENTERFOREGROUND = $105;
   SDL_APP_DIDENTERFOREGROUND  = $106;
-  SDL_WINDOWEVENT             = $200;
-  SDL_SYSWMEVENT              = $201;
+  SDL_WINDOWEVENT_            = $200;
+  SDL_SYSWMEVENT_             = $201;
   SDL_KEYDOWN                 = $300;
   SDL_KEYUP                   = $301;
   SDL_TEXTEDITING             = $302;
@@ -359,7 +359,7 @@ const
   SDL_MULTIGESTURE            = $802;
   SDL_CLIPBOARDUPDATE         = $900;
   SDL_DROPFILE                = $1000;
-  SDL_USEREVENT               = $8000;
+  SDL_USEREVENT_              = $8000;
   SDL_LASTEVENT               = $FFFF;
 
 const
