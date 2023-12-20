@@ -153,7 +153,18 @@ type
     refcount : Integer;
   end;
 
+  SDL_GLContext = Pointer;
+  SDL_GLattr    = Integer;
+
+  TVkInstance    = record;
+  PVkInstance    = ^TVkInstance;
+  TVkSurfaceKHR  = record;
+  PVkSurfaceKHR  = ^TVkInstance;
+  PPVkSurfaceKHR = ^PVkInstance;
+
 type
+  SDL_Renderer     = record;
+  SDL_Texture      = record;
   SDL_RendererInfo = record
     name : PChar;
     flags : UInt32;
@@ -162,6 +173,14 @@ type
     max_texture_width : Integer;
     max_texture_height : Integer;
   end;
+  PSDL_Renderer     = ^SDL_Renderer;
+  PSDL_Texture      = ^SDL_Texture;
+  PSDL_RendererInfo = ^SDL_RendererInfo;
+  PPSDL_Renderer    = ^PSDL_Renderer;
+
+  SDL_BlendMode     = Integer;
+  PSDL_BlendMode    = PInteger;
+  SDL_RendererFlip  = Integer;
 
 type
   TSDL_blit = function(src: PSDL_Surface; srcrect: PSDL_Rect;
@@ -178,6 +197,7 @@ type
     mode : Integer;
     parameters : SDL_WindowShapeParams;
   end;
+  PSDL_WindowShapeMode = ^SDL_WindowShapeMode;
 
   SDL_TouchID   = SInt64;
   SDL_FingerID  = SInt64;
@@ -189,6 +209,7 @@ type
     y: Single;
     pressure: Single;
   end;
+  PSDL_Finger = ^SDL_Finger;
 
  // SDL_audio.h
 type
@@ -197,6 +218,7 @@ type
   PSDL_AudioCVT     = ^TSDL_AudioCVT;
   SDL_AudioCallback = procedure( userdata : Pointer; stream : PUInt8; len : Integer ); cdecl;
   SDL_AudioFilter   = procedure( cvt : PSDL_AudioCVT; format : SDL_AudioFormat ); cdecl;
+  SDL_AudioStatus   = Integer;
 
   TSDL_AudioSpec = record
     freq : Integer;
@@ -234,6 +256,7 @@ type
 type
   PSDL_MessageBoxButtonData  = ^SDL_MessageBoxButtonData;
   PSDL_MessageBoxColorScheme = ^SDL_MessageBoxColorScheme;
+  PSDL_MessageBoxData        = ^SDL_MessageBoxData;
 
   SDL_MessageBoxButtonData = record
     flags : UInt32;
@@ -249,8 +272,9 @@ type
     colors : array[0..SDL_MESSAGEBOX_COLOR_MAX - 1] of SDL_MessageBoxColor;
   end;
 
-  SDL_Window = record;
-  PSDL_Window = ^SDL_Window;
+  SDL_Window   = record;
+  PSDL_Window  = ^SDL_Window;
+  PPSDL_Window = ^PSDL_Window;
 
   SDL_MessageBoxData = record
     flags : UInt32;
@@ -262,9 +286,11 @@ type
     colorScheme : PSDL_MessageBoxColorScheme;
   end;
 
+  SDL_errorcode = Integer;
 type
-  SDL_Keycode = SInt32;
+  SDL_Keycode  = SInt32;
   SDL_Scancode = SInt32;
+  SDL_Keymod   = SInt32;
 
   SDL_Keysym = record
     scancode : SDL_Scancode;
@@ -287,11 +313,14 @@ type
     save : array[0..1] of PUInt8;
     wm_cursor : PWMcursor;
   end;
+  PSDL_Cursor = ^SDL_Cursor;
 
 type
   // Forward declaration for SDL_Joystick and SDL_GameController
   SDL_Joystick = record;
   PSDL_Joystick = ^SDL_Joystick;
+  SDL_JoystickType = Integer;
+  SDL_JoystickPowerLevel = Integer;
 
   SDL_GameController = record;
   PSDL_GameController = ^SDL_GameController;
@@ -311,6 +340,9 @@ type
             hat_mask: Integer;
           end);
   end;
+type
+  SDL_GameControllerAxis   = Integer;
+  SDL_GameControllerButton = Integer;
 
 type
   SDL_HapticDirection = record
@@ -433,6 +465,13 @@ type
       5: (leftright: SDL_HapticLeftRight);
       6: (custom: SDL_HapticCustom);
   end;
+  PSDL_HapticEffect = ^SDL_HapticEffect;
+  SDL_Haptic        = record;
+  PSDL_Haptic       = ^SDL_Haptic;
+
+type
+  SDL_HintPriority = Integer;
+  SDL_PowerState   = Integer;
 
 type
   // SDL_TimerCallback
@@ -447,6 +486,7 @@ type
     minor: Uint8;
     patch: Uint8;
   end;
+  PSDL_version = ^SDL_version;
 
 type
   SDL_SysWMinfo = record
@@ -464,12 +504,15 @@ type
       );
       1: (dummy: array[0..63] of Uint8);
   end;
+  PSDL_SysWMinfo = ^SDL_SysWMinfo;
 
 const
   SDL_TEXTEDITINGEVENT_TEXT_SIZE = 32;
   SDL_TEXTINPUTEVENT_TEXT_SIZE   = 32;
 
 type
+  SDL_eventaction = Integer;
+
   SDL_CommonEvent = record
     type_ : Uint32;
     timestamp : Uint32;
@@ -728,8 +771,9 @@ type
   end;
 
   // SDL_EventFilter
-  PSDL_Event      = ^SDL_Event;
-  SDL_EventFilter = function(userdata: Pointer; event: PSDL_Event): Integer; cdecl;
+  PSDL_Event       = ^SDL_Event;
+  SDL_EventFilter  = function(userdata: Pointer; event: PSDL_Event): Integer; cdecl;
+  PSDL_EventFilter = ^SDL_EventFilter;
 
 const
   SDL_ADDEVENT  = 0;
