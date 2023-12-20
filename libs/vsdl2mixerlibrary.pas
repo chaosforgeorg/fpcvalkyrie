@@ -12,7 +12,7 @@ const
   {$IFDEF DARWIN}
   SDL2MixerDefaultPath = 'SDL2_mixer.framework/SDL2_mixer';
   {$ELSE}
-  SDL2MixerDefaultPath = 'libSDL2_mixer-1.2.so.0';
+  SDL2MixerDefaultPath = 'libSDL2_mixer-2.0.so.0';
   {$ENDIF}
 {$ENDIF}
 

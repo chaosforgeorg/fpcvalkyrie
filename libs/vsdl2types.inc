@@ -118,6 +118,7 @@ type
   PSDL_PixelFormat = ^TSDL_PixelFormat;
   PSDL_Surface     = ^TSDL_Surface;
   PSDL_DisplayMode = ^TSDL_DisplayMode;
+  PPSDL_Surface    = ^PSDL_Surface;
 
   TSDL_PixelFormat = record
     format : UInt32;
