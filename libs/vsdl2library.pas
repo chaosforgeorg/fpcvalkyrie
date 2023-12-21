@@ -177,6 +177,8 @@ var
   SDL_UnlockSurface          : procedure(surface: PSDL_Surface); cdecl;
   SDL_SaveBMP_RW             : function(surface: PSDL_Surface; dst: PSDL_RWops; freedst: Integer): Integer; cdecl;
   SDL_LoadBMP_RW             : function(src: PSDL_RWops; freesrc: Integer): PSDL_Surface; cdecl;
+  SDL_SaveBMP                : function(surface: PSDL_Surface; const file_: PChar ): Integer; cdecl;
+  SDL_LoadBMP                : function(const file_: PChar): PSDL_Surface; cdecl;
   SDL_SetClipRect            : function(surface: PSDL_Surface; const rect: PSDL_Rect): SDL_bool; cdecl;
   SDL_GetClipRect            : procedure(surface: PSDL_Surface; rect: PSDL_Rect); cdecl;
   SDL_ConvertSurface         : function(src: PSDL_Surface; fmt: PSDL_PixelFormat; flags: Uint32): PSDL_Surface; cdecl;
@@ -555,6 +557,8 @@ var
   SDL2 : TLibrary = nil;
 
 function LoadSDL2( const aPath : AnsiString = SDL2DefaultPath ) : Boolean;
+function SDL_RWopsFromStream( aStream : TStream; aSize : DWord ) : PSDL_RWOps;
+function SDL_BUTTON( Button : Integer ) : Integer;
 
 implementation
 
@@ -708,8 +712,10 @@ begin
   Pointer(SDL_FreeSurface) := GetSymbol('SDL_FreeSurface');
   Pointer(SDL_LockSurface) := GetSymbol('SDL_LockSurface');
   Pointer(SDL_UnlockSurface) := GetSymbol('SDL_UnlockSurface');
-  Pointer(SDL_SaveBMP_RW) := GetSymbol('SDL_SaveBMP_RW');
-  Pointer(SDL_LoadBMP_RW) := GetSymbol('SDL_LoadBMP_RW');
+  Pointer(SDL_SaveBMP_RW)  := GetSymbol('SDL_SaveBMP_RW');
+  Pointer(SDL_LoadBMP_RW)  := GetSymbol('SDL_LoadBMP_RW');
+  Pointer(SDL_SaveBMP)     := GetSymbol('SDL_SaveBMP_RW');
+  Pointer(SDL_LoadBMP)     := GetSymbol('SDL_LoadBMP_RW');
   Pointer(SDL_SetClipRect) := GetSymbol('SDL_SetClipRect');
   Pointer(SDL_GetClipRect) := GetSymbol('SDL_GetClipRect');
   Pointer(SDL_ConvertSurface) := GetSymbol('SDL_ConvertSurface');
@@ -1090,66 +1096,77 @@ begin
   Exit( True );
 end;
 
-{*
-function RW_Stream_Seek( context: PSDL_RWops; offset: Integer; whence: Integer ) : Integer; cdecl;
-var Stream  : TStream;
-    SOffset : PtrUInt;
-    SSize   : PtrUInt;
+function RW_Stream_Size( context: PSDL_RWops ): SInt64; cdecl;
+var iStream : TStream;
 begin
-  SOffset := PtrUInt(context^.mem.base);
-  Stream  := TStream(context^.mem.here);
-  SSize   := PtrUInt(context^.mem.stop);
+  Exit( SInt64( QWord(context^.hidden.unknown.data2) and $FFFFFFFF ) );
+end;
+
+function RW_Stream_Seek( context: PSDL_RWops; offset: SInt64; whence: Integer ) : SInt64; cdecl;
+var iStream : TStream;
+    iOffset : DWord;
+    iSize   : DWord;
+begin
+  iStream := TStream(context^.hidden.unknown.data1);
+  iOffset := DWord( QWord(context^.hidden.unknown.data2) shr 32 );
+  iSize   := DWord( QWord(context^.hidden.unknown.data2) and $FFFFFFFF );
 
   case whence of
-    0 : Stream.Seek( SOffset+offset, soBeginning );
-    1 : Stream.Seek( offset, soCurrent );
-    2 : Stream.Seek( SOffset+SSize+offset, soCurrent );
+    0 : iStream.Seek( iOffset+offset, soBeginning );
+    1 : iStream.Seek( offset, soCurrent );
+    2 : iStream.Seek( iOffset+iSize+offset, soCurrent );
   end;
-  Exit( Stream.Position-SOffset );
+
+  Exit( iStream.Position-iOffset );
 end;
 
-function RW_Stream_Read( context: PSDL_RWops; Ptr: Pointer; size: Integer; maxnum : Integer ): Integer; cdecl;
-var Stream : TStream;
+function RW_Stream_Read( context: PSDL_RWops; Ptr: Pointer; size, maxnum : size_t ): size_t; cdecl;
+var iStream : TStream;
 begin
-  Stream := TStream(context^.mem.here);
-  Exit( Stream.Read( Ptr^, Size * maxnum ) div Size );
+  iStream := TStream(context^.hidden.unknown.data1);
+  Exit( iStream.Read( Ptr^, size * maxnum ) div size );
 end;
 
-function RW_Stream_Write( context: PSDL_RWops; Ptr: Pointer; size: Integer; num: Integer ): Integer; cdecl;
-var Stream : TStream;
+function RW_Stream_Write( context: PSDL_RWops; const Ptr: Pointer; size, num: size_t ): size_t; cdecl;
+var iStream : TStream;
 begin
-  Stream := TStream(context^.mem.here);
-  Exit( Stream.Write( Ptr^, Size * num ) div Size );
+  iStream := TStream(context^.hidden.unknown.data1);
+  Exit( iStream.Write( Ptr^, size * num ) div size );
 end;
 
 function RW_Stream_Close( context: PSDL_RWops ): Integer; cdecl;
-var Stream : TStream;
+var iStream : TStream;
 begin
   if Context <> nil then
   begin
-    Stream := TStream(context^.mem.here);
-    FreeAndNil( Stream );
+    iStream := TStream(context^.hidden.unknown.data1);
+    FreeAndNil( iStream );
     SDL_FreeRW( context );
   end;
   Exit( 0 );
 end;
 
-function SDL_RWopsFromStream( Stream : TStream; Size : DWord ) : PSDL_RWops;
+function SDL_RWopsFromStream( aStream : TStream; aSize : DWord ) : PSDL_RWops;
 begin
   SDL_RWopsFromStream := SDL_AllocRW();
   if SDL_RWopsFromStream <> nil then
   begin
+    SDL_RWopsFromStream^.size := @RW_Stream_Size;
     SDL_RWopsFromStream^.seek := @RW_Stream_Seek;
     SDL_RWopsFromStream^.read := @RW_Stream_Read;
     SDL_RWopsFromStream^.write := @RW_Stream_Write;
     SDL_RWopsFromStream^.close := @RW_Stream_Close;
-    SDL_RWopsFromStream^.mem.base := PUInt8( Stream.Position );
-    SDL_RWopsFromStream^.mem.here := PUInt8( Stream );
-    SDL_RWopsFromStream^.mem.stop := PUInt8( Size );
+    SDL_RWopsFromStream^.typ   := SDL_RWOPS_UNKNOWN;
+    SDL_RWopsFromStream^.hidden.unknown.data1 := Pointer( aStream );
+    SDL_RWopsFromStream^.hidden.unknown.data2 := Pointer( QWord(aStream.Position) shl 32 or aSize );
   end;
 end;
 
- *}
+function SDL_BUTTON( Button : Integer ) : Integer;
+begin
+  Result := SDL_PRESSED shl ( Button - 1 );
+end;
+
 finalization
   if SDL2 <> nil then FreeAndNil( SDL2 );
 
