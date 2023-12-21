@@ -210,7 +210,7 @@ function LoadGL2( const aPath : AnsiString = GL2DefaultPath ) : Boolean;
 
 implementation
 
-uses math, vsdllibrary;
+uses math, vsdl2library;
 
 function LoadGL2 ( const aPath : AnsiString ) : Boolean;
   function GetSymbol( const aSymbol : AnsiString ) : Pointer;
@@ -234,7 +234,7 @@ function LoadGL2 ( const aPath : AnsiString ) : Boolean;
 
 begin
   if GL2 <> nil then Exit( True );
-  if SDL = nil then LoadSDL();
+  if SDL = nil then LoadSDL2();
 
   {$if defined(cpui386) or defined(cpux86_64)}
   SetExceptionMask([exInvalidOp, exDenormalized, exZeroDivide,exOverflow, exUnderflow, exPrecision]);

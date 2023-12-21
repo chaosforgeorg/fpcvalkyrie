@@ -1,9 +1,11 @@
 unit vglimage;
 {$include valkyrie.inc}
 interface
-uses Classes,
-  vsdllibrary,
+uses Classes, SysUtils,
+  vsdl2library,
   vimage;
+
+type TImageException = class( Exception );
 
 function LoadImage( const FileName : Ansistring ) : TImage;
 function LoadImage( Stream : TStream; Size : DWord ) : TImage;
@@ -15,7 +17,7 @@ implementation
 
 uses
   vgllibrary,
-  vsdlimagelibrary,
+  vsdl2imagelibrary,
   vmath;
 
 function LoadImage( SDLSurface : PSDL_Surface ) : TImage;
@@ -50,8 +52,9 @@ begin
   area.y := 0;
   area.w := SDLSurface^.w;
   area.h := SDLSurface^.h;
-  SDL_SetAlpha(SDLSurface, 0, 0);
-  SDL_BlitSurface(SDLSurface, @area, image, @area);
+//  SDL_SetAlpha(SDLSurface, 0, 0);
+  SDL_SetSurfaceBlendMode(SDLSurface, SDL_BLENDMODE_NONE);
+  SDL_UpperBlit(SDLSurface, @area, image, @area);
 
   LoadImage := TImage.Create( image^.pixels, w, h );
   LoadImage.RawX := SDLSurface^.w;
@@ -61,16 +64,24 @@ begin
 //  SDL_FreeSurface( SDLSurface );
 end;
 
-function LoadImage( const FileName: Ansistring ) : TImage;
+function LoadImage( const FileName : Ansistring ) : TImage;
+var iSDLSurface : PSDL_Surface;
 begin
-  LoadSDLImage;
-  Exit( LoadImage( IMG_LoadOrThrow( PChar( Filename ) ) ) );
+  LoadSDL2Image;
+  iSDLSurface := IMG_Load( PChar( FileName ) );
+  if iSDLSurface = nil then
+    raise TImageException.Create('LoadImage('+FileName+') : '+SDL_GetError()+' (png/jpg library or file missing?)' );
+  Exit( LoadImage( iSDLSurface ) );
 end;
 
 function LoadImage( Stream : TStream; Size : DWord ): TImage;
+var iSDLSurface : PSDL_Surface;
 begin
-  LoadSDLImage;
-  Exit( LoadImage( IMG_LoadRWOrThrow( SDL_RWopsFromStream( Stream, Size ), 0 ) ) );
+  LoadSDL2Image;
+  iSDLSurface := IMG_Load_RW( SDL_RWopsFromStream( Stream, Size ), 0 );
+  if iSDLSurface = nil then
+    raise TImageException.Create('LoadImage(RWOps) : '+SDL_GetError()+' (png/jpg library or file missing?)' );
+  Exit( LoadImage( iSDLSurface ) );
 end;
 
 function UploadImage( Image: TImage; aBlend : Boolean ): DWord;

@@ -38,12 +38,11 @@ const VIO_SYSEVENT_NONE    = 0;
       VIO_SYSEVENT_QUIT    = 2;
       VIO_SYSEVENT_RESIZE  = 3;
       VIO_SYSEVENT_EXPOSE  = 4;
-      VIO_SYSEVENT_ACTIVE  = 5;
-      VIO_SYSEVENT_WM      = 6;
-      VIO_SYSEVENT_COUNT   = 6;
+      VIO_SYSEVENT_WM      = 5;
+      VIO_SYSEVENT_COUNT   = 5;
 
 const IOSystemEventNames : array[0..VIO_SYSEVENT_COUNT] of AnsiString =
-  ( 'NONE', 'UNKNOWN', 'QUIT', 'RESIZE', 'EXPOSE', 'ACTIVE', 'WM' );
+  ( 'NONE', 'UNKNOWN', 'QUIT', 'RESIZE', 'EXPOSE', 'WM' );
 
 type TIOEvent = record
   case EType : TIOEventType of
