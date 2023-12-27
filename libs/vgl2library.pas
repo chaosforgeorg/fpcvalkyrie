@@ -234,7 +234,7 @@ function LoadGL2 ( const aPath : AnsiString ) : Boolean;
 
 begin
   if GL2 <> nil then Exit( True );
-  if SDL = nil then LoadSDL2();
+  if SDL2 = nil then LoadSDL2();
 
   {$if defined(cpui386) or defined(cpux86_64)}
   SetExceptionMask([exInvalidOp, exDenormalized, exZeroDivide,exOverflow, exUnderflow, exPrecision]);
