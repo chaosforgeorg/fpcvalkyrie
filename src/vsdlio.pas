@@ -56,7 +56,7 @@ function SDLIOEventFilter( userdata : Pointer; event: PSDL_Event) : Integer; cde
 
 implementation
 
-uses vgllibrary, vglulibrary,
+uses vgllibrary,
      {Screenshot support}
      FPImage, FPCanvas,
      FPWritePNG;
@@ -488,7 +488,6 @@ begin
   SDL_GL_SetSwapInterval( 1 );
 
   LoadGL;
-  LoadGLu;
 
   glShadeModel( GL_SMOOTH );
   glClearColor( 0.0, 0.0, 0.0, 0.0 );
