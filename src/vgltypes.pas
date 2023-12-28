@@ -29,6 +29,8 @@ type
   TGLFloatColor   = TGLVec3f;
   TGLFloatColor4  = TGLVec4f;
 
+  TMatrix44       = array[0..15] of Single;
+
 // Inline
 function GLVec2f( aX : Single = 0; aY : Single = 0 ) : TGLVec2f; overload;
 function GLVec3f( aX : Single = 0; aY : Single = 0; aZ : Single = 0 ) : TGLVec3f; overload;
@@ -56,6 +58,8 @@ function GLVec4i( const aGLVec3i : TGLVec3i; aW : Integer = 0 ) : TGLVec4i; over
 // Lerp support
 function Lerp( const a, b : TGLVec2i; aValue : Single ) : TGLVec2i; overload;
 function Lerp( const a, b : TGLVec3i; aValue : Single ) : TGLVec3i; overload;
+
+function GLCreateOrtho( left, right, bottom, top, nearVal, farVal: Single ) : TMatrix44;
 
 implementation
 
@@ -180,6 +184,19 @@ begin
   Lerp.Data[2] := a.Data[2] + Round( (b.Data[2] - a.Data[2]) * aValue );
 end;
 
+function GLCreateOrtho( left, right, bottom, top, nearVal, farVal: Single ) : TMatrix44;
+var
+  tx, ty, tz: Single;
+begin
+  tx := - (right + left) / (right - left);
+  ty := - (top + bottom) / (top - bottom);
+  tz := - (farVal + nearVal) / (farVal - nearVal);
+
+  Result[0] := 2 / (right - left);  Result[4] := 0;                    Result[8] := 0;                   Result[12] := tx;
+  Result[1] := 0;                   Result[5] := 2 / (top - bottom);   Result[9] := 0;                   Result[13] := ty;
+  Result[2] := 0;                   Result[6] := 0;                    Result[10] := -2 / (farVal - nearVal); Result[14] := tz;
+  Result[3] := 0;                   Result[7] := 0;                    Result[11] := 0;                  Result[15] := 1;
+end;
 
 end.
 

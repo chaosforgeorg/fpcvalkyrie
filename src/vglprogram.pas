@@ -109,6 +109,7 @@ begin
     SetLength( iBuffer, iLength );
     Log( 'glLinkProgram failure : '+ iBuffer );
   end;
+  Log( 'Program compiled successfuly.' );
 end;
 
 function TGLProgram.CompileShader( aType: Cardinal; const aSource: Ansistring ): Cardinal;

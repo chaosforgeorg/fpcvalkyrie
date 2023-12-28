@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vglconsole;
 interface
-uses Classes, SysUtils, vgltypes, viotypes, vioconsole, vbitmapfont;
+uses Classes, SysUtils, vgltypes, viotypes, vioconsole, vglprogram, vbitmapfont;
 
 // TODO: rewrite to use indices
 
@@ -51,6 +51,14 @@ private
   FBCoords      : packed array of TGLRawQCoord;
   FTexCoords    : packed array of TGLRawQTexCoord;
   FColorLookup  : packed array of TGLRawQColor;
+  FVAO          : Cardinal;
+  FBColorVBO    : Cardinal;
+  FFColorVBO    : Cardinal;
+  FTCoordVBO    : Cardinal;
+  FBCoordVBO    : Cardinal;
+  FFCoordVBO    : Cardinal;
+  FBProgram     : TGLProgram;
+  FFProgram     : TGLProgram;
 public
   property Font : TBitmapFont read FFont;
 end;
@@ -82,6 +90,55 @@ const GLByteColors : array[0..15] of TGLByteColor = (
       ( Data : ( 255, 255, 255 ) )
       );
 
+const
+GLConsoleBGVertexShader : Ansistring =
+'#version 330 core'+#10+
+'layout (location = 0) in vec2 position;'+#10+
+'layout (location = 1) in vec3 bcolor;'+#10+
+'uniform mat4 projection;'+#10+
+#10+
+'out vec4 obcolor;'+#10+
+#10+
+'void main() {'+#10+
+'if ( bcolor != vec3(0) ) obcolor = vec4( bcolor, 1.0 ); else obcolor = vec4(0);'+#10+
+'gl_Position = projection * vec4(position, 0.0, 1.0);'+#10+
+'}'+#10;
+GLConsoleBGFragmentShader : Ansistring =
+'#version 330 core'+#10+
+'in vec4 obcolor;'+#10+
+'out vec4 frag_color;'+#10+
+#10+
+'void main() {'+#10+
+'frag_color = obcolor;'+#10+
+'}'+#10;
+
+const
+GLConsoleFGVertexShader : Ansistring =
+'#version 330 core'+#10+
+'layout (location = 0) in vec2 position;'+#10+
+'layout (location = 1) in vec3 fcolor;'+#10+
+'layout (location = 2) in vec2 tcoord;'+#10+
+'uniform mat4 projection;'+#10+
+#10+
+'out vec4 ofcolor;'+#10+
+'out vec2 otcoord;'+#10+
+#10+
+'void main() {'+#10+
+'ofcolor = vec4( fcolor, 1.0 );'+#10+
+'otcoord = tcoord;'+#10+
+'gl_Position = projection * vec4(position, 0.0, 1.0);'+#10+
+'}'+#10;
+GLConsoleFGFragmentShader : Ansistring =
+'#version 330 core'+#10+
+'in vec4 ofcolor;'+#10+
+'in vec2 otcoord;'+#10+
+'uniform sampler2D utexture;'+#10+
+'out vec4 frag_color;'+#10+
+#10+
+'void main() {'+#10+
+'frag_color = texture(utexture, otcoord) * ofcolor;'+#10+
+'}'+#10;
+
 { TGLConsoleRenderer }
 
 procedure TGLConsoleRenderer.Initialize( aFont : TBitmapFont; aLineSpace : DWord );
@@ -89,10 +146,20 @@ var i : Byte;
 begin
   Log('Initializing GL Console Renderer...');
 
+  FBProgram := TGLProgram.Create( GLConsoleBGVertexShader, GLConsoleBGFragmentShader );
+  FFProgram := TGLProgram.Create( GLConsoleFGVertexShader, GLConsoleFGFragmentShader );
+  glGenVertexArrays(1, @FVAO);
+  glGenBuffers(1, @FFCoordVBO);
+  glGenBuffers(1, @FBCoordVBO);
+  glGenBuffers(1, @FBColorVBO);
+  glGenBuffers(1, @FFColorVBO);
+  glGenBuffers(1, @FTCoordVBO);
+
   FFont := aFont;
   FFont.SetTexCoord( EmptyTexCoord, ' ' );
 
   FBSupport  := VIO_CON_BGCOLOR in FCapabilities;
+  FBSupport  := True;
 
   if VIO_CON_EXTCOLOR in FCapabilities
     then FColorMask := $FFFFFF0F
@@ -278,6 +345,9 @@ end;
 
 procedure TGLConsoleRenderer.Resize ( aNewSizeX, aNewSizeY, aLineSpace : DWord );
 var iSize, iX, iY : LongInt;
+    iMatrix       : TMatrix44;
+    iPLoc         : Integer;
+    iRect         : TIORect;
 begin
   FLineSpace := aLineSpace;
   FSizeX     := aNewSizeX;
@@ -313,6 +383,23 @@ begin
   SetCursorType( VIO_CURSOR_SMALL );
   MoveCursor( 1, 1 );
   Clear;
+
+  iRect   := GetDeviceArea();
+  iMatrix := GLCreateOrtho( 0, iRect.Dim.X, iRect.Dim.Y, 0, -1, 1 );
+
+  FBProgram.Bind;
+    iPLoc := FBProgram.GetUniformLocation('projection');
+    glUniformMatrix4fv(iPLoc, 1, GL_FALSE, @iMatrix[0]);
+  FBProgram.Unbind;
+
+  FFProgram.Bind;
+    iPLoc := FFProgram.GetUniformLocation('projection');
+    glUniformMatrix4fv(iPLoc, 1, GL_FALSE, @iMatrix[0]);
+
+    iPLoc := FFProgram.GetUniformLocation('utexture');
+    glUniform1i(iPLoc, 0);
+  FFProgram.Unbind;
+
 end;
 
 procedure TGLConsoleRenderer.Update;
@@ -321,44 +408,83 @@ var iCount : DWord;
 begin
   iCount := FSizeX * FSizeY;
 
+  glBindVertexArray(FVAO);
+
   if FBSupport then
   begin // background rendering
-    glDisable( GL_TEXTURE_2D );
-    glEnableClientState( GL_VERTEX_ARRAY );
-    glEnableClientState( GL_COLOR_ARRAY );
+    FBProgram.Bind;
 
-    glVertexPointer( 2, GL_INT, 0, @(FBCoords[0]) );
-    glColorPointer( 3, GL_UNSIGNED_BYTE, 0, @(FBColors[0]) );
+    glBindBuffer( GL_ARRAY_BUFFER, FBCoordVBO);
+    glBufferData( GL_ARRAY_BUFFER, iCount*sizeof(TGLRawQCoord), @(FBCoords[0]), GL_STREAM_DRAW );
+    glVertexAttribPointer(0, 2, GL_INT, GL_FALSE, 2 * sizeof(Integer), nil );
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer( GL_ARRAY_BUFFER, FBColorVBO);
+    glBufferData( GL_ARRAY_BUFFER, iCount*sizeof(TGLRawQColor), @(FBColors[0]), GL_STREAM_DRAW );
+    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, 3 * sizeof(GLubyte), nil );
+    glEnableVertexAttribArray(1);
+
     glDrawArrays( GL_QUADS, 0, iCount*4 );
+
+    FBProgram.UnBind;
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+    glBindBuffer( GL_ARRAY_BUFFER, 0);
   end;
 
-  begin // foreground rendering
+  begin
+    if (VIO_CON_CURSOR in FCapabilities) and FCurVisible then
+        Inc( iCount );
+
+    FFProgram.Bind;
+
+    glActiveTexture(0);
+    glBindTexture( GL_TEXTURE_2D, FFont.GLTexture );
+
+    glBindBuffer( GL_ARRAY_BUFFER, FFCoordVBO);
+    glBufferData( GL_ARRAY_BUFFER, iCount*sizeof(TGLRawQCoord), @(FCoords[0]), GL_STREAM_DRAW );
+    glVertexAttribPointer(0, 2, GL_INT, GL_FALSE, 2 * sizeof(Integer), nil );
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer( GL_ARRAY_BUFFER, FFColorVBO);
+    glBufferData( GL_ARRAY_BUFFER, iCount*sizeof(TGLRawQColor), @(FColors[0]), GL_STREAM_DRAW );
+    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, 3 * sizeof(GLubyte), nil );
+    glEnableVertexAttribArray(1);
+
+    glBindBuffer( GL_ARRAY_BUFFER, FTCoordVBO);
+    glBufferData( GL_ARRAY_BUFFER, iCount*sizeof(TGLRawQTexCoord), @(FTexCoords[0]), GL_STREAM_DRAW );
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), nil );
+    glEnableVertexAttribArray(2);
+
+
     if (VIO_CON_CURSOR in FCapabilities) and FCurVisible then
     begin
       iTick := MilliSecondsBetween(Now,FStartTime) div 500;
-      if iTick mod 2 = 0 then Inc( iCount );
+      if iTick mod 2 = 0 then Dec( iCount );
     end;
 
-    glEnable( GL_TEXTURE_2D );
-    glBindTexture( GL_TEXTURE_2D, FFont.GLTexture );
-
-    glEnableClientState( GL_VERTEX_ARRAY );
-    glEnableClientState( GL_COLOR_ARRAY );
-    glEnableClientState( GL_TEXTURE_COORD_ARRAY );
-
-    glVertexPointer( 2, GL_INT, 0, @(FCoords[0]) );
-    glTexCoordPointer( 2, GL_FLOAT, 0, @(FTexCoords[0]) );
-    glColorPointer( 3, GL_UNSIGNED_BYTE, 0, @(FColors[0]) );
     glDrawArrays( GL_QUADS, 0, iCount*4 );
+
+    FFProgram.UnBind;
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+    glDisableVertexAttribArray(2);
+    glBindBuffer( GL_ARRAY_BUFFER, 0);
   end;
 
-  glDisableClientState( GL_TEXTURE_COORD_ARRAY );
-  glDisableClientState( GL_VERTEX_ARRAY );
-  glDisableClientState( GL_COLOR_ARRAY );
+  glBindVertexArray(0);
 end;
 
 destructor TGLConsoleRenderer.Destroy;
 begin
+  glDeleteBuffers(1, @FBColorVBO);
+  glDeleteBuffers(1, @FFColorVBO);
+  glDeleteBuffers(1, @FFCoordVBO);
+  glDeleteBuffers(1, @FBCoordVBO);
+  glDeleteBuffers(1, @FTCoordVBO);
+  glDeleteVertexArrays(1, @FVAO);
+  FreeAndNil( FBProgram );
+  FreeAndNil( FFProgram );
   FreeAndNil( FFont );
   if FOwnTextures then TTextureManager.Get().Free;
   inherited Destroy;
