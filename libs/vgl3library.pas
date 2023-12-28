@@ -33,6 +33,17 @@ var
   GL3         : TLibrary = nil;
 
 function LoadGL3( const aPath : AnsiString = GL3DefaultPath ) : Boolean;
+function LoadGL3Compat( const aPath : AnsiString = GL3DefaultPath ) : Boolean;
+
+// deprecated Compatibility mode
+const
+  GL_PROJECTION                     = $1701;
+
+var
+  glMatrixMode  : procedure(mode: GLenum); extdecl;
+  glMultMatrixf : procedure(const m: PGLfloat); extdecl;
+  glLoadIdentity: procedure; extdecl;
+
 
 implementation
 
@@ -73,6 +84,25 @@ begin
 
   Exit( True );
 end;
+
+function LoadGL3Compat( const aPath : AnsiString = GL3DefaultPath ) : Boolean;
+function GetSymbol( const aSymbol : AnsiString ) : Pointer;
+begin
+  GetSymbol := GL3.Get( PChar(aSymbol) );
+  if GetSymbol = nil then
+    raise ELibraryError.Create( 'GL3Compat : Symbol "'+aSymbol+'" not found!' );
+end;
+begin
+  if GL3 = nil then LoadGL3( aPath );
+  if Assigned( glMatrixMode ) then Exit( True );
+
+  Pointer( glMatrixMode )   := GetSymbol( 'glMatrixMode' );
+  Pointer( glMultMatrixf )  := GetSymbol( 'glMultMatrixf' );
+  Pointer( glLoadIdentity ) := GetSymbol( 'glLoadIdentity' );
+
+  Exit( True );
+end;
+
 
 finalization
   if GL3 <> nil then FreeAndNil( GL3 );
