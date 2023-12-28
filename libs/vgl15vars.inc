@@ -39,7 +39,7 @@ var
   glGetError                  : function: GLenum; extdecl;
   glGetFloatv                 : procedure(pname: GLenum; data: PGLfloat); extdecl;
   glGetIntegerv               : procedure(pname: GLenum; data: PGLint); extdecl;
-  glGetString                 : function(name: GLenum): PGLubyte; extdecl;
+  glGetString                 : function(name: GLenum): PGLchar; extdecl;
   glGetTexImage               : procedure(target: GLenum; level: GLint; format, type_: GLenum; pixels: PGLvoid); extdecl;
   glGetTexParameterfv         : procedure(target, pname: GLenum; params: PGLfloat); extdecl;
   glGetTexParameteriv         : procedure(target, pname: GLenum; params: PGLint); extdecl;
