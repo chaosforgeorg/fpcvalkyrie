@@ -14,6 +14,7 @@ type
   GLclampd    = Double;
 
   PGLvoid     = Pointer;
+  PGLenum     = ^GLenum;
   PGLfloat    = ^GLfloat;
   PGLdouble   = ^GLdouble;
   PGLuint     = ^GLuint;
@@ -24,6 +25,7 @@ type
   PGLchar     = PChar;
 
   PPGLvoid    = ^PGLvoid;
+  PPGLchar    = ^PGLchar;
 
   GLsizeiptr  = PtrInt;
   GLintptr    = PtrInt;
