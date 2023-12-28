@@ -38,12 +38,20 @@ function LoadGL3Compat( const aPath : AnsiString = GL3DefaultPath ) : Boolean;
 // deprecated Compatibility mode
 const
   GL_PROJECTION                     = $1701;
+  GL_MODELVIEW                      = $1700;
+  GL_TEXTURE_COORD_ARRAY            = $8078;
 
 var
   glMatrixMode  : procedure(mode: GLenum); extdecl;
   glMultMatrixf : procedure(const m: PGLfloat); extdecl;
   glLoadIdentity: procedure; extdecl;
-
+  glPushMatrix  : procedure; extdecl;
+  glOrtho       : procedure(left, right, bottom, top, zNear, zFar: GLdouble); extdecl;
+  glColor4f     : procedure(red, green, blue, alpha: GLfloat); extdecl;
+  glEnableClientState : procedure(aarray: GLenum); extdecl;
+  glDisableClientState: procedure(aarray: GLenum); extdecl;
+  glVertexPointer     : procedure(size: GLint; atype: GLenum; stride: GLsizei; const pointer: Pointer); extdecl;
+  glTexCoordPointer   : procedure(size: GLint; atype: GLenum; stride: GLsizei; const pointer: Pointer); extdecl;
 
 implementation
 
@@ -99,6 +107,14 @@ begin
   Pointer( glMatrixMode )   := GetSymbol( 'glMatrixMode' );
   Pointer( glMultMatrixf )  := GetSymbol( 'glMultMatrixf' );
   Pointer( glLoadIdentity ) := GetSymbol( 'glLoadIdentity' );
+  Pointer( glOrtho )        := GetSymbol( 'glOrtho' );
+  Pointer( glPushMatrix )   := GetSymbol( 'glPushMatrix' );
+  Pointer( glColor4f )      := GetSymbol( 'glColor4f' );
+
+  Pointer( glEnableClientState )  := GetSymbol( 'glEnableClientState' );
+  Pointer( glDisableClientState ) := GetSymbol( 'glDisableClientState' );
+  Pointer( glVertexPointer )      := GetSymbol( 'glVertexPointer' );
+  Pointer( glTexCoordPointer )    := GetSymbol( 'glTexCoordPointer' );
 
   Exit( True );
 end;
