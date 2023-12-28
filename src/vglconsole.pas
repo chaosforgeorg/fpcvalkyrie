@@ -57,7 +57,7 @@ end;
 
 implementation
 
-uses dateutils, vgllibrary, vmath, vutil, vcolor, vtextures;
+uses dateutils, vgl3library, vmath, vutil, vcolor, vtextures;
 
 var EmptyTexCoord  : TGLRawQTexCoord;
 

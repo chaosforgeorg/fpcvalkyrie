@@ -55,7 +55,7 @@ end;
 
 implementation
 
-uses vgllibrary, vglimage;
+uses vgl3library, vglimage;
 
 var TextureManager : TTextureManager = nil;
 
@@ -69,7 +69,7 @@ begin
 end;
 
 procedure TTexture.Upload;
-var iGLBlend   : TGLInt;
+var iGLBlend   : GLInt;
 begin
   glGenTextures( 1, @FGLID );
   if FBlend
@@ -93,7 +93,7 @@ end;
 
 constructor TTextureManager.Create( aDefaultBlend : Boolean = False );
 begin
-  LoadGL;
+  LoadGL3;
   Assert( TextureManager = nil );
   TextureManager := Self;
   FTextureIDs := TTextureIDHashMap.Create( HashMap_RaiseAll );

@@ -40,6 +40,7 @@ const
   GL_PROJECTION                     = $1701;
   GL_MODELVIEW                      = $1700;
   GL_TEXTURE_COORD_ARRAY            = $8078;
+  GL_COLOR_ARRAY                    = $8076;
 
 var
   glMatrixMode  : procedure(mode: GLenum); extdecl;
@@ -52,6 +53,8 @@ var
   glDisableClientState: procedure(aarray: GLenum); extdecl;
   glVertexPointer     : procedure(size: GLint; atype: GLenum; stride: GLsizei; const pointer: Pointer); extdecl;
   glTexCoordPointer   : procedure(size: GLint; atype: GLenum; stride: GLsizei; const pointer: Pointer); extdecl;
+  glColorPointer      : procedure(size: GLint; atype: GLenum; stride: GLsizei; const pointer: Pointer); extdecl;
+  glTranslatef        : procedure(x, y, z: GLfloat); extdecl;
 
 implementation
 
@@ -115,6 +118,8 @@ begin
   Pointer( glDisableClientState ) := GetSymbol( 'glDisableClientState' );
   Pointer( glVertexPointer )      := GetSymbol( 'glVertexPointer' );
   Pointer( glTexCoordPointer )    := GetSymbol( 'glTexCoordPointer' );
+  Pointer( glColorPointer )       := GetSymbol( 'glColorPointer' );
+  Pointer( glTranslatef )         := GetSymbol( 'glTranslatef' );
 
   Exit( True );
 end;

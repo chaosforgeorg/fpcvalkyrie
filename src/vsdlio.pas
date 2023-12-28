@@ -56,7 +56,7 @@ function SDLIOEventFilter( userdata : Pointer; event: PSDL_Event) : Integer; cde
 
 implementation
 
-uses vgllibrary, vgl3library,
+uses vgl3library,
      {Screenshot support}
      FPImage, FPCanvas,
      FPWritePNG;
@@ -487,17 +487,12 @@ begin
   if FGLContext = nil then raise EIOException.Create('OpenGL context could not be created! SDL_Error: ' + SDL_GetError() );
   SDL_GL_SetSwapInterval( 1 );
 
-  LoadGL;
   LoadGL3;
   LoadGL3Compat;
 
-  glShadeModel( GL_SMOOTH );
   glClearColor( 0.0, 0.0, 0.0, 0.0 );
   glClearDepth( 1.0 );
-  glHint( GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST );
   glHint( GL_LINE_SMOOTH_HINT,            GL_NICEST );
-  glHint( GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST );
-  glHint( GL_POINT_SMOOTH_HINT,           GL_NICEST );
   glHint( GL_POLYGON_SMOOTH_HINT,         GL_NICEST );
   glEnable( GL_CULL_FACE );
   glEnable( GL_DEPTH_TEST );

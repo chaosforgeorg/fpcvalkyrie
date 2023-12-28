@@ -63,7 +63,7 @@ end;
 
 implementation
 
-uses math, vgllibrary;
+uses math, vgl3library;
 
 
 { TGLQuadList }

@@ -16,7 +16,7 @@ function LoadImage( SDLSurface : PSDL_Surface ) : TImage;
 implementation
 
 uses
-  vgllibrary,
+  vgl3library,
   vsdl2imagelibrary,
   vmath;
 
@@ -93,7 +93,7 @@ begin
 end;
 
 procedure ReUploadImage ( GLTexture : DWord; Image : TImage; aBlend : Boolean );
-var GLBlend   : TGLInt;
+var GLBlend   : GLInt;
 begin
   if aBlend
     then GLBlend := GL_LINEAR
