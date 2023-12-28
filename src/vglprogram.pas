@@ -28,7 +28,7 @@ function SlurpFile( const aFileName : AnsiString ) : AnsiString;
 
 implementation
 
-uses vdebug, vgl2library;
+uses vdebug, vgl3library;
 
 function SlurpFile(const aFileName: AnsiString): AnsiString;
 var

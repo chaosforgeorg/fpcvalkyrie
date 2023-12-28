@@ -93,7 +93,7 @@ end;
 
 implementation
 
-uses vgl2library;
+uses vgl3library;
 
 { TGLTexturedColoredQuadLayer }
 
