@@ -2,7 +2,7 @@ unit vspriteengine;
 {$include valkyrie.inc}
 interface
 uses
-  Classes, SysUtils, vcolor, vgltypes;
+  Classes, SysUtils, vcolor, vgltypes, vglprogram;
 
 type TSpriteEngine = class;
 
@@ -22,6 +22,7 @@ TSpriteDataVTC = class
   procedure Resize( newSize : DWord );
   procedure Reserve( newCapacity : DWord );
   procedure Clear;
+  destructor Destroy; override;
 private
   FCoords    : packed array of TGLRawQCoord;
   FTexCoords : packed array of TGLRawQTexCoord;
@@ -29,6 +30,12 @@ private
   FSize      : DWord;
   FCapacity  : DWord;
   FEngine    : TSpriteEngine;
+
+  FVAO       : Cardinal;
+  FCoordVBO  : Cardinal;
+  FColorVBO  : Cardinal;
+  FTexCoVBO  : Cardinal;
+
   procedure GrowTo( NewSize : DWord );
 public
   property Size : DWord     read FSize;
@@ -86,12 +93,17 @@ TSpriteEngine = class
   constructor Create;
   procedure Clear;
   procedure Draw;
+  procedure Update( aProjection : TMatrix44 );
   procedure DrawVTC( Data : TSpriteDataVTC );
   procedure DrawSet( const Data : TSpriteDataSet; const Tex : TTextureDataSet );
   // Foreground layer
   // Animation layer
   procedure SetTexture( TexID : DWord );
   destructor Destroy; override;
+private
+  FVAO         : Cardinal;
+  FProgram     : TGLProgram;
+  FProjection  : TMatrix44;
 end;
 
 
@@ -99,6 +111,34 @@ implementation
 
 uses
   vgl3library, math;
+
+const
+VSpriteVertexShader : Ansistring =
+'#version 330 core'+#10+
+'layout (location = 0) in vec2 position;'+#10+
+'layout (location = 1) in vec3 fcolor;'+#10+
+'layout (location = 2) in vec2 tcoord;'+#10+
+'uniform mat4 projection;'+#10+
+'uniform vec2 uposition;'+#10+
+#10+
+'out vec4 ofcolor;'+#10+
+'out vec2 otcoord;'+#10+
+#10+
+'void main() {'+#10+
+'ofcolor = vec4( fcolor, 1.0 );'+#10+
+'otcoord = tcoord;'+#10+
+'gl_Position = projection * vec4(uposition + position, 0.0, 1.0);'+#10+
+'}'+#10;
+VSpriteFragmentShader : Ansistring =
+'#version 330 core'+#10+
+'in vec4 ofcolor;'+#10+
+'in vec2 otcoord;'+#10+
+'uniform sampler2D utexture;'+#10+
+'out vec4 frag_color;'+#10+
+#10+
+'void main() {'+#10+
+'frag_color = texture(utexture, otcoord) * ofcolor;'+#10+
+'}'+#10;
 
 { TSpriteDataSet }
 
@@ -141,6 +181,9 @@ begin
   FSize     := 0;
   FCapacity := 0;
   FEngine   := aEngine;
+  glGenBuffers(1, @FTexCoVBO);
+  glGenBuffers(1, @FColorVBO);
+  glGenBuffers(1, @FCoordVBO);
 end;
 
 procedure TSpriteDataVTC.Push( Source: TSpriteDataVTC; Idx, Amount : DWord);
@@ -249,26 +292,61 @@ begin
   Reserve( newSize );
 end;
 
+destructor TSpriteDataVTC.Destroy;
+begin
+  glDeleteBuffers(1, @FTexCoVBO);
+  glDeleteBuffers(1, @FColorVBO);
+  glDeleteBuffers(1, @FCoordVBO);
+end;
+
 { TSpriteEngine }
+
+procedure TSpriteEngine.Update ( aProjection : TMatrix44 );
+var iLocation, i : Integer;
+begin
+  for i := 0 to 15 do
+    if FProjection[i] <> aProjection[i] then
+    begin
+      FProjection := aProjection;
+      FProgram.Bind;
+      glUniformMatrix4fv( FProgram.GetUniformLocation( 'projection' ), 1, GL_FALSE, @FProjection[0] );
+      glUniform1i( FProgram.GetUniformLocation('utexture'), 0 );
+      FProgram.UnBind;
+      Exit;
+    end;
+end;
 
 procedure TSpriteEngine.DrawVTC( Data : TSpriteDataVTC );
 begin
-  glEnableClientState( GL_VERTEX_ARRAY );
-  glEnableClientState( GL_TEXTURE_COORD_ARRAY );
-  glEnableClientState( GL_COLOR_ARRAY );
+  FProgram.Bind;
 
-  glVertexPointer( 2, GL_INT, 0, @(Data.FCoords[0]) );
-  glTexCoordPointer( 2, GL_FLOAT, 0, @(Data.FTexCoords[0]) );
-  glColorPointer( 3, GL_UNSIGNED_BYTE, 0, @(Data.FColors[0]) );
+  glBindBuffer( GL_ARRAY_BUFFER, Data.FCoordVBO );
+  glBufferData( GL_ARRAY_BUFFER, Data.FSize*sizeof(TGLRawQCoord), @(Data.FCoords[0]), GL_STREAM_DRAW );
+  glVertexAttribPointer(0, 2, GL_INT, GL_FALSE, 2 * sizeof(Integer), nil );
+  glEnableVertexAttribArray(0);
+
+  glBindBuffer( GL_ARRAY_BUFFER, Data.FColorVBO);
+  glBufferData( GL_ARRAY_BUFFER, Data.FSize*sizeof(TGLRawQColor), @(Data.FColors[0]), GL_STREAM_DRAW );
+  glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, 3 * sizeof(GLubyte), nil );
+  glEnableVertexAttribArray(1);
+
+  glBindBuffer( GL_ARRAY_BUFFER, Data.FTexCoVBO );
+  glBufferData( GL_ARRAY_BUFFER, Data.FSize*sizeof(TGLRawQTexCoord), @(Data.FTexCoords[0]), GL_STREAM_DRAW );
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), nil );
+  glEnableVertexAttribArray(2);
+
   glDrawArrays( GL_QUADS, 0, Data.FSize*4 );
 
-  glDisableClientState( GL_VERTEX_ARRAY );
-  glDisableClientState( GL_TEXTURE_COORD_ARRAY );
-  glDisableClientState( GL_COLOR_ARRAY );
+  FProgram.UnBind;
+  glDisableVertexAttribArray(0);
+  glDisableVertexAttribArray(1);
+  glDisableVertexAttribArray(2);
+  glBindBuffer( GL_ARRAY_BUFFER, 0);
 end;
 
 procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet; const Tex : TTextureDataSet);
 begin
+  glActiveTexture(0);
   if Data.Normal.Size > 0 then
   begin
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
@@ -289,6 +367,7 @@ begin
     SetTexture( Tex.Glow );
     DrawVTC( Data.Glow );
   end;
+  glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 
 procedure TSpriteEngine.SetTexture(TexID: DWord);
@@ -305,6 +384,8 @@ var i : Byte;
 begin
   for i := 1 to High(FLayers) do
     FreeAndNil( FLayers[i] );
+  glDeleteVertexArrays(1, @FVAO);
+  FreeAndNil( FProgram );
 end;
 
 constructor TSpriteEngine.Create;
@@ -319,6 +400,9 @@ begin
   FCurrentTexture    := 0;
   FLayerCount        := 0;
   FStaticLayerCount  := 0;
+
+  FProgram := TGLProgram.Create( VSpriteVertexShader, VSpriteFragmentShader );
+  glGenVertexArrays(1, @FVAO);
 end;
 
 procedure TSpriteEngine.Clear;
@@ -333,19 +417,12 @@ procedure TSpriteEngine.Draw;
 var i : Byte;
 begin
   FCurrentTexture := 0;
-  glTranslatef( -FPos.X, -FPos.Y, 0.0 );
-  glEnable( GL_TEXTURE_2D );
-  glDisable( GL_DEPTH_TEST );
-  glEnable( GL_BLEND );
-  glColor4f( 1.0, 1.0, 1.0, 1.0 );
-  glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-
+  FProgram.Bind;
+  glUniform2f( FProgram.GetUniformLocation('uposition'), -FPos.X, -FPos.Y );
   if FLayerCount > 0 then
   for i := 1 to FLayerCount do
     DrawSet( FLayers[ i ], FTextureSet.Layer[ i ] );
-
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-  glTranslatef( FPos.X, FPos.Y, 0.0 );
 end;
 
 initialization
