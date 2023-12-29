@@ -159,7 +159,6 @@ begin
   FFont.SetTexCoord( EmptyTexCoord, ' ' );
 
   FBSupport  := VIO_CON_BGCOLOR in FCapabilities;
-  FBSupport  := True;
 
   if VIO_CON_EXTCOLOR in FCapabilities
     then FColorMask := $FFFFFF0F
