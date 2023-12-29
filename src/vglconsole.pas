@@ -384,7 +384,7 @@ begin
   Clear;
 
   iRect   := GetDeviceArea();
-  iMatrix := GLCreateOrtho( 0, iRect.Dim.X, iRect.Dim.Y, 0, -1, 1 );
+  iMatrix := GLCreateOrtho( 0, iRect.Dim.X + 2*iRect.Pos.X, iRect.Dim.Y + 2*iRect.Pos.Y, 0, -1, 1 );
 
   FBProgram.Bind;
     iPLoc := FBProgram.GetUniformLocation('projection');
