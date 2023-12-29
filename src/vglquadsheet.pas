@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vglquadsheet;
 interface
-uses Classes, SysUtils, vnode, vgltypes, vgenerics;
+uses Classes, SysUtils, vnode, vgltypes, vgenerics, vglprogram;
 
 // TODO : write Append for all using System.Move
 type TGLQuadList = class( TVObject )
@@ -61,10 +61,24 @@ private
   FTextures  : TGLTextureIDs;
 end;
 
+type TGLQuadSheetRenderer = class( TVObject )
+  constructor Create;
+  procedure Update( aProjection : TMatrix44 );
+  procedure Render( aSheet : TGLQuadSheet );
+  destructor Destroy; override;
+private
+  FProjection  : TMatrix44;
+  FCProgram    : TGLProgram;
+  FTProgram    : TGLProgram;
+  FVAO         : Cardinal;
+  FVBOCoord    : Cardinal;
+  FVBOColor    : Cardinal;
+  FVBOTexCoord : Cardinal;
+end;
+
 implementation
 
 uses math, vgl3library;
-
 
 { TGLQuadList }
 
@@ -243,6 +257,7 @@ var iCount : DWord;
 begin
   if (FTextured <> nil) and (FTextured.Size > 0) then
   begin
+    Log( '%d', [FTextured.Size] );
     glColor4f( 1.0, 1.0, 1.0, 1.0 );
     glEnable( GL_TEXTURE_2D );
 
@@ -302,5 +317,161 @@ begin
   end;
 end;
 
-end.
+{ TGLQuadSheetRenderer }
 
+const
+GLQuadSheetColorVertexShader : Ansistring =
+'#version 330 core'+#10+
+'layout (location = 0) in vec2 position;'+#10+
+'layout (location = 1) in vec4 color;'+#10+
+'uniform mat4 projection;'+#10+
+#10+
+'out vec4 ocolor;'+#10+
+#10+
+'void main() {'+#10+
+'ocolor = color;'+#10+
+'gl_Position = projection * vec4(position, 0.0, 1.0);'+#10+
+'}'+#10;
+GLQuadSheetColorFragmentShader : Ansistring =
+'#version 330 core'+#10+
+'in vec4 ocolor;'+#10+
+'out vec4 frag_color;'+#10+
+#10+
+'void main() {'+#10+
+'frag_color = ocolor;'+#10+
+'}'+#10;
+GLQuadSheetTextureVertexShader : Ansistring =
+'#version 330 core'+#10+
+'layout (location = 0) in vec2 position;'+#10+
+'layout (location = 1) in vec4 color;'+#10+
+'layout (location = 2) in vec2 texcoord;'+#10+
+'uniform mat4 projection;'+#10+
+#10+
+'out vec4 ocolor;'+#10+
+'out vec2 otexcoord;'+#10+
+#10+
+'void main() {'+#10+
+'otexcoord = texcoord;'+#10+
+'ocolor = color;'+#10+
+'gl_Position = projection * vec4(position, 0.0, 1.0);'+#10+
+'}'+#10;
+GLQuadSheetTextureFragmentShader : Ansistring =
+'#version 330 core'+#10+
+'in vec4 ocolor;'+#10+
+'in vec2 otexcoord;'+#10+
+'out vec4 frag_color;'+#10+
+#10+
+'uniform sampler2D utexture;'+#10+
+#10+
+'void main() {'+#10+
+'frag_color = ocolor * texture( utexture, otexcoord );'+#10+
+'}'+#10;
+
+
+constructor TGLQuadSheetRenderer.Create;
+begin
+  inherited Create;
+  FillChar( FProjection, SizeOf( FProjection ), 0 );
+  FCProgram   := TGLProgram.Create( GLQuadSheetColorVertexShader, GLQuadSheetColorFragmentShader );
+  FTProgram   := TGLProgram.Create( GLQuadSheetTextureVertexShader, GLQuadSheetTextureFragmentShader );
+  glGenVertexArrays(1, @FVAO);
+  glGenBuffers(1, @FVBOCoord);
+  glGenBuffers(1, @FVBOColor);
+  glGenBuffers(1, @FVBOTexCoord);
+end;
+
+procedure TGLQuadSheetRenderer.Update ( aProjection : TMatrix44 );
+var iLocation, i : Integer;
+begin
+  for i := 0 to 15 do
+    if FProjection[i] <> aProjection[i] then
+    begin
+      FProjection := aProjection;
+      FCProgram.Bind;
+      glUniformMatrix4fv( FCProgram.GetUniformLocation( 'projection' ), 1, GL_FALSE, @FProjection[0] );
+      FCProgram.UnBind;
+      FTProgram.Bind;
+      glUniformMatrix4fv( FTProgram.GetUniformLocation( 'projection' ), 1, GL_FALSE, @FProjection[0] );
+      glUniform1i( FTProgram.GetUniformLocation('utexture'), 0 );
+      FTProgram.UnBind;
+      Exit;
+    end;
+end;
+
+procedure TGLQuadSheetRenderer.Render ( aSheet : TGLQuadSheet );
+var iCount : DWord;
+begin
+  glBindVertexArray(FVAO);
+
+  if (aSheet.FTextured <> nil) and (aSheet.FTextured.Size > 0) then
+  begin
+    FTProgram.Bind;
+    glActiveTexture(0);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);    
+    glEnableVertexAttribArray(2);
+    for iCount := 0 to aSheet.FTextured.Size-1 do
+    if aSheet.FTextured[iCount].Count > 0 then
+    begin
+      glBindTexture( GL_TEXTURE_2D, aSheet.FTextures[ iCount ] );
+      glBindBuffer( GL_ARRAY_BUFFER, FVBOCoord );
+      glBufferData( GL_ARRAY_BUFFER, aSheet.FTextured[ iCount ].Count*sizeof(TGLRawQCoord), @(aSheet.FTextured[iCount].FCoords[0]), GL_STREAM_DRAW );
+      glVertexAttribPointer(0, 2, GL_INT, GL_FALSE, 2 * sizeof(Integer), nil );
+
+      glBindBuffer( GL_ARRAY_BUFFER, FVBOColor );
+      glBufferData( GL_ARRAY_BUFFER, aSheet.FTextured[ iCount ].Count*sizeof(TGLRawQColor4f), @(aSheet.FTextured[iCount].FColors[0]), GL_STREAM_DRAW );
+      glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(Single), nil );
+      glEnableVertexAttribArray(1);
+
+      glBindBuffer( GL_ARRAY_BUFFER, FVBOTexCoord );
+      glBufferData( GL_ARRAY_BUFFER, aSheet.FTextured[iCount].Count*sizeof(TGLRawQTexCoord), @(aSheet.FTextured[iCount].FTexCoords[0]), GL_STREAM_DRAW );
+      glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), nil );
+
+      glDrawArrays( GL_QUADS, 0, aSheet.FTextured[iCount].Count*4 );
+
+      aSheet.FTextured[iCount].FCount := 0;
+    end;
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+    glDisableVertexAttribArray(2);
+    FTProgram.UnBind;
+  end;
+
+  if (aSheet.FColored <> nil) and (aSheet.FColored.Count > 0) then
+  begin
+    FCProgram.Bind;
+
+    glBindBuffer( GL_ARRAY_BUFFER, FVBOCoord );
+    glBufferData( GL_ARRAY_BUFFER, aSheet.FColored.Count*sizeof(TGLRawQCoord), @(aSheet.FColored.FCoords[0]), GL_STREAM_DRAW );
+    glVertexAttribPointer(0, 2, GL_INT, GL_FALSE, 2 * sizeof(Integer), nil );
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer( GL_ARRAY_BUFFER, FVBOColor );
+    glBufferData( GL_ARRAY_BUFFER, aSheet.FColored.Count*sizeof(TGLRawQColor4f), @(aSheet.FColored.FColors[0]), GL_STREAM_DRAW );
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(Single), nil );
+    glEnableVertexAttribArray(1);
+
+    glDrawArrays( GL_QUADS, 0, aSheet.FColored.Count*4 );
+
+    FCProgram.UnBind;
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+
+    aSheet.FColored.FCount := 0;
+  end;
+
+  glBindVertexArray(0);
+end;
+
+destructor TGLQuadSheetRenderer.Destroy;
+begin
+  inherited Destroy;
+  glDeleteBuffers(1, @FVBOCoord);
+  glDeleteBuffers(1, @FVBOColor);
+  glDeleteBuffers(1, @FVBOTexCoord);
+  glDeleteVertexArrays(1, @FVAO);
+  FreeAndNil( FCProgram );
+  FreeAndNil( FTProgram );
+end;
+
+end.
