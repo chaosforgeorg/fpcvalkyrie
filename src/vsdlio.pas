@@ -488,7 +488,6 @@ begin
   SDL_GL_SetSwapInterval( 1 );
 
   LoadGL3;
-  LoadGL3Compat;
 
   glClearColor( 0.0, 0.0, 0.0, 0.0 );
   glClearDepth( 1.0 );
@@ -503,10 +502,6 @@ begin
   glFrontFace( GL_CCW );
   glClearColor( 0, 0, 0, 0 );
   glViewport( 0, 0, FSizeX, FSizeY );
-  glMatrixMode( GL_PROJECTION );
-  glLoadIdentity( );
-  glMatrixMode( GL_MODELVIEW );
-  glLoadIdentity( );
   Exit( True );
 end;
 
