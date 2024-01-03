@@ -3,7 +3,13 @@ unit vglconsole;
 interface
 uses Classes, SysUtils, vgltypes, viotypes, vioconsole, vglprogram, vbitmapfont;
 
-// TODO: rewrite to use indices
+type TGLCell = packed record
+  fgcolor : Cardinal;
+  bgcolor : Cardinal;
+  glyph   : Cardinal;
+  padding : Cardinal;
+end;
+
 
 type TGLConsoleRenderer = class( TIOConsoleRenderer )
   constructor Create( aFont : TBitmapFont; aSizeX, aSizeY : DWord; aLineSpace : DWord = 0; aReqCapabilities : TIOConsoleCapSet = [VIO_CON_CURSOR] );
@@ -28,9 +34,7 @@ type TGLConsoleRenderer = class( TIOConsoleRenderer )
 private
   procedure Initialize( aFont : TBitmapFont; aLineSpace : DWord );
   procedure SetData( aIndex : DWord; aChar : Char; aFrontColor, aBackColor : TIOColor ); inline;
-  procedure SetCoord( out aQCoord : TGLRawQCoord; x, y : Integer; aBackGround : Boolean = False ); inline;
-  procedure SetColor( out aQColor : TGLRawQColor; aColor : TIOColor ); inline;
-  procedure CreateColor( out aQColor : TGLRawQColor; aR, aG, aB : Byte );
+  function MakeColor( aColor : TIOColor ) : TIOColor;
 private
   FOwnTextures  : Boolean;
   FFont         : TBitmapFont;
@@ -41,103 +45,129 @@ private
   FColorMask    : DWord;
   FPositionX    : Integer;
   FPositionY    : Integer;
+  FCursorX      : Integer;
+  FCursorY      : Integer;
   FScale        : Integer;
-  FASCII        : packed array of Char;
   FColor        : packed array of TIOColor;
   FBColor       : packed array of TIOColor;
-  FColors       : packed array of TGLRawQColor;
-  FCoords       : packed array of TGLRawQCoord;
-  FBColors      : packed array of TGLRawQColor;
-  FBCoords      : packed array of TGLRawQCoord;
-  FTexCoords    : packed array of TGLRawQTexCoord;
-  FColorLookup  : packed array of TGLRawQColor;
-  FVAO          : Cardinal;
-  FBColorVBO    : Cardinal;
-  FFColorVBO    : Cardinal;
-  FTCoordVBO    : Cardinal;
-  FBCoordVBO    : Cardinal;
-  FFCoordVBO    : Cardinal;
-  FBProgram     : TGLProgram;
-  FFProgram     : TGLProgram;
+  FCells        : packed array of TGLCell;
+  FDataVBO      : Cardinal;
+  FDataVAO      : Cardinal;
+  FDataTexture  : Cardinal;
+  FTriangleVBO  : Cardinal;
+  FTriangleVAO  : Cardinal;
+  FProgram      : TGLProgram;
+  FPCursor      : Integer;
+  FCGlyph       : Integer;
 public
   property Font : TBitmapFont read FFont;
 end;
 
 implementation
 
-uses dateutils, vgl3library, vmath, vutil, vcolor, vtextures;
+uses dateutils, vgl3library, vsdlio, vmath, vutil, vcolor, vtextures;
 
 var EmptyTexCoord  : TGLRawQTexCoord;
 
 const BColorMask = $000000F0;
 
-const GLByteColors : array[0..15] of TGLByteColor = (
-      ( Data : (   0,   0,   0 ) ),
-      ( Data : (   0,   0, 160 ) ),
-      ( Data : (   0, 160,   0 ) ),
-      ( Data : (   0, 160, 160 ) ),
-      ( Data : ( 160,   0,   0 ) ),
-      ( Data : ( 160,   0, 160 ) ),
-      ( Data : ( 160, 160,   0 ) ),
-      ( Data : ( 216, 216, 216 ) ),
-      ( Data : ( 127, 127, 127 ) ),
-      ( Data : (   0,   0, 255 ) ),
-      ( Data : (   0, 255,   0 ) ),
-      ( Data : (   0, 255, 255 ) ),
-      ( Data : ( 255,   0,   0 ) ),
-      ( Data : ( 255,   0, 255 ) ),
-      ( Data : ( 255, 255,   0 ) ),
-      ( Data : ( 255, 255, 255 ) )
-      );
+const GLFSTriangle : array[0..2] of TVertex2f2f = (
+      ( position : ( Data : ( -1, -1 ) ); texcoord : ( Data : ( 0, 0 ) ) ),
+      ( position : ( Data : (  3, -1 ) ); texcoord : ( Data : ( 2, 0 ) ) ),
+      ( position : ( Data : ( -1,  3 ) ); texcoord : ( Data : ( 0, 2 ) ) )
+);
 
 const
-GLConsoleBGVertexShader : Ansistring =
-'#version 330 core'+#10+
-'layout (location = 0) in vec2 position;'+#10+
-'layout (location = 1) in vec3 bcolor;'+#10+
-'uniform mat4 projection;'+#10+
-#10+
-'out vec4 obcolor;'+#10+
-#10+
-'void main() {'+#10+
-'if ( bcolor != vec3(0) ) obcolor = vec4( bcolor, 1.0 ); else obcolor = vec4(0);'+#10+
-'gl_Position = projection * vec4(position, 0.0, 1.0);'+#10+
-'}'+#10;
-GLConsoleBGFragmentShader : Ansistring =
-'#version 330 core'+#10+
-'in vec4 obcolor;'+#10+
-'out vec4 frag_color;'+#10+
-#10+
-'void main() {'+#10+
-'frag_color = obcolor;'+#10+
-'}'+#10;
+GLConsoleVertexShader   : AnsiString =
+'#version 330' + #10 +
+'layout( location = 0 ) in vec2 position;' + #10 +
+'layout( location = 1 ) in vec2 texcoord;' + #10 +
+'' + #10 +
+'out vec2 otexcoord;' + #10 +
+'' + #10 +
+'uniform mat4 projection;' + #10 +
+'' + #10 +
+'void main( void )' + #10 +
+'{' + #10 +
+'    gl_Position = projection * vec4( position, 0.0, 1.0 );' + #10 +
+'    otexcoord   = texcoord;' + #10 +
+'}' + #10
+;
 
-const
-GLConsoleFGVertexShader : Ansistring =
-'#version 330 core'+#10+
-'layout (location = 0) in vec2 position;'+#10+
-'layout (location = 1) in vec3 fcolor;'+#10+
-'layout (location = 2) in vec2 tcoord;'+#10+
-'uniform mat4 projection;'+#10+
-#10+
-'out vec4 ofcolor;'+#10+
-'out vec2 otcoord;'+#10+
-#10+
-'void main() {'+#10+
-'ofcolor = vec4( fcolor, 1.0 );'+#10+
-'otcoord = tcoord;'+#10+
-'gl_Position = projection * vec4(position, 0.0, 1.0);'+#10+
-'}'+#10;
-GLConsoleFGFragmentShader : Ansistring =
-'#version 330 core'+#10+
-'in vec4 ofcolor;'+#10+
-'in vec2 otcoord;'+#10+
-'uniform sampler2D utexture;'+#10+
-'out vec4 frag_color;'+#10+
-#10+
-'void main() {'+#10+
-'frag_color = texture(utexture, otcoord) * ofcolor;'+#10+
-'}'+#10;
+GLConsoleFragmentShader : AnsiString =
+'#version 330' + #10 +
+'' + #10 +
+'in  vec2 otexcoord;' + #10 +
+'out vec4 frag_color;' + #10 +
+'' + #10 +
+'uniform vec2 uterm_size;' + #10 +
+'uniform ivec2 usheet_size;' + #10 +
+'uniform int usheet_offset;' + #10 +
+'uniform int uline_space;' + #10 +
+'uniform sampler2D udiffuse;' + #10 +
+'uniform usamplerBuffer udata;' + #10 +
+'uniform ivec3 ucursor;' + #10 +
+'' + #10 +
+'void main(void)' + #10 +
+'{' + #10 +
+'    if ( otexcoord.x > 1.0 || otexcoord.y > 1.0 )' + #10 +
+'        discard;' + #10 +
+'    vec2 coord = otexcoord * uterm_size;' + #10 +
+'    coord.y = uterm_size.y - coord.y;' + #10 +
+'    ivec2 ts = textureSize( udiffuse, 0 );' + #10 +
+'    int lines = ts.y / usheet_size.y;' + #10 +
+'    float lfac = float( uline_space ) / float( lines );' + #10 +
+'    vec2 tc = fract( coord ) * vec2( 1.0, 1.0 + lfac ) - vec2( 0.0, lfac * 0.5 );' + #10 +
+'' + #10 +
+'    int index = int( coord.x ) + int( uterm_size.x ) * int( coord.y );' + #10 +
+'    uvec4 data_sample = texelFetch( udata, index ).rgba;' + #10 +
+'' + #10 +
+'    uint fg = data_sample.r;' + #10 +
+'    uint bg = data_sample.g;' + #10 +
+'' + #10 +
+'    int glyph = int( data_sample.b ) - usheet_offset;' + #10 +
+'    ivec2 gxy = ivec2( glyph % usheet_size.x, glyph / usheet_size.x );' + #10 +
+'    vec2 gpos = vec2( ( float( gxy.x ) + tc.x ) / float( usheet_size.x ), ( float( gxy.y ) + tc.y ) / float( usheet_size.y ) );' + #10 +
+'    vec4 tt = texelFetch( udiffuse, ivec2( gpos * vec2( ts ) ), 0 );' + #10 +
+'' + #10 +
+'    if ( int( coord.x ) == ucursor.x && int( coord.y ) == ucursor.y ) {' + #10 +
+'      int cglyph = ucursor.z - usheet_offset;' + #10 +
+'      ivec2 cgxy = ivec2( cglyph % usheet_size.x, cglyph / usheet_size.x );' + #10 +
+'      vec2 cgpos = vec2( ( float( cgxy.x ) + tc.x ) / float( usheet_size.x ), ( float( cgxy.y ) + tc.y ) / float( usheet_size.y ) );' + #10 +
+'      vec4 ctt = texelFetch( udiffuse, ivec2( cgpos * vec2( ts ) ), 0 );' + #10 +
+'      tt.x = max( ctt.x, tt.x );' + #10 +
+'    }' + #10 +
+'    if ( tc.y < 0 || tc.y > 1.0 )' + #10 +
+'        tt.x = 0;' + #10 +
+'' + #10 +
+'    vec4 fg_color = vec4(' + #10 +
+'        float( ( fg & uint(0xFF000000) ) >> 24 ) / 255.0,' + #10 +
+'        float( ( fg & uint(0x00FF0000) ) >> 16 ) / 255.0,' + #10 +
+'        float( ( fg & uint(0x0000FF00) ) >> 8 ) / 255.0,' + #10 +
+'        float( ( fg & uint(0x0000000F) ) ) / 16.0' + #10 +
+'    );' + #10 +
+'    vec4 bg_color = vec4(' + #10 +
+'        float( ( bg & uint(0xFF000000) ) >> 24 ) / 255.0,' + #10 +
+'        float( ( bg & uint(0x00FF0000) ) >> 16 ) / 255.0,' + #10 +
+'        float( ( bg & uint(0x0000FF00) ) >> 8 ) / 255.0,' + #10 +
+'        float( ( bg & uint(0x000000FF) ) ) / 255.0' + #10 +
+'    );' + #10 +
+'    vec3 out_fg = fg_color.xyz * tt.x;' + #10 +
+'    vec3 out_bg = bg_color.xyz * ( 1.0f - tt.x );' + #10 +
+'    float fg_a = fg_color.w * tt.x;' + #10 +
+'    float bg_a = bg_color.w * ( 1.0f - tt.x );' + #10 +
+'    frag_color = vec4( out_fg + out_bg, fg_a + bg_a );' + #10 +
+'}'+ #10
+;
+
+
+function TGLConsoleRenderer.MakeColor( aColor : TIOColor ) : TIOColor;
+begin
+  if aColor = ColorNone then aColor := 0;
+  if aColor < 256
+    then Exit( IoColors[ aColor mod 16 ] )
+    else Exit( aColor );
+end;
 
 { TGLConsoleRenderer }
 
@@ -146,14 +176,23 @@ var i : Byte;
 begin
   Log('Initializing GL Console Renderer...');
 
-  FBProgram := TGLProgram.Create( GLConsoleBGVertexShader, GLConsoleBGFragmentShader );
-  FFProgram := TGLProgram.Create( GLConsoleFGVertexShader, GLConsoleFGFragmentShader );
-  glGenVertexArrays(1, @FVAO);
-  glGenBuffers(1, @FFCoordVBO);
-  glGenBuffers(1, @FBCoordVBO);
-  glGenBuffers(1, @FBColorVBO);
-  glGenBuffers(1, @FFColorVBO);
-  glGenBuffers(1, @FTCoordVBO);
+  FProgram  := TGLProgram.Create( GLConsoleVertexShader,   GLConsoleFragmentShader );
+  glGenVertexArrays(1, @FDataVAO);
+  glGenVertexArrays(1, @FTriangleVAO);
+  glGenBuffers( 1, @FDataVBO );
+  glGenBuffers( 1, @FTriangleVBO );
+
+  glGenTextures( 1, @FDataTexture );
+
+  glBindVertexArray(FTriangleVAO);
+  glBindBuffer( GL_ARRAY_BUFFER, FTriangleVBO );
+  glBufferData( GL_ARRAY_BUFFER, sizeof(GLFSTriangle), @(GLFSTriangle), GL_STATIC_DRAW );
+  glVertexAttribPointer( 0, 2, GL_FLOAT, GL_FALSE, sizeof(TVertex2f2f), nil );
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer( 1, 2, GL_FLOAT, GL_FALSE, sizeof(TVertex2f2f), Pointer(2 * sizeof(Single)));
+  glEnableVertexAttribArray(1);
+  glBindBuffer( GL_ARRAY_BUFFER, 0 );
+  glBindVertexArray(0);
 
   FFont := aFont;
   FFont.SetTexCoord( EmptyTexCoord, ' ' );
@@ -165,10 +204,6 @@ begin
     else FColorMask := $0000000F;
 
   FLineSpace := aLineSpace;
-
-  SetLength( FColorLookup, 16 );
-  for i := 0 to 15 do
-    CreateColor( FColorLookup[i], GLByteColors[i].Data[0], GLByteColors[i].Data[1], GLByteColors[i].Data[2] );
 
   FPositionX := 0;
   FPositionY := 0;
@@ -219,9 +254,10 @@ begin
       Exit;
     end;
   end;
+
   iCoord := FSizeX*Clamp( y-1, 0, FSizeY-1 )+Clamp( x-1, 0, FSizeX-1 );
   aColor := aColor and FColorMask;
-  if (FASCII[ iCoord ] = aChar) and (FColor[ iCoord ] = aColor) then Exit;
+  if (FCells[ iCoord ].glyph = Ord( aChar ) ) and (FColor[ iCoord ] = aColor) then Exit;
   if FBSupport then
     SetData( iCoord, aChar, aColor, FBColor[ iCoord ] )
   else
@@ -235,7 +271,7 @@ begin
   iCoord := FSizeX*Clamp( y-1, 0, FSizeY-1 )+Clamp( x-1, 0, FSizeX-1 );
   aFrontColor := aFrontColor and FColorMask;
   aBackColor  := aBackColor  and FColorMask;
-  if ( FASCII[ iCoord ] = aChar ) and ( FColor[ iCoord ] = aFrontColor ) and ( FBColor[ iCoord ] = aBackColor ) then Exit;
+  if ( FCells[ iCoord ].glyph = Ord( aChar ) ) and ( FColor[ iCoord ] = aFrontColor ) and ( FBColor[ iCoord ] = aBackColor ) then Exit;
   SetData( iCoord, aChar, aFrontColor, aBackColor );
 end;
 
@@ -243,7 +279,7 @@ function TGLConsoleRenderer.GetChar ( x, y : Integer ) : Char;
 begin
   x := Clamp( x-1, 0, FSizeX-1 );
   y := Clamp( y-1, 0, FSizeY-1 );
-  Exit( FASCII[ FSizeX*y+x ] );
+  Exit( Chr( FCells[ FSizeX*y+x ].glyph ) );
 end;
 
 function TGLConsoleRenderer.GetColor ( x, y : Integer ) : TIOColor;
@@ -266,7 +302,8 @@ begin
   if not (VIO_CON_CURSOR in FCapabilities) then Exit;
   x := Clamp( x-1, 0, FSizeX-1 );
   y := Clamp( y-1, 0, FSizeY-1 );
-  FCoords[ FSizeX * FSizeY ] := FCoords[ FSizeX*y+x ];
+  FCursorX := x;
+  FCursorY := y;
 end;
 
 procedure TGLConsoleRenderer.ShowCursor;
@@ -289,7 +326,7 @@ begin
      VIO_CURSOR_HALF  : iChar := #220;
      VIO_CURSOR_BLOCK : iChar := #219;
   end;
-  FFont.SetTexCoord( FTexCoords[ FSizeX * FSizeY ], iChar );
+  FCGlyph := Ord( iChar );
   inherited SetCursorType( aType );
 end;
 
@@ -299,21 +336,18 @@ begin
   iSize  := FSizeX * FSizeY;
   for iCount := 0 to iSize-1 do
   begin
-    FASCII[ iCount ]     := ' ';
+    FCells[ iCount ].fgcolor := IoColors[LightGray];
+    FCells[ iCount ].bgcolor := 0;
+    FCells[ iCount ].glyph   := Ord(' ');
+
     FColor[ iCount ]     := LightGray;
-    FTexCoords[ iCount ] := EmptyTexCoord;
-    FColors[ iCount ]    := FColorLookup[ LightGray ];
     if FBSupport then
-    begin
       FBColor[ iCount ]  := Black;
-      FBColors[ iCount ] := FColorLookup[ Black ];
-    end;
   end;
 end;
 
 procedure TGLConsoleRenderer.ClearRect ( x1, y1, x2, y2 : Integer; aBackColor : TIOColor ) ;
 var iX, iY  : LongInt;
-    iBColor : TGLRawQColor;
     iCoord  : LongInt;
 begin
   x1 := Clamp( x1-1, 0, FSizeX-1 );
@@ -321,23 +355,20 @@ begin
   x2 := Clamp( x2-1, 0, FSizeX-1 );
   y2 := Clamp( y2-1, 0, FSizeY-1 );
 
-  if FBSupport then
-    SetColor( iBColor, aBackColor );
-
   if (x2 < x1) or (y2 < y1) then Exit;
   for iY := y1 to y2 do
     for iX := x1 to x2 do
     begin
       iCoord := iY*FSizeX+iX;
-      FASCII[ iCoord ]     := ' ';
-      FTexCoords[ iCoord ] := EmptyTexCoord;
+      FCells[ iCoord ].glyph   := Ord(' ');
+
       if aBackColor = ColorNone then Continue;
-      FColor[ iCoord ]     := LightGray;
-      FColors[ iCoord ]    := FColorLookup[ LightGray ];
+      FCells[ iCoord ].fgcolor := IoColors[LightGray];
+      FColor[ iCoord ]         := LightGray;
       if FBSupport then
       begin
+        FCells[ iCoord ].bgcolor := MakeColor( aBackColor );
         FBColor[ iCoord ]  := aBackColor;
-        FBColors[ iCoord ] := iBColor;
       end;
     end;
 end;
@@ -347,143 +378,110 @@ var iSize, iX, iY : LongInt;
     iMatrix       : TMatrix44;
     iPLoc         : Integer;
     iRect         : TIORect;
+    iPart         : TGLVec2f;
 begin
+  Log( LOGWARN, 'Resize %dx%d - %d', [ aNewSizeX, aNewSizeY, aLineSpace] );
   FLineSpace := aLineSpace;
   FSizeX     := aNewSizeX;
   FSizeY     := aNewSizeY;
   iSize      := aNewSizeX * aNewSizeY;
 
-  SetLength( FASCII, iSize );
   SetLength( FColor, iSize );
-  SetLength( FCoords, iSize + 1 );
-  SetLength( FTexCoords, iSize + 1 );
-  SetLength( FColors, iSize + 1 );
-
-  for iY := 0 to FSizeY - 1 do
-    for iX := 0 to FSizeX - 1 do
-      SetCoord( FCoords[ iY*FSizeX+iX ], iX, iY );
+  SetLength( FCells, iSize );
 
   if FBSupport then
-  begin
-    SetLength( FBColors, iSize );
     SetLength( FBColor, iSize );
-    if aLineSpace = 0 then
-      FBCoords := FCoords
-    else
-    begin
-      SetLength( FBCoords, iSize );
-      for iY := 0 to FSizeY - 1 do
-        for iX := 0 to FSizeX - 1 do
-          SetCoord( FBCoords[ iY*FSizeX+iX ], iX, iY, True );
-    end;
-  end;
 
-  SetColor( FColors[ iSize ], LightGray );
   SetCursorType( VIO_CURSOR_SMALL );
   MoveCursor( 1, 1 );
   Clear;
 
   iRect   := GetDeviceArea();
-  iMatrix := GLCreateOrtho( 0, iRect.Dim.X + 2*iRect.Pos.X, iRect.Dim.Y + 2*iRect.Pos.Y, 0, -1, 1 );
 
-  FBProgram.Bind;
-    iPLoc := FBProgram.GetUniformLocation('projection');
+  glBindVertexArray(FDataVAO);
+  glBindBuffer( GL_TEXTURE_BUFFER, FDataVBO );
+  glBufferData( GL_TEXTURE_BUFFER, FSizeX * FSizeY * sizeof(TGLCell), @(FCells[0]), GL_STREAM_DRAW );
+  glBindTexture( GL_TEXTURE_BUFFER, FDataTexture );
+  glTexBuffer( GL_TEXTURE_BUFFER, GL_RGBA32UI, FDataVBO );
+  glBindBuffer( GL_TEXTURE_BUFFER, 0 );
+  glBindTexture( GL_TEXTURE_BUFFER, 0 );
+  glBindVertexArray(0);
+
+  FProgram.Bind;
+    if FLineSpace <> 0 then
+    begin
+      iPart.Init( SDLIO.GetSizeX / iRect.Dim.X, SDLIO.GetSizeY / iRect.Dim.Y );
+      iMatrix := GLCreateOrtho(-iPart.X, iPart.X, 1 - 2*iPart.Y, 1, -1, 1 );
+    end
+    else
+      iMatrix := GLCreateOrtho(-1, 1, -1, 1, -1, 1 );
+
+
+    iPLoc := FProgram.GetUniformLocation('projection');
     glUniformMatrix4fv(iPLoc, 1, GL_FALSE, @iMatrix[0]);
-  FBProgram.Unbind;
 
-  FFProgram.Bind;
-    iPLoc := FFProgram.GetUniformLocation('projection');
-    glUniformMatrix4fv(iPLoc, 1, GL_FALSE, @iMatrix[0]);
-
-    iPLoc := FFProgram.GetUniformLocation('utexture');
+    iPLoc := FProgram.GetUniformLocation('udiffuse');
     glUniform1i(iPLoc, 0);
-  FFProgram.Unbind;
+
+    iPLoc := FProgram.GetUniformLocation('udata');
+    glUniform1i(iPLoc, 1);
+
+    iPLoc := FProgram.GetUniformLocation('uterm_size');
+    glUniform2f(iPLoc, Single(FSizeX), Single(FSizeY));
+
+    iPLoc := FProgram.GetUniformLocation('usheet_size');
+    glUniform2i( iPLoc, 32, 7 );
+
+    iPLoc := FProgram.GetUniformLocation('usheet_offset');
+    glUniform1i( iPLoc, 32 );
+
+    iPLoc := FProgram.GetUniformLocation('uline_space');
+    glUniform1i( iPLoc, FLineSpace );
+
+    FPCursor := FProgram.GetUniformLocation('ucursor');
+  FProgram.Unbind;
 
 end;
 
 procedure TGLConsoleRenderer.Update;
-var iCount : DWord;
-    iTick  : DWord;
 begin
-  iCount := FSizeX * FSizeY;
-
-  glBindVertexArray(FVAO);
-
-  if FBSupport then
-  begin // background rendering
-    FBProgram.Bind;
-
-    glBindBuffer( GL_ARRAY_BUFFER, FBCoordVBO);
-    glBufferData( GL_ARRAY_BUFFER, iCount*sizeof(TGLRawQCoord), @(FBCoords[0]), GL_STREAM_DRAW );
-    glVertexAttribPointer(0, 2, GL_INT, GL_FALSE, 2 * sizeof(Integer), nil );
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer( GL_ARRAY_BUFFER, FBColorVBO);
-    glBufferData( GL_ARRAY_BUFFER, iCount*sizeof(TGLRawQColor), @(FBColors[0]), GL_STREAM_DRAW );
-    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, 3 * sizeof(GLubyte), nil );
-    glEnableVertexAttribArray(1);
-
-    glDrawArrays( GL_QUADS, 0, iCount*4 );
-
-    FBProgram.UnBind;
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-    glBindBuffer( GL_ARRAY_BUFFER, 0);
-  end;
-
+  glBindVertexArray(FTriangleVAO);
+  FProgram.Bind;
+  if (VIO_CON_CURSOR in FCapabilities) and FCurVisible then
   begin
-    if (VIO_CON_CURSOR in FCapabilities) and FCurVisible then
-        Inc( iCount );
-
-    FFProgram.Bind;
-
-    glActiveTexture(0);
-    glBindTexture( GL_TEXTURE_2D, FFont.GLTexture );
-
-    glBindBuffer( GL_ARRAY_BUFFER, FFCoordVBO);
-    glBufferData( GL_ARRAY_BUFFER, iCount*sizeof(TGLRawQCoord), @(FCoords[0]), GL_STREAM_DRAW );
-    glVertexAttribPointer(0, 2, GL_INT, GL_FALSE, 2 * sizeof(Integer), nil );
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer( GL_ARRAY_BUFFER, FFColorVBO);
-    glBufferData( GL_ARRAY_BUFFER, iCount*sizeof(TGLRawQColor), @(FColors[0]), GL_STREAM_DRAW );
-    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, 3 * sizeof(GLubyte), nil );
-    glEnableVertexAttribArray(1);
-
-    glBindBuffer( GL_ARRAY_BUFFER, FTCoordVBO);
-    glBufferData( GL_ARRAY_BUFFER, iCount*sizeof(TGLRawQTexCoord), @(FTexCoords[0]), GL_STREAM_DRAW );
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), nil );
-    glEnableVertexAttribArray(2);
+    if (MilliSecondsBetween(Now,FStartTime) div 500) mod 2 = 0 then
+      glUniform3i( FPCursor, FCursorX, FCursorY, FCGlyph )
+    else
+      glUniform3i( FPCursor, -1, -1, 0 );
+  end
+  else
+    glUniform3i( FPCursor, -1, -1, 0 );
 
 
-    if (VIO_CON_CURSOR in FCapabilities) and FCurVisible then
-    begin
-      iTick := MilliSecondsBetween(Now,FStartTime) div 500;
-      if iTick mod 2 = 0 then Dec( iCount );
-    end;
+  glActiveTexture( GL_TEXTURE0 );
+  glBindTexture( GL_TEXTURE_2D, FFont.GLTexture );
 
-    glDrawArrays( GL_QUADS, 0, iCount*4 );
+  glActiveTexture( GL_TEXTURE1 );
+  glBindTexture( GL_TEXTURE_BUFFER, FDataTexture );
 
-    FFProgram.UnBind;
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-    glDisableVertexAttribArray(2);
-    glBindBuffer( GL_ARRAY_BUFFER, 0);
-  end;
+  glBindBuffer( GL_TEXTURE_BUFFER, FDataVBO );
+  glBufferSubData( GL_TEXTURE_BUFFER, 0, FSizeX * FSizeY * sizeof(TGLCell), @(FCells[0]) );
 
+  glBindBuffer( GL_ARRAY_BUFFER, FTriangleVBO );
+  glDrawArrays( GL_TRIANGLES, 0, 3 );
+  FProgram.UnBind;
+  glBindBuffer( GL_ARRAY_BUFFER, 0);
+  glBindTexture( GL_TEXTURE_BUFFER, 0 );
+  glBindTexture( GL_TEXTURE_2D, 0 );
   glBindVertexArray(0);
+  glActiveTexture( GL_TEXTURE0 );
 end;
 
 destructor TGLConsoleRenderer.Destroy;
 begin
-  glDeleteBuffers(1, @FBColorVBO);
-  glDeleteBuffers(1, @FFColorVBO);
-  glDeleteBuffers(1, @FFCoordVBO);
-  glDeleteBuffers(1, @FBCoordVBO);
-  glDeleteBuffers(1, @FTCoordVBO);
-  glDeleteVertexArrays(1, @FVAO);
-  FreeAndNil( FBProgram );
-  FreeAndNil( FFProgram );
+  glDeleteBuffers(1, @FDataVBO);
+  glDeleteVertexArrays(1, @FDataVAO);
+  glDeleteVertexArrays(1, @FTriangleVAO);
   FreeAndNil( FFont );
   if FOwnTextures then TTextureManager.Get().Free;
   inherited Destroy;
@@ -499,55 +497,18 @@ procedure TGLConsoleRenderer.SetData( aIndex : DWord; aChar : Char; aFrontColor,
 begin
   if (aFrontColor <> ColorNone) then
   begin
-    FASCII[ aIndex ] := aChar;
-    FFont.SetTexCoord( FTexCoords[ aIndex ], aChar );
+    FCells[ aIndex ].glyph := Ord( aChar );
   end
   else
     aFrontColor := 0;
   FColor[ aIndex ] := aFrontColor;
-  SetColor( FColors[ aIndex ], aFrontColor );
+  FCells[ aIndex ].fgcolor := MakeColor( aFrontColor );
+
   if FBSupport then
   begin
     FBColor[ aIndex ] := aBackColor;
-    SetColor( FBColors[ aIndex ], aBackColor );
+    FCells[ aIndex ].bgcolor := MakeColor( aBackColor );
   end;
-end;
-
-procedure TGLConsoleRenderer.SetCoord ( out aQCoord : TGLRawQCoord; x, y : Integer; aBackGround : Boolean = False ) ;
-var c1, c2, p : TGLVec2i;
-begin
-  c1.x := x * FFont.GylphSize.X;
-  c2.x := c1.x + FFont.GylphSize.X;
-
-  if aBackGround then
-  begin
-    c1.y := y * ( FFont.GylphSize.Y + FLineSpace );
-    c2.y := c1.y + FFont.GylphSize.Y + FLineSpace;
-  end
-  else
-  begin
-    c1.y := y * ( FFont.GylphSize.Y + FLineSpace ) + FLineSpace div 2;
-    c2.y := c1.y + FFont.GylphSize.Y;
-  end;
-  p := TGLVec2i.Create( FPositionX, FPositionY );
-  aQCoord.Init( p + c1.Scaled( FScale ), p + c2.Scaled( FScale ) );
-end;
-
-procedure TGLConsoleRenderer.SetColor ( out aQColor : TGLRawQColor; aColor : TIOColor ) ;
-begin
-  if aColor = ColorNone then aColor := 0;
-  if aColor < 256
-    then aQColor := FColorLookup[ aColor mod 16 ]
-    else CreateColor( aQColor,
-      (aColor and $FF000000) shr 24,
-      (aColor and $00FF0000) shr 16,
-      (aColor and $0000FF00) shr 8
-    );
-end;
-
-procedure TGLConsoleRenderer.CreateColor( out aQColor : TGLRawQColor; aR, aG, aB : Byte );
-begin
-  aQColor.SetAll( TGLByteColor.Create( aR, aG, aB) );
 end;
 
 function TGLConsoleRenderer.GetSupportedCapabilities : TIOConsoleCapSet;
