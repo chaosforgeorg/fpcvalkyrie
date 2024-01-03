@@ -28,7 +28,7 @@ function SlurpFile( const aFileName : AnsiString ) : AnsiString;
 
 implementation
 
-uses vdebug, vgl3library;
+uses vutil, vdebug, vgl3library;
 
 function SlurpFile(const aFileName: AnsiString): AnsiString;
 var
@@ -133,8 +133,10 @@ begin
     SetLength( iBuffer, 1024 );
     glGetShaderInfoLog( iShaderID, 1024, @iLength, PChar(iBuffer) );
     SetLength( iBuffer, iLength );
-    Log( 'Shader compile failure : '+ iBuffer );
-    Exit(0);
+    Log( aSource );
+    Log( LogError, 'Shader compile failure : '+ iBuffer );
+    Readln;
+    Exit( 0 );
   end;
   Log( 'Shader compiled successfuly.' );
   Exit( iShaderID );
