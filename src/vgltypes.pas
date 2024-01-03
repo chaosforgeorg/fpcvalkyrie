@@ -31,6 +31,12 @@ type
 
   TMatrix44       = array[0..15] of Single;
 
+  TVertex2f2f     = record
+    position : TVec2f;
+    texcoord : TVec2f;
+  end;
+
+
 // Inline
 function GLVec2f( aX : Single = 0; aY : Single = 0 ) : TGLVec2f; overload;
 function GLVec3f( aX : Single = 0; aY : Single = 0; aZ : Single = 0 ) : TGLVec3f; overload;
