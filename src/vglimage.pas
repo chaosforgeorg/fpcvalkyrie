@@ -30,8 +30,10 @@ begin
   //SDL_UnlockSurface( SDLSurface );
   //LoadImage := TImage.Create( SDLSurface^.pixels, SDLSurface^.w, SDLSurface^.h );
 
-  w := UpToPowerOf2(SDLSurface^.w);
-  h := UpToPowerOf2(SDLSurface^.h);
+//  w := UpToPowerOf2(SDLSurface^.w);
+//  h := UpToPowerOf2(SDLSurface^.h);
+  w := SDLSurface^.w;
+  h := SDLSurface^.h;
 
   image := SDL_CreateRGBSurface( SDL_SWSURFACE, w, h, 32,
 {$IFDEF ENDIAN_LITTLE}
