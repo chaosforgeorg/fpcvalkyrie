@@ -154,10 +154,11 @@ end;
 function TGLTexturedArrays.GetDrawArray(aTexture : Cardinal): TGLDrawArrays;
 var i : Integer;
 begin
-  if FTextureIDs.Size > 0 then
-    for i := 0 to FTextureIDs.Size-1 do
-      if FTextureIDs[i] = aTexture then
-        Exit( FDrawArrays[i] );
+  if Assigned( FTextureIDs ) then
+    if FTextureIDs.Size > 0 then
+      for i := 0 to FTextureIDs.Size-1 do
+        if FTextureIDs[i] = aTexture then
+          Exit( FDrawArrays[i] );
   Exit( nil );
 end;
 

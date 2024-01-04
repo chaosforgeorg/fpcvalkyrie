@@ -13,11 +13,9 @@ end;
 
 
 type TGLQuadList = class
-  //procedure PostColoredLine( aFrom, aTo : TGLVec2i; aColor : TGLVec4f );
-  //procedure PostColoredQuad( aUR, aLL : TGLVec2i; aColor : TGLVec4f );
-  //procedure PostTexturedQuad( aUR, aLL : TGLVec2i; aTUR, aTLL : TGLVec2f; aTexture : DWord );
-  //procedure PostTexturedQuad( aUR, aLL : TGLVec2i; aColor : TGLVec4f; aTUR, aTLL : TGLVec2f; aTexture : DWord );
-  //procedure PostTexturedQuad( aUR, aLL : TGLVec2i; aColor : TGLRawQColor4f; aTUR, aTLL : TGLVec2f; aTexture : DWord );
+  procedure PushColoredQuad( aUR, aLL : TGLVec2i; aColor : TGLVec4f; aZ : Integer = 0 );
+  procedure PushTexturedQuad( aUR, aLL : TGLVec2i; aTUR, aTLL : TGLVec2f; aTexture : DWord; aZ : Integer = 0 );
+  procedure PushTexturedQuad( aUR, aLL : TGLVec2i; aColor : TGLVec4f; aTUR, aTLL : TGLVec2f; aTexture : DWord; aZ : Integer = 0 );
   procedure Append( aList : TGLTexturedColoredQuads; aTexture : DWord );
   destructor Destroy; override;
 private
@@ -101,6 +99,23 @@ begin
   end;
 end;
 
+procedure TGLQuadList.PushColoredQuad( aUR, aLL : TGLVec2i; aColor : TGLVec4f; aZ : Integer = 0 );
+begin
+  if not Assigned( FColored ) then FColored := TGLColoredQuads.Create;
+  FColored.PushQuad( TGLVec3i.CreateFrom( aUR, aZ ), TGLVec3i.CreateFrom( aLL, aZ ), aColor );
+end;
+
+procedure TGLQuadList.PushTexturedQuad( aUR, aLL : TGLVec2i; aTUR, aTLL : TGLVec2f; aTexture : DWord; aZ : Integer = 0 );
+begin
+  if not Assigned( FTextured ) then FTextured := TGLTexturedColoredQuadLayer.Create;
+  FTextured[ aTexture ].PushQuad( TGLVec3i.CreateFrom( aUR, aZ ), TGLVec3i.CreateFrom( aLL, aZ ), TGLVec4f.Create(1,1,1,1), aTUR, aTLL );
+end;
+
+procedure TGLQuadList.PushTexturedQuad( aUR, aLL : TGLVec2i; aColor : TGLVec4f; aTUR, aTLL : TGLVec2f; aTexture : DWord; aZ : Integer = 0 );
+begin
+  if not Assigned( FTextured ) then FTextured := TGLTexturedColoredQuadLayer.Create;
+  FTextured[ aTexture ].PushQuad( TGLVec3i.CreateFrom( aUR, aZ ), TGLVec3i.CreateFrom( aLL, aZ ), aColor, aTUR, aTLL );
+end;
 
 procedure TGLQuadList.Append ( aList : TGLTexturedColoredQuads; aTexture : DWord ) ;
 var iIndex : Integer;
