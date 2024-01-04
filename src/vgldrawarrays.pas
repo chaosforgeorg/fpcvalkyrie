@@ -34,6 +34,9 @@ type TTextureIDArray    = specialize TGArray< Cardinal >;
 { TGLQuadBufferLayer }
 type TGLTexturedArrays = class
   constructor Create;
+  procedure Draw;
+  procedure Update;
+  procedure Clear;
   function AddDrawArray( aDrawArray : TGLDrawArrays; aTexture : Cardinal ) : TGLDrawArrays;
   function GetDrawArray( aTexture : Cardinal ) : TGLDrawArrays;
   destructor Destroy; override;
@@ -149,6 +152,34 @@ begin
       if FTextureIDs[i] = aTexture then
         Exit( FDrawArrays[i] );
   Exit( nil );
+end;
+
+procedure TGLTexturedArrays.Update;
+var i : Integer;
+begin
+   if FDrawArrays.Size > 0 then
+     for i := 0 to FDrawArrays.Size - 1 do
+       FDrawArrays[i].Update;
+end;
+
+procedure TGLTexturedArrays.Draw;
+var i : Integer;
+begin
+  if FDrawArrays.Size > 0 then
+    for i := 0 to FDrawArrays.Size - 1 do
+    begin
+      glActiveTexture( GL_TEXTURE0 );
+      glBindTexture( GL_TEXTURE_2D, FTextureIDs[i]  );
+      FDrawArrays[i].Draw;
+    end;
+end;
+
+procedure TGLTexturedArrays.Clear;
+var i : Integer;
+begin
+  if FDrawArrays.Size > 0 then
+    for i := 0 to FDrawArrays.Size - 1 do
+      FDrawArrays[i].Clear;
 end;
 
 destructor TGLTexturedArrays.Destroy;

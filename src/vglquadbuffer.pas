@@ -7,7 +7,6 @@ uses Classes, SysUtils, vgltypes, vgenerics, vvector, vglprogram, vgldrawarrays,
 
 type TGLTexturedColoredQuadLayer = class( TGLTexturedArrays )
   function GetArray( aTextureID : Cardinal ) : TGLTexturedColoredQuads;
-  procedure Draw;
 public
   property Quads[ aTextureID : Cardinal ]  : TGLTexturedColoredQuads read GetArray; default;
 end;
@@ -29,24 +28,6 @@ begin
   end;
 end;
 
-procedure TGLTexturedColoredQuadLayer.Draw;
-var i : Integer;
-begin
-  if FDrawArrays.Size = 0 then Exit;
-
-  for i := 0 to FDrawArrays.Size - 1 do
-    FDrawArrays[i].Update;
-
-  for i := 0 to FDrawArrays.Size - 1 do
-  begin
-    glActiveTexture( GL_TEXTURE0 );
-    glBindTexture( GL_TEXTURE_2D, FTextureIDs[i]  );
-    FDrawArrays[i].Draw;
-  end;
-
-  for i := 0 to FDrawArrays.Size - 1 do
-    FDrawArrays[i].Clear;
-end;
 
 
 end.
