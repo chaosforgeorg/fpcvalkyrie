@@ -467,7 +467,7 @@ begin
     SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 3 );
     // TODO: Change to CORE profile
     //       This at least needs to remove GL_QUADS from all rendering
-    SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY );
+    SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE );
   end;
 
   FWindow := SDL_CreateWindow( 'Valkyrie SDL Application',
