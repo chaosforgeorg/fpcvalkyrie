@@ -15,12 +15,14 @@ type TGLColoredQuads = class( TGLDrawArrays )
   constructor Create;
   procedure PushQuad ( aUR, aLL : TGLVec3i; aColor : TGLVec4f ) ;
   procedure PushQuad ( aUR, aLL : TGLVec3i; aColorQuad : TGLQVec4f ) ;
+  procedure Append( aList : TGLColoredQuads );
 end;
 
 type TGLTexturedQuads = class( TGLDrawArrays )
   constructor Create;
   procedure PushQuad ( aUR, aLL : TGLVec3i; aTUR, aTLL : TGLVec2f ) ;
   procedure PushRotatedQuad ( aCenter, aSize : TGLVec3i; aDegrees : Single; aTUR, aTLL : TGLVec2f ) ;
+  procedure Append( aList : TGLTexturedQuads );
 end;
 
 type TGLTexturedColoredQuads = class( TGLTexturedQuads )
@@ -28,6 +30,7 @@ type TGLTexturedColoredQuads = class( TGLTexturedQuads )
   procedure PushQuad ( aUR, aLL : TGLVec3i; aColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
   procedure PushQuad ( aUR, aLL : TGLVec3i; aColorQuad : TGLQVec4f; aTUR, aTLL : TGLVec2f ) ;
   procedure PushRotatedQuad ( aCenter, aSize : TGLVec3i; aDegrees : Single; aColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+  procedure Append( aList : TGLTexturedColoredQuads );
 end;
 
 
@@ -54,6 +57,12 @@ procedure TGLColoredQuads.PushQuad ( aUR, aLL : TGLVec3i; aColorQuad: TGLQVec4f 
 begin
   TGLQVec3iArray(FArrays[0]).Push( TGLQVec3i.CreateInit( aUR, aLL ) );
   TGLQVec4fArray(FArrays[1]).Push( aColorQuad );
+end;
+
+procedure TGLColoredQuads.Append( aList : TGLColoredQuads );
+begin
+  TGLQVec3iArray(FArrays[0]).Append( TGLQVec3iArray(aList.FArrays[0]) );
+  TGLQVec4fArray(FArrays[1]).Append( TGLQVec4fArray(aList.FArrays[1]) );
 end;
 
 { TGLTexturedQuads }
@@ -92,6 +101,12 @@ begin
   TGLQVec2fArray(FArrays[1]).Push( TGLQVec2f.CreateInit( aTUR, aTLL ) );
 end;
 
+procedure TGLTexturedQuads.Append( aList : TGLTexturedQuads );
+begin
+  TGLQVec3iArray(FArrays[0]).Append( TGLQVec3iArray(aList.FArrays[0]) );
+  TGLQVec2fArray(FArrays[1]).Append( TGLQVec2fArray(aList.FArrays[1]) );
+end;
+
 { TGLTexturedColoredQuads }
 
 constructor TGLTexturedColoredQuads.Create;
@@ -119,6 +134,11 @@ begin
   TGLQVec4fArray(FArrays[2]).Push( TGLQVec4f.CreateAll( aColor ) );
 end;
 
+procedure TGLTexturedColoredQuads.Append( aList : TGLTexturedColoredQuads );
+begin
+  inherited Append( aList );
+  TGLQVec4fArray(FArrays[2]).Append( TGLQVec4fArray(aList.FArrays[2]) );
+end;
 
 end.
 

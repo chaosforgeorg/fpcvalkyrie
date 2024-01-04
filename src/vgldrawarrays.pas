@@ -19,6 +19,7 @@ type TGLDrawArrays = class
   procedure Clear;
   procedure Update;
   procedure Draw;
+  function Empty : Boolean;
   destructor Destroy; override;
 protected
   procedure PushArray( aArray : TRawPointerArray; aElements : Cardinal; aGLType   : Cardinal; aLocation : Integer );
@@ -39,6 +40,7 @@ type TGLTexturedArrays = class
   procedure Clear;
   function AddDrawArray( aDrawArray : TGLDrawArrays; aTexture : Cardinal ) : TGLDrawArrays;
   function GetDrawArray( aTexture : Cardinal ) : TGLDrawArrays;
+  function Empty : Boolean;
   destructor Destroy; override;
 protected
   FDrawArrays : TGLDrawArraysArray;
@@ -98,6 +100,11 @@ begin
 
   glBindBuffer( GL_ARRAY_BUFFER, 0);
   glBindVertexArray( 0 );
+end;
+
+function TGLDrawArrays.Empty : Boolean;
+begin
+  Exit( FArrays.Size = 0 );
 end;
 
 destructor TGLDrawArrays.Destroy;
@@ -180,6 +187,16 @@ begin
   if FDrawArrays.Size > 0 then
     for i := 0 to FDrawArrays.Size - 1 do
       FDrawArrays[i].Clear;
+end;
+
+function TGLTexturedArrays.Empty : Boolean;
+var i : Integer;
+begin
+  if FDrawArrays.Size = 0 then Exit( True );
+  for i := 0 to FDrawArrays.Size - 1 do
+    if not FDrawArrays[i].Empty then
+      Exit( False );
+  Exit( True );
 end;
 
 destructor TGLTexturedArrays.Destroy;
