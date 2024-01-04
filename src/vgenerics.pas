@@ -30,6 +30,7 @@ type TRawPointerArray = class(TVObject)
     procedure Expand;
     procedure ExpandTo( aCapacity : Integer );
     function InternalPush( aItem : Pointer ) : Integer;
+    function InternalAppend( aOther : TRawPointerArray ) : Integer;
     function InternalPop : Integer;
     function InternalTop : Pointer;
     procedure InternalPut( aIndex : Integer; aItem : Pointer );
@@ -74,6 +75,7 @@ type
 
   generic TGArray<T> = class(TRawPointerArray)
   public type
+    TThis      = specialize TGArray<T>;
     TTypeArrayEnumerator = specialize TGArrayEnumerator<T>;
     TCompareFunc         = function ( const aItem1, aItem2 : T ): Integer;
     TTypeArray = array[0..(MaxInt div 1024)] of T;
@@ -91,6 +93,7 @@ type
     constructor CreateFromStream( Stream : TStream ); override;
     procedure WriteToStream( Stream : TStream ); override;
     procedure Sort( aCompare : TCompareFunc );
+    procedure Append( const other : TThis );
     function Push( const aItem : T ) : Integer;
     function Pop : T;
     function Top : T;
@@ -527,6 +530,17 @@ begin
   Exit( FCount );
 end;
 
+function TRawPointerArray.InternalAppend ( aOther : TRawPointerArray ) : Integer;
+var i : Integer;
+begin
+  if aOther.FCount < 1 then Exit( FCount );
+  if FCount + aOther.FCount > FCapacity then ExpandTo( FCount + aOther.FCount );
+  for i := 0 to aOther.FCount-1 do
+    CopyItem( aOther.FData+i*FItemSize, FData+(FCount + i)*FItemSize );
+  Inc( FCount, aOther.FCount );
+  Exit( FCount );
+end;
+
 function TRawPointerArray.InternalPop : Integer;
 begin
   if FCount = 0 then raise ERangeError.Create('Pop on empty array called!');
@@ -786,6 +800,11 @@ procedure TGArray.Sort( aCompare : TCompareFunc );
 begin
   FOnCompare := aCompare;
   PointerSort(@PointerCompare);
+end;
+
+procedure TGArray.Append( const other : TThis );
+begin
+  InternalAppend( other )
 end;
 
 function TGArray.Push ( const aItem : T ) : Integer;
