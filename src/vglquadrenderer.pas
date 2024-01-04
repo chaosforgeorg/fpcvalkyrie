@@ -1,5 +1,5 @@
 {$INCLUDE valkyrie.inc}
-unit vglquadbuffer;
+unit vglquadrenderer;
 interface
 
 uses Classes, SysUtils, vnode, vgltypes, vglprogram, vgldrawarrays,

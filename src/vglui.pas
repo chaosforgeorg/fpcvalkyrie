@@ -2,7 +2,7 @@
 unit vglui;
 interface
 uses Classes, SysUtils, vutil, viotypes, vioevent, vioconsole, vuitypes,
-     vuielement, vuielements, vgltypes, vglquadbuffer, vglquadarrays, vbitmapfont;
+     vuielement, vuielements, vgltypes, vglquadrenderer, vglquadarrays, vbitmapfont;
 
 const VGLUI_Z = 0; // Be sure to adjust ortho if changing
 
