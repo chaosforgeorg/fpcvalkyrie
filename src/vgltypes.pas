@@ -36,6 +36,9 @@ type
     texcoord : TVec2f;
   end;
 
+const VGL_POSITION_LOCATION = 0;
+      VGL_TEXCOORD_LOCATION = 1;
+      VGL_COLOR_LOCATION    = 2;
 
 // Inline
 function GLVec2f( aX : Single = 0; aY : Single = 0 ) : TGLVec2f; overload;
