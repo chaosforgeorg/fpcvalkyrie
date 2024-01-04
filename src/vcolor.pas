@@ -16,6 +16,8 @@ TColor = packed object
   procedure Init( aR, aG, Ab : Byte; aA : Byte = 255 );
   function toDWord : DWord;
   function toIOColor : DWord;
+  function toVec4f : TVec4f;
+  function toVec43f : TVec4f;
 end;
 
 function ColorMix( A, B : TColor ) : TColor;
@@ -158,6 +160,16 @@ end;
 function TColor.toIOColor : DWord;
 begin
    toIOColor := A + B shl 8 + G shl 16 + R shl 24;
+end;
+
+function TColor.toVec4f : TVec4f;
+begin
+   toVec4f.Init( R / 255.0, G / 255.0, B / 255.0, A / 255.0 );
+end;
+
+function TColor.toVec43f : TVec4f;
+begin
+   toVec43f.Init( R / 255.0, G / 255.0, B / 255.0, 1.0 );
 end;
 
 end.

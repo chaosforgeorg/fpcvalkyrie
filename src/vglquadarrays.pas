@@ -21,6 +21,7 @@ end;
 type TGLTexturedQuads = class( TGLDrawArrays )
   constructor Create;
   procedure PushQuad ( aUR, aLL : TGLVec3i; aTUR, aTLL : TGLVec2f ) ;
+  procedure PushQuad ( aCoord : TGLQVec3i; aTUR, aTLL : TGLVec2f ) ;
   procedure PushRotatedQuad ( aCenter, aSize : TGLVec3i; aDegrees : Single; aTUR, aTLL : TGLVec2f ) ;
   procedure Append( aList : TGLTexturedQuads );
 end;
@@ -29,6 +30,7 @@ type TGLTexturedColoredQuads = class( TGLTexturedQuads )
   constructor Create;
   procedure PushQuad ( aUR, aLL : TGLVec3i; aColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
   procedure PushQuad ( aUR, aLL : TGLVec3i; aColorQuad : TGLQVec4f; aTUR, aTLL : TGLVec2f ) ;
+  procedure PushQuad ( aCoord : TGLQVec3i; aColorQuad : TGLQVec4f; aTUR, aTLL : TGLVec2f ) ;
   procedure PushRotatedQuad ( aCenter, aSize : TGLVec3i; aDegrees : Single; aColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
   procedure Append( aList : TGLTexturedColoredQuads );
 end;
@@ -80,6 +82,12 @@ begin
   TGLQVec2fArray(FArrays[1]).Push( TGLQVec2f.CreateInit( aTUR, aTLL ) );
 end;
 
+procedure TGLTexturedQuads.PushQuad ( aCoord : TGLQVec3i; aTUR, aTLL : TGLVec2f ) ;
+begin
+  TGLQVec3iArray(FArrays[0]).Push( aCoord );
+  TGLQVec2fArray(FArrays[1]).Push( TGLQVec2f.CreateInit( aTUR, aTLL ) );
+end;
+
 procedure TGLTexturedQuads.PushRotatedQuad( aCenter, aSize: TGLVec3i;
   aDegrees: Single; aTUR, aTLL: TGLVec2f);
 const Pi180 = Pi / 180;
@@ -124,6 +132,12 @@ end;
 procedure TGLTexturedColoredQuads.PushQuad(aUR, aLL: TGLVec3i; aColorQuad: TGLQVec4f; aTUR, aTLL: TGLVec2f);
 begin
   inherited PushQuad(aUR, aLL, aTUR, aTLL );
+  TGLQVec4fArray(FArrays[2]).Push( aColorQuad );
+end;
+
+procedure TGLTexturedColoredQuads.PushQuad(aCoord: TGLQVec3i; aColorQuad: TGLQVec4f; aTUR, aTLL: TGLVec2f);
+begin
+  inherited PushQuad(aCoord, aTUR, aTLL );
   TGLQVec4fArray(FArrays[2]).Push( aColorQuad );
 end;
 
