@@ -58,6 +58,7 @@ implementation
 
 uses vgl3library,
      {Screenshot support}
+     vdebug,
      FPImage, FPCanvas,
      FPWritePNG;
 
@@ -132,9 +133,14 @@ begin
 end;
 
 function SDLKeyEventToIOEvent( event : PSDL_Event ) : TIOEvent;
+const KNumerics : array[0..9] of Char = (')','!','@','#','$','%','^','&','*','(');
 var iCode    : Integer;
+    iShift   : Boolean;
 begin
-  iCode := event^.key.keysym.sym;
+  iCode  := event^.key.keysym.sym;
+  iShift := ( (event^.key.keysym.mod_ and KMOD_SHIFT) <> 0 ) or
+            ( (event^.key.keysym.mod_ and KMOD_CAPS) <> 0 );
+
   if ( iCode >= 32 )
     and ( iCode < 128 )
     and ( iCode <> SDLK_PAGEDOWN )
@@ -143,11 +149,24 @@ begin
     and ( iCode <> SDLK_END )
   then
   begin
-    if ( iCode >= Ord('a') ) and ( iCode <= Ord('z') ) then
+    Log( '%d %d '+Chr(event^.key.keysym.scancode)+' '+Chr(iCode), [event^.key.keysym.scancode, iCode] );
+    if iShift then
     begin
-      if ( (event^.key.keysym.mod_ and KMOD_SHIFT) <> 0 ) or
-        ( (event^.key.keysym.mod_ and KMOD_CAPS) <> 0 ) then
-        iCode := SDL_toupper( iCode );
+        case iCode of
+          Ord('a')..Ord('z') : iCode := SDL_toupper( iCode );
+          Ord('0')..Ord('9') : iCode := Ord(KNumerics[ iCode - Ord('0') ] );
+          Ord('`')           : iCode := Ord('~');
+          Ord('-')           : iCode := Ord('_');
+          Ord('=')           : iCode := Ord('+');
+          Ord('\')           : iCode := Ord('|');
+          Ord('[')           : iCode := Ord('{');
+          Ord(']')           : iCode := Ord('}');
+          Ord(';')           : iCode := Ord(':');
+          Ord('''')          : iCode := Ord('"');
+          Ord(',')           : iCode := Ord('<');
+          Ord('.')           : iCode := Ord('>');
+          Ord('/')           : iCode := Ord('?');
+        end
     end;
     Result := PrintableToIOEvent( Char( iCode ) );
     if event^.type_ = SDL_KEYUP then Result.EType := VEVENT_KEYUP;
