@@ -30,6 +30,7 @@ uses vutil, keyboard, video;
 
 const ColorMask     = $000000FF;
       ForeColorMask = $0000000F;
+      BackColorMask = $000000F0;
 
 constructor TTextConsoleRenderer.Create ( aCols : Word; aRows : Word; aReqCapabilities : TIOConsoleCapSet ) ;
 begin
@@ -48,10 +49,20 @@ begin
 end;
 
 procedure TTextConsoleRenderer.OutputChar ( x, y : Integer; aColor : TIOColor; aChar : char ) ;
-var iIndex : LongInt;
-    iValue : Word;
+var iIndex     : LongInt;
+    iValue     : Word;
+    iBackColor : TIOColor;
 begin
   if aColor = ColorNone then Exit;
+  if VIO_CON_BGCOLOR in FCapabilities then
+  begin
+    iBackColor := (aColor and BackColorMask) shr 4;
+    if iBackColor <> 0 then
+    begin
+      OutputChar( x, y, aColor mod 16, iBackColor, aChar );
+      Exit;
+    end;
+  end;
   iIndex := (x-1)+(y-1)*ScreenWidth;
   if (iIndex < 0) or (iIndex > FSizeX * FSizeY) then Exit;
   iValue := Ord(aChar) + ((aColor and FOutputCMask) shl 8);
