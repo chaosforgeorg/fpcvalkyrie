@@ -149,7 +149,6 @@ begin
     and ( iCode <> SDLK_END )
   then
   begin
-    Log( '%d %d '+Chr(event^.key.keysym.scancode)+' '+Chr(iCode), [event^.key.keysym.scancode, iCode] );
     if iShift then
     begin
         case iCode of
