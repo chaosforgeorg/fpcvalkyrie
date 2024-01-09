@@ -39,7 +39,7 @@ implementation
 uses
   {$IFDEF UNIX}unix,{$ENDIF}
   {$IFDEF Windows}Windows,{$ENDIF}
-  math, video, keyboard, mouse, dateutils;
+  math, video, keyboard, mouse, dateutils, vdebug;
 
 const InputKeyBackSpace = $0E08;
       InputKeyEnter     = $1C0D;
@@ -161,9 +161,73 @@ end;
 
 { TTextIODriver }
 
+{$IFDEF Windows}
+function GetConsoleWindowClassName: AnsiString;
+var
+  iConsoleWindow: HWND;
+  iClassName: array[0..255] of WideChar; // Increased buffer size for safety
+begin
+  Result := '';
+  iConsoleWindow := GetConsoleWindow();
+  if iConsoleWindow = 0 then
+  begin
+    Log( LOGWARN, 'No console window found' );
+    Exit;
+  end;
+
+  if GetClassNameW(iConsoleWindow, iClassName, 256) > 0 then
+  begin
+    Result := AnsiString(WideString(iClassName));
+    Log('Windows console class detected : ' + Result );
+  end
+  else
+    Log( LOGWARN, 'Unable to retrieve class name' );
+end;
+{$ENDIF}
+
 constructor TTextIODriver.Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False );
 var iVideoMode : TVideoMode;
+    {$IFDEF WINDOWS}
+    iHandle    : HANDLE;
+//    iIHandle   : HANDLE;
+    iCoord     : COORD;
+    iRect      : SMALL_RECT;
+    iLimit     : Integer;
+    iConsole   : AnsiString;
+    {$ENDIF}
 begin
+  {$IFDEF WINDOWS}
+  iConsole := GetConsoleWindowClassName;
+
+  if (iConsole <> 'ConsoleWindowClass') and (iConsole <> '') then
+  begin
+    iHandle  := GetStdHandle(STD_OUTPUT_HANDLE);
+    //  iIHandle := GetStdHandle(STD_INPUT_HANDLE);
+    //  GetConsoleMode( iIHandle, &m_save_mode ); // error handling?
+    //  if ( aMouse )
+    //    SetConsoleMode( iIHandle, ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT );
+    //  else
+    //    SetConsoleMode( iIHandle, ENABLE_WINDOW_INPUT );
+    iCoord.X := aCols;
+    iCoord.Y := aRows;
+    SetConsoleScreenBufferSize( iHandle, iCoord );
+
+    iRect.Left := 0;
+    iRect.Top  := 0;
+    iRect.Right := aCols;
+    iRect.Bottom := aRows;
+    SetConsoleWindowInfo( iHandle, true, iRect );
+    SetConsoleScreenBufferSize( iHandle, iCoord );
+
+    iLimit := iCoord.y + 1;
+    iCoord.y := 25;
+    while ( (not SetConsoleScreenBufferSize( iHandle, iCoord )) and (iCoord.y < iLimit) ) do
+      Inc( iCoord.y );
+    aCols := iCoord.X;
+    aRows := iCoord.Y;
+  end;
+  {$ENDIF}
+
   ClearInterrupts;
   TextIO := Self;
   FMouse := aMouse;
