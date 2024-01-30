@@ -530,8 +530,9 @@ var iCon       : TUIConsole;
     iColor     : TUIColor;
 begin
   iCon.Init( TConUIRoot(FRoot).Renderer );
-  iPosition := Point(aStart,0);
-  iColor    := aColor;
+  iPosition  := Point(aStart,0);
+  iColor     := aColor;
+  iChunkList := nil;
   iCon.ChunkifyEx( iChunkList, iPosition, iColor, aString, iColor, Dim );
   Exit( iCon.LinifyChunkList( iChunkList ) );
 end;

@@ -30,7 +30,9 @@ type
 
 implementation
 
+{$IFDEF Darwin}
 uses vos;
+{$ENDIF}
 
 constructor TLibrary.Create( const aName: AnsiString; aHandle: TLibHandle );
 begin

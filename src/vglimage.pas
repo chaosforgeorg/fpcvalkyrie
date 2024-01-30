@@ -17,8 +17,7 @@ implementation
 
 uses
   vgl3library,
-  vsdl2imagelibrary,
-  vmath;
+  vsdl2imagelibrary;
 
 function LoadImage( SDLSurface : PSDL_Surface ) : TImage;
 var w, h    : Integer;

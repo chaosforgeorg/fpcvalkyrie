@@ -2,7 +2,7 @@
 unit vglprogram;
 interface
 
-uses Classes, SysUtils, vgltypes;
+uses Classes, SysUtils;
 
 type
 
@@ -31,8 +31,6 @@ implementation
 uses vutil, vdebug, vgl3library;
 
 function SlurpFile(const aFileName: AnsiString): AnsiString;
-var
-  iFileStream : TFileStream;
 begin
   Result := '';
   with TFileStream.Create(aFileName, fmOpenRead or fmShareDenyWrite) do
@@ -104,6 +102,7 @@ begin
   glGetProgramiv( FProgramID, GL_LINK_STATUS, @iCompileOK);
   if iCompileOK = 0 then
   begin
+    iBuffer := '';
     SetLength( iBuffer, 1024 );
     glGetProgramInfoLog( FProgramID, 1024, @iLength, PChar(iBuffer) );
     SetLength( iBuffer, iLength );
@@ -130,6 +129,7 @@ begin
   glGetShaderiv( iShaderID, GL_COMPILE_STATUS, @iCompileOK );
   if iCompileOK = 0 then
   begin
+    iBuffer := '';
     SetLength( iBuffer, 1024 );
     glGetShaderInfoLog( iShaderID, 1024, @iLength, PChar(iBuffer) );
     SetLength( iBuffer, iLength );

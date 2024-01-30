@@ -1238,6 +1238,7 @@ end;
 
 function TArea.Corners: TCoord2DArray;
 begin
+  Corners := nil;
   SetLength( Corners, 4 );
   Corners[0] := A;
   Corners[1] := TopRight;
@@ -1403,6 +1404,8 @@ begin
   iBuckets := 1 shl aOrder;
   iMaxLoad := 3 * iBuckets;
 
+  iIndex := nil;
+  iPool  := nil;
   SetLength( iIndex, iBuckets );
   SetLength( iPool, iMaxLoad );
 

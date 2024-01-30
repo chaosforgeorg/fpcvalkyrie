@@ -829,6 +829,7 @@ var NewMap : array of array of Byte;
 begin
   SX := Area.B.X div 2 * (Size+1) + 1;
   SY := Area.B.Y div 2 * (Size+1) + 1;
+  NewMap := nil;
   SetLength( NewMap, SX, SY );
   CY := 0;
   for Line := 0 to Area.B.Y do
@@ -870,6 +871,7 @@ begin
   SY := 0;
   for Count := 0 to Area.B.X do SX += SizeX[Count];
   for Count := 0 to Area.B.Y do SY += SizeY[Count];
+  NewMap := nil;
   SetLength( NewMap, SX, SY );
   CY := 0;
   for Line := 0 to Area.B.Y do

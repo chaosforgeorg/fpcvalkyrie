@@ -193,13 +193,13 @@ begin
   for iCount := 0 to aXML.DocumentElement.ChildNodes.Count-1 do
   begin
     iCharElement := TDOMElement( aXML.DocumentElement.ChildNodes.Item[iCount] );
-    iChar        := CharNameToChar( iCharElement.GetAttribute('name') );
+    iChar        := CharNameToChar( AnsiString( iCharElement.GetAttribute('name') ) );
     if (iChar = #0) or (Ord(iChar) > 127) then Continue;
     if iChar in ['A'..'Z'] then FLowerCase := False;
-    iPosA.X := StrToInt( iCharElement.GetElementsByTagName('pos_x')[0].TextContent );
-    iPosA.Y := StrToInt( iCharElement.GetElementsByTagName('pos_y')[0].TextContent );
-    iPosB.X := StrToInt( iCharElement.GetElementsByTagName('width')[0].TextContent );
-    iPosB.Y := StrToInt( iCharElement.GetElementsByTagName('height')[0].TextContent );
+    iPosA.X := StrToInt( AnsiString( iCharElement.GetElementsByTagName('pos_x')[0].TextContent ) );
+    iPosA.Y := StrToInt( AnsiString( iCharElement.GetElementsByTagName('pos_y')[0].TextContent ) );
+    iPosB.X := StrToInt( AnsiString( iCharElement.GetElementsByTagName('width')[0].TextContent ) );
+    iPosB.Y := StrToInt( AnsiString( iCharElement.GetElementsByTagName('height')[0].TextContent ) );
     FGylphSize.X := Max( FGylphSize.X, iPosB.X );
     FGylphSize.Y := Max( FGylphSize.Y, iPosB.Y );
 

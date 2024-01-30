@@ -3,7 +3,7 @@ unit vsdl2imagelibrary;
 {$PACKRECORDS C}
 {$MACRO ON}
 interface
-uses Classes, SysUtils, Types, vlibrary, vsdl2library;
+uses Classes, SysUtils, vlibrary, vsdl2library;
 
 type TSDL2ImageException = class( Exception );
 

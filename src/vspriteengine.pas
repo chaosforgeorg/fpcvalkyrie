@@ -85,7 +85,7 @@ end;
 implementation
 
 uses
-  vgl3library, math;
+  vgl3library;
 
 const VSPRITE_Z = 0;
 

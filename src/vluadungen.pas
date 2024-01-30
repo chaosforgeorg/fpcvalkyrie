@@ -58,6 +58,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil( L );
   cnt := 0;
+  lua_tocellarray := nil;
   while lua_next( L, idx ) <> 0 do
   begin
     SetLength( lua_tocellarray, cnt + 1 );

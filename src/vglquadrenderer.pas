@@ -118,7 +118,6 @@ begin
 end;
 
 procedure TGLQuadList.Append ( aList : TGLTexturedColoredQuads; aTexture : DWord ) ;
-var iIndex : Integer;
 begin
   if not Assigned( FTextured ) then FTextured := TGLTexturedColoredQuadLayer.Create;
   FTextured[aTexture].Append( aList );

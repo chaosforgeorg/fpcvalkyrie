@@ -486,7 +486,7 @@ end;
 procedure LogSystemInfo;
 begin
   Logger.log(LOGREPORT, '---------------------- Compiler info -------------------------');
-  Logger.log(LOGREPORT, 'This program was compiled at %s on %s by %s', [{$I %TIME%}, {$I %DATE%}, {$I %USER%}]);
+  Logger.log(LOGREPORT, 'This program was compiled at %s on %s', [{$I %TIME%}, {$I %DATE%}]);
   Logger.log(LOGREPORT, 'Compiler version  : %s', [{$I %FPCVERSION%}]);
   Logger.log(LOGREPORT, 'Target OS         : %s', [{$I %FPCTARGETOS%}]);
   Logger.log(LOGREPORT, 'Target CPU        : %s', [{$I %FPCTARGETCPU%}]);

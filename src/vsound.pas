@@ -290,7 +290,6 @@ end;
 
 procedure TSound.PlaySample(mID: Word; aWhere: TCoord2D);
 var iDistance : Word;
-    iFDist    : Single;
     iVolume   : Word;
     iPan      : Integer;
     iRelative : TCoord2D;

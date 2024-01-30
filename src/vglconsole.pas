@@ -172,7 +172,6 @@ end;
 { TGLConsoleRenderer }
 
 procedure TGLConsoleRenderer.Initialize( aFont : TBitmapFont; aLineSpace : DWord );
-var i : Byte;
 begin
   Log('Initializing GL Console Renderer...');
 
@@ -374,11 +373,11 @@ begin
 end;
 
 procedure TGLConsoleRenderer.Resize ( aNewSizeX, aNewSizeY, aLineSpace : DWord );
-var iSize, iX, iY : LongInt;
-    iMatrix       : TMatrix44;
-    iPLoc         : Integer;
-    iRect         : TIORect;
-    iPart         : TGLVec2f;
+var iSize   : LongInt;
+    iMatrix : TMatrix44;
+    iPLoc   : Integer;
+    iRect   : TIORect;
+    iPart   : TGLVec2f;
 begin
   Log( LOGWARN, 'Resize %dx%d - %d', [ aNewSizeX, aNewSizeY, aLineSpace] );
   FLineSpace := aLineSpace;

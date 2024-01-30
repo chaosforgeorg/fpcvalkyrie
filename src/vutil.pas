@@ -264,7 +264,7 @@ type EException = class(Exception)
   // Create the exception, just a override of Exception.Create
   constructor Create( const aMessage : AnsiString );
   // Create the exception, formating the arguments.
-  constructor Create( const aMessage : AnsiString; const aParams : array of Const );
+  constructor CreateFmt( const aMessage : AnsiString; const aParams : array of Const );
 end;
 
 
@@ -288,6 +288,7 @@ var AH,BH,C : Integer;
 begin
   AH := High( A );
   BH := High( B );
+  ConcatConstArray := nil;
   SetLength( ConcatConstArray, AH+BH+2 );
   if AH >= 0 then
   for C := 0 to AH do
@@ -783,14 +784,14 @@ end;
 
 { EException }
 
-constructor EException.Create(const aMessage: AnsiString);
+constructor EException.Create( const aMessage: AnsiString );
 begin
   inherited Create( aMessage );
 end;
 
-constructor EException.Create(const aMessage: AnsiString; const aParams: array of const);
+constructor EException.CreateFmt( const aMessage: AnsiString; const aParams: array of const );
 begin
-  inherited Create( VFormat( aMessage, aParams ) );
+  inherited CreateFmt( aMessage, aParams );
 end;
 
 begin

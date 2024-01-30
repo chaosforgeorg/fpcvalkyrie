@@ -3,7 +3,7 @@ unit vsdl2library;
 {$PACKRECORDS C}
 {$MACRO ON}
 interface
-uses Classes, SysUtils, Types, vlibrary,
+uses Classes, SysUtils, vlibrary,
 {$IFDEF WINDOWS}
   Windows;
 {$ENDIF}
@@ -1097,7 +1097,6 @@ begin
 end;
 
 function RW_Stream_Size( context: PSDL_RWops ): SInt64; cdecl;
-var iStream : TStream;
 begin
   Exit( SInt64( QWord(context^.hidden.unknown.data2) and $FFFFFFFF ) );
 end;

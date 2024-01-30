@@ -4,7 +4,7 @@ unit vfmodlibrary;
 {$PACKRECORDS C}
 {$Z4}
 interface
-uses Classes, SysUtils, Types, vlibrary;
+uses Classes, SysUtils, vlibrary;
 
 const
 {$IFDEF WINDOWS}

@@ -28,8 +28,7 @@ implementation
 
 uses vutil, keyboard, video;
 
-const ColorMask     = $000000FF;
-      ForeColorMask = $0000000F;
+const ForeColorMask = $0000000F;
       BackColorMask = $000000F0;
 
 constructor TTextConsoleRenderer.Create ( aCols : Word; aRows : Word; aReqCapabilities : TIOConsoleCapSet ) ;

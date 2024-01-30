@@ -217,6 +217,7 @@ function vlua_tabletovararray(L: Plua_State; idx: Integer): Variant;
 var cnt : Integer;
     va  : array of Variant;
 begin
+  va := nil;
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
 
@@ -272,6 +273,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_tobytearray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_tobytearray, cnt+1);
@@ -287,6 +289,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_towordarray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_towordarray, cnt+1);
@@ -302,6 +305,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_todwordarray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_todwordarray, cnt+1);
@@ -317,6 +321,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_tointegerarray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_tointegerarray, cnt+1);
@@ -332,6 +337,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_tostringarray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_tostringarray, cnt+1);
@@ -347,6 +353,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_tofloatarray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_tofloatarray, cnt+1);

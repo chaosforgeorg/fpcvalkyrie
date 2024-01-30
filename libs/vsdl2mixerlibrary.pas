@@ -3,7 +3,7 @@ unit vsdl2mixerlibrary;
 {$PACKRECORDS C}
 {$MACRO ON}
 interface
-uses Classes, SysUtils, Types, vlibrary, vsdl2library;
+uses Classes, SysUtils, vlibrary, vsdl2library;
 
 const
 {$IFDEF WINDOWS}
@@ -132,8 +132,6 @@ var
 function LoadSDL2Mixer( const aPath : AnsiString = SDL2MixerDefaultPath ) : Boolean;
 
 implementation
-
-uses Math;
 
 function LoadSDL2Mixer ( const aPath : AnsiString ) : Boolean;
   function GetSymbol( const aSymbol : AnsiString ) : Pointer;

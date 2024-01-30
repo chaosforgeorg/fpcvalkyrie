@@ -46,8 +46,6 @@ end;
 
 implementation
 
-uses math;
-
 function IOConsoleCapToString ( aConsoleCap : TIOConsoleCap ) : AnsiString;
 begin
   Exit( IOConsoleCapNames[ aConsoleCap ] );

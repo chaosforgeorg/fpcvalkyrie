@@ -156,7 +156,6 @@ const VALKYRIE_COORD = 'valkyrie.coord';
       VALKYRIE_POINT = 'valkyrie.point';
       VALKYRIE_RECT  = 'valkyrie.rect';
       VALKYRIE_VEC2D = 'valkyrie.vec2d';
-      VALKYRIE_VEC3D = 'valkyrie.vec3d';
 
 type TLuaCoord = class( TLuaType )
   constructor Create( const aCoord : TCoord2D );
@@ -1871,8 +1870,7 @@ begin
 end;
 
 function lua_kills_index( L: Plua_State ): Integer; cdecl;
-var PPoint : vutil.PPoint;
-    Index  : AnsiString;
+var Index  : AnsiString;
 begin
   Index  := lua_tostring( L, 2 );
        if Index = 'count'                   then lua_pushinteger( L, GKills.Count )
