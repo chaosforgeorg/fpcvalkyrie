@@ -590,8 +590,8 @@ function TConUIConsole.OnKeyDown ( const event : TIOKeyEvent ) : Boolean;
 begin
   if FHistory <> nil then
   case event.Code of
-    VKEY_UP   : if FHPos < FHistory.Size then begin Inc( FHPos ); FInput.Input := FHistory.Get( -FHPos ); Exit( True ); end;
-    VKEY_DOWN : if FHPos > 1             then begin Dec( FHPos ); FInput.Input := FHistory.Get( -FHPos ); Exit( True ); end;
+    VKEY_UP   : if FHPos < FHistory.Size then begin Inc( FHPos ); FInput.Input := FHistory.Get( -FHPos ); FInput.SetCursorPosition( Length( FInput.Input ) + 1 ); Exit( True ); end;
+    VKEY_DOWN : if FHPos > 1             then begin Dec( FHPos ); FInput.Input := FHistory.Get( -FHPos ); FInput.SetCursorPosition( Length( FInput.Input ) + 1 ); Exit( True ); end;
   end;
   Result := inherited OnKeyDown ( event ) ;
 end;
