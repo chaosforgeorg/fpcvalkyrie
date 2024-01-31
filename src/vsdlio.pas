@@ -142,7 +142,7 @@ begin
             ( (event^.key.keysym.mod_ and KMOD_CAPS) <> 0 );
 
   if ( iCode >= 32 )
-    and ( iCode < 128 )
+    and ( iCode < 127 )
     and ( iCode <> SDLK_PAGEDOWN )
     and ( iCode <> SDLK_PAGEUP )
     and ( iCode <> SDLK_HOME )
