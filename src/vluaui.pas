@@ -15,8 +15,6 @@ procedure vlua_pushiomouseevent( L: Plua_State; const event : TIOMouseEvent );
 procedure vlua_pushiomousemoveevent( L: Plua_State; const event : TIOMouseMoveEvent );
 procedure vlua_pushiosystemevent( L: Plua_State; const event : TIOSystemEvent );
 
-function vlua_tostringlist( L : Plua_State; Index : Integer ) : TUIStringArray;
-
 function LuaIOEvent( const event : TIOEvent ) : TLuaType;
 function LuaIOKeyEvent( const event : TIOKeyEvent ) : TLuaType;
 function LuaIOMouseEvent( const event : TIOMouseEvent ) : TLuaType;
@@ -248,20 +246,6 @@ end;
 procedure TLuaIOSystemEvent.Push(L: PLua_state);
 begin
   vlua_pushiosystemevent( L, FEvent );
-end;
-
-function vlua_tostringlist(L: Plua_State; Index: Integer): TUIStringArray;
-var i : Integer;
-begin
-  if not lua_istable( L, Index ) then Exit( nil );
-  Result := TUIStringArray.Create;
-  if lua_objlen( L, Index ) > 0 then
-  for i := 1 to lua_objlen( L, Index ) do
-  begin
-    lua_rawgeti( L, Index, i );
-    Result.Push( lua_tostring( L, -1 ) );
-    lua_pop( L, 1 );
-  end;
 end;
 
 function LuaIOEvent(const event: TIOEvent): TLuaType;

@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vluaext;
 interface
-uses sysutils, classes, variants, vvector, vlualibrary, typinfo;
+uses sysutils, classes, variants, vvector, vlualibrary, typinfo, vgenerics;
 
 type TOpenByteArray    = array of Byte;
 type TOpenWordArray    = array of Word;
@@ -9,6 +9,9 @@ type TOpenDWordArray   = array of DWord;
 type TOpenIntegerArray = array of Integer;
 type TOpenStringArray  = array of AnsiString;
 type TOpenFloatArray   = array of Single;
+
+type TGStringArray     = specialize TGArray<AnsiString>;
+
 
 
 function  vlua_tostring( L : Plua_State; idx : Integer) : AnsiString;
@@ -68,6 +71,8 @@ function  vlua_tovec4i(L: Plua_State; idx: Integer): TVec4i;
 function  vlua_tovec2b(L: Plua_State; idx: Integer): TVec2b;
 function  vlua_tovec3b(L: Plua_State; idx: Integer): TVec3b;
 function  vlua_tovec4b(L: Plua_State; idx: Integer): TVec4b;
+
+function  vlua_tostringlist( L : Plua_State; Index : Integer ) : TGStringArray;
 
 implementation
 
@@ -856,6 +861,20 @@ begin
     lua_pop( L, 1 );
   end;
   lua_pop( L, 1 );
+end;
+
+function vlua_tostringlist(L: Plua_State; Index: Integer): TGStringArray;
+var i : Integer;
+begin
+  if not lua_istable( L, Index ) then Exit( nil );
+  Result := TGStringArray.Create;
+  if lua_objlen( L, Index ) > 0 then
+  for i := 1 to lua_objlen( L, Index ) do
+  begin
+    lua_rawgeti( L, Index, i );
+    Result.Push( lua_tostring( L, -1 ) );
+    lua_pop( L, 1 );
+  end;
 end;
 
 end.
