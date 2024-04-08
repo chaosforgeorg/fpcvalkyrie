@@ -379,7 +379,7 @@ var iSize   : LongInt;
     iRect   : TIORect;
     iPart   : TGLVec2f;
 begin
-  Log( LOGWARN, 'Resize %dx%d - %d', [ aNewSizeX, aNewSizeY, aLineSpace] );
+  Log( 'Resize %dx%d - %d', [ aNewSizeX, aNewSizeY, aLineSpace] );
   FLineSpace := aLineSpace;
   FSizeX     := aNewSizeX;
   FSizeY     := aNewSizeY;
