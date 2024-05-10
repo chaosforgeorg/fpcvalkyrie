@@ -13,6 +13,10 @@ type
   procedure Bind;
   function GetAttribLocation( const aName : AnsiString ) : Integer;
   function GetUniformLocation( const aName : AnsiString ) : Integer;
+  procedure SetUniformi( const aName : AnsiString; aX : Integer );
+  procedure SetUniformi( const aName : AnsiString; aX, aY : Integer );
+  procedure SetUniformf( const aName : AnsiString; aX : Real );
+  procedure SetUniformf( const aName : AnsiString; aX, aY : Real );
   procedure UnBind;
   destructor Destroy; override;
 private
@@ -77,6 +81,38 @@ begin
   Result := glGetUniformLocation( FProgramID, PChar(aName) );
   if Result = -1 then
     Log( 'Could not bind attribute '+aName+'!');
+end;
+
+procedure TGLProgram.SetUniformi( const aName : AnsiString; aX : Integer );
+var iLocation : Integer;
+begin
+  iLocation := GetUniformLocation( aName );
+  if iLocation <> -1 then
+    glUniform1i( iLocation, aX );
+end;
+
+procedure TGLProgram.SetUniformi( const aName : AnsiString; aX, aY : Integer );
+var iLocation : Integer;
+begin
+  iLocation := GetUniformLocation( aName );
+  if iLocation <> -1 then
+    glUniform2i( iLocation, aX, aY );
+end;
+
+procedure TGLProgram.SetUniformf( const aName : AnsiString; aX : Real );
+var iLocation : Integer;
+begin
+  iLocation := GetUniformLocation( aName );
+  if iLocation <> -1 then
+    glUniform1f( iLocation, aX );
+end;
+
+procedure TGLProgram.SetUniformf( const aName : AnsiString; aX, aY : Real );
+var iLocation : Integer;
+begin
+  iLocation := GetUniformLocation( aName );
+  if iLocation <> -1 then
+    glUniform2f( iLocation, aX, aY );
 end;
 
 destructor TGLProgram.Destroy;
