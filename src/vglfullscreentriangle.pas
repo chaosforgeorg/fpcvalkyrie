@@ -9,7 +9,7 @@ type TGLFullscreenTriangle = class
   public
     constructor Create;
     destructor Destroy; override;
-    procedure Render( aTextureID : Integer );
+    procedure Render;
   protected
     procedure Setup;
   end;
@@ -57,20 +57,11 @@ begin
   glBindVertexArray( 0 );
 end;
 
-procedure TGLFullscreenTriangle.Render( aTextureID : Integer );
+procedure TGLFullscreenTriangle.Render;
 begin
-//  glUseProgram(FShaderProgram);
-//  glUniform1i(glGetUniformLocation(FShaderProgram, 'screenTexture'), 0);
-//  glUniform2f(glGetUniformLocation(FShaderProgram, 'screenSize'), ScreenWidth, ScreenHeight);
-
   glBindVertexArray( FVAO );
-  glActiveTexture( GL_TEXTURE0 );
-  glBindTexture( GL_TEXTURE_2D, aTextureID );
   glDrawArrays( GL_TRIANGLES, 0, 3 );
   glBindVertexArray( 0 );
-
-  glBindTexture(GL_TEXTURE_2D, 0 );
-//  glUseProgram(0);
 end;
 
 end.
