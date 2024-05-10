@@ -10,6 +10,7 @@ type TTexture = class( TVObject )
 private
   FImage  : TImage;
   FBlend  : Boolean;
+  FIs3D   : Boolean;
   FGLID   : DWord;
   FSize   : TGLVec2i;
   FGLSize : TGLVec2f;
@@ -18,6 +19,7 @@ public
   property GLSize    : TGLVec2f read FGLSize;
   property Size      : TGLVec2i read FSize;
   property Blend     : Boolean  read FBlend write FBlend;
+  property Is3D      : Boolean  read FIs3D write FIs3D;
   property GLTexture : DWord    read FGLID;
 end;
 
@@ -63,6 +65,7 @@ constructor TTexture.Create( aImage : TImage; aBlend : Boolean );
 begin
   FImage := aImage;
   FBlend := aBlend;
+  FIs3D  := False;
   FGLID  := 0;
   FSize   := TGLVec2i.Create( aImage.RawX, aImage.RawY );
   FGLSize := TGLVec2f.Create( aImage.RawX / aImage.SizeX, aImage.RawY / aImage.SizeY );
@@ -72,15 +75,33 @@ procedure TTexture.Upload;
 var iGLBlend   : GLInt;
 begin
   glGenTextures( 1, @FGLID );
+
   if FBlend
     then iGLBlend := GL_LINEAR
     else iGLBlend := GL_NEAREST;
 
-  glBindTexture(GL_TEXTURE_2D, FGLID);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, iGLBlend );
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, iGLBlend );
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
-    FImage.SizeX, FImage.SizeY, 0, GL_RGBA, GL_UNSIGNED_BYTE, FImage.Data );
+  if FIs3d then
+  begin
+    glBindTexture( GL_TEXTURE_3D, FGLID );
+    glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, iGLBlend );
+    glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, iGLBlend );
+    glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT );
+    glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT );
+    glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_MIRRORED_REPEAT );
+    glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA,
+      FImage.SizeX div FImage.SizeY, FImage.SizeY, FImage.SizeY, 0,
+      GL_RGBA, GL_UNSIGNED_BYTE, FImage.Data );
+    glBindTexture( GL_TEXTURE_3D, 0 );
+  end
+  else
+  begin
+    glBindTexture( GL_TEXTURE_2D, FGLID );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, iGLBlend );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, iGLBlend );
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+      FImage.SizeX, FImage.SizeY, 0, GL_RGBA, GL_UNSIGNED_BYTE, FImage.Data );
+    glBindTexture( GL_TEXTURE_2D, 0 );
+  end;
 end;
 
 destructor TTexture.Destroy;
