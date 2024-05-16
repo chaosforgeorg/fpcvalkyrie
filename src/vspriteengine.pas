@@ -341,11 +341,12 @@ begin
   if c > 0 then
   for i := 1 to c do
   begin
-    if i <= FOldLayerCount then
+    if (i <= FOldLayerCount) and ( i < 4 ) then
       DrawSet( FOldLayers[ i ], FOldTextureSet.Layer[ i ] );
     if i <= FLayerCount then
       DrawSet( FLayers[ i ], FTextureSet.Layer[ i ] );
   end;
+  DrawSet( FOldLayers[ 4 ], FOldTextureSet.Layer[ 4 ] );
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 
