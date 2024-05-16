@@ -13,10 +13,10 @@ type
 
 TSpriteDataVTC = class
   constructor Create( aEngine : TSpriteEngine; aTilesX, aTilesY : Word );
-  procedure Push( PosID : DWord; Pos : TGLVec2i; Color : TColor );
-  procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; color : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0 );
-  procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; Color : TColor );
-  procedure Push( coord : PGLRawQCoord; tex : PGLRawQTexCoord; color : PGLRawQColor );
+  procedure Push( PosID : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
+  procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; color : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
+  procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
+  procedure Push( coord : PGLRawQCoord; tex : PGLRawQTexCoord; color : PGLRawQColor; aZ : Integer = 0 );
   destructor Destroy; override;
 private
   FData      : TGLTexturedColoredQuads;
@@ -93,8 +93,6 @@ implementation
 uses
   math, vgl3library;
 
-const VSPRITE_Z = 0;
-
 const
 VSpriteVertexShader : Ansistring =
 '#version 330 core'+#10+
@@ -154,7 +152,7 @@ begin
 end;
 
 
-procedure TSpriteDataVTC.Push(PosID : DWord; Pos : TGLVec2i; Color : TColor);
+procedure TSpriteDataVTC.Push(PosID : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0);
 var p1, p2     : TGLVec2i;
     t1, t2, tp : TGLVec2f;
 begin
@@ -166,15 +164,15 @@ begin
   t2 := tp.Shifted(1) * FTexUnit;
 
   FData.PushQuad(
-    TGLVec3i.CreateFrom( p1, VSPRITE_Z ),
-    TGLVec3i.CreateFrom( p2, VSPRITE_Z ),
+    TGLVec3i.CreateFrom( p1, aZ ),
+    TGLVec3i.CreateFrom( p2, aZ ),
     Color.toVec43f,
     t1, t2
   );
 
 end;
 
-procedure TSpriteDataVTC.PushXY(PosID, Size : DWord; Pos : TGLVec2i; color: PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0 );
+procedure TSpriteDataVTC.PushXY(PosID, Size : DWord; Pos : TGLVec2i; color: PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
 var p2         : TGLVec2i;
     t1, t2, tp : TGLVec2f;
 begin
@@ -187,8 +185,8 @@ begin
   t2 := tp.Shifted(Size) * FTexUnit;
 
   FData.PushQuad(
-    TGLVec3i.CreateFrom( pos, VSPRITE_Z ),
-    TGLVec3i.CreateFrom( p2, VSPRITE_Z ),
+    TGLVec3i.CreateFrom( pos, aZ ),
+    TGLVec3i.CreateFrom( p2, aZ ),
     TGLQVec4f.Create(
       NewColor( color^.Data[0] ).toVec43f,
       NewColor( color^.Data[1] ).toVec43f,
@@ -199,7 +197,7 @@ begin
   );
 end;
 
-procedure TSpriteDataVTC.PushXY(PosID, Size : DWord; Pos : TGLVec2i; Color : TColor );
+procedure TSpriteDataVTC.PushXY(PosID, Size : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
 var p2         : TGLVec2i;
     t1, t2, tp : TGLVec2f;
 begin
@@ -210,21 +208,21 @@ begin
   t2 := tp.Shifted(Size) * FTexUnit;
 
   FData.PushQuad(
-    TGLVec3i.CreateFrom( pos, VSPRITE_Z ),
-    TGLVec3i.CreateFrom( p2, VSPRITE_Z ),
+    TGLVec3i.CreateFrom( pos, aZ ),
+    TGLVec3i.CreateFrom( p2, aZ ),
     Color.toVec43f,
     t1, t2
   );
 end;
 
-procedure TSpriteDataVTC.Push(coord: PGLRawQCoord; tex: PGLRawQTexCoord; color: PGLRawQColor);
+procedure TSpriteDataVTC.Push(coord: PGLRawQCoord; tex: PGLRawQTexCoord; color: PGLRawQColor; aZ : Integer = 0);
 begin
   FData.PushQuad(
     TGLQVec3i.Create(
-      TGLVec3i.CreateFrom( coord^.Data[0], VSPRITE_Z ),
-      TGLVec3i.CreateFrom( coord^.Data[1], VSPRITE_Z ),
-      TGLVec3i.CreateFrom( coord^.Data[2], VSPRITE_Z ),
-      TGLVec3i.CreateFrom( coord^.Data[3], VSPRITE_Z )
+      TGLVec3i.CreateFrom( coord^.Data[0], aZ ),
+      TGLVec3i.CreateFrom( coord^.Data[1], aZ ),
+      TGLVec3i.CreateFrom( coord^.Data[2], aZ ),
+      TGLVec3i.CreateFrom( coord^.Data[3], aZ )
     ),
     TGLQVec4f.Create(
       NewColor( color^.Data[0] ).toVec43f,
