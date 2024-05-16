@@ -43,7 +43,7 @@ type TTextureDataSet = record
 end;
 
 type TTextureSet = record
-  Layer      : array[1..5] of TTextureDataSet;
+  Layer      : array[1..7] of TTextureDataSet;
 end;
 
 const VSE_BG_LAYER = 1;
@@ -54,16 +54,16 @@ type
 { TSpriteEngine }
 
 TSpriteEngine = class
+  FOldTextureSet     : TTextureSet;
   FTextureSet        : TTextureSet;
-
   FGrid              : TGLVec2i;
   FTexUnit           : TGLVec2f;
   FPos               : TGLVec2i;
-  FLayers            : array[1..5] of TSpriteDataSet;
+  FOldLayers         : array[1..5] of TSpriteDataSet;
+  FOldLayerCount     : Byte;
+  FLayers            : array[1..7] of TSpriteDataSet;
   FLayerCount        : Byte;
   FStaticLayerCount  : Byte;
-  FCurrentTexture    : DWord;
-
   FSpriteRowCount    : Word;
 
   constructor Create;
@@ -76,16 +76,18 @@ TSpriteEngine = class
   procedure SetTexture( TexID : DWord );
   destructor Destroy; override;
 private
-  FVAO         : Cardinal;
-  FProgram     : TGLProgram;
-  FProjection  : TMatrix44;
+  FVAO            : Cardinal;
+  FProgram        : TGLProgram;
+  FProjection     : TMatrix44;
+
+  FCurrentTexture : DWord;
 end;
 
 
 implementation
 
 uses
-  vgl3library;
+  math, vgl3library;
 
 const VSPRITE_Z = 0;
 
@@ -253,34 +255,10 @@ end;
 procedure TSpriteEngine.DrawVTC( Data : TSpriteDataVTC );
 begin
   FProgram.Bind;
-
   Data.FData.Update;
   Data.FData.Draw;
-
   Data.FData.Clear;
-{
-  glBindBuffer( GL_ARRAY_BUFFER, Data.FCoordVBO );
-  glBufferData( GL_ARRAY_BUFFER, Data.FSize*sizeof(TGLRawQCoord), @(Data.FCoords[0]), GL_STREAM_DRAW );
-  glVertexAttribPointer(0, 2, GL_INT, GL_FALSE, 2 * sizeof(Integer), nil );
-  glEnableVertexAttribArray(0);
-
-  glBindBuffer( GL_ARRAY_BUFFER, Data.FTexCoVBO );
-  glBufferData( GL_ARRAY_BUFFER, Data.FSize*sizeof(TGLRawQTexCoord), @(Data.FTexCoords[0]), GL_STREAM_DRAW );
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), nil );
-  glEnableVertexAttribArray(1);
-
-  glBindBuffer( GL_ARRAY_BUFFER, Data.FColorVBO);
-  glBufferData( GL_ARRAY_BUFFER, Data.FSize*sizeof(TGLRawQColor), @(Data.FColors[0]), GL_STREAM_DRAW );
-  glVertexAttribPointer(2, 3, GL_UNSIGNED_BYTE, GL_TRUE, 3 * sizeof(GLubyte), nil );
-  glEnableVertexAttribArray(2);
-
-  glDrawArrays( GL_QUADS, 0, Data.FSize*4 );
-}
   FProgram.UnBind;
-//  glDisableVertexAttribArray(0);
-//  glDisableVertexAttribArray(1);
-//  glDisableVertexAttribArray(2);
-//  glBindBuffer( GL_ARRAY_BUFFER, 0);
 end;
 
 procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet; const Tex : TTextureDataSet);
@@ -321,6 +299,8 @@ end;
 destructor TSpriteEngine.Destroy;
 var i : Byte;
 begin
+  for i := 1 to High(FOldLayers) do
+    FreeAndNil( FOldLayers[i] );
   for i := 1 to High(FLayers) do
     FreeAndNil( FLayers[i] );
   glDeleteVertexArrays(1, @FVAO);
@@ -330,6 +310,8 @@ end;
 constructor TSpriteEngine.Create;
 var i : Byte;
 begin
+  for i := 1 to High(FOldLayers) do
+    FOldLayers[i] := nil;
   for i := 1 to High(FLayers) do
     FLayers[i] := nil;
   FSpriteRowCount    := 16;
@@ -337,6 +319,7 @@ begin
   FTexUnit.Init( 1.0 / FSpriteRowCount, 1.0 / 32 );
   FPos.Init(0,0);
   FCurrentTexture    := 0;
+  FOldLayerCount     := 0;
   FLayerCount        := 0;
   FStaticLayerCount  := 0;
 
@@ -346,13 +329,20 @@ end;
 
 procedure TSpriteEngine.Draw;
 var i : Byte;
+    c : Byte;
 begin
   FCurrentTexture := 0;
   FProgram.Bind;
   glUniform3f( FProgram.GetUniformLocation('uposition'), -FPos.X, -FPos.Y, 0 );
-  if FLayerCount > 0 then
-  for i := 1 to FLayerCount do
-    DrawSet( FLayers[ i ], FTextureSet.Layer[ i ] );
+  c := Max( FLayerCount, FOldLayerCount );
+  if c > 0 then
+  for i := 1 to c do
+  begin
+    if i <= FOldLayerCount then
+      DrawSet( FOldLayers[ i ], FOldTextureSet.Layer[ i ] );
+    if i <= FLayerCount then
+      DrawSet( FLayers[ i ], FTextureSet.Layer[ i ] );
+  end;
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 
