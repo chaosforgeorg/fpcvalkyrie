@@ -12,7 +12,7 @@ type
 { TSpriteDataVTC }
 
 TSpriteDataVTC = class
-  constructor Create( aEngine : TSpriteEngine );
+  constructor Create( aEngine : TSpriteEngine; aTilesX, aTilesY : Word );
   procedure Push( PosID : DWord; Pos : TGLVec2i; Color : TColor );
   procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; color : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0 );
   procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; Color : TColor );
@@ -21,6 +21,12 @@ TSpriteDataVTC = class
 private
   FData      : TGLTexturedColoredQuads;
   FEngine    : TSpriteEngine;
+  FTexUnit   : TGLVec2f;
+  FRowSize   : Word;
+public
+  property TexUnit : TGLVec2f read FTexUnit;
+  property RowSize : Word     read FRowSize;
+
 end;
 
 type
@@ -32,7 +38,7 @@ TSpriteDataSet = class
   Cosplay : TSpriteDataVTC;
   Glow    : TSpriteDataVTC;
 
-  constructor Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean );
+  constructor Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean; aTilesX, aTilesY : Word );
   destructor Destroy; override;
 end;
 
@@ -57,14 +63,12 @@ TSpriteEngine = class
   FOldTextureSet     : TTextureSet;
   FTextureSet        : TTextureSet;
   FGrid              : TGLVec2i;
-  FTexUnit           : TGLVec2f;
   FPos               : TGLVec2i;
   FOldLayers         : array[1..5] of TSpriteDataSet;
   FOldLayerCount     : Byte;
   FLayers            : array[1..7] of TSpriteDataSet;
   FLayerCount        : Byte;
   FStaticLayerCount  : Byte;
-  FSpriteRowCount    : Word;
 
   constructor Create;
   procedure Draw;
@@ -121,15 +125,15 @@ VSpriteFragmentShader : Ansistring =
 
 { TSpriteDataSet }
 
-constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean );
+constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean; aTilesX, aTilesY : Word );
 begin
   Normal  := nil;
   Cosplay := nil;
   Glow    := nil;
 
-  Normal  := TSpriteDataVTC.Create( aEngine );
-  if aCosplay then Cosplay := TSpriteDataVTC.Create( aEngine );
-  if aGlow    then Glow    := TSpriteDataVTC.Create( aEngine );
+  Normal  := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
+  if aCosplay then Cosplay := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
+  if aGlow    then Glow    := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
 end;
 
 destructor TSpriteDataSet.Destroy;
@@ -141,10 +145,12 @@ end;
 
 { TSpriteDataVTC }
 
-constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine );
+constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine; aTilesX, aTilesY : Word );
 begin
   FEngine   := aEngine;
   FData     := TGLTexturedColoredQuads.Create;
+  FRowSize  := aTilesX;
+  FTexUnit.Init( 1.0 / aTilesX, 1.0 / aTilesY );
 end;
 
 
@@ -155,9 +161,9 @@ begin
   p1 := Pos.Shifted(-1) * FEngine.FGrid;
   p2 := Pos * FEngine.FGrid;
 
-  tp := TGLVec2f.CreateModDiv( PosID-1, FEngine.FSpriteRowCount );
-  t1 := tp * FEngine.FTexUnit;
-  t2 := tp.Shifted(1) * FEngine.FTexUnit;
+  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
+  t1 := tp * FTexUnit;
+  t2 := tp.Shifted(1) * FTexUnit;
 
   FData.PushQuad(
     TGLVec3i.CreateFrom( p1, VSPRITE_Z ),
@@ -174,11 +180,11 @@ var p2         : TGLVec2i;
 begin
   p2 := pos + FEngine.FGrid.Scaled( Size );
 
-  tp := TGLVec2f.CreateModDiv( PosID-1, FEngine.FSpriteRowCount );
+  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
   tp += TGLVec2f.Create( TShiftX, TShiftY );
 
-  t1 := tp * FEngine.FTexUnit;
-  t2 := tp.Shifted(Size) * FEngine.FTexUnit;
+  t1 := tp * FTexUnit;
+  t2 := tp.Shifted(Size) * FTexUnit;
 
   FData.PushQuad(
     TGLVec3i.CreateFrom( pos, VSPRITE_Z ),
@@ -198,10 +204,10 @@ var p2         : TGLVec2i;
     t1, t2, tp : TGLVec2f;
 begin
   p2 := pos + FEngine.FGrid.Scaled( Size );
-  tp := TGLVec2f.CreateModDiv( PosID-1, FEngine.FSpriteRowCount );
+  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
 
-  t1 := tp * FEngine.FTexUnit;
-  t2 := tp.Shifted(Size) * FEngine.FTexUnit;
+  t1 := tp * FTexUnit;
+  t2 := tp.Shifted(Size) * FTexUnit;
 
   FData.PushQuad(
     TGLVec3i.CreateFrom( pos, VSPRITE_Z ),
@@ -264,6 +270,7 @@ end;
 procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet; const Tex : TTextureDataSet);
 begin
   glActiveTexture(0);
+
   if not Data.Normal.FData.Empty then
   begin
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
@@ -314,9 +321,7 @@ begin
     FOldLayers[i] := nil;
   for i := 1 to High(FLayers) do
     FLayers[i] := nil;
-  FSpriteRowCount    := 16;
   FGrid.Init( 32, 32 );
-  FTexUnit.Init( 1.0 / FSpriteRowCount, 1.0 / 32 );
   FPos.Init(0,0);
   FCurrentTexture    := 0;
   FOldLayerCount     := 0;
