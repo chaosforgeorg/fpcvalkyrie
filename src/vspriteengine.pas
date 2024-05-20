@@ -112,6 +112,7 @@ VSpriteFragmentShader : Ansistring =
 #10+
 'void main() {'+#10+
 'frag_color = texture(utexture, otexcoord) * ocolor;'+#10+
+'if ( frag_color.a < 0.01 ) discard;'+#10+
 '}'+#10;
 
 { TSpriteDataSet }
@@ -282,6 +283,7 @@ begin
     SetTexture( Tex.Glow );
     DrawVTC( Data.Glow );
   end;
+
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 
