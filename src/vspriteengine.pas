@@ -52,23 +52,16 @@ type TTextureSet = record
   Layer      : array[1..7] of TTextureDataSet;
 end;
 
-const VSE_BG_LAYER = 1;
-      VSE_FG_LAYER = 2;
-
 type
 
 { TSpriteEngine }
 
 TSpriteEngine = class
-  FOldTextureSet     : TTextureSet;
   FTextureSet        : TTextureSet;
   FGrid              : TGLVec2i;
   FPos               : TGLVec2i;
-  FOldLayers         : array[1..5] of TSpriteDataSet;
-  FOldLayerCount     : Byte;
   FLayers            : array[1..7] of TSpriteDataSet;
   FLayerCount        : Byte;
-  FStaticLayerCount  : Byte;
 
   constructor Create;
   procedure Draw;
@@ -304,8 +297,6 @@ end;
 destructor TSpriteEngine.Destroy;
 var i : Byte;
 begin
-  for i := 1 to High(FOldLayers) do
-    FreeAndNil( FOldLayers[i] );
   for i := 1 to High(FLayers) do
     FreeAndNil( FLayers[i] );
   glDeleteVertexArrays(1, @FVAO);
@@ -315,16 +306,12 @@ end;
 constructor TSpriteEngine.Create;
 var i : Byte;
 begin
-  for i := 1 to High(FOldLayers) do
-    FOldLayers[i] := nil;
   for i := 1 to High(FLayers) do
     FLayers[i] := nil;
   FGrid.Init( 32, 32 );
   FPos.Init(0,0);
   FCurrentTexture    := 0;
-  FOldLayerCount     := 0;
   FLayerCount        := 0;
-  FStaticLayerCount  := 0;
 
   FProgram := TGLProgram.Create( VSpriteVertexShader, VSpriteFragmentShader );
   glGenVertexArrays(1, @FVAO);
@@ -337,16 +324,9 @@ begin
   FCurrentTexture := 0;
   FProgram.Bind;
   glUniform3f( FProgram.GetUniformLocation('uposition'), -FPos.X, -FPos.Y, 0 );
-  c := Max( FLayerCount, FOldLayerCount );
-  if c > 0 then
-  for i := 1 to c do
-  begin
-    if (i <= FOldLayerCount) and ( i < 4 ) then
-      DrawSet( FOldLayers[ i ], FOldTextureSet.Layer[ i ] );
-    if i <= FLayerCount then
-      DrawSet( FLayers[ i ], FTextureSet.Layer[ i ] );
-  end;
-  DrawSet( FOldLayers[ 4 ], FOldTextureSet.Layer[ 4 ] );
+  if FLayerCount > 0 then
+  for i := 1 to FLayerCount do
+    DrawSet( FLayers[ i ], FTextureSet.Layer[ i ] );
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 
