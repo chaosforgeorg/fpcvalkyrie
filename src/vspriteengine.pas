@@ -17,6 +17,7 @@ TSpriteDataVTC = class
   procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; color : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
   procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
   procedure Push( coord : PGLRawQCoord; tex : PGLRawQTexCoord; color : PGLRawQColor; aZ : Integer = 0 );
+  procedure PushPart( PosID : DWord; p1,p2 : TGLVec2i; color : PGLRawQColor; aZ : Integer; t1,t2 : TGLVec2f );
   destructor Destroy; override;
 private
   FData      : TGLTexturedColoredQuads;
@@ -26,7 +27,6 @@ private
 public
   property TexUnit : TGLVec2f read FTexUnit;
   property RowSize : Word     read FRowSize;
-
 end;
 
 type
@@ -225,6 +225,26 @@ begin
       NewColor( color^.Data[3] ).toVec43f
     ),
     tex^.Data[0], tex^.Data[2]
+  );
+end;
+
+procedure TSpriteDataVTC.PushPart( PosID : DWord; p1,p2 : TGLVec2i; color : PGLRawQColor; aZ : Integer; t1,t2 : TGLVec2f );
+var tp : TGLVec2f;
+begin
+  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
+  t1 := ( tp + t1 ) * FTexUnit;
+  t2 := ( tp + t2 ) * FTexUnit;
+
+  FData.PushQuad(
+    TGLVec3i.CreateFrom( p1, aZ ),
+    TGLVec3i.CreateFrom( p2, aZ ),
+    TGLQVec4f.Create(
+      NewColor( color^.Data[0] ).toVec43f,
+      NewColor( color^.Data[1] ).toVec43f,
+      NewColor( color^.Data[2] ).toVec43f,
+      NewColor( color^.Data[3] ).toVec43f
+    ),
+    t1, t2
   );
 end;
 
