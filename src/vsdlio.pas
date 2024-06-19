@@ -29,6 +29,8 @@ type TSDLIODriver = class( TIODriver )
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString ); override;
   procedure ShowMouse( aShow : Boolean );
   procedure ScreenShot( const aFileName : AnsiString );
+  function GetDisplayModeCount : Integer; override;
+  function GetDisplayMode( aIndex : Integer ) : TIODisplayMode; override;
 private
   FFlags     : TSDLIOFlags;
   FSizeX     : DWord;
@@ -666,6 +668,25 @@ except on e : Exception do
 end;
 end;
 
+function TSDLIODriver.GetDisplayModeCount : Integer;
+begin
+  Exit( SDL_GetNumDisplayModes( 0 ) );
+end;
+
+function TSDLIODriver.GetDisplayMode( aIndex : Integer ) : TIODisplayMode;
+var iMode : TSDL_DisplayMode;
+begin
+  FillChar( iMode, SizeOf( iMode ), 0 );
+  FillChar( Result, SizeOf( Result ), 0 );
+  if SDL_GetDisplayMode( 0, aIndex, @iMode ) <> 0 then
+  begin
+    Log('Failed to get display mode %d : %s', [aIndex, SDL_GetError()]);
+    Exit;
+  end;
+  Result.Width   := iMode.w;
+  Result.Height  := iMode.h;
+  Result.Refresh := iMode.refresh_rate;
+end;
 
 end.
 

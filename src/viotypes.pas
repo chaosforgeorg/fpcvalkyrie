@@ -17,6 +17,12 @@ type
   procedure Init( aASCII : Char; aColor : TIOColor );
 end;
 
+ TIODisplayMode = record
+   Width   : Integer;
+   Height  : Integer;
+   Refresh : Integer;
+ end;
+
 type TIOTerminateEventHandler = function : Boolean of object;
 type TIOInterrupt = function( aEvent : TIOEvent ) : Boolean of object;
 type TIOInterrupts = array[0..IOKeyCodeMax] of TIOInterrupt;
@@ -38,6 +44,8 @@ type TIODriver = class( TVObject )
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString = '' ); virtual; abstract;
   procedure ClearInterrupts;
   procedure RegisterInterrupt( aCode : TIOKeyCode; aInterrupt : TIOInterrupt );
+  function GetDisplayModeCount : Integer; virtual; abstract;
+  function GetDisplayMode( aIndex : Integer ) : TIODisplayMode; virtual; abstract;
 protected
   FOnQuit     : TIOInterrupt;
   FInterrupts : TIOInterrupts;
