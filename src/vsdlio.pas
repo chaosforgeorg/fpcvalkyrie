@@ -29,8 +29,6 @@ type TSDLIODriver = class( TIODriver )
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString ); override;
   procedure ShowMouse( aShow : Boolean );
   procedure ScreenShot( const aFileName : AnsiString );
-  function GetDisplayModeCount : Integer; override;
-  function GetDisplayMode( aIndex : Integer ) : TIODisplayMode; override;
 private
   FFlags     : TSDLIOFlags;
   FSizeX     : DWord;
@@ -41,6 +39,8 @@ private
   FOnResize  : TIOInterrupt;
   FWindow    : PSDL_Window;
   FGLContext : SDL_GLContext;
+private
+  procedure ScanDisplayModes;
 public
   property Width : DWord        read FSizeX;
   property Height : DWord       read FSizeY;
@@ -388,6 +388,8 @@ begin
     raise EIOException.Create('Couldn''t initialize SDL : '+SDL_GetError());
   end;
 
+  ScanDisplayModes;
+
   if not ResetVideoMode( aWidth, aHeight, aBPP, aFlags ) then
   begin
     SDL_Quit();
@@ -668,24 +670,32 @@ except on e : Exception do
 end;
 end;
 
-function TSDLIODriver.GetDisplayModeCount : Integer;
+procedure TSDLIODriver.ScanDisplayModes;
+var i, iCount : Integer;
+    iMode     : TSDL_DisplayMode;
+    iEntry    : TIODisplayMode;
 begin
-  Exit( SDL_GetNumDisplayModes( 0 ) );
-end;
-
-function TSDLIODriver.GetDisplayMode( aIndex : Integer ) : TIODisplayMode;
-var iMode : TSDL_DisplayMode;
-begin
-  FillChar( iMode, SizeOf( iMode ), 0 );
-  FillChar( Result, SizeOf( Result ), 0 );
-  if SDL_GetDisplayMode( 0, aIndex, @iMode ) <> 0 then
+  if Assigned( FDisplayModes )
+    then FDisplayModes.Clear
+    else FDisplayModes := TIODisplayModeArray.Create;
+  iCount := SDL_GetNumDisplayModes( 0 );
+  FDisplayModes.Reserve( iCount );
+  for i := 0 to iCount - 1 do
   begin
-    Log('Failed to get display mode %d : %s', [aIndex, SDL_GetError()]);
-    Exit;
+    FillChar( iMode, SizeOf( iMode ), 0 );
+    if SDL_GetDisplayMode( 0, i, @iMode ) = 0 then
+    begin
+      iEntry.Name    := Format( '%dx%d (%dr)', [iMode.w, iMode.h, iMode.refresh_rate] );
+      iEntry.Width   := iMode.w;
+      iEntry.Height  := iMode.h;
+      iEntry.Refresh := iMode.refresh_rate;
+      iEntry.Index   := i;
+      FDisplayModes.Push( iEntry );
+    end
+    else
+      Log( LOGERROR, 'Failed to get display mode %d : %s', [i, SDL_GetError()]);
+    Log('%d - %d x %d @%d', [ FDisplayModes[i].Index, FDisplayModes[i].Width, FDisplayModes[i].Height, FDisplayModes[i].Refresh ] );
   end;
-  Result.Width   := iMode.w;
-  Result.Height  := iMode.h;
-  Result.Refresh := iMode.refresh_rate;
 end;
 
 end.

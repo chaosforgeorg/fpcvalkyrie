@@ -21,8 +21,6 @@ type TTextIODriver = class( TIODriver )
   function GetMouseButtonState( out aResult : TIOMouseButtonSet) : Boolean; override;
   function GetModKeyState : TIOModKeySet; override;
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString = '' ); override;
-  function GetDisplayModeCount : Integer; override;
-  function GetDisplayMode( aIndex : Integer ) : TIODisplayMode; override;
 protected
   function PollKey : Cardinal;
 private
@@ -409,17 +407,6 @@ begin
   end;
   Exit( Result );
 end;
-
-function TTextIODriver.GetDisplayModeCount : Integer;
-begin
-  Exit(0);
-end;
-
-function TTextIODriver.GetDisplayMode( aIndex : Integer ) : TIODisplayMode;
-begin
-  Exit;
-end;
-
 
 end.
 

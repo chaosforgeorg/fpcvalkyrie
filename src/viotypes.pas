@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit viotypes;
 interface
-uses Classes, SysUtils, vutil, vnode, vioevent, vgltypes;
+uses Classes, SysUtils, vutil, vnode, vioevent, vgltypes, vgenerics;
 
 type TIOColor         = DWord;
 type TIOCursorType    = ( VIO_CURSOR_SMALL, VIO_CURSOR_HALF, VIO_CURSOR_BLOCK );
@@ -18,10 +18,14 @@ type
 end;
 
  TIODisplayMode = record
+   Index   : Integer;
    Width   : Integer;
    Height  : Integer;
    Refresh : Integer;
+   Name    : AnsiString;
  end;
+
+type TIODisplayModeArray = specialize TGArray< TIODisplayMode >;
 
 type TIOTerminateEventHandler = function : Boolean of object;
 type TIOInterrupt = function( aEvent : TIOEvent ) : Boolean of object;
@@ -44,13 +48,13 @@ type TIODriver = class( TVObject )
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString = '' ); virtual; abstract;
   procedure ClearInterrupts;
   procedure RegisterInterrupt( aCode : TIOKeyCode; aInterrupt : TIOInterrupt );
-  function GetDisplayModeCount : Integer; virtual; abstract;
-  function GetDisplayMode( aIndex : Integer ) : TIODisplayMode; virtual; abstract;
 protected
-  FOnQuit     : TIOInterrupt;
-  FInterrupts : TIOInterrupts;
+  FOnQuit       : TIOInterrupt;
+  FInterrupts   : TIOInterrupts;
+  FDisplayModes : TIODisplayModeArray;
 public
-  property OnQuitEvent : TIOInterrupt write FOnQuit;
+  property OnQuitEvent  : TIOInterrupt        write FOnQuit;
+  property DisplayModes : TIODisplayModeArray read  FDisplayModes default nil;
 end;
 
 type IIOElement = interface['viotypes.iioelement']
