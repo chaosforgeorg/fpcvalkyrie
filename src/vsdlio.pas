@@ -29,6 +29,7 @@ type TSDLIODriver = class( TIODriver )
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString ); override;
   procedure ShowMouse( aShow : Boolean );
   procedure ScreenShot( const aFileName : AnsiString );
+  function SetDisplayMode( aIndex : Integer ) : Boolean;
 private
   FFlags     : TSDLIOFlags;
   FSizeX     : DWord;
@@ -699,6 +700,19 @@ begin
     else
       Log( LOGERROR, 'Failed to get display mode %d : %s', [i, SDL_GetError()]);
   end;
+end;
+
+function TSDLIODriver.SetDisplayMode( aIndex : Integer ) : Boolean;
+var iMode : TSDL_DisplayMode;
+begin
+  FillChar( iMode, SizeOf( iMode ), 0 );
+  if SDL_GetDisplayMode( 0, aIndex, @iMode ) = 0 then
+  begin
+    SDL_SetWindowDisplayMode( FWindow, @iMode );
+    SDL_SetWindowSize( FWindow, iMode.w, iMode.h );
+    Exit( True );
+  end;
+  Exit( False );
 end;
 
 end.
