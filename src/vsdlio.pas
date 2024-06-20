@@ -671,20 +671,24 @@ end;
 end;
 
 procedure TSDLIODriver.ScanDisplayModes;
-var i, iCount : Integer;
-    iMode     : TSDL_DisplayMode;
-    iEntry    : TIODisplayMode;
+var i, iCount   : Integer;
+    iMode       : TSDL_DisplayMode;
+    iEntry      : TIODisplayMode;
+    iIdn, iLast : Integer;
 begin
   if Assigned( FDisplayModes )
     then FDisplayModes.Clear
     else FDisplayModes := TIODisplayModeArray.Create;
   iCount := SDL_GetNumDisplayModes( 0 );
-  FDisplayModes.Reserve( iCount );
   for i := 0 to iCount - 1 do
   begin
     FillChar( iMode, SizeOf( iMode ), 0 );
     if SDL_GetDisplayMode( 0, i, @iMode ) = 0 then
     begin
+      iIdn := iMode.h * 100000 + iMode.w;
+      if (iMode.w < 1280) or (iIdn = iLast) then
+        Continue;
+      iLast := iIdn;
       iEntry.Name    := Format( '%dx%d (%dr)', [iMode.w, iMode.h, iMode.refresh_rate] );
       iEntry.Width   := iMode.w;
       iEntry.Height  := iMode.h;
@@ -694,7 +698,6 @@ begin
     end
     else
       Log( LOGERROR, 'Failed to get display mode %d : %s', [i, SDL_GetError()]);
-    Log('%d - %d x %d @%d', [ FDisplayModes[i].Index, FDisplayModes[i].Width, FDisplayModes[i].Height, FDisplayModes[i].Refresh ] );
   end;
 end;
 
