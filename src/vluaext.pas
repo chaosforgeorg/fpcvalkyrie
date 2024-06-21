@@ -445,6 +445,8 @@ end;
 
 procedure vlua_tostream(L: Plua_State; index : Integer; out_stream: TStream);
 var lnumber : LUA_NUMBER;
+    iData   : Pointer;
+    iSize   : Integer;
 begin
   index := lua_absindex(L,index);
   out_stream.WriteByte( lua_type(L, index) );
@@ -453,23 +455,16 @@ begin
     LUA_TSTRING  : out_stream.WriteAnsiString( lua_tostring( L, index ) );
     LUA_TTABLE   : vlua_tabletostream( L, index, out_stream );
     LUA_TNUMBER  : begin lnumber := lua_tonumber( L, index ); out_stream.Write( lnumber, sizeof( LUA_NUMBER ) ); end;
-    LUA_TUSERDATA: begin
-      out_stream.WriteAnsiString( lua_tostring( L, index ) );
-      {
-      				const char* name = sp.get_userdata_name();
-				sint32 size = nvstrlen( name );
-				// Resize deserialize if needed
-				NV_ASSERT_ALWAYS( size < 1000, "Resize!" );
-				s & size;
-				s & span( name, size );
-				auto data = get_raw_userdata( sp );
-				size = sint32( data.size() );
-				NV_ASSERT( size > 0, "!" );
-				s & size;
-				s & data;
-                                }
-      end;
     LUA_TNIL     : ;
+    LUA_TUSERDATA: begin
+      out_stream.WriteAnsiString( vlua_getuserdataname( L, index ) );
+      iData := lua_touserdata( L, index );
+      iSize := lua_objlen( L, index );
+      Assert( iData <> nil );
+      Assert( iSize > 0 );
+      out_stream.WriteDWord( DWord( iSize ) );
+      out_stream.Write( iData^, iSize );
+    end;
     else raise ELuaException.Create('Trying to stream improper type : '+lua_typename( L, lua_type(L, -1) )+'!');
   end;
 end;
@@ -477,6 +472,9 @@ end;
 procedure vlua_pushfromstream(L: Plua_State; in_stream: TStream);
 var ltype   : byte;
     lnumber : LUA_NUMBER;
+    iName   : Ansistring;
+    iSize   : DWord;
+    iData   : Pointer;
 begin
   {$HINTS OFF}
   ltype := in_stream.ReadByte();
@@ -486,6 +484,14 @@ begin
     LUA_TNUMBER  : begin in_stream.Read( lnumber, sizeof( LUA_NUMBER ) ); lua_pushnumber( L, lnumber ); end;
     LUA_TTABLE   : begin lua_newtable( L ); vlua_tablefromstream( L, -1, in_stream ); end;
     LUA_TNIL     : lua_pushnil( L );
+    LUA_TUSERDATA: begin
+      iName := in_stream.ReadAnsiString();
+      iSize := in_stream.ReadDWord();
+      iData := lua_newuserdata( L, iSize );
+      in_stream.Read( iData^, iSize );
+      luaL_getmetatable( L, PChar(iName) );
+      lua_setmetatable( L, -2 );
+    end;
     else raise ELuaException.Create('Improper type in stream: '+lua_typename( L, ltype )+'!');
   end;
   {$HINTS ON}
