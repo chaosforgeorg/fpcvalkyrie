@@ -1038,10 +1038,10 @@ procedure RegisterDungenClass( L : Plua_State; ObjectName : AnsiString = '' );
 begin
   if ObjectName = '' then
     ObjectName := 'dungen';
-  luaL_newmetatable( L, VALKYRIE_DUNGEN );
+  vlua_newmetatable( L, VALKYRIE_DUNGEN );
   luaL_register( L, PChar( ObjectName ), dungenlib_f );
 
-  luaL_newmetatable( L, VALKYRIE_DUNGEN_TILE );
+  vlua_newmetatable( L, VALKYRIE_DUNGEN_TILE );
   lua_pushvalue( L, -1 );
   lua_setfield( L, -2, '__index' );
   luaL_register( L, nil, dungentile_f );

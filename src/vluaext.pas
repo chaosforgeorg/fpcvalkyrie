@@ -73,6 +73,9 @@ function  vlua_tovec3b(L: Plua_State; idx: Integer): TVec3b;
 function  vlua_tovec4b(L: Plua_State; idx: Integer): TVec4b;
 
 function  vlua_tostringlist( L : Plua_State; Index : Integer ) : TGStringArray;
+function  vlua_newmetatable( L: Plua_State; iName : Ansistring ): Integer;
+function  vlua_getuserdataname( L: Plua_State; Index: Integer ): Ansistring;
+
 
 implementation
 
@@ -450,6 +453,22 @@ begin
     LUA_TSTRING  : out_stream.WriteAnsiString( lua_tostring( L, index ) );
     LUA_TTABLE   : vlua_tabletostream( L, index, out_stream );
     LUA_TNUMBER  : begin lnumber := lua_tonumber( L, index ); out_stream.Write( lnumber, sizeof( LUA_NUMBER ) ); end;
+    LUA_TUSERDATA: begin
+      out_stream.WriteAnsiString( lua_tostring( L, index ) );
+      {
+      				const char* name = sp.get_userdata_name();
+				sint32 size = nvstrlen( name );
+				// Resize deserialize if needed
+				NV_ASSERT_ALWAYS( size < 1000, "Resize!" );
+				s & size;
+				s & span( name, size );
+				auto data = get_raw_userdata( sp );
+				size = sint32( data.size() );
+				NV_ASSERT( size > 0, "!" );
+				s & size;
+				s & data;
+                                }
+      end;
     LUA_TNIL     : ;
     else raise ELuaException.Create('Trying to stream improper type : '+lua_typename( L, lua_type(L, -1) )+'!');
   end;
@@ -863,7 +882,7 @@ begin
   lua_pop( L, 1 );
 end;
 
-function vlua_tostringlist(L: Plua_State; Index: Integer): TGStringArray;
+function vlua_tostringlist( L: Plua_State; Index: Integer ): TGStringArray;
 var i : Integer;
 begin
   if not lua_istable( L, Index ) then Exit( nil );
@@ -875,6 +894,30 @@ begin
     Result.Push( lua_tostring( L, -1 ) );
     lua_pop( L, 1 );
   end;
+end;
+
+function vlua_newmetatable( L: Plua_State; iName : Ansistring ): Integer;
+begin
+  Result := luaL_newmetatable( L, PChar(iName) );
+  if Result <> 0 then
+  begin
+    lua_pushstring( L, PChar( iName ) );
+    lua_setfield( L, -2, '__name' );
+  end;
+end;
+
+function vlua_getuserdataname( L: Plua_State; Index: Integer ): Ansistring;
+begin
+  if lua_getmetatable(L, index) then
+  begin
+    Result := '';
+    lua_getfield( L, -1, '__name' );
+    if lua_isstring( L, -1 ) then
+      Result := lua_tostring( L, -1 );
+    lua_pop( L, 2 );
+    Exit(Result);
+  end;
+  Result := '';
 end;
 
 end.
