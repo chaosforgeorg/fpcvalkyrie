@@ -9,10 +9,10 @@ type TIOEventState = class
   public
     constructor Create;
     procedure Update( aElapsed: Single );
-    procedure SetState( aState: sint32; aValue: Boolean );
+    procedure SetState( aState: Integer; aValue: Boolean );
     procedure AppendText( aText: PWideChar );
-    function Activated( aState: sint32; aRepeat: Boolean = False ): Boolean;
-    function Active( aState: sint32 ): Boolean;
+    function Activated( aState: Integer; aRepeat: Boolean = False ): Boolean;
+    function Active( aState: Integer ): Boolean;
     procedure EndFrame;
     procedure Clear;
   private
@@ -41,9 +41,9 @@ begin
 end;
 
 procedure TIOEventState.Update( aElapsed: Single );
-var i: sint32;
+var i : Integer;
 begin
-  for i := 0 to MaxEvents - 1 do
+  for i := 0 to VIO_MAXEVENTS - 1 do
   begin
     if FDown[i] then
     begin
@@ -58,7 +58,7 @@ begin
   FLastElapsed := aElapsed;
 end;
 
-procedure TIOEventState.SetState( aState: sint32; aValue: Boolean );
+procedure TIOEventState.SetState( aState: Integer; aValue: Boolean );
 begin
   FDuration[aState] := -1.0;
   FDown[aState] := aValue;
@@ -68,22 +68,22 @@ procedure TIOEventState.AppendText( aText: PWideChar );
 var n, i : Integer;
 begin
   n := 0;
-  while ( n < MaxInput ) and (FInput[n] <> #0) do
+  while ( n < VIO_MAXINPUT ) and ( FInput[n] <> #0 ) do
     Inc( n );
 
   i := 0;
-  while (n + 1 < MaxInput) and (aText[i] <> #0) do
+  while ( n + 1 < VIO_MAXINPUT ) and ( aText[i] <> #0 ) do
   begin
     FInput[n] := aText[i];
     Inc(n);
     Inc(i);
   end;
 
-  if n < MaxInput then
+  if n < VIO_MAXINPUT then
     FInput[n] := #0;
 end;
 
-function TIOEventState.Activated( aState: sint32; aRepeat: Boolean = False ): Boolean;
+function TIOEventState.Activated( aState: Integer; aRepeat: Boolean = False ): Boolean;
 var
   duration: Single;
 begin
@@ -111,7 +111,7 @@ begin
   Result := @FInput[0];
 end;
 
-function TIOEventState.Active( aState: sint32 ): Boolean;
+function TIOEventState.Active( aState: Integer ): Boolean;
 begin
   Result := FDown[aState];
 end;
@@ -120,19 +120,19 @@ procedure TIOEventState.EndFrame;
 var
   i : Integer;
 begin
-  for i := 0 to MaxInput - 1 do
+  for i := 0 to VIO_MAXINPUT - 1 do
     FInput[i] := #0;
 end;
 
 procedure TIOEventState.Clear;
 var i : Integer;
 begin
-  for i := 0 to MaxEvents - 1 do
+  for i := 0 to VIO_MAXEVENTS - 1 do
   begin
     FDuration[i] := -1.0;
     FDown[i] := False;
   end;
-  for i := 0 to MaxInput - 1 do
+  for i := 0 to VIO_MAXINPUT - 1 do
     FInput[i] := #0;
 end;
 
