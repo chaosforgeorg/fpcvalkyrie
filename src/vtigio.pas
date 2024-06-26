@@ -25,22 +25,21 @@ type TTIGSoundEvent = (
   VTIG_SOUND_ACCEPT
 );
 
-type TTIGInputEvent = (
-  VTIG_IE_UNUSED    = 128,
-  VTIG_IE_UP        = 129,
-  VTIG_IE_DOWN      = 130,
-  VTIG_IE_LEFT      = 131,
-  VTIG_IE_RIGHT     = 132,
-  VTIG_IE_HOME      = 133,
-  VTIG_IE_END       = 134,
-  VTIG_IE_PGUP      = 135,
-  VTIG_IE_PGDOWN    = 136,
-  VTIG_IE_CANCEL    = 137, // ESCAPE
-  VTIG_IE_SELECT    = 138, // SPACE
-  VTIG_IE_CONFIRM   = 139, // ENTER
-  VTIG_IE_BACKSPACE = 140,
-  VTIG_IE_MCONFIRM  = 141 // MOUSE LEFT
-);
+const
+  VTIG_IE_UNUSED    = 128;
+  VTIG_IE_UP        = 129;
+  VTIG_IE_DOWN      = 130;
+  VTIG_IE_LEFT      = 131;
+  VTIG_IE_RIGHT     = 132;
+  VTIG_IE_HOME      = 133;
+  VTIG_IE_END       = 134;
+  VTIG_IE_PGUP      = 135;
+  VTIG_IE_PGDOWN    = 136;
+  VTIG_IE_CANCEL    = 137; // ESCAPE
+  VTIG_IE_SELECT    = 138; // SPACE
+  VTIG_IE_CONFIRM   = 139; // ENTER
+  VTIG_IE_BACKSPACE = 140;
+  VTIG_IE_MCONFIRM  = 141; // MOUSE LEFT
 
 type TTIGCursorInfo = record
     CType    : TTIGCursorType;
