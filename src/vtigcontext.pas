@@ -50,7 +50,7 @@ end;
 type TTIGWindowArray = specialize TGArray<TTIGWindow>;
      TTIGWindowTable = specialize TGHashMap<TTIGWindow>;
 
-type TTIGContext = record
+type TTIGContext = class
   Io                 : TTIGIOState;
 //  Style              : TTIGStylesheet;
   Size               : TIOPoint;
@@ -77,6 +77,9 @@ type TTIGContext = record
   StyleDefaultColor  : TIOColor;
   StyleBoldColor     : TIOColor;
   StyleScrollColor   : TIOColor;
+
+  constructor Create;
+  destructor Destroy; override;
 end;
 
 implementation
@@ -159,6 +162,30 @@ end;
 destructor TTIGWindow.Destroy;
 begin
   FreeAndNil( FDC );
+  inherited Destroy;
+end;
+
+constructor TTIGContext.Create;
+begin
+  FillChar( Self, SizeOf( TTIGContext ), 0 );
+  WindowTransparency := True;
+
+  Io          := TTIGIOState.Create;
+  Windows     := TTIGWindowArray.Create;
+  WindowStack := TTIGWindowArray.Create;
+  WindowOrder := TTIGWindowArray.Create;
+  WindowStore := TTIGWindowTable.Create;
+  DrawData    := TTIGDrawData.Create;
+end;
+
+destructor TTIGContext.Destroy;
+begin
+  FreeAndNil( Windows );
+  FreeAndNil( WindowStack );
+  FreeAndNil( WindowOrder );
+  FreeAndNil( WindowStore );
+  FreeAndNil( DrawData );
+  FreeAndNil( Io );
   inherited Destroy;
 end;
 
