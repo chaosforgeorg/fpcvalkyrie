@@ -2,7 +2,7 @@
 unit vtigio;
 interface
 
-uses viotypes, vioeventstate, viomousestate, vioconsole;
+uses viotypes, vioeventstate, viomousestate, vioconsole, vgenerics;
 
 type TTIGColor         = TIOColor;
      TTIGRect          = TIORect;
@@ -57,16 +57,17 @@ type TTIGDrawCommand = record
     BG    : TTIGColor;
     XC    : TTIGColor;
   end;
+type TTIGDrawCommandArray = specialize TGArray< TTIGDrawCommand >;
+type TTIGTextArray        = specialize TGArray< Char >;
 
 type TTIGDrawList = class
-     FCommands : array of TTIGDrawCommand;
-     FCmdCount : Integer;
-     FText     : array of Char;
+     FCommands  : TTIGDrawCommandArray;
+     FText      : TTIGTextArray;
   end;
+type TTIGDrawListArray = specialize TGArray< TTIGDrawList >;
 
 type TTIGDrawData = class
-     FLists     : array of TTIGDrawList;
-     FListCount : Integer;
+     FLists     : TTIGDrawListArray;
      FCursor    : TTIGCursorInfo;
   end;
 
@@ -138,14 +139,14 @@ begin
 end;
 
 procedure TTIGIOState.Render( aData : TTIGDrawData );
-var iL, iC, i : Integer;
-    iX, iY    : Integer;
-    iList     : TTIGDrawList;
-    iCmd      : TTIGDrawCommand;
-    iCoord    : TIOPoint;
-    iChar     : DWord;
-    iBorder   : PChar;
-    iGlyph    : Char;
+var i       : Integer;
+    iX, iY  : Integer;
+    iList   : TTIGDrawList;
+    iCmd    : TTIGDrawCommand;
+    iCoord  : TIOPoint;
+    iChar   : DWord;
+    iBorder : PChar;
+    iGlyph  : Char;
 begin
   if not Assigned( FRenderer ) then Exit;
   if FClearOnRender then
@@ -159,14 +160,8 @@ begin
   else
     FRenderer.HideCursor;
 
-  if aData.FListCount > 0 then
-  for iL := 0 to aData.FListCount - 1 do
-  begin
-    iList := aData.FLists[iL];
-    if iList.FCmdCount > 0 then
-    for iC := 0 to iList.FCmdCount - 1 do
-    begin
-      iCmd := iList.FCommands[iC];
+  for iList in aData.FLists do
+    for iCmd in iList.FCommands do
       case iCmd.CType of
         VTIG_CMD_CLEAR: FRenderer.ClearRect( iCmd.Area.x, iCmd.Area.y, iCmd.Area.x2, iCmd.Area.y2, iCmd.BG );
         VTIG_CMD_TEXT:
@@ -208,7 +203,7 @@ begin
         end;
         VTIG_CMD_RULER:
         begin
-          iBorder := PChar(@iList.FText[iCmd.Text.X]);
+          iBorder := PChar(@(iList.FText.Data[iCmd.Text.X]));
           iGlyph  := iBorder[0];
           if iCmd.Area.X = iCmd.Area.X2 then iGlyph := iBorder[1];
           for iCoord in iCmd.Area do
@@ -216,7 +211,7 @@ begin
         end;
         VTIG_CMD_BAR:
         begin
-          iBorder := PChar(@iList.FText[iCmd.Text.X]);
+          iBorder := PChar(@(iList.FText.Data[iCmd.Text.X]));
           for iCoord in iCmd.Area do
             FRenderer.OutputChar( iCoord.x, iCoord.y, iCmd.XC, iCmd.BG, iBorder[2] );
           FRenderer.OutputChar( iCmd.Area.X,  iCmd.Area.Y,  iCmd.FG, iCmd.BG, iBorder[0] );
@@ -225,7 +220,7 @@ begin
         VTIG_CMD_FRAME:
         begin
           FRenderer.ClearRect( iCmd.Area.X, iCmd.Area.Y, iCmd.Area.X2, iCmd.Area.Y2, iCmd.BG );
-          iBorder := PChar(@iList.FText[iCmd.Text.X]);
+          iBorder := PChar(@(iList.FText.Data[iCmd.Text.X]));
           for iX := 0 to iCmd.Area.w - 1 do
           begin
             FRenderer.OutputChar( iCmd.Area.X + iX, iCmd.Area.Y,  iCmd.FG, iCmd.BG, iBorder[0]);
@@ -244,8 +239,6 @@ begin
       else
         // Handle default case if necessary
       end;
-    end;
-  end;
 
   if (FMousePosition.X <> -1) and (FMousePosition.Y <> -1) then
     FRenderer.OutputChar( FMousePosition.X, FMousePosition.Y, White, Chr(30) );
