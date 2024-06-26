@@ -15,10 +15,12 @@ type TTIGWindowDC = class
   constructor Create;
   procedure BeginGroup( aSize : Integer = -1; aVertical : Boolean = false );
   procedure EndGroup;
-private
+//private
+public
   FContent        : TIORect;
   FClip           : TIORect;
   FCursor         : TIOPoint;
+private
   FGroupStackSize : Integer;
   FGroupStack     : array of TTIGGroupInfo;
 end;

@@ -75,10 +75,10 @@ type TTIGSoundCallback = procedure( aEvent : TTIGSoundEvent; aParam : Pointer );
 type TTIGIOState = class
   public
     constructor Create;
-    procedure Initialize( aRenderer : TIOConsoleRenderer; aClearOnRender : Boolean = True );
+    procedure Initialize( aRenderer : TIOConsoleRenderer; aDriver : TIODriver; aClearOnRender : Boolean = True );
     procedure Clear;
     procedure Render( aData : TTIGDrawData );
-    procedure Update( aMSTime : DWord );
+    procedure Update;
     procedure EndFrame;
     procedure PlaySound( aEvent : TTIGSoundEvent );
     destructor Destroy; override;
@@ -86,6 +86,7 @@ type TTIGIOState = class
     FEventState     : TIOEventState;
     FMouseState     : TIOMouseState;
     FRenderer       : TIOConsoleRenderer;
+    FDriver         : TIODriver;
     FTime           : Single;
     FClearOnRender  : Boolean;
     FMousePosition  : TIOPoint;
@@ -101,6 +102,7 @@ type TTIGIOState = class
     property Renderer       : TIOConsoleRenderer read FRenderer;
     property MousePosition  : TIOPoint           read FMousePosition write FMousePosition;
     property Size           : TIOPoint           read GetSize;
+    property Driver         : TIODriver          read FDriver;
 end;
 
 implementation
@@ -112,6 +114,7 @@ begin
   FEventState := TIOEventState.Create;
   FMouseState := TIOMouseState.Create;
   FRenderer   := nil;
+  FDriver     := nil;
   FTime           := 0.0;
   FClearOnRender  := False;
   FMousePosition  := Point( -1, -1 );
@@ -119,9 +122,10 @@ begin
   FSoundParameter := nil;
 end;
 
-procedure TTIGIOState.Initialize( aRenderer : TIOConsoleRenderer; aClearOnRender : Boolean = True );
+procedure TTIGIOState.Initialize( aRenderer : TIOConsoleRenderer; aDriver : TIODriver; aClearOnRender : Boolean = True );
 begin
   FRenderer      := aRenderer;
+  FDriver        := aDriver;
   FClearOnRender := aClearOnRender;
 end;
 
@@ -249,13 +253,15 @@ begin
   FRenderer.Update;
 end;
 
-procedure TTIGIOState.Update( aMSTime : DWord );
-var iCTime  : Single;
+procedure TTIGIOState.Update;
+var iMSTime : DWord;
+    iCTime  : Single;
     iDTime  : Single;
 begin
   if not Assigned( FRenderer ) then Exit;
-  iCTime := aMSTime / 1000.0;
-  iDTime := 1.0 / 60.0;
+  iMSTime := FDriver.GetMs;
+  iCTime  := iMSTime / 1000.0;
+  iDTime  := 1.0 / 60.0;
   if FTime > 0 then
     iDTime := iCTime - FTime;
   FTime := iCTime;
