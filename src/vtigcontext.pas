@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vtigcontext;
 interface
-uses Math, vtigio, viotypes, vgenerics;
+uses Math, vtigio, viotypes, vgenerics, vtigstyle;
 
 type TTIGGroupInfo = record
   Cursor   : TIOPoint;
@@ -52,7 +52,7 @@ type TTIGWindowArray = specialize TGArray<TTIGWindow>;
 
 type TTIGContext = class
   Io                 : TTIGIOState;
-//  Style              : TTIGStylesheet;
+  Style              : PTIGStyle;
   Size               : TIOPoint;
 
   Current            : TTIGWindow;
@@ -73,10 +73,6 @@ type TTIGContext = class
 
   Color              : TIOColor;
   BGColor            : TIOColor;
-  StyleBGColor       : TIOColor;
-  StyleDefaultColor  : TIOColor;
-  StyleBoldColor     : TIOColor;
-  StyleScrollColor   : TIOColor;
 
   constructor Create;
   destructor Destroy; override;
@@ -147,9 +143,17 @@ end;
 
 constructor TTIGWindow.Create;
 begin
-  FillChar( Self, SizeOf( TTIGWindow ), 0 );
-  FMaxSize := Point( -1,-1 );
-  FDC := TTIGWindowDC.Create;
+  FillChar( FClipContent, SizeOf( FClipContent ), 0 );
+  FBackground   := 0;
+  FColor        := 0;
+  FDrawList     := nil;
+
+  FillChar( FFocusInfo, SizeOf( FFocusInfo ), 0 );
+  FScroll       := 0;
+  FSelectScroll := 0;
+  FReset        := False;
+  FMaxSize      := Point( -1,-1 );
+  FDC           := TTIGWindowDC.Create;
 end;
 
 procedure TTIGWindow.Advance( aSize : TIOPoint );
@@ -167,15 +171,24 @@ end;
 
 constructor TTIGContext.Create;
 begin
-  FillChar( Self, SizeOf( TTIGContext ), 0 );
-  WindowTransparency := True;
-
   Io          := TTIGIOState.Create;
   Windows     := TTIGWindowArray.Create;
   WindowStack := TTIGWindowArray.Create;
   WindowOrder := TTIGWindowArray.Create;
   WindowStore := TTIGWindowTable.Create;
   DrawData    := TTIGDrawData.Create;
+
+  Style              := @VTIGDefaultStyle;
+  Size               := Point(0,0);
+
+  Current            := nil;
+  LastTop            := nil;
+  MouseCaptured      := False;
+  DTime              := 0;
+  Time               := 0;
+  WindowTransparency := True;
+  Color              := 0;
+  BGColor            := 0;
 end;
 
 destructor TTIGContext.Destroy;
