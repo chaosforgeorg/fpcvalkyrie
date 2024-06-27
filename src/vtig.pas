@@ -19,6 +19,14 @@ procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aM
 procedure VTIG_EndGroup;
 procedure VTIG_Ruler;
 
+function VTIG_PositionResolve( aPos : TIOPoint ) : TIOPoint;
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0 );
+procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+
 implementation
 
 uses Math, SysUtils, vtigcontext, vtigio, vioeventstate;
@@ -208,7 +216,7 @@ begin
   end;
 end;
 
-procedure VTIG_RenderText(const aText: AnsiString; aPosition: TIOPoint; aClip: TIORect; aParameters: array of const);
+function VTIG_RenderText(const aText: AnsiString; aPosition: TIOPoint; aClip: TIORect; aParameters: array of const) : TIOPoint;
 var iCurrentX, iCurrentY : Integer;
     iStyleStack          : TTIGStyleStack;
 begin
@@ -216,6 +224,7 @@ begin
   iCurrentY := aPosition.Y;
   iStyleStack.Init( GCtx.Color ); // Initialize the style stack
   VTIG_RenderTextSegment( PAnsiChar(aText), iCurrentX, iCurrentY, aClip, iStyleStack, aParameters );
+  Exit( Point( iCurrentX, iCurrentY ) );
 end;
 
 procedure VTIG_RenderChar( aChar : Char; aPosition : TIOPoint );
@@ -516,6 +525,85 @@ begin
     iWindow.DrawList.FCommands.Push( iCmd );
   end;
   iWindow.DC.FCursor.Y += 3;
+end;
+
+function VTIG_PositionResolve( aPos : TIOPoint ) : TIOPoint;
+var iClip   : TIORect;
+begin
+  iClip   := GCtx.Current.DC.FContent;
+  Result  := iClip.Pos + aPos;
+  if aPos.x < 0 then Result.x += iClip.Dim.X;
+  if aPos.y < 0 then Result.y += iClip.Dim.Y;
+end;
+
+function VTIG_GetClipRect : TIORect;
+var iWindow : TTIGWindow;
+begin
+  iWindow := GCtx.Current;
+  Result := iWindow.DC.FContent;
+  Result.Dim.Y := iWindow.FClipContent.Dim.Y;
+  ClampTo( Result, iWindow.DC.FClip );
+end;
+
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0 );
+begin
+  VTIG_FreeLabel( aText, aPos, [], aColor );
+end;
+
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0 );
+begin
+  VTIG_FreeLabel( aText, aArea, [], aColor );
+end;
+
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0 );
+var iClip  : TIORect;
+    iStart : TIOPoint;
+begin
+  if aColor = 0 then aColor := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+  GCtx.Color   := aColor;
+  GCtx.BGColor := GCtx.Current.FBackground;
+  iClip  := GCtx.Current.DC.FClip;
+  iStart := VTIG_PositionResolve( aPos );
+  iClip.Pos.X := iStart.X;
+  iClip.Dim.X -= ( iStart.X - GCtx.Current.DC.FClip.Pos.X );
+  if ( iStart.X > iClip.x2 ) or ( iStart.Y > iClip.y2 ) then Exit;
+  VTIG_RenderText( aText, iStart, iClip, aParams );
+end;
+
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0 );
+var iClip  : TIORect;
+    iStart : TIOPoint;
+begin
+  if aColor = 0 then aColor := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+  GCtx.Color   := aColor;
+  GCtx.BGColor := GCtx.Current.FBackground;
+  iClip  := aArea;
+  iStart := VTIG_PositionResolve( aArea.Pos );
+  iClip.Pos.X := iStart.X;
+  iClip.Dim.X -= ( iStart.X - aArea.Pos.X );
+  if ( iStart.X > iClip.x2 ) or ( iStart.Y > iClip.y2 ) then Exit;
+  VTIG_RenderText( aText, iStart, iClip, aParams );
+end;
+
+procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+var iClip  : TIORect;
+    iStart : TIOPoint;
+    iCoord : TIOPoint;
+begin
+  if aColor = 0   then aColor := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+  if aBGColor = 0 then aColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
+  GCtx.Color   := aColor;
+  GCtx.BGColor := aBGColor;
+  iClip  := VTIG_GetClipRect;
+  iStart := GCtx.Current.DC.FCursor;
+  if ( iStart.X > iClip.x2 ) then Exit;
+  iCoord := VTIG_RenderText( aText, iStart, iClip, aParams );
+  GCtx.Current.Advance( iCoord - iStart + Point(1,1) );
+end;
+
+procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+begin
+  VTIG_Text( aText, [], aColor, aBGColor );
 end;
 
 initialization
