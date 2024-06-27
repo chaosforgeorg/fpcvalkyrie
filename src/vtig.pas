@@ -13,6 +13,11 @@ procedure VTIG_Begin( aName : Ansistring ); overload;
 procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint ); overload;
 procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
 procedure VTIG_End;
+procedure VTIG_Reset( aName : AnsiString );
+
+procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
+procedure VTIG_EndGroup;
+procedure VTIG_Ruler;
 
 implementation
 
@@ -20,6 +25,12 @@ uses Math, SysUtils, vtigcontext, vtigio, vioeventstate;
 
 var GDefaultContext : TTIGContext;
     GCtx            : TTIGContext;
+
+procedure ClampTo( var aRect : TIORect; aClip : TIORect );
+begin
+  aRect.Pos := Max( aRect.Pos, aClip.Pos );
+  aRect.Dim := Max( Min( aRect.pos2, aClip.pos2 ) - aRect.Pos + Point(1,1), Point(1,1) );
+end;
 
 procedure VTIG_Initialize( aRenderer : TIOConsoleRenderer; aDriver : TIODriver; aClearOnRender : Boolean = True );
 var iCanvas : TTIGWindow;
@@ -221,6 +232,79 @@ begin
   GCtx.WindowStack.Pop;
   GCtx.Current := GCtx.WindowStack.Top;
   GCtx.BGColor := GCtx.Current.FBackground;
+end;
+
+procedure VTIG_Reset( aName : Ansistring );
+var iWindow : TTIGWindow;
+begin
+  iWindow := GCtx.WindowStore.Get( aName, nil );
+  if Assigned( iWindow ) then
+    iWindow.FReset := True;
+end;
+
+procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
+var iWindow : TTIGWindow;
+    iHeight : Integer;
+    iCmd    : TTIGDrawCommand;
+    iFrame  : AnsiString;
+begin
+  iWindow := GCtx.Current;
+  if (not aVertical) and (aSize <> -1) then
+  begin
+    iHeight := iWindow.FClipContent.Y2 - (iWindow.DC.FCursor.y - 1);
+    if aMaxHeight >= 0 then
+      iHeight := Min( aMaxHeight, iHeight );
+    iCmd.CType := VTIG_CMD_RULER;
+    iCmd.Area  := Rectangle(
+      Point( iWindow.DC.FCursor.X + aSize, iWindow.DC.FCursor.Y - 1 ),
+      Point( 1, iHeight + 1 )
+    );
+    ClampTo( iCmd.Area, iWindow.DC.FClip );
+    iCmd.FG := iWindow.FColor;
+    iCmd.BG := iWindow.FBackground;
+    iFrame  := GCtx.Style^.Frame[ VTIG_RULER_FRAME ];
+
+    iCmd.Text.X := iWindow.DrawList.FText.Size;
+    iWindow.DrawList.FText.Append( PChar(iFrame), Length( iFrame ) );
+    iCmd.Text.Y := iWindow.DrawList.FText.Size;
+
+    iWindow.DrawList.FCommands.Push( iCmd );
+  end;
+  iWindow.DC.BeginGroup( aSize, aVertical );
+end;
+
+procedure VTIG_EndGroup;
+begin
+  GCtx.Current.DC.EndGroup;
+end;
+
+procedure VTIG_Ruler;
+var iWindow : TTIGWindow;
+    iCmd    : TTIGDrawCommand;
+    iFrame  : Ansistring;
+begin
+  iWindow := GCtx.Current;
+  FillChar( iCmd, Sizeof( iCmd ), 0 );
+  iCmd.CType := VTIG_CMD_RULER;
+  iCmd.Area  := Rectangle(
+    Point( iWindow.DC.FContent.Pos.X, iWindow.DC.FCursor.Y + 1 ),
+    Point( iWindow.DC.FContent.Dim.X, 1 )
+  );
+
+  ClampTo( iCmd.Area, iWindow.DC.FClip );
+  iCmd.FG := iWindow.FColor;
+  iCmd.BG := iWindow.FBackground;
+
+  if ( iWindow.DC.FCursor.Y + 1 <= iWindow.DC.FClip.y2 )
+    and ( iWindow.DC.FCursor.Y + 1 >= iWindow.DC.FClip.y ) then
+  begin
+    iFrame  := GCtx.Style^.Frame[ VTIG_RULER_FRAME ];
+    iCmd.Text.X := iWindow.DrawList.FText.Size;
+    iWindow.DrawList.FText.Append( PChar(iFrame), Length( iFrame ) );
+    iCmd.Text.Y := iWindow.DrawList.FText.Size;
+    iWindow.DrawList.FCommands.Push( iCmd );
+  end;
+  iWindow.DC.FCursor.Y += 3;
 end;
 
 initialization
