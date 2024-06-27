@@ -26,6 +26,198 @@ uses Math, SysUtils, vtigcontext, vtigio, vioeventstate;
 var GDefaultContext : TTIGContext;
     GCtx            : TTIGContext;
 
+type TTIGStyleStack = object
+private
+  FColors  : array[0..15] of TIOColor; // Assuming a maximum depth of 16 nested styles
+  FIndex   : Integer;
+  FDefault : TIOColor;
+public
+  procedure Init( aDefault : TIOColor );
+  procedure Push( aStyle: TIOColor );
+  procedure Pop;
+  function Current: TIOColor;
+end;
+
+procedure TTIGStyleStack.Init( aDefault : TIOColor );
+begin
+  FIndex   := -1;
+  FDefault := aDefault;
+  Push( aDefault );
+end;
+
+procedure TTIGStyleStack.Push( aStyle: TIOColor );
+begin
+  if FIndex < High(FColors) then
+  begin
+    Inc(FIndex);
+    FColors[FIndex] := aStyle;
+  end;
+end;
+
+procedure TTIGStyleStack.Pop;
+begin
+  if FIndex > 0 then
+    Dec(FIndex);
+end;
+
+function TTIGStyleStack.Current: TIOColor;
+begin
+  if FIndex >= 0 then
+    Result := FColors[FIndex]
+  else
+    Result := FDefault;
+end;
+
+procedure VTIG_RenderTextSegment( const aText: PAnsiChar; var aCurrentX, aCurrentY : Integer; aClip: TIORect; var aStyleStack: TTIGStyleStack; aParameters: array of const );
+var iWindow        : TTIGWindow;
+    i, iParamIndex : Integer;
+    iPos, iWidth   : Integer;
+    iLastSpace     : Integer;
+    iSpaceLeft     : Integer;
+
+  procedure Render( const aPart : PAnsiChar; aLength : Integer );
+  var iCmd    : TTIGDrawCommand;
+  begin
+    FillChar( iCmd, Sizeof( iCmd ), 0 );
+    iCmd.CType := VTIG_CMD_TEXT;
+    iCmd.Clip  := aClip;
+    iCmd.FG    := aStyleStack.Current;
+    iCmd.BG    := 0; // TODO
+    iCmd.Area  := Rectangle( Point( aCurrentX, aCurrentY ), aClip.Pos2 );
+    iCmd.Text.X := iWindow.DrawList.FText.Size;
+    iWindow.DrawList.FText.Append( aPart, aLength );
+    iCmd.Text.Y := iWindow.DrawList.FText.Size;
+    iWindow.DrawList.FCommands.Push( iCmd );
+    aCurrentX += aLength;
+  end;
+
+  procedure HandleParameter(aParameterIndex: Integer);
+  var
+    iParamStr    : PAnsiChar;
+  begin
+    if ( aParameterIndex >= 0) and ( aParameterIndex < Length(aParameters) ) then
+    begin
+      case aParameters[aParameterIndex].VType of
+        vtAnsiString:
+          begin
+            iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
+            VTIG_RenderTextSegment( iParamStr, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+          end;
+        // Add handling for other parameter types if needed
+      end;
+    end;
+  end;
+
+
+begin
+  if aCurrentY > aClip.y2 then Exit;
+  iWindow   := GCtx.Current;
+  i         := 0;
+  while aText[i] <> #0 do
+  begin
+    if aText[i] = '{' then
+    begin
+      Inc(i);
+      if i <= Length(aText) then
+      begin
+        case aText[i] of
+          'r' : aStyleStack.Push(Red);
+          'R' : aStyleStack.Push(LightRed);
+          'b' : aStyleStack.Push(Blue);
+          'B' : aStyleStack.Push(LightBlue);
+          'g' : aStyleStack.Push(Green);
+          'G' : aStyleStack.Push(LightGreen);
+          'v' : aStyleStack.Push(Magenta);
+          'V' : aStyleStack.Push(LightMagenta);
+          'c' : aStyleStack.Push(Cyan);
+          'C' : aStyleStack.Push(LightCyan);
+          'l' : aStyleStack.Push(LightGray);
+          'L' : aStyleStack.Push(White);
+          'd' : aStyleStack.Push(DarkGray);
+          'D' : aStyleStack.Push(Black);
+      'n','N' : aStyleStack.Push(Brown);
+      'y','Y' : aStyleStack.Push(Yellow);
+          '!' : aStyleStack.Push(GCtx.Style^.Color[VTIG_BOLD_COLOR]);
+          '0'..'9':
+            begin
+              iParamIndex := Ord(aText[i]) - Ord('0');
+              HandleParameter( iParamIndex );
+            end;
+        end;
+        Inc(i);
+      end;
+    end
+    else if aText[i] = '}' then
+    begin
+      aStyleStack.Pop;
+      Inc(i);
+    end
+    else if aText[i] = #10 then // Handle newline
+    begin
+      aCurrentX := aClip.X;
+      Inc(aCurrentY);
+      Inc(i);
+    end
+    else
+    begin
+      // Reset line width and last space
+      iWidth     := 0;
+      iLastSpace := -1;
+      iPos       := i;
+      iSpaceLeft := aClip.x2 - aCurrentX;
+
+      while iPos <= Length(aText) do
+      begin
+        if aText[iPos] = ' ' then
+          iLastSpace := iWidth;
+        if (aText[iPos] in [#10,#13,'{','}']) or (iWidth > iSpaceLeft) then
+          break;
+        Inc(iPos);
+        Inc(iWidth);
+      end;
+
+      if ( iPos > Length(aText) ) or (aText[iPos] in [#10,#13,'{','}']) then
+      begin
+        Render( aText + i, iWidth );
+        if (iPos > Length(aText)) then
+          Exit; // nothing more to render, exit
+      end
+      else // iWidth >= iSpaceLeft
+      begin
+        if iLastSpace > -1 then
+        begin
+          Render( aText + i, iLastSpace );
+          aCurrentX := aClip.X;
+          Inc(aCurrentY);
+          i := iLastSpace + 1;
+        end
+        else
+        // If there was no space, break at the line width
+        begin
+          Render( aText + i, iWidth );
+          aCurrentX := aClip.X;
+          Inc(aCurrentY);
+          i := i + iWidth;
+        end;
+
+        // Stop if we've exceeded the clipping rectangle's height
+        if aCurrentY > aClip.y2 then
+          Exit;
+      end;
+    end;
+  end;
+end;
+
+procedure VTIG_RenderText(const aText: AnsiString; aPosition: TIOPoint; aClip: TIORect; aParameters: array of const);
+var iCurrentX, iCurrentY : Integer;
+    iStyleStack          : TTIGStyleStack;
+begin
+  iCurrentX := aPosition.X;
+  iCurrentY := aPosition.Y;
+  iStyleStack.Init( GCtx.Color ); // Initialize the style stack
+  VTIG_RenderTextSegment( PAnsiChar(aText), iCurrentX, iCurrentY, aClip, iStyleStack, aParameters );
+end;
+
 procedure ClampTo( var aRect : TIORect; aClip : TIORect );
 begin
   aRect.Pos := Max( aRect.Pos, aClip.Pos );
