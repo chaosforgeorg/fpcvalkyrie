@@ -9,6 +9,11 @@ procedure VTIG_EndFrame;
 procedure VTIG_Render;
 procedure VTIG_Clear;
 
+procedure VTIG_Begin( aName : Ansistring ); overload;
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint ); overload;
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_End;
+
 implementation
 
 uses Math, SysUtils, vtigcontext, vtigio, vioeventstate;
@@ -27,9 +32,8 @@ begin
 
   iCanvas := TTIGWindow.Create;
   iCanvas.FClipContent := Rectangle( Point(0,0), GCtx.Size );
-  iCanvas.FDC.FContent := iCanvas.FClipContent;
-  iCanvas.FDC.FClip    := iCanvas.FClipContent;
-  iCanvas.FDrawList    := TTIGDrawList.Create;
+  iCanvas.DC.FContent  := iCanvas.FClipContent;
+  iCanvas.DC.FClip     := iCanvas.FClipContent;
   iCanvas.FBackground  := GCtx.BGColor;
 
   GCtx.Windows.Push( iCanvas );
@@ -49,13 +53,13 @@ begin
   GCtx.Size := GCtx.Io.Size;
 
   GCtx.Current.FClipContent := Rectangle( Point(0,0), GCtx.Size );
-  GCtx.Current.FDC.FContent := GCtx.Current.FClipContent;
-  GCtx.Current.FDC.FClip    := GCtx.Current.FClipContent;
+  GCtx.Current.DC.FContent  := GCtx.Current.FClipContent;
+  GCtx.Current.DC.FClip     := GCtx.Current.FClipContent;
 
   for iWindow in GCtx.Windows do
   begin
-    iWindow.FDrawList.FCommands.Clear;
-    iWindow.FDrawList.FText.Clear;
+    iWindow.DrawList.FCommands.Clear;
+    iWindow.DrawList.FText.Clear;
   end;
 
   GCtx.Io.Update;
@@ -102,7 +106,7 @@ begin
   // render
   GCtx.DrawData.FLists.Clear;
   for iWindow in GCtx.WindowOrder do
-    GCtx.DrawData.FLists.Push( iWindow.FDrawList );
+    GCtx.DrawData.FLists.Push( iWindow.DrawList );
   GCtx.Io.EndFrame;
 end;
 
@@ -116,6 +120,108 @@ begin
   GCtx.Io.Clear;
 end;
 
+procedure VTIG_Begin( aName : Ansistring ); overload;
+begin
+  VTIG_Begin( aName, Point( -1, -1 ), Point( -1, -1 ) )
+end;
+
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint ); overload;
+begin
+  VTIG_Begin( aName, aSize, Point( -1, -1 ) )
+end;
+
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+var iParent : TTIGWindow;
+    iWindow : TTIGWindow;
+    iFirst  : Boolean;
+    iFClip  : TIORect;
+    iFrame  : Ansistring;
+    iCmd    : TTIGDrawCommand;
+begin
+  iParent := GCtx.Current;
+  iWindow := GCtx.WindowStore.Get( aName, nil );
+
+  if iWindow = nil then
+  begin
+    iFirst  := True;
+    iWindow := TTIGWindow.Create;
+    GCtx.Windows.Push( iWindow );
+    GCtx.WindowStore[ aName ] := iWindow;
+  end
+  else
+  begin
+    iFirst         := iWindow.FReset;
+    iWindow.FReset := False;
+  end;
+
+  if iFirst then
+  begin
+    iWindow.FScroll       := 0;
+    iWindow.FSelectScroll := 0;
+    iWindow.FMaxSize      := Point( -1, -1 );
+    iWindow.FColor        := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+  end;
+  iWindow.FBackground     := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
+
+  GCtx.WindowStack.Push( iWindow );
+  GCtx.WindowOrder.Push( iWindow );
+  GCtx.Current := iWindow;
+
+  if ( aSize.X = -1 ) and ( iWindow.FMaxSize.X >= 0 ) then aSize.X := iWindow.FMaxSize.X + 4;
+  if ( aSize.Y = -1 ) and ( iWindow.FMaxSize.Y >= 0 ) then aSize.Y := iWindow.FMaxSize.Y + 4;
+  if ( aSize.X < -1 ) and ( iWindow.FMaxSize.X >= 0 ) then aSize.X := Max( iWindow.FMaxSize.X + 4, -aSize.X );
+  if ( aSize.Y < -1 ) and ( iWindow.FMaxSize.Y >= 0 ) then aSize.Y := Max( iWindow.FMaxSize.Y + 4, -aSize.Y );
+
+  if aPos.X = -1 then aPos.X := iParent.FClipContent.X + ( iParent.FClipContent.Dim.X - aSize.X ) div 2;
+  if aPos.Y = -1 then aPos.Y := iParent.FClipContent.Y + ( iParent.FClipContent.Dim.Y - aSize.Y ) div 2;
+
+  if aPos.X < -1 then aPos.X += iParent.FClipContent.X2;
+  if aPos.Y < -1 then aPos.Y += iParent.FClipContent.Y2;
+
+  iFClip := Rectangle( aPos, Max( aSize, Point(0,0) ) );
+  iFrame := GCtx.Style^.Frame[ VTIG_BORDER_FRAME ];
+
+  if iFrame = ''
+    then iWindow.DC.FClip := iFClip
+    else iWindow.DC.FClip := iFClip.Shrinked(1);
+  iWindow.FClipContent := iWindow.DC.FClip.Shrinked(1);
+
+  Inc( iWindow.FClipContent.Dim.Y );
+
+  iWindow.DC.FContent := iWindow.FClipContent;
+  iWindow.DC.FContent.Pos.y -= iWindow.FScroll;
+  iWindow.DC.FContent.Dim.y += iWindow.FScroll;
+  iWindow.DC.FCursor  := iWindow.DC.FContent.Pos;
+
+  GCtx.BGColor := iWindow.FBackground;
+  GCtx.Color   := iWindow.FColor;
+
+  if ( aSize.X > -1 ) and ( aSize.Y > -1 ) then
+  begin
+    FillChar( iCmd, Sizeof( iCmd ), 0 );
+    iCmd.CType := VTIG_CMD_CLEAR;
+    iCmd.Clip  := iFClip;
+    iCmd.Area  := iFClip;
+    iCmd.FG    := GCtx.Color;
+    iCmd.BG    := GCtx.BGColor;
+    if iFrame <> '' then
+    begin
+      iCmd.CType  := VTIG_CMD_FRAME;
+      iCmd.Text.X := iWindow.DrawList.FText.Size;
+      iWindow.DrawList.FText.Append( PChar(iFrame), Length( iFrame ) );
+      iCmd.Text.Y := iWindow.DrawList.FText.Size;
+    end;
+    iWindow.DrawList.FCommands.Push( iCmd );
+  end;
+end;
+
+procedure VTIG_End;
+begin
+  Assert( GCtx.WindowStack.Size > 1, 'Too many end()''s!' );
+  GCtx.WindowStack.Pop;
+  GCtx.Current := GCtx.WindowStack.Top;
+  GCtx.BGColor := GCtx.Current.FBackground;
+end;
 
 initialization
 

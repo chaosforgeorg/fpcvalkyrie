@@ -34,12 +34,10 @@ type TTIGWindow = class
   FClipContent  : TIORect;
   FBackground   : TIOColor;
   FColor        : TIOColor;
-  FDrawList     : TTIGDrawList;
 
   FFocusInfo    : TTIGFocusInfo;
   FScroll       : Integer;
   FSelectScroll : Integer;
-  FDC           : TTIGWindowDC;
 
   FReset        : Boolean;
   FMaxSize      : TIOPoint;
@@ -47,6 +45,13 @@ type TTIGWindow = class
   constructor Create;
   procedure Advance( aSize : TIOPoint );
   destructor Destroy; override;
+private
+  FDC           : TTIGWindowDC;
+  FDrawList     : TTIGDrawList;
+public
+  property DrawList : TTIGDrawList read FDrawList;
+  property DC       : TTIGWIndowDC read FDC;
+
 end;
 
 type TTIGWindowArray = specialize TGArray<TTIGWindow>;
@@ -148,14 +153,15 @@ begin
   FillChar( FClipContent, SizeOf( FClipContent ), 0 );
   FBackground   := 0;
   FColor        := 0;
-  FDrawList     := nil;
 
   FillChar( FFocusInfo, SizeOf( FFocusInfo ), 0 );
   FScroll       := 0;
   FSelectScroll := 0;
   FReset        := False;
   FMaxSize      := Point( -1,-1 );
+
   FDC           := TTIGWindowDC.Create;
+  FDrawList     := TTIGDrawList.Create;
 end;
 
 procedure TTIGWindow.Advance( aSize : TIOPoint );
@@ -168,6 +174,7 @@ end;
 destructor TTIGWindow.Destroy;
 begin
   FreeAndNil( FDC );
+  FreeAndNil( FDrawList );
   inherited Destroy;
 end;
 
