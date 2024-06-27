@@ -218,6 +218,25 @@ begin
   VTIG_RenderTextSegment( PAnsiChar(aText), iCurrentX, iCurrentY, aClip, iStyleStack, aParameters );
 end;
 
+procedure VTIG_RenderChar( aChar : Char; aPosition : TIOPoint );
+var iCmd    : TTIGDrawCommand;
+    iWindow : TTIGWindow;
+    iClip   : TIORect;
+begin
+  iWindow := GCtx.Current;
+  iClip   := iWindow.FClipContent;
+  FillChar( iCmd, Sizeof( iCmd ), 0 );
+  iCmd.CType := VTIG_CMD_TEXT;
+  iCmd.Clip  := iClip;
+  iCmd.Area  := Rectangle( aPosition, iClip.Dim - aPosition );
+  iCmd.FG    := iWindow.FColor;
+  iCmd.BG    := iWindow.FBackground;
+  iCmd.Text.X := iWindow.DrawList.FText.Size;
+  iWindow.DrawList.FText.Push( aChar );
+  iCmd.Text.Y := iWindow.DrawList.FText.Size;
+  iWindow.DrawList.FCommands.Push( iCmd );
+end;
+
 procedure ClampTo( var aRect : TIORect; aClip : TIORect );
 begin
   aRect.Pos := Max( aRect.Pos, aClip.Pos );
