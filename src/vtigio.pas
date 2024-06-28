@@ -60,8 +60,16 @@ type TTIGDrawCommandArray = specialize TGArray< TTIGDrawCommand >;
 type TTIGTextArray        = specialize TGArray< Char >;
 
 type TTIGDrawList = class
-     FCommands  : TTIGDrawCommandArray;
-     FText      : TTIGTextArray;
+  public
+    constructor Create;
+    procedure Clear;
+    function PushText( aText : PChar; aLength : Integer ) : TIOPoint;
+    function PushChar( aChar : Char ) : TIOPoint;
+    procedure Push( const aCmd : TTIGDrawCommand );
+    destructor Destroy; override;
+  private
+    FCommands  : TTIGDrawCommandArray;
+    FText      : TTIGTextArray;
   end;
 type TTIGDrawListArray = specialize TGArray< TTIGDrawList >;
 
@@ -108,6 +116,44 @@ end;
 implementation
 
 uses SysUtils, vutil;
+
+constructor TTIGDrawList.Create;
+begin
+  FCommands := TTIGDrawCommandArray.Create;
+  FText     := TTIGTextArray.Create;
+end;
+
+procedure TTIGDrawList.Clear;
+begin
+  FCommands.Clear;
+  FText.Clear;
+end;
+
+function TTIGDrawList.PushText( aText : PChar; aLength : Integer ) : TIOPoint;
+begin
+  Result.X := FText.Size;
+  FText.Append( aText, aLength );
+  Result.Y := FText.Size;
+end;
+
+function TTIGDrawList.PushChar( aChar : Char ) : TIOPoint;
+begin
+  Result.X := FText.Size;
+  FText.Push( aChar );
+  Result.Y := FText.Size;
+end;
+
+procedure TTIGDrawList.Push( const aCmd : TTIGDrawCommand );
+begin
+  FCommands.Push( aCmd );
+end;
+
+destructor TTIGDrawList.Destroy;
+begin
+  FreeAndNil( FCommands );
+  FreeAndNil( FText );
+  inherited Destroy;
+end;
 
 constructor TTIGIOState.Create;
 begin

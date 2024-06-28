@@ -92,10 +92,8 @@ var iWindow        : TTIGWindow;
     iCmd.FG    := aStyleStack.Current;
     iCmd.BG    := 0; // TODO
     iCmd.Area  := Rectangle( Point( aCurrentX, aCurrentY ), aClip.Pos2 );
-    iCmd.Text.X := iWindow.DrawList.FText.Size;
-    iWindow.DrawList.FText.Append( aPart, aLength );
-    iCmd.Text.Y := iWindow.DrawList.FText.Size;
-    iWindow.DrawList.FCommands.Push( iCmd );
+    iCmd.Text  := iWindow.DrawList.PushText( aPart, aLength );
+    iWindow.DrawList.Push( iCmd );
     aCurrentX += aLength;
   end;
 
@@ -240,10 +238,8 @@ begin
   iCmd.Area  := Rectangle( aPosition, iClip.Dim - aPosition );
   iCmd.FG    := iWindow.FColor;
   iCmd.BG    := iWindow.FBackground;
-  iCmd.Text.X := iWindow.DrawList.FText.Size;
-  iWindow.DrawList.FText.Push( aChar );
-  iCmd.Text.Y := iWindow.DrawList.FText.Size;
-  iWindow.DrawList.FCommands.Push( iCmd );
+  iCmd.Text  := iWindow.DrawList.PushChar( aChar );
+  iWindow.DrawList.Push( iCmd );
 end;
 
 procedure ClampTo( var aRect : TIORect; aClip : TIORect );
@@ -288,10 +284,7 @@ begin
   GCtx.Current.DC.FClip     := GCtx.Current.FClipContent;
 
   for iWindow in GCtx.Windows do
-  begin
-    iWindow.DrawList.FCommands.Clear;
-    iWindow.DrawList.FText.Clear;
-  end;
+    iWindow.DrawList.Clear;
 
   GCtx.Io.Update;
   iTime := GCtx.IO.Driver.GetMs;
@@ -438,11 +431,9 @@ begin
     if iFrame <> '' then
     begin
       iCmd.CType  := VTIG_CMD_FRAME;
-      iCmd.Text.X := iWindow.DrawList.FText.Size;
-      iWindow.DrawList.FText.Append( PChar(iFrame), Length( iFrame ) );
-      iCmd.Text.Y := iWindow.DrawList.FText.Size;
+      iCmd.Text   := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
     end;
-    iWindow.DrawList.FCommands.Push( iCmd );
+    iWindow.DrawList.Push( iCmd );
   end;
 end;
 
@@ -483,12 +474,9 @@ begin
     iCmd.FG := iWindow.FColor;
     iCmd.BG := iWindow.FBackground;
     iFrame  := GCtx.Style^.Frame[ VTIG_RULER_FRAME ];
+    iCmd.Text := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
 
-    iCmd.Text.X := iWindow.DrawList.FText.Size;
-    iWindow.DrawList.FText.Append( PChar(iFrame), Length( iFrame ) );
-    iCmd.Text.Y := iWindow.DrawList.FText.Size;
-
-    iWindow.DrawList.FCommands.Push( iCmd );
+    iWindow.DrawList.Push( iCmd );
   end;
   iWindow.DC.BeginGroup( aSize, aVertical );
 end;
@@ -518,11 +506,9 @@ begin
   if ( iWindow.DC.FCursor.Y + 1 <= iWindow.DC.FClip.y2 )
     and ( iWindow.DC.FCursor.Y + 1 >= iWindow.DC.FClip.y ) then
   begin
-    iFrame  := GCtx.Style^.Frame[ VTIG_RULER_FRAME ];
-    iCmd.Text.X := iWindow.DrawList.FText.Size;
-    iWindow.DrawList.FText.Append( PChar(iFrame), Length( iFrame ) );
-    iCmd.Text.Y := iWindow.DrawList.FText.Size;
-    iWindow.DrawList.FCommands.Push( iCmd );
+    iFrame    := GCtx.Style^.Frame[ VTIG_RULER_FRAME ];
+    iCmd.Text := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
+    iWindow.DrawList.Push( iCmd );
   end;
   iWindow.DC.FCursor.Y += 3;
 end;

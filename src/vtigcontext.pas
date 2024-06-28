@@ -201,7 +201,10 @@ begin
 end;
 
 destructor TTIGContext.Destroy;
+var iWindow : TTIGWindow;
 begin
+  for iWindow in Windows do
+    iWindow.Free;
   FreeAndNil( Windows );
   FreeAndNil( WindowStack );
   FreeAndNil( WindowOrder );
