@@ -24,12 +24,13 @@ procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor
 procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0 );
 procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0 );
 procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0 );
+procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 
 implementation
 
-uses Math, SysUtils, vtigcontext, vtigio, vioeventstate;
+uses Math, vdebug, SysUtils, vtigcontext, vtigio, vioeventstate;
 
 var GDefaultContext : TTIGContext;
     GCtx            : TTIGContext;
@@ -240,8 +241,8 @@ begin
   iCmd.CType := VTIG_CMD_TEXT;
   iCmd.Clip  := iClip;
   iCmd.Area  := Rectangle( aPosition, iClip.Dim - aPosition );
-  iCmd.FG    := iWindow.FColor;
-  iCmd.BG    := iWindow.FBackground;
+  iCmd.FG    := GCtx.Color;
+  iCmd.BG    := GCtx.BGColor;
   iCmd.Text  := iWindow.DrawList.PushChar( aChar );
   iWindow.DrawList.Push( iCmd );
 end;
@@ -574,13 +575,22 @@ begin
   VTIG_RenderText( aText, iStart, iClip, aParams );
 end;
 
+procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+begin
+  if aColor = 0   then aColor   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+  if aBGColor = 0 then aBGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
+  GCtx.Color   := aColor;
+  GCtx.BGColor := aBGColor;
+  VTIG_RenderChar( aChar, aPos );
+end;
+
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 var iClip  : TIORect;
     iStart : TIOPoint;
     iCoord : TIOPoint;
 begin
-  if aColor = 0   then aColor := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
-  if aBGColor = 0 then aColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
+  if aColor = 0   then aColor   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+  if aBGColor = 0 then aBGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
   GCtx.Color   := aColor;
   GCtx.BGColor := aBGColor;
   iClip  := VTIG_GetClipRect;
