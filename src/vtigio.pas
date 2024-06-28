@@ -342,7 +342,7 @@ end;
 
 function TTIGIOState.GetSize : TIOPoint;
 begin
-  if Assigned( FRenderer ) then Exit( FRenderer.GetDeviceArea.Dim );
+  if Assigned( FRenderer ) then Exit( Point( FRenderer.SizeX, FRenderer.SizeY ) );
   Exit( Point(0,0) );
 end;
 

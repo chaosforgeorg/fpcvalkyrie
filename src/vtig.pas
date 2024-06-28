@@ -184,9 +184,13 @@ begin
 
       if ( iPos > Length(aText) ) or (aText[iPos] in [#10,#13,'{','}']) then
       begin
-        Render( aText + i, iWidth );
-        if (iPos > Length(aText)) then
+        if iPos > Length(aText) then
+        begin
+          Render( aText + i, iWidth - 1 );
           Exit; // nothing more to render, exit
+        end;
+        Render( aText + i, iWidth );
+        i := iPos;
       end
       else // iWidth >= iSpaceLeft
       begin
@@ -253,7 +257,7 @@ var iCanvas : TTIGWindow;
 begin
   Assert( GCtx.Io.Driver = nil, 'TIG reinitialized' );
   GCtx.Io.Initialize( aRenderer, aDriver, aClearOnRender );
-  GCtx.Size    := aRenderer.GetDeviceArea.Dim;
+  GCtx.Size    := Point( aRenderer.SizeX, aRenderer.SizeY );
   GCtx.Color   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
   GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
 
