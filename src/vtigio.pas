@@ -41,12 +41,6 @@ const
   VTIG_IE_BACKSPACE = 140;
   VTIG_IE_MCONFIRM  = 141; // MOUSE LEFT
 
-type TTIGCursorInfo = record
-    CType    : TTIGCursorType;
-    Position : TTIGPoint;
-  end;
-
-
 type TTIGDrawCommand = record
     CType : TTIGDrawCommandType;
     Clip  : TTIGRect;
@@ -74,8 +68,17 @@ type TTIGDrawList = class
 type TTIGDrawListArray = specialize TGArray< TTIGDrawList >;
 
 type TTIGDrawData = class
-     FLists     : TTIGDrawListArray;
-     FCursor    : TTIGCursorInfo;
+  public
+    constructor Create;
+    destructor Destroy; override;
+  private
+    FLists          : TTIGDrawListArray;
+    FCursorType     : TTIGCursorType;
+    FCursorPosition : TTIGPoint;
+  public
+    property Lists : TTIGDrawListArray       read  FLists;
+    property CursorType     : TTIGCursorType write FCursorType;
+    property CursorPosition : TTIGPoint      write FCursorPosition;
   end;
 
 type TTIGSoundCallback = procedure( aEvent : TTIGSoundEvent; aParam : Pointer );
@@ -155,6 +158,18 @@ begin
   inherited Destroy;
 end;
 
+constructor TTIGDrawData.Create;
+begin
+  FCursorType     := VTIG_CTNONE;
+  FCursorPosition := Point(0,0);
+  FLists          := TTIGDrawListArray.Create;
+end;
+
+destructor TTIGDrawData.Destroy;
+begin
+  FreeAndNil( FLists );
+end;
+
 constructor TTIGIOState.Create;
 begin
   FEventState := TIOEventState.Create;
@@ -197,10 +212,10 @@ begin
   if FClearOnRender then
     FRenderer.Clear;
 
-  if aData.FCursor.CType <> VTIG_CTNONE then
+  if aData.FCursorType <> VTIG_CTNONE then
   begin
     FRenderer.ShowCursor;
-    FRenderer.MoveCursor( aData.FCursor.Position.X, aData.FCursor.Position.Y );
+    FRenderer.MoveCursor( aData.FCursorPosition.X, aData.FCursorPosition.Y );
   end
   else
     FRenderer.HideCursor;

@@ -267,7 +267,6 @@ begin
   GCtx.Current := iCanvas;
   GCtx.WindowStack.Push( iCanvas );
   GCtx.WindowOrder.Push( iCanvas );
-  GCtx.DrawData.FCursor.CType := VTIG_CTNONE;
   GCtx.Time := GCtx.Io.Driver.GetMs;
 end;
 
@@ -320,7 +319,7 @@ begin
   iWindow.FFocusInfo.Count := 0;
   GCtx.MouseCaptured       := False;
   GCtx.WindowOrder.Resize(1);
-  GCtx.DrawData.FCursor.CType := VTIG_CTNONE;
+  GCtx.DrawData.CursorType := VTIG_CTNONE;
 end;
 
 procedure VTIG_EndFrame;
@@ -328,9 +327,9 @@ var iWindow : TTIGWindow;
 begin
   Assert( GCtx.WindowStack.Size = 1, 'Window stack size mismatch!' );
   // render
-  GCtx.DrawData.FLists.Clear;
+  GCtx.DrawData.Lists.Clear;
   for iWindow in GCtx.WindowOrder do
-    GCtx.DrawData.FLists.Push( iWindow.DrawList );
+    GCtx.DrawData.Lists.Push( iWindow.DrawList );
   GCtx.Io.EndFrame;
 end;
 
