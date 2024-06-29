@@ -283,9 +283,10 @@ var iWindow : TTIGWindow;
 begin
   GCtx.Size := GCtx.Io.Size;
 
-  GCtx.Current.FClipContent := Rectangle( Point(0,0), GCtx.Size );
+  GCtx.Current.FClipContent := Rectangle( Point(1,1), GCtx.Size );
   GCtx.Current.DC.FContent  := GCtx.Current.FClipContent;
   GCtx.Current.DC.FClip     := GCtx.Current.FClipContent;
+  GCtx.Current.DC.FCursor   := GCtx.Current.DC.FContent.Pos;
 
   for iWindow in GCtx.Windows do
     iWindow.DrawList.Clear;
