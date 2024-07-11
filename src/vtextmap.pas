@@ -27,7 +27,7 @@ type TTextMap = class
   procedure ClearMarks;
   procedure ClearMark( aCoord : TCoord2D );
   procedure OnRedraw;
-  procedure OnUpdate( aTime : DWord );
+  procedure Update( aTime : DWord );
   procedure AddAnimation( aAnimation : TAnimation );
   procedure ClearAnimations;
   function AnimationsFinished : Boolean;
@@ -207,7 +207,7 @@ begin
   FAnimations.Draw;
 end;
 
-procedure TTextMap.OnUpdate ( aTime : DWord ) ;
+procedure TTextMap.Update ( aTime : DWord ) ;
 begin
   FAnimations.Update( aTime );
 end;
