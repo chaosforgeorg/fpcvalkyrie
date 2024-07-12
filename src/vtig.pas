@@ -28,9 +28,17 @@ procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor = 0; a
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 
+function VTIG_MouseCaptured : Boolean;
+function VTIG_MouseInLastWindow : Boolean;
+function VTIG_Event( aEvent : Integer ) : Boolean;
+function VTIG_Event( aEvents : TFlags ) : Boolean;
+function VTIG_EventConfirm : Boolean;
+function VTIG_EventCancel : Boolean;
+procedure VTIG_EventClear;
+
 implementation
 
-uses Math, vdebug, SysUtils, vtigcontext, vtigio, vioeventstate;
+uses Math, vdebug, SysUtils, vtigcontext, vtigio, vioeventstate, viomousestate;
 
 var GDefaultContext : TTIGContext;
     GCtx            : TTIGContext;
@@ -605,6 +613,48 @@ procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOCo
 begin
   VTIG_Text( aText, [], aColor, aBGColor );
 end;
+
+function VTIG_MouseCaptured : Boolean;
+begin
+  Result := GCtx.MouseCaptured;
+end;
+
+function VTIG_MouseInLastWindow : Boolean;
+var iMouseState : TIOMouseState;
+    iTop        : TTIGWindow;
+begin
+  iMouseState := GCtx.Io.MouseState;
+  if iMouseState.Position = Point( -1, -1 ) then Exit( False );
+  iTop := GCtx.WindowOrder.Top;
+  Exit( iMouseState.Position in iTop.FClipContent.Expanded(2) );
+end;
+
+function VTIG_Event( aEvent : Integer ) : Boolean;
+begin
+  Result := GCtx.IO.EventState.Activated( aEvent );
+end;
+
+function VTIG_Event( aEvents : TFlags ) : Boolean;
+begin
+  Result := GCtx.IO.EventState.Activated( aEvents );
+end;
+
+function VTIG_EventConfirm : Boolean;
+begin
+  Result := GCtx.IO.EventState.Activated( VTIG_IE_CONFIRM )
+         or ( GCtx.IO.EventState.Activated( VTIG_IE_MCONFIRM ) and VTIG_MouseInLastWindow );
+end;
+
+function VTIG_EventCancel : Boolean;
+begin
+  Result := GCtx.IO.EventState.Activated( VTIG_IE_CANCEL );
+end;
+
+procedure VTIG_EventClear;
+begin
+  GCtx.IO.EventState.Clear;
+end;
+
 
 initialization
 

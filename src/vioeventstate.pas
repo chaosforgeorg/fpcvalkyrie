@@ -1,6 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vioeventstate;
 interface
+uses vutil;
 
 const VIO_MAXEVENTS = 256;
       VIO_MAXINPUT  = 16;
@@ -12,6 +13,7 @@ type TIOEventState = class
     procedure SetState( aState: Integer; aValue: Boolean );
     procedure AppendText( aText: PWideChar );
     function Activated( aState: Integer; aRepeat: Boolean = False ): Boolean;
+    function Activated( aStates : TFlags ): Boolean;
     function Active( aState: Integer ): Boolean;
     procedure EndFrame;
     procedure Clear;
@@ -104,6 +106,15 @@ begin
     end;
   end;
   Result := False;
+end;
+
+function TIOEventState.Activated( aStates : TFlags ): Boolean;
+var iState : Byte;
+begin
+  for iState in aStates do
+    if FDown[iState] and ( FDuration[iState] = 0.0 ) then
+      Exit( True );
+  Exit( False );
 end;
 
 function TIOEventState.GetInput: PWideChar;
