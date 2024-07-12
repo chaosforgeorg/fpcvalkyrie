@@ -12,12 +12,20 @@ procedure VTIG_Clear;
 procedure VTIG_Begin( aName : Ansistring ); overload;
 procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint ); overload;
 procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
-procedure VTIG_End;
+procedure VTIG_End; overload;
+procedure VTIG_End( aFooter : Ansistring ); overload;
 procedure VTIG_Reset( aName : AnsiString );
 
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
 procedure VTIG_EndGroup;
 procedure VTIG_Ruler;
+
+procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
 
 function VTIG_PositionResolve( aPos : TIOPoint ) : TIOPoint;
 procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0 );
@@ -458,6 +466,22 @@ begin
   GCtx.BGColor := GCtx.Current.FBackground;
 end;
 
+procedure VTIG_End( aFooter : Ansistring );
+var iClip : TIORect;
+    iPos  : TIOPoint;
+begin
+  Assert( GCtx.WindowStack.Size > 1, 'Too many end()''s!' );
+  iClip := GCtx.Current.DC.FClip.Expanded( 1 );
+  GCtx.Color   := GCtx.Current.FColor;
+  GCtx.BGColor := GCtx.Current.FBackground;
+  iPos := iClip.BottomRight;
+  iPos.X -= Length( aFooter ) + 5;
+  // shall we worry about string alloc?
+  VTIG_RenderText( '[ ' + aFooter + ' ]', iPos, iClip, [] );
+//  VTIG_RenderText( '[ {1} ]', iPos, iClip, [aFooter] );
+  VTIG_End;
+end;
+
 procedure VTIG_Reset( aName : Ansistring );
 var iWindow : TTIGWindow;
 begin
@@ -524,6 +548,48 @@ begin
     iWindow.DrawList.Push( iCmd );
   end;
   iWindow.DC.FCursor.Y += 3;
+end;
+
+procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
+begin
+  VTIG_BeginWindow( aName, aID, Point( -1, -1 ), Point( -1, -1 ) );
+end;
+
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint ); overload;
+begin
+  VTIG_BeginWindow( aName, aID, aSize, Point( -1, -1 ) );
+end;
+
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+var iClip : TIORect;
+    iPos  : TIOPoint;
+begin
+  if aID = '' then aID := aName;
+  aSize.X := Min( aSize.X, GCtx.Size.X );
+  VTIG_Begin( aID, aSize, aPos );
+  iClip := GCtx.Current.DC.FClip.Expanded( 1 );
+  GCtx.Color   := GCtx.Current.FColor;
+  GCtx.BGColor := GCtx.Current.FBackground;
+  iPos := iClip.Pos;
+  iPos.X += iClip.w - ( Length( aName ) + 2 ) div 2;
+  // shall we worry about string alloc?
+  VTIG_RenderText( ' ' + aName + ' ', iPos, iClip, [] );
+//  VTIG_RenderText( ' {1} ', iPos, iClip, [aName] );
+end;
+
+procedure VTIG_BeginWindow( aName : Ansistring ); overload;
+begin
+  VTIG_BeginWindow( aName, '', Point( -1, -1 ), Point( -1, -1 ) );
+end;
+
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint ); overload;
+begin
+  VTIG_BeginWindow( aName, '', aSize, Point( -1, -1 ) );
+end;
+
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+begin
+  VTIG_BeginWindow( aName, '', aSize, aPos );
 end;
 
 function VTIG_PositionResolve( aPos : TIOPoint ) : TIOPoint;
