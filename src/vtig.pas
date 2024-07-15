@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vtig;
 interface
-uses vutil, viotypes, vtigstyle, vioconsole;
+uses vutil, viotypes, vtigstyle, vioconsole, vtigio;
 
 procedure VTIG_Initialize( aRenderer : TIOConsoleRenderer; aDriver : TIODriver; aClearOnRender : Boolean = True );
 procedure VTIG_NewFrame;
@@ -35,6 +35,8 @@ procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array o
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+function VTIG_Length( const aText: AnsiString ) : Integer;
+function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
 
 function VTIG_MouseCaptured : Boolean;
 function VTIG_MouseInLastWindow : Boolean;
@@ -44,9 +46,11 @@ function VTIG_EventConfirm : Boolean;
 function VTIG_EventCancel : Boolean;
 procedure VTIG_EventClear;
 
+function VTIG_GetIOState : TTIGIOState;
+
 implementation
 
-uses Math, vdebug, SysUtils, vtigcontext, vtigio, vioeventstate, viomousestate;
+uses Math, vdebug, SysUtils, vtigcontext, vioeventstate, viomousestate;
 
 var GDefaultContext : TTIGContext;
     GCtx            : TTIGContext;
@@ -244,6 +248,65 @@ begin
   iStyleStack.Init( GCtx.Color ); // Initialize the style stack
   VTIG_RenderTextSegment( PAnsiChar(aText), iCurrentX, iCurrentY, aClip, iStyleStack, aParameters );
   Exit( Point( iCurrentX, iCurrentY ) );
+end;
+
+function VTIG_PLength( const aText: PAnsiChar; aParameters: array of const ) : Integer;
+var i, iParamIndex : Integer;
+  function ParameterLength(aParameterIndex: Integer) : Integer;
+  var
+    iParamStr    : PAnsiChar;
+  begin
+    if ( aParameterIndex >= 0) and ( aParameterIndex < Length(aParameters) ) then
+    begin
+      case aParameters[aParameterIndex].VType of
+        vtAnsiString:
+          begin
+            iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
+            Exit( VTIG_Length( iParamStr, aParameters ) );
+          end;
+        // Add handling for other parameter types if needed
+      end;
+    end;
+  end;
+begin
+  Result    := 0;
+  i         := 0;
+  while aText[i] <> #0 do
+  begin
+    if aText[i] = '{' then
+    begin
+      Inc(i);
+      if aText[i] <> #0 then
+      begin
+        if aText[i] in ['0'..'9'] then
+        begin
+          iParamIndex := Ord(aText[i]) - Ord('0');
+          Result += ParameterLength( iParamIndex );
+        end;
+        Inc(i);
+      end;
+    end
+    else if aText[i] = '}' then
+      Inc(i)
+    else
+    begin
+      while not (aText[i] in [#0, '{','}']) do
+      begin
+        Inc(i);
+        Inc(Result);
+      end;
+    end;
+  end;
+end;
+
+function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
+begin
+  VTIG_Length := VTIG_PLength( PAnsiChar( aText ), aParameters );
+end;
+
+function VTIG_Length( const aText: AnsiString ) : Integer;
+begin
+  VTIG_Length := VTIG_PLength( PAnsiChar( aText ), [] );
 end;
 
 procedure VTIG_RenderChar( aChar : Char; aPosition : TIOPoint );
@@ -475,7 +538,7 @@ begin
   GCtx.Color   := GCtx.Current.FColor;
   GCtx.BGColor := GCtx.Current.FBackground;
   iPos := iClip.BottomRight;
-  iPos.X -= Length( aFooter ) + 5;
+  iPos.X -= VTIG_Length( aFooter ) + 5;
   // shall we worry about string alloc?
   VTIG_RenderText( '[ ' + aFooter + ' ]', iPos, iClip, [] );
 //  VTIG_RenderText( '[ {1} ]', iPos, iClip, [aFooter] );
@@ -571,7 +634,7 @@ begin
   GCtx.Color   := GCtx.Current.FColor;
   GCtx.BGColor := GCtx.Current.FBackground;
   iPos := iClip.Pos;
-  iPos.X += ( iClip.w - Length( aName ) + 2 ) div 2;
+  iPos.X += ( iClip.w - VTIG_Length( aName ) + 2 ) div 2;
   // shall we worry about string alloc?
   VTIG_RenderText( ' ' + aName + ' ', iPos, iClip, [] );
 //  VTIG_RenderText( ' {1} ', iPos, iClip, [aName] );
@@ -721,6 +784,10 @@ begin
   GCtx.IO.EventState.Clear;
 end;
 
+function VTIG_GetIOState : TTIGIOState;
+begin
+  Exit( GCtx.Io );
+end;
 
 initialization
 
