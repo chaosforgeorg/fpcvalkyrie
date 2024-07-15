@@ -57,9 +57,9 @@ VTIGDefaultStyle.Color[ VTIG_SELECTED_TEXT_COLOR ]       := White;
 VTIGDefaultStyle.Color[ VTIG_SELECTED_DISABLED_COLOR ]   := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_SELECTED_BACKGROUND_COLOR ] := LightGray;
 
-VTIGDefaultStyle.Frame[ VTIG_BORDER_FRAME ] := #19+#19+#16+#16+#21+#17+#18+#20;
-VTIGDefaultStyle.Frame[ VTIG_RULER_FRAME ]  := #19+#16;
-VTIGDefaultStyle.Frame[ VTIG_SCROLL_FRAME ] := #22+#23+#28+#29;
+VTIGDefaultStyle.Frame[ VTIG_BORDER_FRAME ] := #196+#196+#179+#179+#218+#191+#192+#217;
+VTIGDefaultStyle.Frame[ VTIG_RULER_FRAME ]  := #196+#179;
+VTIGDefaultStyle.Frame[ VTIG_SCROLL_FRAME ] := #193+#194+#177+#178;
 
 VTIGDefaultStyle.Padding[ VTIG_WINDOW_PADDING ] := Point( 3,2 );
 
