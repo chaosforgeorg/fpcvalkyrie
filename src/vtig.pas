@@ -20,6 +20,9 @@ procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aM
 procedure VTIG_EndGroup;
 procedure VTIG_Ruler;
 
+function VTIG_Selectable( aText : Ansistring; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
+function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
+
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
 procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint ); overload;
 procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
@@ -28,10 +31,10 @@ procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint ); overload;
 procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
 
 function VTIG_PositionResolve( aPos : TIOPoint ) : TIOPoint;
-procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0 );
-procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0 );
-procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0 );
-procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0 ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0 ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0 ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0 ); overload;
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
@@ -111,7 +114,7 @@ var iWindow        : TTIGWindow;
     iCmd.CType := VTIG_CMD_TEXT;
     iCmd.Clip  := aClip;
     iCmd.FG    := aStyleStack.Current;
-    iCmd.BG    := 0; // TODO
+    iCmd.BG    := GCtx.BGColor; // TODO
     iCmd.Area  := Rectangle( Point( aCurrentX, aCurrentY ), aClip.Pos2 );
     iCmd.Text  := iWindow.DrawList.PushText( aPart, aLength );
     iWindow.DrawList.Push( iCmd );
@@ -611,6 +614,95 @@ begin
     iWindow.DrawList.Push( iCmd );
   end;
   iWindow.DC.FCursor.Y += 3;
+end;
+
+function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
+var iWindow   : TTIGWindow;
+    iClear    : TIORect;
+    iWidth    : Integer;
+    iMHover   : Boolean;
+    iSelected : Boolean;
+    iCmd      : TTIGDrawCommand;
+begin
+  iWindow := GCtx.Current;
+
+  Inc( iWindow.FFocusInfo.Count );
+  if ( iWindow.FFocusInfo.Count = 1 ) and ( iWindow.FSelectScroll > 0 ) then
+  begin
+    iWindow.DC.FContent.Pos.Y -= iWindow.FSelectScroll;
+    iWindow.DC.FContent.Dim.Y += iWindow.FSelectScroll;
+    iWindow.DC.FCursor.Y      -= iWindow.FSelectScroll;
+  end;
+
+  iWidth := iWindow.DC.FContent.x2 - iWindow.DC.FCursor.X;
+  if iWidth < 0 then
+    iWindow.FMaxSize.X := Max( iWindow.FMaxSize.X, VTIG_Length( aText, aParams ) + 2 );
+  iClear := Rectangle( iWindow.DC.FCursor, Point( iWidth + 1, 1 ) );
+
+  iMHover := False;
+  if ( GCtx.LastTop = iWindow ) and ( GCtx.Io.MouseState.Position <> PointNegUnit ) then
+    if (GCtx.Io.MouseState.Position in iClear) and (GCtx.Io.MouseState.Position in iWindow.DC.FClip ) then
+    begin
+      iMHover := True;
+      GCtx.MouseCaptured := True;
+      if iWindow.FFocusInfo.Current <> iWindow.FFocusInfo.Count - 1 then
+      begin
+        iWindow.FFocusInfo.Current := iWindow.FFocusInfo.Count - 1;
+        GCtx.Io.PlaySound( VTIG_SOUND_CHANGE );
+      end;
+    end;
+
+  Result    := False;
+  iSelected := (( iWindow.FFocusInfo.Count - 1 ) = iWindow.FFocusInfo.Current );
+
+  if iSelected then
+    Result := aValid and (
+      GCtx.Io.EventState.Activated( VTIG_IE_CONFIRM ) or
+      GCtx.Io.EventState.Activated( VTIG_IE_SELECT ) or
+      ( iMHover and GCtx.Io.EventState.Activated( VTIG_IE_MCONFIRM ) )
+      );
+
+  if iSelected
+    then GCtx.BGColor := GCtx.Style^.Color[ VTIG_SELECTED_BACKGROUND_COLOR ]
+    else GCtx.BGColor := iWindow.FBackground;
+
+  if ( aColor <> 0 ) and ( not iSelected )
+    then GCtx.Color := aColor
+    else
+    begin
+      if aValid then
+      begin
+        if iSelected
+          then GCtx.Color := GCtx.Style^.Color[ VTIG_SELECTED_TEXT_COLOR ]
+          else GCtx.Color := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+      end
+      else
+      begin
+        if iSelected
+          then GCtx.Color := GCtx.Style^.Color[ VTIG_SELECTED_DISABLED_COLOR ]
+          else GCtx.Color := GCtx.Style^.Color[ VTIG_DISABLED_COLOR ];
+      end
+    end;
+
+  if iClear.Pos in iWindow.DC.FClip then
+  begin
+    FillChar( iCmd, Sizeof( iCmd ), 0 );
+    iCmd.CType := VTIG_CMD_CLEAR;
+    iCmd.Area  := iClear;
+    iCmd.FG    := GCtx.Color;
+    iCmd.BG    := GCtx.BGColor;
+    iWindow.DrawList.Push( iCmd );
+  end;
+
+  // Padding
+  iWindow.DC.FCursor.X += 1;
+  VTIG_Text( aText, [], GCtx.Color, GCtx.BGColor );
+  if Result then GCtx.Io.PlaySound( VTIG_SOUND_ACCEPT );
+end;
+
+function VTIG_Selectable( aText : Ansistring; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
+begin
+  Result := VTIG_Selectable( aText, [], aValid, aColor );
 end;
 
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
