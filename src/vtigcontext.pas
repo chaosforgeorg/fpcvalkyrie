@@ -114,7 +114,7 @@ begin
    FClip.Pos.Y  := FCursor.Y - 1;
    FClip.Dim.Y  := aSize;
    FContent.Pos.Y := FCursor.Y;
-   FContent.Dim.Y := aSize - 1; // or -2?
+   //FContent.Dim.Y := aSize;
   end
   else
   begin

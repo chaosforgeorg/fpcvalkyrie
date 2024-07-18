@@ -17,11 +17,12 @@ procedure VTIG_End( aFooter : Ansistring ); overload;
 procedure VTIG_Reset( aName : AnsiString );
 
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
-procedure VTIG_EndGroup;
+procedure VTIG_EndGroup( aVertical : Boolean = False );
 procedure VTIG_Ruler;
 
 function VTIG_Selectable( aText : Ansistring; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
+function VTIG_Selected : Integer;
 
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
 procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint ); overload;
@@ -223,7 +224,7 @@ begin
           Render( aText + i, iLastSpace );
           aCurrentX := aClip.X;
           Inc(aCurrentY);
-          i := iLastSpace + 1;
+          i += iLastSpace + 1;
         end
         else
         // If there was no space, break at the line width
@@ -513,7 +514,7 @@ begin
     iCmd.CType := VTIG_CMD_CLEAR;
     iCmd.Clip  := iFClip;
     iCmd.Area  := iFClip;
-    iCmd.FG    := GCtx.Color;
+    iCmd.FG    := GCtx.Style^.Color[ VTIG_FRAME_COLOR ];
     iCmd.BG    := GCtx.BGColor;
     if iFrame <> '' then
     begin
@@ -538,7 +539,7 @@ var iClip : TIORect;
 begin
   Assert( GCtx.WindowStack.Size > 1, 'Too many end()''s!' );
   iClip := GCtx.Current.DC.FClip.Expanded( 1 );
-  GCtx.Color   := GCtx.Current.FColor;
+  GCtx.Color   := GCtx.Style^.Color[ VTIG_FOOTER_COLOR ];
   GCtx.BGColor := GCtx.Current.FBackground;
   iPos := iClip.BottomRight;
   iPos.X -= VTIG_Length( aFooter ) + 5;
@@ -546,6 +547,7 @@ begin
   VTIG_RenderText( '[ ' + aFooter + ' ]', iPos, iClip, [] );
 //  VTIG_RenderText( '[ {1} ]', iPos, iClip, [aFooter] );
   VTIG_End;
+  GCtx.Color   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
 end;
 
 procedure VTIG_Reset( aName : Ansistring );
@@ -574,19 +576,23 @@ begin
       Point( 1, iHeight + 1 )
     );
     ClampTo( iCmd.Area, iWindow.DC.FClip );
-    iCmd.FG := iWindow.FColor;
+    iCmd.FG := GCtx.Style^.Color[ VTIG_FRAME_COLOR ];
     iCmd.BG := iWindow.FBackground;
     iFrame  := GCtx.Style^.Frame[ VTIG_RULER_FRAME ];
     iCmd.Text := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
-
     iWindow.DrawList.Push( iCmd );
   end;
   iWindow.DC.BeginGroup( aSize, aVertical );
 end;
 
-procedure VTIG_EndGroup;
+procedure VTIG_EndGroup( aVertical : Boolean = False );
 begin
   GCtx.Current.DC.EndGroup;
+  if aVertical then
+  begin
+    GCtx.Current.DC.FCursor.Y -= 2;
+    VTIG_Ruler;
+  end;
 end;
 
 procedure VTIG_Ruler;
@@ -603,7 +609,7 @@ begin
   );
 
   ClampTo( iCmd.Area, iWindow.DC.FClip );
-  iCmd.FG := iWindow.FColor;
+  iCmd.FG := GCtx.Style^.Color[ VTIG_FRAME_COLOR ];
   iCmd.BG := iWindow.FBackground;
 
   if ( iWindow.DC.FCursor.Y + 1 <= iWindow.DC.FClip.y2 )
@@ -705,6 +711,11 @@ begin
   Result := VTIG_Selectable( aText, [], aValid, aColor );
 end;
 
+function VTIG_Selected : Integer;
+begin
+  Result := GCtx.Current.FFocusInfo.Current;
+end;
+
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
 begin
   VTIG_BeginWindow( aName, aID, Point( -1, -1 ), Point( -1, -1 ) );
@@ -723,13 +734,14 @@ begin
   aSize.X := Min( aSize.X, GCtx.Size.X );
   VTIG_Begin( aID, aSize, aPos );
   iClip := GCtx.Current.DC.FClip.Expanded( 1 );
-  GCtx.Color   := GCtx.Current.FColor;
+  GCtx.Color   := GCtx.Style^.Color[ VTIG_TITLE_COLOR ];
   GCtx.BGColor := GCtx.Current.FBackground;
   iPos := iClip.Pos;
   iPos.X += ( iClip.w - VTIG_Length( aName ) + 2 ) div 2;
   // shall we worry about string alloc?
   VTIG_RenderText( ' ' + aName + ' ', iPos, iClip, [] );
 //  VTIG_RenderText( ' {1} ', iPos, iClip, [aName] );
+  GCtx.Color   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
 end;
 
 procedure VTIG_BeginWindow( aName : Ansistring ); overload;

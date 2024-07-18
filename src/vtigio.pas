@@ -263,7 +263,7 @@ begin
         end;
         VTIG_CMD_RULER:
         begin
-          iBorder := PChar(@(iList.FText.Data[iCmd.Text.X]));
+          iBorder := PChar(@(iList.FText.Data^[iCmd.Text.X]));
           iGlyph  := iBorder[0];
           if iCmd.Area.X = iCmd.Area.X2 then iGlyph := iBorder[1];
           for iCoord in iCmd.Area do
@@ -271,7 +271,7 @@ begin
         end;
         VTIG_CMD_BAR:
         begin
-          iBorder := PChar(@(iList.FText.Data[iCmd.Text.X]));
+          iBorder := PChar(@(iList.FText.Data^[iCmd.Text.X]));
           for iCoord in iCmd.Area do
             FRenderer.OutputChar( iCoord.x, iCoord.y, iCmd.XC, iCmd.BG, iBorder[2] );
           FRenderer.OutputChar( iCmd.Area.X,  iCmd.Area.Y,  iCmd.FG, iCmd.BG, iBorder[0] );
@@ -280,7 +280,7 @@ begin
         VTIG_CMD_FRAME:
         begin
           FRenderer.ClearRect( iCmd.Area.X, iCmd.Area.Y, iCmd.Area.X2, iCmd.Area.Y2, iCmd.BG );
-          iBorder := PChar(@(iList.FText.Data[iCmd.Text.X]));
+          iBorder := PChar(@(iList.FText.Data^[iCmd.Text.X]));
           for iX := 0 to iCmd.Area.w - 1 do
           begin
             FRenderer.OutputChar( iCmd.Area.X + iX, iCmd.Area.Y,  iCmd.FG, iCmd.BG, iBorder[0]);

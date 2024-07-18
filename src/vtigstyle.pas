@@ -8,6 +8,8 @@ type TTIGStyleColorEntry = (
   VTIG_TEXT_COLOR,
   VTIG_BOLD_COLOR,
   VTIG_TITLE_COLOR,
+  VTIG_FOOTER_COLOR,
+  VTIG_FRAME_COLOR,
   VTIG_SCROLL_COLOR,
   VTIG_DISABLED_COLOR,
   VTIG_BACKGROUND_COLOR,
@@ -48,6 +50,8 @@ FillChar( VTIGDefaultStyle, SizeOf( VTIGDefaultStyle ), 0 );
 VTIGDefaultStyle.Color[ VTIG_TEXT_COLOR ]                := LightGray;
 VTIGDefaultStyle.Color[ VTIG_BOLD_COLOR ]                := White;
 VTIGDefaultStyle.Color[ VTIG_TITLE_COLOR ]               := White;
+VTIGDefaultStyle.Color[ VTIG_FOOTER_COLOR ]              := White;
+VTIGDefaultStyle.Color[ VTIG_FRAME_COLOR ]               := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_SCROLL_COLOR ]              := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_DISABLED_COLOR ]            := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_BACKGROUND_COLOR ]          := Black;
