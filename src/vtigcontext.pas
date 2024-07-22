@@ -118,11 +118,11 @@ begin
   end
   else
   begin
-    if aSize < 0 then aSize := FContent.Dim.Y + 2;
+    if aSize < 0 then aSize := FContent.Dim.X + 2;
     iGroup^.Size   := aSize;
     FContent.Dim.X := aSize - 1;
     FClip.Pos.X    := FContent.Pos.X - 1;
-    FClip.Dim.X    := FContent.Dim.X + 2;
+    FClip.Dim.X    := FContent.X2 + 1 - FClip.Pos.X;
   end;
 end;
 
