@@ -18,11 +18,12 @@ procedure VTIG_Reset( aName : AnsiString );
 
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
 procedure VTIG_EndGroup( aVertical : Boolean = False );
-procedure VTIG_Ruler;
+procedure VTIG_Ruler( aPosition : Integer = -1 );
 
 function VTIG_Selectable( aText : Ansistring; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
 function VTIG_Selected : Integer;
+procedure VTIG_ResetSelect( aName : AnsiString = ''; aValue : Integer = 0 );
 
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
 procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint ); overload;
@@ -595,12 +596,14 @@ begin
   end;
 end;
 
-procedure VTIG_Ruler;
+procedure VTIG_Ruler( aPosition : Integer = -1 );
 var iWindow : TTIGWindow;
     iCmd    : TTIGDrawCommand;
     iFrame  : Ansistring;
 begin
   iWindow := GCtx.Current;
+  if aPosition > -1 then iWindow.DC.FCursor.Y := aPosition - 1;
+
   FillChar( iCmd, Sizeof( iCmd ), 0 );
   iCmd.CType := VTIG_CMD_RULER;
   iCmd.Area  := Rectangle(
@@ -714,6 +717,20 @@ end;
 function VTIG_Selected : Integer;
 begin
   Result := GCtx.Current.FFocusInfo.Current;
+end;
+
+procedure VTIG_ResetSelect( aName : AnsiString = ''; aValue : Integer = 0 );
+var iWindow : TTIGWindow;
+begin
+  GCtx.IO.EventState.Clear;
+  if aName <> '' then
+  begin
+    iWindow := GCtx.WindowStore.Get( aName, nil );
+    if Assigned( iWindow ) then
+      iWindow.FFocusInfo.Current := aValue;
+  end
+  else
+    GCtx.Current.FFocusInfo.Current:= aValue;
 end;
 
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;

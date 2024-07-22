@@ -38,8 +38,9 @@ const
   VTIG_IE_CANCEL    = 137; // ESCAPE
   VTIG_IE_SELECT    = 138; // SPACE
   VTIG_IE_CONFIRM   = 139; // ENTER
-  VTIG_IE_BACKSPACE = 140;
-  VTIG_IE_MCONFIRM  = 141; // MOUSE LEFT
+  VTIG_IE_TAB       = 140;
+  VTIG_IE_BACKSPACE = 141;
+  VTIG_IE_MCONFIRM  = 142; // MOUSE LEFT
 
 type TTIGDrawCommand = record
     CType : TTIGDrawCommandType;
