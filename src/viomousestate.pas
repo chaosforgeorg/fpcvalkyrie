@@ -47,6 +47,7 @@ type TIOMouseState = class
     FDClickTime    : Single;
     FDClickDist    : Single;
     FDragThreshold : Single;
+    FMoved         : Boolean;
   private
     procedure Clear;
   public
@@ -56,6 +57,7 @@ type TIOMouseState = class
     property Position : TIOPoint    read FPosition;
     property Delta : TIOPoint       read FDelta;
     property Wheel : TIOPoint       read FWheel;
+    property Moved : Boolean        read FMoved;
   end;
 
 implementation
@@ -72,6 +74,7 @@ begin
   FDClickDist    := 6.0;
   FDragThreshold := 6.0;
   FTime          := 0.0;
+  FMoved         := False;
   // Initialize button info
   Clear;
 end;
@@ -149,6 +152,7 @@ begin
     VEVENT_MOUSEMOVE:
       begin
         FPosition := aEvent.MouseMove.Pos;
+        FMoved    := True;
         Result    := True;
       end;
     VEVENT_MOUSEDOWN,
@@ -173,6 +177,7 @@ end;
 procedure TIOMouseState.EndFrame;
 var i : Integer;
 begin
+  FMoved := False;
   FWheel := Point( 0, 0 );
   for i := 0 to VIO_MAXBUTTONS - 1 do
     FButtons[i].FastClick := False;

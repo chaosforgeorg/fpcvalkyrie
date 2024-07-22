@@ -655,17 +655,18 @@ begin
   iClear := Rectangle( iWindow.DC.FCursor, Point( iWidth + 1, 1 ) );
 
   iMHover := False;
-  if ( GCtx.LastTop = iWindow ) and ( GCtx.Io.MouseState.Position <> PointNegUnit ) then
-    if (GCtx.Io.MouseState.Position in iClear) and (GCtx.Io.MouseState.Position in iWindow.DC.FClip ) then
-    begin
-      iMHover := True;
-      GCtx.MouseCaptured := True;
-      if iWindow.FFocusInfo.Current <> iWindow.FFocusInfo.Count - 1 then
+  if ( GCtx.Io.MouseState.Moved ) then
+    if ( GCtx.LastTop = iWindow ) and ( GCtx.Io.MouseState.Position <> PointNegUnit ) then
+      if (GCtx.Io.MouseState.Position in iClear) and (GCtx.Io.MouseState.Position in iWindow.DC.FClip ) then
       begin
-        iWindow.FFocusInfo.Current := iWindow.FFocusInfo.Count - 1;
-        GCtx.Io.PlaySound( VTIG_SOUND_CHANGE );
+        iMHover := True;
+        GCtx.MouseCaptured := True;
+        if iWindow.FFocusInfo.Current <> iWindow.FFocusInfo.Count - 1 then
+        begin
+          iWindow.FFocusInfo.Current := iWindow.FFocusInfo.Count - 1;
+          GCtx.Io.PlaySound( VTIG_SOUND_CHANGE );
+        end;
       end;
-    end;
 
   Result    := False;
   iSelected := (( iWindow.FFocusInfo.Count - 1 ) = iWindow.FFocusInfo.Current );
