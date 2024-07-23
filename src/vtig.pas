@@ -57,6 +57,8 @@ function VTIG_GetIOState : TTIGIOState;
 function VTIG_GetClipRect : TIORect;
 function VTIG_GetWindowRect : TIORect;
 
+var VTIG_ClipHack : Boolean = False;
+
 implementation
 
 uses Math, vdebug, SysUtils, vtigcontext, vioeventstate, viomousestate;
@@ -506,6 +508,7 @@ begin
     then iWindow.DC.FClip := iFClip
     else iWindow.DC.FClip := iFClip.Shrinked(1);
   iWindow.FClipContent := iWindow.DC.FClip.Shrinked(1);
+  if VTIG_ClipHack then iWindow.FClipContent := iWindow.DC.FClip;
 
   Inc( iWindow.FClipContent.Dim.Y );
 
