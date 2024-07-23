@@ -268,7 +268,8 @@ begin
               iCoord.X := iCmd.Area.X;
               if iChar = Ord(#10) then Continue;
             end;
-            FRenderer.OutputChar(iCoord.X, iCoord.Y, iCmd.FG, iCmd.BG, Char(iChar));
+            if iCoord.Y >= iCmd.Clip.Y then
+              FRenderer.OutputChar(iCoord.X, iCoord.Y, iCmd.FG, iCmd.BG, Char(iChar));
             Inc(iCoord.X);
           end;
         end;

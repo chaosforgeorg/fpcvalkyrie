@@ -19,12 +19,15 @@ procedure VTIG_Reset( aName : AnsiString );
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
 procedure VTIG_EndGroup( aVertical : Boolean = False );
 procedure VTIG_Ruler( aPosition : Integer = -1 );
-procedure VTIG_MoveCursor( aPos : TIOPoint );
+procedure VTIG_AdjustPadding( aPos : TIOPoint );
 
 function VTIG_Selectable( aText : Ansistring; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
 function VTIG_Selected : Integer;
 procedure VTIG_ResetSelect( aName : AnsiString = ''; aValue : Integer = 0 );
+
+function VTIG_Scrollbar : Boolean;
+procedure VTIG_ResetScroll( aName : AnsiString = ''; aValue : Integer = 0 );
 
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
 procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint ); overload;
@@ -562,7 +565,7 @@ begin
   GCtx.Color   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
 end;
 
-procedure VTIG_Reset( aName : Ansistring );
+procedure VTIG_Reset(aName: AnsiString);
 var iWindow : TTIGWindow;
 begin
   iWindow := GCtx.WindowStore.Get( aName, nil );
@@ -636,9 +639,15 @@ begin
   iWindow.DC.FCursor.Y += 3;
 end;
 
-procedure VTIG_MoveCursor( aPos : TIOPoint );
+procedure VTIG_AdjustPadding( aPos : TIOPoint );
 begin
-  GCtx.Current.DC.FCursor += aPos;
+  GCtx.Current.DC.FCursor   += aPos;
+  GCtx.Current.DC.FContent  += aPos;
+  GCtx.Current.DC.FContent.Dim -= aPos;
+  GCtx.Current.DC.FContent.Dim -= aPos;
+  GCtx.Current.FClipContent += aPos;
+  GCtx.Current.FClipContent.Dim -= aPos;
+  GCtx.Current.FClipContent.Dim -= aPos;
 end;
 
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
@@ -748,6 +757,76 @@ begin
   end
   else
     GCtx.Current.FFocusInfo.Current:= aValue;
+end;
+
+function VTIG_Scrollbar : Boolean;
+var iWindow    : TTIGWindow;
+    iOldScroll : Integer;
+    iLines     : Integer;
+    iHeight    : Integer;
+    iMaxScroll : Integer;
+    iPage      : Integer;
+    iCmd       : TTIGDrawCommand;
+    iFrame     : Ansistring;
+    iPosition  : Float;
+    iYpos      : Integer;
+begin
+  iWindow    := GCtx.Current;
+  iOldScroll := iWindow.FScroll;
+  iLines     := iWindow.DC.FContent.Dim.Y;
+  iHeight    := iWindow.FClipContent.Dim.Y;
+
+  if iLines <= iHeight then Exit( False );
+
+  iMaxScroll := iLines - iHeight;
+  iPage      := Max( 1, iHeight );
+
+  if GCtx.Io.EventState.Activated( VTIG_IE_HOME, true )   then iWindow.FScroll := 0;
+  if GCtx.Io.EventState.Activated( VTIG_IE_END, true )    then iWindow.FScroll := iMaxScroll;
+
+  if GCtx.Io.EventState.Activated( VTIG_IE_PGUP, true )   then iWindow.FScroll := Max( iWindow.FScroll - iPage, 0 );
+  if GCtx.Io.EventState.Activated( VTIG_IE_PGDOWN, true ) then iWindow.FScroll := Min( iWindow.FScroll + iPage, iMaxScroll );
+
+  if GCtx.Io.EventState.Activated( VTIG_IE_UP, true )   and ( iWindow.FScroll > 0 )          then Dec( iWindow.FScroll );
+  if GCtx.Io.EventState.Activated( VTIG_IE_DOWN, true ) and ( iWindow.FScroll < iMaxScroll ) then Inc( iWindow.FScroll );
+
+  if ( GCtx.Io.MouseState.Position <> PointNegUnit ) and VTIG_MouseInLastWindow then
+  begin
+    if (GCtx.Io.MouseState.Wheel.Y > 0) and (iWindow.FScroll > 0)          then iWindow.FScroll := Max( iWindow.FScroll - 3, 0 );
+    if (GCtx.Io.MouseState.Wheel.Y < 0) and (iWindow.FScroll < iMaxScroll) then iWindow.FScroll := Min( iWindow.FScroll + 3, iMaxScroll );
+  end;
+
+  FillChar( iCmd, Sizeof( iCmd ), 0 );
+
+  iCmd.CType := VTIG_CMD_BAR;
+  iCmd.Clip  := iWindow.DC.FClip.Expanded(1);
+  iCmd.Area  := Rectangle(
+    Point( iWindow.DC.FClip.x2+1, iWindow.DC.FClip.Y ),
+    Point( 1, iWindow.DC.FClip.Dim.Y )
+  );
+  iCmd.FG    := GCtx.Color;
+  iCmd.BG    := GCtx.BGColor;
+  iCmd.XC    := GCtx.Style^.Color[ VTIG_SCROLL_COLOR ];
+  iFrame     := GCtx.Style^.Frame[ VTIG_SCROLL_FRAME ];
+  iCmd.Text   := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
+  iWindow.DrawList.Push( iCmd );
+
+  iPosition := Float( iWindow.FScroll ) / Float( iLines - iHeight );
+  iYPos     := Floor( Float( iCmd.Area.Dim.Y - 2 ) * iPosition );
+  VTIG_RenderChar( iFrame[3], Point(iWindow.DC.FClip.X2 + 1, iWindow.DC.FClip.Y + iYpos) );
+end;
+
+procedure VTIG_ResetScroll( aName : AnsiString = ''; aValue : Integer = 0 );
+var iWindow : TTIGWindow;
+begin
+  if aName <> '' then
+  begin
+    iWindow := GCtx.WindowStore.Get( aName, nil );
+    if Assigned( iWindow ) then
+      iWindow.FScroll := aValue;
+  end
+  else
+    GCtx.Current.FScroll := aValue;
 end;
 
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
