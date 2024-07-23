@@ -54,6 +54,9 @@ procedure VTIG_EventClear;
 
 function VTIG_GetIOState : TTIGIOState;
 
+function VTIG_GetClipRect : TIORect;
+function VTIG_GetWindowRect : TIORect;
+
 implementation
 
 uses Math, vdebug, SysUtils, vtigcontext, vioeventstate, viomousestate;
@@ -131,6 +134,9 @@ var iWindow        : TTIGWindow;
     if ( aParameterIndex >= 0) and ( aParameterIndex < Length(aParameters) ) then
     begin
       case aParameters[aParameterIndex].VType of
+        vtChar: begin
+            Render( @(aParameters[aParameterIndex].VChar), 1 );
+          end;
         vtAnsiString:
           begin
             iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
@@ -265,6 +271,7 @@ var i, iParamIndex : Integer;
     if ( aParameterIndex >= 0) and ( aParameterIndex < Length(aParameters) ) then
     begin
       case aParameters[aParameterIndex].VType of
+        vtChar: Exit( 1 );
         vtAnsiString:
           begin
             iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
@@ -712,7 +719,7 @@ begin
 
   // Padding
   iWindow.DC.FCursor.X += 1;
-  VTIG_Text( aText, [], GCtx.Color, GCtx.BGColor );
+  VTIG_Text( aText, aParams, GCtx.Color, GCtx.BGColor );
   if Result then GCtx.Io.PlaySound( VTIG_SOUND_ACCEPT );
 end;
 
@@ -799,6 +806,16 @@ begin
   Result := iWindow.DC.FContent;
   Result.Dim.Y := iWindow.FClipContent.Dim.Y;
   ClampTo( Result, iWindow.DC.FClip );
+end;
+
+function VTIG_GetWindowRect : TIORect;
+var iWindow : TTIGWindow;
+begin
+  iWindow := GCtx.Current;
+
+  if GCtx.Style^.Frame[ VTIG_BORDER_FRAME ] <> ''
+    then Result := iWindow.DC.FClip.Expanded( 2 )
+    else Result := iWindow.DC.FClip.Expanded( 1 );
 end;
 
 procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0 );

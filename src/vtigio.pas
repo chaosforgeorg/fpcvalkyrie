@@ -41,6 +41,16 @@ const
   VTIG_IE_TAB       = 140;
   VTIG_IE_BACKSPACE = 141;
   VTIG_IE_MCONFIRM  = 142; // MOUSE LEFT
+  VTIG_IE_0         = 150;
+  VTIG_IE_1         = 151;
+  VTIG_IE_2         = 152;
+  VTIG_IE_3         = 153;
+  VTIG_IE_4         = 154;
+  VTIG_IE_5         = 155;
+  VTIG_IE_6         = 156;
+  VTIG_IE_7         = 157;
+  VTIG_IE_8         = 158;
+  VTIG_IE_9         = 159;
 
 type TTIGDrawCommand = record
     CType : TTIGDrawCommandType;
