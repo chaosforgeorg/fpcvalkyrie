@@ -812,8 +812,8 @@ begin
   iWindow.DrawList.Push( iCmd );
 
   iPosition := Float( iWindow.FScroll ) / Float( iLines - iHeight );
-  iYPos     := Floor( Float( iCmd.Area.Dim.Y - 2 ) * iPosition );
-  VTIG_RenderChar( iFrame[3], Point(iWindow.DC.FClip.X2 + 1, iWindow.DC.FClip.Y + iYpos) );
+  iYPos     := Floor( Float( iCmd.Area.Dim.Y - 3 ) * iPosition );
+  VTIG_RenderChar( iFrame[4], Point(iWindow.DC.FClip.X2 + 1, iWindow.DC.FClip.Y + iYpos) );
 end;
 
 procedure VTIG_ResetScroll( aName : AnsiString = ''; aValue : Integer = 0 );
