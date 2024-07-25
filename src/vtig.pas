@@ -655,6 +655,7 @@ var iWindow   : TTIGWindow;
     iClear    : TIORect;
     iWidth    : Integer;
     iMHover   : Boolean;
+    iMClick   : Boolean;
     iSelected : Boolean;
     iCmd      : TTIGDrawCommand;
 begin
@@ -674,7 +675,8 @@ begin
   iClear := Rectangle( iWindow.DC.FCursor, Point( iWidth + 1, 1 ) );
 
   iMHover := False;
-  if ( GCtx.Io.MouseState.Moved ) then
+  iMClick := GCtx.Io.EventState.Activated( VTIG_IE_MCONFIRM );
+  if GCtx.Io.MouseState.Moved or iMClick then
     if ( GCtx.LastTop = iWindow ) and ( GCtx.Io.MouseState.Position <> PointNegUnit ) then
       if (GCtx.Io.MouseState.Position in iClear) and (GCtx.Io.MouseState.Position in iWindow.DC.FClip ) then
       begin
