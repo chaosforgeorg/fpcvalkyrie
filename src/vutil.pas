@@ -253,8 +253,9 @@ end;
 
 operator enumerator( a : TRectangle ) : TRectangleEnumerator;
 
-const PointZero : TPoint = ( x : 0; y : 0; );
-const PointUnit : TPoint = ( x : 1; y : 1; );
+const PointZero    : TPoint = ( x : 0; y : 0; );
+const PointUnit    : TPoint = ( x : 1; y : 1; );
+const PointNegUnit : TPoint = ( x : -1; y : -1; );
 
 function Max( a, b : TPoint ) : TPoint; overload;
 function Min( a, b : TPoint ) : TPoint; overload;

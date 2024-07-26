@@ -10,6 +10,7 @@ type TIO = class( TSystem )
   procedure Update( aMSec : DWord ); virtual;
   procedure Delay( aTime : Integer );
   procedure ClearEventBuffer;
+  function OnEvent( const event : TIOEvent ) : Boolean; virtual;
   function RunUILoop( aElement : TUIElement = nil ) : DWord; virtual;
   procedure SetUILoopResult( aResult : DWord );
   function HandleEvents : Boolean; virtual;
@@ -91,6 +92,11 @@ begin
   FConsole.Update;
 end;
 
+function TIO.OnEvent( const event : TIOEvent ) : Boolean;
+begin
+  Exit( False );
+end;
+
 function TIO.RunUILoop ( aElement : TUIElement ) : DWord;
 var iCount  : DWord;
     iParent : TUIElement;
@@ -124,7 +130,7 @@ var iEvent : TIOEvent;
 begin
   HandleEvents := False;
   while FIODriver.PollEvent( iEvent ) do
-    HandleEvents := FUIRoot.OnEvent( iEvent ) or HandleEvents;
+    HandleEvents := OnEvent( iEvent ) or FUIRoot.OnEvent( iEvent ) or HandleEvents;
 end;
 
 procedure TIO.ClearEventBuffer;

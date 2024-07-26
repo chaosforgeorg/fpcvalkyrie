@@ -199,7 +199,7 @@ begin
   FBSupport  := VIO_CON_BGCOLOR in FCapabilities;
 
   if VIO_CON_EXTCOLOR in FCapabilities
-    then FColorMask := $FFFFFF0F
+    then FColorMask := $FFFFFFFF
     else FColorMask := $0000000F;
 
   FLineSpace := aLineSpace;

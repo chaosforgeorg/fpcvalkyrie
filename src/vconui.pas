@@ -16,21 +16,23 @@ type TConUIRoot = class( TUIRoot )
   function DeviceCoordToConsoleCoord( aCoord : TPoint ) : TPoint;
   function ConsoleCoordToDeviceCoord( aCoord : TPoint ) : TPoint;
 private
-  FConsole     : TUIConsole;
-  FRenderer    : TIOConsoleRenderer;
-  FNeedRedraw  : Boolean;
-  FDeviceArea  : TUIRect;
-  FConsoleArea : TUIRect;
-  FDeviceDim   : TUIRect;
-  FConsoleDim  : TUIRect;
-  FCellX       : Integer;
-  FCellY       : Integer;
-  FAreaMatch   : Boolean;
+  FConsole        : TUIConsole;
+  FRenderer       : TIOConsoleRenderer;
+  FNeedRedraw     : Boolean;
+  FDeviceArea     : TUIRect;
+  FConsoleArea    : TUIRect;
+  FDeviceDim      : TUIRect;
+  FConsoleDim     : TUIRect;
+  FCellX          : Integer;
+  FCellY          : Integer;
+  FAreaMatch      : Boolean;
+  FUpdateOnRender : Boolean;
 public
-  property Console  : TUIConsole         read FConsole;
-  property Renderer : TIOConsoleRenderer read FRenderer;
-  property NeedRedraw : Boolean          read FNeedRedraw write FNeedRedraw;
-  property DeviceArea : TUIRect          read FDeviceArea;
+  property UpdateOnRender : Boolean      write FUpdateOnRender;
+  property Console  : TUIConsole         read  FConsole;
+  property Renderer : TIOConsoleRenderer read  FRenderer;
+  property NeedRedraw : Boolean          read  FNeedRedraw write FNeedRedraw;
+  property DeviceArea : TUIRect          read  FDeviceArea;
 end;
 
 type TConUILabel      = class( TUICustomLabel )
@@ -622,6 +624,7 @@ begin
 
   if FStyle = nil then LoadDefaultStyle;
 
+  FUpdateOnRender := True;
   DeviceChanged;
 end;
 
@@ -677,7 +680,8 @@ end;
 procedure TConUIRoot.Render;
 begin
   inherited Render( FNeedRedraw or FDirty );
-  FConsole.Update;
+  if FUpdateOnRender then
+    FConsole.Update;
 end;
 
 function TConUIRoot.OnEvent ( const event : TIOEvent ) : Boolean;
