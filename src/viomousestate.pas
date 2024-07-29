@@ -162,8 +162,8 @@ begin
           VMB_BUTTON_LEFT   : FButtons[0].Down := aEvent.Mouse.Pressed or FButtons[0].FastClick;
           VMB_BUTTON_MIDDLE : FButtons[1].Down := aEvent.Mouse.Pressed or FButtons[1].FastClick;
           VMB_BUTTON_RIGHT  : FButtons[2].Down := aEvent.Mouse.Pressed or FButtons[2].FastClick;
-          VMB_WHEEL_UP      : begin FWheel := FWheel + Point( 0, -3 ); Exit( True ); end;
-          VMB_WHEEL_DOWN    : begin FWheel := FWheel + Point( 0, 3 ); Exit( True ); end;
+          VMB_WHEEL_UP      : begin FWheel := FWheel + Point( 0, 3 ); Exit( True ); end;
+          VMB_WHEEL_DOWN    : begin FWheel := FWheel + Point( 0, -3 ); Exit( True ); end;
         end;
         // TODO: is this Ord value correct?
         FButtons[Ord(aEvent.Mouse.Button) - 1].FastClick := True;
