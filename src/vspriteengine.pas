@@ -49,7 +49,7 @@ type TTextureDataSet = record
 end;
 
 type TTextureSet = record
-  Layer      : array[1..7] of TTextureDataSet;
+  Layer      : array[1..11] of TTextureDataSet;
 end;
 
 type
@@ -60,7 +60,7 @@ TSpriteEngine = class
   FTextureSet        : TTextureSet;
   FGrid              : TGLVec2i;
   FPos               : TGLVec2i;
-  FLayers            : array[1..7] of TSpriteDataSet;
+  FLayers            : array[1..11] of TSpriteDataSet;
   FLayerCount        : Byte;
 
   constructor Create;
