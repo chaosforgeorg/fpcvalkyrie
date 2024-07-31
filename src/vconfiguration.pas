@@ -2,7 +2,7 @@ unit vconfiguration;
 {$mode ObjFPC}
 interface
 
-uses vgenerics;
+uses vnode, vgenerics, vlualibrary;
 
 type TConfigurationEntry      = class;
      TConfigurationGroup      = class;
@@ -13,10 +13,13 @@ type TConfigurationEntry      = class;
      TConfigurationGroupMap   = specialize TGHashMap< TConfigurationGroup >;
      TConfigurationValueMap   = specialize TGHashMap< Variant >;
 
-type TConfigurationEntry = class
+type TConfigurationEntry = class( TVObject )
   constructor Create( aID : Ansistring );
   function SetName( aName : Ansistring ) : TConfigurationEntry;
   function SetDescription( aDesc : Ansistring ) : TConfigurationEntry;
+protected
+  function ToLuaString : Ansistring; virtual; abstract;
+  function ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean; virtual; abstract;
 protected
   FID   : Ansistring;
   FName : Ansistring;
@@ -31,6 +34,9 @@ type TToggleConfigurationEntry = class( TConfigurationEntry )
   constructor Create( aID : Ansistring; aDefault : Boolean );
   function Access : PBoolean;
 protected
+  function ToLuaString : Ansistring; override;
+  function ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean; override;
+protected
   FDefault : Boolean;
   FValue   : Boolean;
 public
@@ -42,6 +48,9 @@ type TIntegerConfigurationEntry = class( TConfigurationEntry )
   constructor Create( aID : Ansistring; aDefault : Integer );
   function SetRange( aMin, aMax : Integer; aStep : Integer = 1 ) : TIntegerConfigurationEntry;
   function Access : PInteger;
+protected
+  function ToLuaString : Ansistring; override;
+  function ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean; override;
 protected
   FDefault : Integer;
   FMin     : Integer;
@@ -56,11 +65,13 @@ public
   property Value   : Integer read FValue write FValue;
 end;
 
-type TConfigurationGroup = class
+type TConfigurationGroup = class( TVObject )
   constructor Create( aConfigurationManager : TConfigurationManager );
   function AddInteger( aEntryID : Ansistring; aDefault : Integer ) : TIntegerConfigurationEntry;
   function AddToggle( aEntryID : Ansistring; aDefault : Boolean ) : TToggleConfigurationEntry;
   destructor Destroy; override;
+protected
+  procedure AddEntry( aEntryID : Ansistring; aEntry : TConfigurationEntry );
 protected
   FManager : TConfigurationManager;
   FEntries : TConfigurationEntryArray;
@@ -69,14 +80,17 @@ public
   property Entries : TConfigurationEntryArray read FEntries;
 end;
 
-type TConfigurationManager = class
+type TConfigurationManager = class( TVObject )
   constructor Create;
-  function AddGroup( aGroupID : AnsiString ) : TConfigurationGroup;
   function GetInteger( aEntryID : Ansistring ) : Integer;
   function GetBoolean( aEntryID : Ansistring ) : Boolean;
   function AccessInteger( aEntryID : Ansistring ) : PInteger;
   function AccessBoolean( aEntryID : Ansistring ) : PBoolean;
+  function Read( aFileName : Ansistring ) : Boolean;
+  function Write( aFileName : Ansistring ) : Boolean;
   destructor Destroy; override;
+protected
+  function AddGroup( aGroupID : AnsiString ) : TConfigurationGroup;
 protected
   function CastInteger( aEntryID : Ansistring ) : TIntegerConfigurationEntry;
   function CastBoolean( aEntryID : Ansistring ) : TToggleConfigurationEntry;
@@ -91,7 +105,7 @@ end;
 
 implementation
 
-uses sysutils;
+uses sysutils, vutil;
 
 { TConfigurationEntry }
 
@@ -127,6 +141,21 @@ begin
   Result := @FValue;
 end;
 
+function TToggleConfigurationEntry.ToLuaString : Ansistring;
+begin
+  if FValue
+    then Result := 'true'
+    else Result := 'false';
+end;
+
+function TToggleConfigurationEntry.ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean;
+begin
+  Result := True;
+  if lua_type( aState, aIndex ) = LUA_TBOOLEAN
+    then FValue := lua_toboolean( aState, aIndex )
+    else begin Log( LOGWARN, 'Malformed entry "'+FID+'", boolean expected!' ); Result := False; end;
+end;
+
 { TIntegerConfigurationEntry }
 
 constructor TIntegerConfigurationEntry.Create( aID: Ansistring; aDefault: Integer );
@@ -149,6 +178,19 @@ begin
   Result := @FValue;
 end;
 
+function TIntegerConfigurationEntry.ToLuaString : Ansistring;
+begin
+  Result := IntToStr( FValue );
+end;
+
+function TIntegerConfigurationEntry.ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean;
+begin
+  Result := True;
+  if lua_type( aState, aIndex ) = LUA_TNUMBER
+    then FValue := lua_tointeger( aState, aIndex )
+    else begin Log( LOGWARN, 'Malformed entry "'+FID+'", integer expected!' ); Result := False; end;
+end;
+
 { TConfigurationGroup }
 
 constructor TConfigurationGroup.Create( aConfigurationManager : TConfigurationManager );
@@ -169,21 +211,22 @@ begin
 end;
 
 function TConfigurationGroup.AddInteger( aEntryID : Ansistring; aDefault : Integer ): TIntegerConfigurationEntry;
-var iEntry : TIntegerConfigurationEntry;
 begin
-  iEntry := TIntegerConfigurationEntry.Create( aEntryID, aDefault );
-  FEntries.Push( iEntry );
-  FLookup[ aEntryID ] := iEntry;
-  Result := iEntry;
+  Result := TIntegerConfigurationEntry.Create( aEntryID, aDefault );
+  AddEntry( aEntryID, Result );
 end;
 
 function TConfigurationGroup.AddToggle( aEntryID: Ansistring; aDefault: Boolean ): TToggleConfigurationEntry;
-var iEntry : TToggleConfigurationEntry;
 begin
-  iEntry := TToggleConfigurationEntry.Create( aEntryID, aDefault );
-  FEntries.Push( iEntry );
-  FLookup[ aEntryID ] := iEntry;
-  Result := iEntry;
+  Result := TToggleConfigurationEntry.Create( aEntryID, aDefault );
+  AddEntry( aEntryID, Result );
+end;
+
+procedure TConfigurationGroup.AddEntry( aEntryID : Ansistring; aEntry : TConfigurationEntry );
+begin
+  FEntries.Push( aEntry );
+  FLookup[ aEntryID ] := aEntry;
+  FManager.AddEntry( aEntryID, aEntry );
 end;
 
 { TConfigurationManager }
@@ -260,6 +303,92 @@ begin
   FreeAndNil( FGroup );
   FreeAndNil( FLookup );
   inherited Destroy;
+end;
+
+function TConfigurationManager.Read( aFileName : Ansistring ) : Boolean;
+var iText  : Text;
+    iState : PLua_State;
+    iKey   : Ansistring;
+    iEntry : TConfigurationEntry;
+begin
+  Log( 'Reading configuration from '+aFileName+' ...');
+  if not LoadLua then
+  begin
+    Log( LOGERROR, 'Could not load Lua!' );
+    Exit( False );
+  end;
+  iState := lua_open;
+  if iState = nil then
+  begin
+    Log( LOGERROR, 'Could not create Lua state!' );
+    Exit( False );
+  end;
+  try
+    if luaL_dofile( iState, PChar( aFileName ) ) <> 0 then
+    begin
+      Log( LOGERROR, 'Could not load file into Lua : '+lua_tostring(iState,-1) );
+      Exit( False );
+    end;
+
+    lua_getglobal( iState, 'configuration' );
+    lua_pushnil( iState );
+    while ( lua_next( iState, -2 ) <> 0 ) do
+    begin
+      if lua_type( iState, -2 ) <> LUA_TSTRING then
+      begin
+        Log( LOGERROR, 'Malformed configuration file!' );
+        Exit( False );
+      end;
+      iKey := lua_tostring( iState, -2 );
+      iEntry := FLookup[ iKey ];
+      if iEntry = nil
+        then Log( LOGWARN, 'Unknown key in configuration file: '+ iKey )
+        else iEntry.ParseValue( iState, -1 );
+      lua_pop(iState, 1);
+    end;
+
+    Log( 'Configuration read from '+aFileName+' successfully.' );
+  finally
+    lua_close(iState);
+  end;
+end;
+
+function TConfigurationManager.Write( aFileName : Ansistring ) : Boolean;
+var iText  : Text;
+    iGroup : TConfigurationGroup;
+    iEntry : TConfigurationEntry;
+begin
+  Result := True;
+  Log( 'Writing configuration to '+aFileName+' ...');
+
+  AssignFile( iText, aFileName );
+  try
+    Rewrite( iText );
+    Writeln( iText, '-- this file is auto-generated, edit at own risk' );
+    Writeln( iText, 'configuration = {' );
+    for iGroup in FGroups do
+      for iEntry in iGroup.FEntries do
+        Writeln( iText, '  '+iEntry.ID+ ' = ' +iEntry.ToLuaString + ',' );
+    Writeln( iText, '}' );
+  except
+    on E: Exception do
+    begin
+      Log( LOGERROR, 'An unexpected error occurred: ' + E.Message );
+      Result := False;
+    end;
+  end;
+
+  try
+    CloseFile( iText );
+    Log( 'Configuration saved to '+aFileName );
+  except
+    on E: Exception do
+    begin
+      Log( LOGERROR, 'Error closing the file: ' + E.Message );
+      Result := False;
+    end;
+  end;
+
 end;
 
 end.
