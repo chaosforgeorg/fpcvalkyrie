@@ -135,6 +135,7 @@ var iWindow        : TTIGWindow;
   procedure HandleParameter(aParameterIndex: Integer);
   var
     iParamStr    : PAnsiChar;
+    iBuffer      : shortstring;
   begin
     if ( aParameterIndex >= 0) and ( aParameterIndex < Length(aParameters) ) then
     begin
@@ -147,6 +148,13 @@ var iWindow        : TTIGWindow;
             iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
             VTIG_RenderTextSegment( iParamStr, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
           end;
+        vtInteger:
+        begin
+          Str( aParameters[aParameterIndex].VInteger, iBuffer );
+          iBuffer[Length(iBuffer)] := #0;
+          VTIG_RenderTextSegment( @iBuffer[1], aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+        end;
+
         // Add handling for other parameter types if needed
       end;
     end;
