@@ -17,6 +17,7 @@ type TConfigurationEntry = class( TVObject )
   constructor Create( aID : Ansistring );
   function SetName( aName : Ansistring ) : TConfigurationEntry;
   function SetDescription( aDesc : Ansistring ) : TConfigurationEntry;
+  procedure Reset; virtual; abstract;
 protected
   function ToLuaString : Ansistring; virtual; abstract;
   function ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean; virtual; abstract;
@@ -33,6 +34,7 @@ end;
 type TToggleConfigurationEntry = class( TConfigurationEntry )
   constructor Create( aID : Ansistring; aDefault : Boolean );
   function Access : PBoolean;
+  procedure Reset; override;
 protected
   function ToLuaString : Ansistring; override;
   function ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean; override;
@@ -48,6 +50,7 @@ type TIntegerConfigurationEntry = class( TConfigurationEntry )
   constructor Create( aID : Ansistring; aDefault : Integer );
   function SetRange( aMin, aMax : Integer; aStep : Integer = 1 ) : TIntegerConfigurationEntry;
   function Access : PInteger;
+  procedure Reset; override;
 protected
   function ToLuaString : Ansistring; override;
   function ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean; override;
@@ -86,21 +89,22 @@ type TConfigurationManager = class( TVObject )
   function GetBoolean( aEntryID : Ansistring ) : Boolean;
   function AccessInteger( aEntryID : Ansistring ) : PInteger;
   function AccessBoolean( aEntryID : Ansistring ) : PBoolean;
+  function CastInteger( aEntryID : Ansistring ) : TIntegerConfigurationEntry;
+  function CastBoolean( aEntryID : Ansistring ) : TToggleConfigurationEntry;
   function Read( aFileName : Ansistring ) : Boolean;
   function Write( aFileName : Ansistring ) : Boolean;
   destructor Destroy; override;
 protected
   function AddGroup( aGroupID : AnsiString ) : TConfigurationGroup;
 protected
-  function CastInteger( aEntryID : Ansistring ) : TIntegerConfigurationEntry;
-  function CastBoolean( aEntryID : Ansistring ) : TToggleConfigurationEntry;
   procedure AddEntry( aEntryID : Ansistring; aEntry : TConfigurationEntry );
 protected
   FGroups : TConfigurationGroupArray;
   FGroup  : TConfigurationGroupMap;
   FLookup : TConfigurationEntryMap;
 public
-  property Group : TConfigurationGroupMap read FGroup;
+  property Group  : TConfigurationGroupMap   read FGroup;
+  property Groups : TConfigurationGroupArray read FGroups;
 end;
 
 implementation
@@ -141,6 +145,11 @@ begin
   Result := @FValue;
 end;
 
+procedure TToggleConfigurationEntry.Reset;
+begin
+  FValue := FDefault;
+end;
+
 function TToggleConfigurationEntry.ToLuaString : Ansistring;
 begin
   if FValue
@@ -176,6 +185,11 @@ end;
 function TIntegerConfigurationEntry.Access : PInteger;
 begin
   Result := @FValue;
+end;
+
+procedure TIntegerConfigurationEntry.Reset;
+begin
+  FValue := FDefault;
 end;
 
 function TIntegerConfigurationEntry.ToLuaString : Ansistring;
