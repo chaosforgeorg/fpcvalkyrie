@@ -100,7 +100,7 @@ protected
   FGroup  : TConfigurationGroupMap;
   FLookup : TConfigurationEntryMap;
 public
-  property Groups : TConfigurationGroupArray read FGroups;
+  property Group : TConfigurationGroupMap read FGroup;
 end;
 
 implementation
