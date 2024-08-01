@@ -47,11 +47,10 @@ procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOC
 function VTIG_Length( const aText: AnsiString ) : Integer;
 function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
 
-function VTIGPercentInput( aValue : PSingle; aActive : Boolean; aStep : Single = 0.05 ) : Boolean;
 function VTIGEnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
-function VTIGFloatInput( aValue : PSingle; aActive : Boolean; aMin, aMax, aStep : Single ) : Boolean;
 function VTIGIntInput( aValue : PInteger; aActive : Boolean; aMin, aMax, aStep : Integer ) : Boolean;
 function VTIGEnumInput( aValue : PInteger; aActive : Boolean; aOpen : PBoolean; aNames : array of Ansistring ) : Boolean;
+procedure VTIGInputField( aValue : Ansistring; aParams : array of const );
 procedure VTIGInputField( aValue : Ansistring );
 
 function VTIG_MouseCaptured : Boolean;
@@ -158,7 +157,7 @@ var iWindow        : TTIGWindow;
         vtInteger:
         begin
           Str( aParameters[aParameterIndex].VInteger, iBuffer );
-          iBuffer[Length(iBuffer)] := #0;
+          iBuffer[Length(iBuffer)+1] := #0;
           VTIG_RenderTextSegment( @iBuffer[1], aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
         end;
 
@@ -987,18 +986,13 @@ begin
   VTIG_Text( aText, [], aColor, aBGColor );
 end;
 
-function VTIGPercentInput( aValue : PSingle; aActive : Boolean; aStep : Single = 0.05 ) : Boolean;
-begin
-  Result := False;
-end;
-
 function VTIGEnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
 begin
   if aEnabled = ''  then aEnabled  := 'Enabled';
   if aDisabled = '' then aDisabled := 'Disabled';
   if aValue^
-    then VTIGInputField( aEnabled )
-    else VTIGInputField( aDisabled );
+    then VTIGInputField( aEnabled, [] )
+    else VTIGInputField( aDisabled, [] );
   if aActive then
   begin
     if GCtx.Io.EventState.Activated( [VTIG_IE_LEFT, VTIG_IE_RIGHT] ) or VTIG_EventConfirm then
@@ -1010,13 +1004,28 @@ begin
   Result := False;
 end;
 
-function VTIGFloatInput( aValue : PSingle; aActive : Boolean; aMin, aMax, aStep : Single ) : Boolean;
-begin
-  Result := False;
-end;
-
 function VTIGIntInput( aValue : PInteger; aActive : Boolean; aMin, aMax, aStep : Integer ) : Boolean;
 begin
+  VTIGInputField( '{0}', [ aValue^ ] );
+  if aActive then
+  begin
+    if GCtx.Io.EventState.Activated( VTIG_IE_LEFT ) then
+      if aValue^ > aMin then
+      begin
+        Log( 'pick' );
+        if aStep = 0 then aStep := 1;
+        aValue^ := Max( aMin, aValue^ - aStep );
+        Exit( True );
+      end;
+    if GCtx.Io.EventState.Activated( VTIG_IE_RIGHT )then
+      if aValue^ < aMax then
+      begin
+        Log( 'pick2' );
+        if aStep = 0 then aStep := 1;
+        aValue^ := Min( aMax, aValue^ + aStep );
+        Exit( True );
+      end;
+  end;
   Result := False;
 end;
 
@@ -1025,7 +1034,7 @@ begin
   Result := False;
 end;
 
-procedure VTIGInputField( aValue : Ansistring );
+procedure VTIGInputField( aValue : Ansistring; aParams : array of Const );
 var iCmd : TTIGDrawCommand;
 begin
   GCtx.Color   := GCtx.Style^.Color[ VTIG_INPUT_TEXT_COLOR ];
@@ -1037,7 +1046,12 @@ begin
   iCmd.FG    := GCtx.Color;
   iCmd.BG    := GCtx.BGColor;
   GCtx.Current.DrawList.Push( iCmd );
-  VTIG_Text( aValue, GCtx.Color, GCtx.BGColor );
+  VTIG_Text( aValue, aParams, GCtx.Color, GCtx.BGColor );
+end;
+
+procedure VTIGInputField( aValue : Ansistring );
+begin
+  VTIGInputField( aValue, [] );
 end;
 
 function VTIG_MouseCaptured : Boolean;
