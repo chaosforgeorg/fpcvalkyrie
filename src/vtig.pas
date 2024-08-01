@@ -1012,7 +1012,6 @@ begin
     if GCtx.Io.EventState.Activated( VTIG_IE_LEFT ) then
       if aValue^ > aMin then
       begin
-        Log( 'pick' );
         if aStep = 0 then aStep := 1;
         aValue^ := Max( aMin, aValue^ - aStep );
         Exit( True );
@@ -1020,7 +1019,6 @@ begin
     if GCtx.Io.EventState.Activated( VTIG_IE_RIGHT )then
       if aValue^ < aMax then
       begin
-        Log( 'pick2' );
         if aStep = 0 then aStep := 1;
         aValue^ := Min( aMax, aValue^ + aStep );
         Exit( True );

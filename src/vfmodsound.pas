@@ -235,9 +235,9 @@ begin
 procedure TFMODSound.VolumeMusic(aData: Pointer; const aType : string; aVolume: Byte );
 begin
   if ( aType = '.mp3' ) or ( aType = '.ogg' ) or ( aType = '.wav' ) then
-    FMUSIC_SetMasterVolume(aData, aVolume)
+    FSOUND_SetVolume(31, aVolume)
   else
-    FSOUND_SetVolume(31, aVolume);
+    FMUSIC_SetMasterVolume(aData, aVolume);
 end;
 
 end.
