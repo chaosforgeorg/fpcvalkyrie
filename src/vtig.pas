@@ -47,6 +47,13 @@ procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOC
 function VTIG_Length( const aText: AnsiString ) : Integer;
 function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
 
+function VTIGPercentInput( aValue : PSingle; aActive : Boolean; aStep : Single = 0.05 ) : Boolean;
+function VTIGEnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
+function VTIGFloatInput( aValue : PSingle; aActive : Boolean; aMin, aMax, aStep : Single ) : Boolean;
+function VTIGIntInput( aValue : PInteger; aActive : Boolean; aMin, aMax, aStep : Integer ) : Boolean;
+function VTIGEnumInput( aValue : PInteger; aActive : Boolean; aOpen : PBoolean; aNames : array of Ansistring ) : Boolean;
+procedure VTIGInputField( aValue : Ansistring );
+
 function VTIG_MouseCaptured : Boolean;
 function VTIG_MouseInLastWindow : Boolean;
 function VTIG_Event( aEvent : Integer ) : Boolean;
@@ -978,6 +985,46 @@ end;
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 begin
   VTIG_Text( aText, [], aColor, aBGColor );
+end;
+
+function VTIGPercentInput( aValue : PSingle; aActive : Boolean; aStep : Single = 0.05 ) : Boolean;
+begin
+  Result := False;
+end;
+
+function VTIGEnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
+begin
+  Result := False;
+end;
+
+function VTIGFloatInput( aValue : PSingle; aActive : Boolean; aMin, aMax, aStep : Single ) : Boolean;
+begin
+  Result := False;
+end;
+
+function VTIGIntInput( aValue : PInteger; aActive : Boolean; aMin, aMax, aStep : Integer ) : Boolean;
+begin
+  Result := False;
+end;
+
+function VTIGEnumInput( aValue : PInteger; aActive : Boolean; aOpen : PBoolean; aNames : array of Ansistring ) : Boolean;
+begin
+  Result := False;
+end;
+
+procedure VTIGInputField( aValue : Ansistring );
+var iCmd : TTIGDrawCommand;
+begin
+  GCtx.Color   := GCtx.Style^.Color[ VTIG_INPUT_TEXT_COLOR ];
+  GCtx.BGColor := GCtx.Style^.Color[ VTIG_INPUT_BACKGROUND_COLOR ];
+
+  FillChar( iCmd, Sizeof( iCmd ), 0 );
+  iCmd.CType := VTIG_CMD_CLEAR;
+  iCmd.Area  := Rectangle( GCtx.Current.DC.FCursor, Point( GCtx.Current.DC.FContent.x2 - GCtx.Current.DC.FCursor.X, 1 ) );
+  iCmd.FG    := GCtx.Color;
+  iCmd.BG    := GCtx.BGColor;
+  GCtx.Current.DrawList.Push( iCmd );
+  VTIG_Text( aValue, GCtx.Color, GCtx.BGColor );
 end;
 
 function VTIG_MouseCaptured : Boolean;
