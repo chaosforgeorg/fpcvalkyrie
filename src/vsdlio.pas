@@ -121,18 +121,18 @@ var smod : SDL_Keymod;
 begin
   Result := SDLSymToCode( event^.key.keysym.sym );
   smod := event^.key.keysym.mod_;
-  if smod and KMOD_CTRL  <> 0 then Result += IOKeyCodeCtrlMask;
-  if smod and KMOD_SHIFT <> 0 then Result += IOKeyCodeShiftMask;
-  if smod and KMOD_ALT   <> 0 then Result += IOKeyCodeAltMask;
+  if (smod and KMOD_CTRL)  <> 0 then Result += IOKeyCodeCtrlMask;
+  if (smod and KMOD_SHIFT) <> 0 then Result += IOKeyCodeShiftMask;
+  if (smod and KMOD_ALT)   <> 0 then Result += IOKeyCodeAltMask;
 end;
 
 function SDLModToModKeySet( smod : SDL_Keymod ) : TIOModKeySet;
 begin
   Result := [];
   if smod = KMOD_NONE then Exit;
-  if smod and KMOD_CTRL  <> 0 then Include( Result, VKMOD_CTRL );
-  if smod and KMOD_SHIFT <> 0 then Include( Result, VKMOD_SHIFT );
-  if smod and KMOD_ALT   <> 0 then Include( Result, VKMOD_ALT );
+  if (smod and KMOD_CTRL)  <> 0 then Include( Result, VKMOD_CTRL );
+  if (smod and KMOD_SHIFT) <> 0 then Include( Result, VKMOD_SHIFT );
+  if (smod and KMOD_ALT)   <> 0 then Include( Result, VKMOD_ALT );
 end;
 
 function SDLKeyEventToIOEvent( event : PSDL_Event ) : TIOEvent;
