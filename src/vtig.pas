@@ -994,6 +994,19 @@ end;
 
 function VTIGEnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
 begin
+  if aEnabled = ''  then aEnabled  := 'Enabled';
+  if aDisabled = '' then aDisabled := 'Disabled';
+  if aValue^
+    then VTIGInputField( aEnabled )
+    else VTIGInputField( aDisabled );
+  if aActive then
+  begin
+    if GCtx.Io.EventState.Activated( [VTIG_IE_LEFT, VTIG_IE_RIGHT] ) or VTIG_EventConfirm then
+    begin
+      aValue^ := not aValue^;
+      Exit( True );
+    end;
+  end;
   Result := False;
 end;
 
