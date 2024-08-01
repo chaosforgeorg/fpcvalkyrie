@@ -1030,7 +1030,40 @@ begin
 end;
 
 function VTIG_EnumInput( aValue : PInteger; aActive : Boolean; aOpen : PBoolean; aNames : array of Ansistring ) : Boolean;
+var iRect : TIORect;
+    iMax  : Integer;
+    i     : Integer;
 begin
+  VTIG_InputField( aNames[ aValue^ ], [] );
+  if aActive then
+  begin
+    iMax := Length( aNames ) - 1;
+    if aOpen^ then
+    begin
+      iRect := Rectangle( GCtx.Current.DC.FCursor, GCtx.Current.DC.FContent.x2 - GCtx.Current.DC.FCursor.X, 1 );
+      VTIG_Begin( 'enum_pick', Point( iRect.Dim.X + 4, iMax + 5 ), iRect.TopLeft - Point(3,3) );
+      for i := 0 to iMax do
+        if VTIG_Selectable( aNames[i] ) then
+        begin
+          aValue^ := i;
+          aOpen^  := False;
+        end;
+      VTIG_End;
+
+      if not aOpen^ then Exit( True );
+
+      if VTIG_EventCancel then
+      begin
+        aOpen^  := False;
+        Exit( False );
+      end;
+    end
+    else
+    begin
+      if GCtx.Io.EventState.Activated( [VTIG_IE_LEFT, VTIG_IE_RIGHT, VTIG_IE_CONFIRM ] ) then
+        aOpen^ := True;
+    end;
+  end;
   Result := False;
 end;
 
@@ -1042,7 +1075,7 @@ begin
 
   FillChar( iCmd, Sizeof( iCmd ), 0 );
   iCmd.CType := VTIG_CMD_CLEAR;
-  iCmd.Area  := Rectangle( GCtx.Current.DC.FCursor, Point( GCtx.Current.DC.FContent.x2 - GCtx.Current.DC.FCursor.X, 1 ) );
+  iCmd.Area  := Rectangle( GCtx.Current.DC.FCursor, GCtx.Current.DC.FContent.x2 - GCtx.Current.DC.FCursor.X, 1 );
   iCmd.FG    := GCtx.Color;
   iCmd.BG    := GCtx.BGColor;
   GCtx.Current.DrawList.Push( iCmd );

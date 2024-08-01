@@ -89,14 +89,14 @@ type TConfigurationManager = class( TVObject )
   function GetBoolean( aEntryID : Ansistring ) : Boolean;
   function AccessInteger( aEntryID : Ansistring ) : PInteger;
   function AccessBoolean( aEntryID : Ansistring ) : PBoolean;
+  function CastInteger( aEntryID : Ansistring ) : TIntegerConfigurationEntry;
+  function CastBoolean( aEntryID : Ansistring ) : TToggleConfigurationEntry;
   function Read( aFileName : Ansistring ) : Boolean;
   function Write( aFileName : Ansistring ) : Boolean;
   destructor Destroy; override;
 protected
   function AddGroup( aGroupID : AnsiString ) : TConfigurationGroup;
 protected
-  function CastInteger( aEntryID : Ansistring ) : TIntegerConfigurationEntry;
-  function CastBoolean( aEntryID : Ansistring ) : TToggleConfigurationEntry;
   procedure AddEntry( aEntryID : Ansistring; aEntry : TConfigurationEntry );
 protected
   FGroups : TConfigurationGroupArray;
