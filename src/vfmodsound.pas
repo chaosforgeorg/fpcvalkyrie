@@ -102,7 +102,7 @@ end;
 function TFMODSound.OpenDevice(aFrequency: integer; aMaxChannels: Word; aFlags: Cardinal): Boolean;
 begin
   Log( LOGINFO, 'Opening FMOD... ( frequency %d, max_channels %d, flags %d )', [ aFrequency, aMaxChannels, aFlags ] );
-  if not FSOUND_Init(44100, 32, 0) then
+  if not FSOUND_Init(44100, 32, FSOUND_INIT_USEDEFAULTMIDISYNTH) then
   begin
     Log( LOGERROR, 'FSOUND_Init failed, error : ' + GetError() );
     Exit( False );

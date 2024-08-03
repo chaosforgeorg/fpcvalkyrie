@@ -22,6 +22,7 @@ TLuaConfig = class(TVObject)
     function RunKey( aKeyCode : TIOKeyCode ) : Variant;
     procedure Load( const aFileName : Ansistring );
     procedure LoadMain( const aFileName : Ansistring );
+    function TableExists( const Table : AnsiString ) : Boolean;
     procedure EntryFeed( const Table : AnsiString; const Callback : TEntryCallback );
     procedure RecEntryFeed( const Table : AnsiString; const Callback : TEntryCallback );
     procedure SetConstant( const ID : AnsiString; const Value : Variant );
@@ -149,11 +150,21 @@ begin
   Load( aFileName );
 end;
 
+function TLuaConfig.TableExists( const Table : AnsiString ) : Boolean;
+begin
+  Result := True;
+  if not Resolve( Table ) then Exit( False );
+  if not lua_istable( FState, -1 ) then
+    Result := False;
+  lua_pop( FState, 1 );
+end;
+
 procedure TLuaConfig.EntryFeed(const Table: AnsiString;
   const Callback: TEntryCallback);
 begin
   if not Resolve( Table ) then raise ELuaException.Create('EntryFeed('+Table+') failed!');
-  if not lua_istable( FState, -1 ) then raise ELuaException.Create('EntryFeed('+Table+') target not a table!');
+  if not lua_istable( FState, -1 ) then
+  raise ELuaException.Create('EntryFeed('+Table+') target not a table!');
 
   lua_pushnil( FState );  // first key */
   while (lua_next( FState, -2 ) <> 0) do
@@ -335,7 +346,8 @@ end;
 
 procedure TLuaConfig.SetCommand ( Key : TIOKeyCode; Value : Byte ) ;
 begin
-  FCommands[ Key ] := Value
+  if Key <> 0 then
+    FCommands[ Key ] := Value
 end;
 
 end.

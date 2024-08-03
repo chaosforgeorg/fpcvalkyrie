@@ -424,11 +424,22 @@ end;
 
 function TSDLIODriver.ResetVideoMode ( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags ) : Boolean;
 var iSDLFlags : DWord;
+    iDM       : TSDL_DisplayMode;
+
 // Resize/Toggle
 var iFScreen : Boolean;
     iTarget  : TSDL_DisplayMode;
     iClosest : TSDL_DisplayMode;
 begin
+  if ( aWidth * aHeight = 0 ) then
+  begin
+    if SDL_GetCurrentDisplayMode( 0, @iDM ) <> 0 then
+      raise EIOException.Create(' SDL_GetCurrentDisplayMode returned 0 : '+SDL_GetError());
+    aWidth  := iDM.w;
+    aHeight := iDM.h;
+  end;
+
+
   if FWindow <> nil then
   begin
     iFScreen  := ( SDLIO_FullScreen in aFlags );
@@ -467,7 +478,11 @@ begin
   FBPP      := aBPP;
   FFlags    := aFlags;
 
-  if FWindow <> nil then Exit( True );
+  if FWindow <> nil then
+  begin
+    SDL_SetWindowPosition( FWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED );
+    Exit( True );
+  end;
 
   iSDLFlags := SDL_WINDOW_SHOWN;
   if FOpenGL  then iSDLFlags := iSDLFlags or SDL_WINDOW_OPENGL;
