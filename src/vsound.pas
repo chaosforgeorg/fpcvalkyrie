@@ -101,7 +101,7 @@ TSound = class(TSystem)
        // Implementation of play Sound
        procedure PlaySound( aData : Pointer; aVolume : Byte; aPan : Integer = -1 ); virtual; abstract;
        // Implementation of play Sound 3D
-       procedure PlaySound3D( aData : Pointer; aRelative : TCoord2D ); virtual; abstract;
+       procedure PlaySound3D( aData : Pointer; aRelative : TCoord2D ); virtual;
        // Implementation of play Sound
        procedure PlayMusic( aData : Pointer; const aType : string; aRepeat : Boolean = True ); virtual; abstract;
        // Implementation of StopMusic
@@ -310,6 +310,10 @@ begin
   iVolume := Clamp( Round(iVolume*(SoundVolume/128.0)), 0, 255 );
   iPan := Clamp(iRelative.x * 15,-128,127)+128;
   PlaySound( SampleArray[mID], iVolume, iPan );
+end;
+
+procedure TSound.PlaySound3D( aData : Pointer; aRelative : TCoord2D );
+begin
 end;
 
 procedure TSound.PlaySample(const mID: Ansistring; aWhere : TCoord2D);
@@ -573,7 +577,6 @@ begin
   end;
   Result := 0;
 end;
-
 
 const lua_audio_lib : array[0..14] of luaL_Reg = (
 ( name : 'register_sound';    func : @lua_audio_register_sound),
