@@ -16,7 +16,7 @@ unit vsdlsound;
 
 interface
 
-uses Classes, SysUtils, vsound, vsdl2mixerlibrary, vluaconfig;
+uses Classes, SysUtils, vsound, vsdl2mixerlibrary;
 
 // The basic sound class, published as the singleton @link(Sound).
 // Should be initialized and disposed via TSystems.
@@ -28,7 +28,7 @@ type
 
 TSDLSound = class(TSound)
        // Initializes the Sound system.
-       constructor Create;
+       constructor Create; override;
        // Deinitializes the Sound system.
        destructor Destroy; override;
      protected
