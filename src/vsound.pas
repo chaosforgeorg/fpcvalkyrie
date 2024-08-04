@@ -60,7 +60,7 @@ TSound = class(TSystem)
        // Stops all MIDI/MOD songs
        procedure Silence;
        // Update the sound system. Not needed for SDL_mixer
-       procedure Update; virtual
+       procedure Update; virtual;
        // Deinitializes the Sound system.
        destructor Destroy; override;
        // Sets the volume of the music.
