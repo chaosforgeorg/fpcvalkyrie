@@ -59,6 +59,8 @@ TSound = class(TSystem)
        procedure PlaySample(const mID : Ansistring; aWhere : TCoord2D );
        // Stops all MIDI/MOD songs
        procedure Silence;
+       // Update the sound system. Not needed for SDL_mixer
+       procedure Update; virtual
        // Deinitializes the Sound system.
        destructor Destroy; override;
        // Sets the volume of the music.
@@ -321,6 +323,10 @@ begin
   if MusicPlaying <> 0 then
     StopMusic( MusicArray[MusicPlaying], MusicType[MusicPlaying] );
   MusicPlaying := 0;
+end;
+
+procedure TSound.Update;
+begin
 end;
 
 destructor TSound.Destroy;
