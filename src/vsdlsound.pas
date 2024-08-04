@@ -16,7 +16,7 @@ unit vsdlsound;
 
 interface
 
-uses Classes, SysUtils, vsound, vsdl2mixerlibrary, vluaconfig;
+uses Classes, SysUtils, vsound, vsdl2mixerlibrary;
 
 // The basic sound class, published as the singleton @link(Sound).
 // Should be initialized and disposed via TSystems.
@@ -28,14 +28,12 @@ type
 
 TSDLSound = class(TSound)
        // Initializes the Sound system.
-       constructor Create( aConfig : TLuaConfig; const aPrefix : AnsiString = 'audio.' );
-       // Initializes the Sound system.
-       constructor Create( frequency : integer = MIX_DEFAULT_FREQUENCY; format : word = MIX_DEFAULT_FORMAT; chunksize : integer = 512 );
+       constructor Create; override;
        // Deinitializes the Sound system.
        destructor Destroy; override;
      protected
        // Open audio device with given parameters
-       function OpenDevice( aFrequency : integer; aFormat : Word; aChannels : Integer; aChunkSize : Integer ) : Boolean;
+       function OpenDevice : Boolean;
        // Implementation of Music Loading
        function LoadMusic( const aFileName : AnsiString; Streamed : Boolean ) : Pointer; override;
        // Implementation of Sound Loading
@@ -68,36 +66,16 @@ uses vutil, vsdl2library;
 
 { TSDLSound }
 
-constructor TSDLSound.Create(aConfig: TLuaConfig; const aPrefix : AnsiString );
-var iFrequency : integer;
-    iFormat    : word;
-    iChannels  : integer;
-    iChunkSize : integer;
+constructor TSDLSound.Create;
 begin
   inherited Create;
   LoadSDL2Mixer;
-  iFrequency := aConfig.Configure( aPrefix + 'frequency', MIX_DEFAULT_FREQUENCY );
-  iFormat    := aConfig.Configure( aPrefix + 'sdl_format', MIX_DEFAULT_FORMAT );
-  iChannels  := aConfig.Configure( aPrefix + 'sdl_channels', 2 );
-  iChunkSize := aConfig.Configure( aPrefix + 'sdl_chunk_size', 512 );
   Log( LOGINFO, 'Opening SDL_Audio...' );
   if SDL_Init(SDL_INIT_AUDIO) < 0 then
     raise Exception.Create('Can''t open SDL_Audio!');
-  if not OpenDevice( iFrequency,iFormat,iChannels,iChunkSize) then
+  if not OpenDevice then
     raise Exception.Create('Can''t open SDL_Mixer!');
   Mix_VolumeMusic( GetMusicVolume );
-end;
-
-constructor TSDLSound.Create( frequency : integer = MIX_DEFAULT_FREQUENCY; format : word = MIX_DEFAULT_FORMAT; chunksize : integer = 512 );
-begin
-  inherited Create;
-  LoadSDL2Mixer;
-  Log( LOGINFO, 'Opening SDL_Audio...' );
-  if SDL_Init(SDL_INIT_AUDIO) < 0 then
-    raise Exception.Create('Can''t open SDL_Audio!');
-  if not OpenDevice( frequency,format,2,chunksize ) then
-    raise Exception.Create('Can''t open SDL_Mixer!');
-  Mix_VolumeMusic(GetMusicVolume);
 end;
 
 destructor TSDLSound.Destroy;
@@ -111,18 +89,17 @@ begin
   end;
 end;
 
-function TSDLSound.OpenDevice(aFrequency: integer; aFormat: Word; aChannels: Integer; aChunkSize: Integer): Boolean;
+function TSDLSound.OpenDevice : Boolean;
 var iResult : Integer;
 begin
-  Log( LOGINFO, 'Opening SDL_Mixer... ( freq %d, format %d, channels %d, chunk size %d )', [aFrequency,aFormat,aChannels,aChunkSize] );
-  iResult := Mix_OpenAudio(aFrequency,aFormat,aChannels,aChunkSize);
+  Log( LOGINFO, 'Opening SDL_Mixer...' );
+  iResult := Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048);
   if iResult < 0 then
   begin
     Log( LOGERROR, 'Could not open SDL_Mixer! Error : %s', [SDL_GetError()] );
     Exit( False );
   end;
-  iResult := Mix_QuerySpec(@aFrequency,@aFormat,@aChannels);
-  Log( LOGINFO, 'SDL_Mixer opened ( freq %d, format %d, channels %d, chunk size %d )', [aFrequency,aFormat,aChannels,aChunkSize] );
+  Log( LOGINFO, 'SDL_Mixer opened.' );
   Exit( True );
 end;
 
