@@ -286,8 +286,8 @@ function make.gitrevision()
 
 	local mod = ""
 	if OS ~= "WINDOWS" then
-		os.execute( "git diff-index --quiet HEAD -- || echo modified > mod.info" )
-		mod = os.readsingleline( "mod.info" )
+		--os.execute( "git diff-index --quiet HEAD -- || echo modified > mod.info" )
+		--mod = os.readsingleline( "mod.info" )
 	end
 
 	return {
