@@ -8,7 +8,6 @@ var UIHOOK_ONCREATE    : Byte;
     UIHOOK_ONREDRAW    : Byte;
     UIHOOK_ONRENDER    : Byte;
     UIHOOK_ONUPDATE    : Byte;
-    UIHOOK_ONEVENT     : Byte;
     UIHOOK_ONKEYDOWN   : Byte;
     UIHOOK_ONKEYUP     : Byte;
     UIHOOK_ONMOUSEDOWN : Byte;
@@ -377,7 +376,6 @@ end;
 function TUIElement.OnEvent ( const event : TIOEvent ) : Boolean;
 begin
   if not FEnabled then Exit( False );
-  if HasHook( UIHOOK_ONEVENT ) then if RunHook( UIHOOK_ONEVENT, [ LuaIOEvent( event ) ] ) then Exit( True );
 
   case event.EType of
     VEVENT_KEYDOWN    : if HasHook( UIHOOK_ONKEYDOWN )   then if RunHook( UIHOOK_ONKEYDOWN,   [ LuaIOKeyEvent( event.key ) ] )             then Exit( True );
@@ -710,7 +708,6 @@ UIHOOK_ONDESTROY   := RegisterUIHook('on_destroy');
 UIHOOK_ONREDRAW    := RegisterUIHook('on_redraw');
 UIHOOK_ONRENDER    := RegisterUIHook('on_render');
 UIHOOK_ONUPDATE    := RegisterUIHook('on_update');
-UIHOOK_ONEVENT     := RegisterUIHook('on_event');
 UIHOOK_ONKEYDOWN   := RegisterUIHook('on_key_down');
 UIHOOK_ONKEYUP     := RegisterUIHook('on_key_up');
 UIHOOK_ONMOUSEDOWN := RegisterUIHook('on_mouse_down');

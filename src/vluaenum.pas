@@ -13,7 +13,7 @@ procedure RegisterEnum( L: Plua_State; EnumTypeInfo: PTypeInfo; const EnumName :
 
 implementation
 
-uses classes, sysutils;
+uses classes, sysutils, vluaext;
 
 const VALKYRIE_ENUM             = 'valkyrie.enum';
       VALKYRIE_ENUM_CLASS_NAME  = 'enum';
@@ -72,7 +72,7 @@ const enumlib_m : array[0..2] of luaL_Reg = (
 
 procedure RegisterEnumClass ( L : Plua_State ) ;
 begin
-  luaL_newmetatable( L, VALKYRIE_ENUM );
+  vlua_newmetatable( L, VALKYRIE_ENUM );
   luaL_register( L, nil, enumlib_m );
   luaL_register( L, VALKYRIE_ENUM_CLASS_NAME, enumlib_f );
   lua_pop( L, 1 );

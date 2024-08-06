@@ -4,6 +4,8 @@ interface
 
 uses Classes, SysUtils, vtextures, vgltypes, vimage, vnode, DOM;
 
+type TBitmapFontException = class( Exception );
+
 type TBitmapFontGylph = record
   Present     : Boolean;
   Advance     : Word;
@@ -55,7 +57,7 @@ end;
 
 implementation
 
-uses vsdllibrary, vsdlttflibrary, vmath, math;
+uses vsdl2library, vsdl2ttflibrary, vmath, math;
 
 function CharNameToChar( const aCharName : AnsiString ) : Char;
 begin
@@ -191,13 +193,13 @@ begin
   for iCount := 0 to aXML.DocumentElement.ChildNodes.Count-1 do
   begin
     iCharElement := TDOMElement( aXML.DocumentElement.ChildNodes.Item[iCount] );
-    iChar        := CharNameToChar( iCharElement.GetAttribute('name') );
+    iChar        := CharNameToChar( AnsiString( iCharElement.GetAttribute('name') ) );
     if (iChar = #0) or (Ord(iChar) > 127) then Continue;
     if iChar in ['A'..'Z'] then FLowerCase := False;
-    iPosA.X := StrToInt( iCharElement.GetElementsByTagName('pos_x')[0].TextContent );
-    iPosA.Y := StrToInt( iCharElement.GetElementsByTagName('pos_y')[0].TextContent );
-    iPosB.X := StrToInt( iCharElement.GetElementsByTagName('width')[0].TextContent );
-    iPosB.Y := StrToInt( iCharElement.GetElementsByTagName('height')[0].TextContent );
+    iPosA.X := StrToInt( AnsiString( iCharElement.GetElementsByTagName('pos_x')[0].TextContent ) );
+    iPosA.Y := StrToInt( AnsiString( iCharElement.GetElementsByTagName('pos_y')[0].TextContent ) );
+    iPosB.X := StrToInt( AnsiString( iCharElement.GetElementsByTagName('width')[0].TextContent ) );
+    iPosB.Y := StrToInt( AnsiString( iCharElement.GetElementsByTagName('height')[0].TextContent ) );
     FGylphSize.X := Max( FGylphSize.X, iPosB.X );
     FGylphSize.Y := Max( FGylphSize.Y, iPosB.Y );
 
@@ -217,7 +219,6 @@ begin
     if FGylphs[ iCount ].Present then
       FGylphs[ iCount ].Position.Init( 0, 0 );
 
-
   FHeight        := FGylphSize.Y;
   FAscent        := FGylphSize.Y;
   FDescent       := 0;
@@ -227,7 +228,7 @@ end;
 constructor TBitmapFont.CreateFromTTF ( aTTFStream : TStream; aStreamSize, aSize : Word ) ;
 var iFont     : PTTF_Font;
     iMap      : PSDL_Surface;
-    iColor    : TSDL_Color;
+    iColor    : SDL_Color;
     iCache    : array[32..127] of PSDL_Surface;
     iMaxLen   : array[0..5] of Integer;
     iCount    : DWord;
@@ -250,14 +251,16 @@ var iFont     : PTTF_Font;
     iPosA     : TGLVec2f;
     iPosB     : TGLVec2f;
 begin
-  LoadSDLTTF;
+  LoadSDL2TTF;
   if TTF_WasInit() = 0 then TTF_Init();
 
   FLowerCase := False;
   Prepare( 128 );
 
   iMap  := nil;
-  iFont := TTF_OpenFontRWOrThrow( SDL_RWopsFromStream( aTTFStream, aStreamSize ), 0, aSize );
+  iFont := TTF_OpenFontRW( SDL_RWopsFromStream( aTTFStream, aStreamSize ), 0, aSize );
+  if iFont = nil then
+    TBitmapFontException.Create('TBitmapFont.CreateFromTTF : '+SDL_GetError()+' (freetype library or font file missing?)' );
 
   FHeight   := TTF_FontHeight( iFont );
   FAscent   := TTF_FontAscent( iFont );
@@ -274,7 +277,7 @@ begin
   for iCount := 32 to 127 do
   begin
     iCache[iCount] := TTF_RenderGlyph_Blended( iFont, iCount, iColor );
-    SDL_SetAlpha( iCache[iCount], 0, 0 );
+    SDL_SetSurfaceBlendMode( iCache[iCount], SDL_BLENDMODE_NONE );
     iMaxLen[ (iCount-32) div 16 ] += iCache[iCount]^.w;
   end;
 
@@ -302,7 +305,7 @@ begin
   for iCount := 32 to 127 do
   begin
     FGylphs[iCount].Present := True;
-    TTF_GlyphMetrics( iFont, iCount, iGMMinX, iGMMaxX,  iGMMinY, iGMMaxY, iGMAdv );
+    TTF_GlyphMetrics( iFont, iCount, @iGMMinX, @iGMMaxX, @iGMMinY, @iGMMaxY, @iGMAdv );
     iRect.x := iX;
     iRect.y := iY;
     iRect.w := iCache[iCount]^.w;
@@ -326,7 +329,7 @@ begin
       iChar3[0] := Chr(iCount2);
       iChar3[1] := Chr(iCount);
       iChar3[2] := #0;
-      TTF_SizeText( iFont, iChar3, iWidth, iUnused );
+      TTF_SizeText( iFont, iChar3, @iWidth, @iUnused );
       FGylphs[iCount2].Kerning[iCount] := iWidth - iGMAdv;
     end;
   end;
@@ -338,8 +341,11 @@ begin
 
   TTF_CloseFont( iFont );
 
-  SDL_SetAlpha( iMap,SDL_SRCALPHA or SDL_RLEACCEL , 0 );
-//  SDL_SetAlpha( iMap, 0, 0 );
+  //  SDL_SetAlpha( iMap, SDL_SRCALPHA or SDL_RLEACCEL , 0 );
+  SDL_SetSurfaceBlendMode( iMap, SDL_BLENDMODE_BLEND );
+  SDL_SetSurfaceAlphaMod( iMap, 0);
+
+  //  SDL_SetAlpha( iMap, 0, 0 );
   SDL_SaveBMP( iMap, 'test.bmp' );
 
   iImage := TImage.Create( iMap^.pixels, iTexWidth, iTexWidth );

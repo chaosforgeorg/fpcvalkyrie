@@ -74,12 +74,23 @@ function DebugToString( const V : Variant ) : AnsiString;
 // Exception safe.
 function DebugToString( const arr : array of const ) : AnsiString;
 
+type TDebugStream = class( TStream )
+  private
+    FStream:  TStream;
+    function BytesToString(const Buffer; Count: Longint): Ansistring;
+  public
+    constructor Create( aStream: TStream );
+    function Read(var Buffer; Count: Longint): Longint; override;
+    function Write(const Buffer; Count: Longint): Longint; override;
+    function Seek(const Offset: Int64; Origin: TSeekOrigin): Int64; override;
+    destructor Destroy; override;
+  end;
+
 implementation
-uses variants,vlog;
+uses math, variants,vlog;
 
 var LogFile   : Text;
     ErrorFile : Text;
-
 
 //const LogName : array[TLogLevel] of string = (
 //  'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE'
@@ -269,6 +280,63 @@ begin
   ErrorLogClose;
 end;
 
+function TDebugStream.BytesToString( const Buffer; Count: Longint ): Ansistring;
+const
+  MaxLogSize = 64;
+var
+  Tmp: Ansistring;
+  i: Integer;
+  Ch: Char;
+begin
+  SetLength(Tmp, Min(Count, MaxLogSize));
+  Move(Buffer, PChar(Tmp)^, Length(Tmp));
+
+  for i := 1 to Length(Tmp) do
+  begin
+    Ch := Tmp[i];
+    if not (Ch in [#32..#126]) then
+    begin
+      Tmp[i] := '.'; // replace non-printable characters with a dot
+    end;
+  end;
+
+  Result := Tmp;
+
+  if Count > MaxLogSize then
+  begin
+    Result := Result + '...';
+  end;
+end;
+
+constructor TDebugStream.Create(AStream: TStream);
+begin
+  inherited Create;
+  FStream := AStream;
+end;
+
+function TDebugStream.Read(var Buffer; Count: Longint): Longint;
+begin
+  Result := FStream.Read(Buffer, Count);
+  Log( LOGINFO, 'Read: %d bytes, Content: %s', [Result, BytesToString(Buffer, Result)]);
+end;
+
+function TDebugStream.Write(const Buffer; Count: Longint): Longint;
+begin
+  Result := FStream.Write(Buffer, Count);
+  Log( LOGINFO, 'Write: %d bytes, Content: %s', [Result, BytesToString(Buffer, Result)]);
+end;
+
+function TDebugStream.Seek(const Offset: Int64; Origin: TSeekOrigin): Int64;
+begin
+  Result := FStream.Seek(Offset, Origin);
+  Log( LOGINFO, 'Seek: Offset: %d, Origin: %d', [Offset, Ord(Origin)] );
+end;
+
+destructor TDebugStream.Destroy;
+begin
+  FreeAndNil( FStream );
+  inherited Destroy;
+end;
 
 initialization
 

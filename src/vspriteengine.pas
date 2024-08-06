@@ -2,7 +2,7 @@ unit vspriteengine;
 {$include valkyrie.inc}
 interface
 uses
-  Classes, SysUtils, vcolor, vgltypes;
+  Classes, SysUtils, vcolor, vgltypes, vglprogram, vglquadarrays;
 
 type TSpriteEngine = class;
 
@@ -12,27 +12,21 @@ type
 { TSpriteDataVTC }
 
 TSpriteDataVTC = class
-  constructor Create( aEngine : TSpriteEngine );
-  procedure Push( Source : TSpriteDataVTC; Idx, Amount : DWord );
-  procedure Push( PosID : DWord; Pos : TGLVec2i; Color : TColor );
-  procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; color : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0 );
-  procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; Color : TColor );
-  procedure Push( coord : PGLRawQCoord; tex : PGLRawQTexCoord; color : PGLRawQColor );
-//  procedure PushXY( PosID, Color, PosX, PosY : DWord );
-  procedure Resize( newSize : DWord );
-  procedure Reserve( newCapacity : DWord );
-  procedure Clear;
+  constructor Create( aEngine : TSpriteEngine; aTilesX, aTilesY : Word );
+  procedure Push( PosID : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
+  procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; color : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
+  procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
+  procedure Push( coord : PGLRawQCoord; tex : PGLRawQTexCoord; color : PGLRawQColor; aZ : Integer = 0 );
+  procedure PushPart( PosID : DWord; p1,p2 : TGLVec2i; color : PGLRawQColor; aZ : Integer; t1,t2 : TGLVec2f );
+  destructor Destroy; override;
 private
-  FCoords    : packed array of TGLRawQCoord;
-  FTexCoords : packed array of TGLRawQTexCoord;
-  FColors    : packed array of TGLRawQColor;
-  FSize      : DWord;
-  FCapacity  : DWord;
+  FData      : TGLTexturedColoredQuads;
   FEngine    : TSpriteEngine;
-  procedure GrowTo( NewSize : DWord );
+  FTexUnit   : TGLVec2f;
+  FRowSize   : Word;
 public
-  property Size : DWord     read FSize;
-  property Capacity : DWord read FCapacity;
+  property TexUnit : TGLVec2f read FTexUnit;
+  property RowSize : Word     read FRowSize;
 end;
 
 type
@@ -44,9 +38,7 @@ TSpriteDataSet = class
   Cosplay : TSpriteDataVTC;
   Glow    : TSpriteDataVTC;
 
-  constructor Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean );
-  procedure Resize( Size : DWord );
-  procedure Clear;
+  constructor Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean; aTilesX, aTilesY : Word );
   destructor Destroy; override;
 end;
 
@@ -57,74 +49,83 @@ type TTextureDataSet = record
 end;
 
 type TTextureSet = record
-  Layer      : array[1..5] of TTextureDataSet;
+  Layer      : array[1..11] of TTextureDataSet;
 end;
-
-const VSE_BG_LAYER = 1;
-      VSE_FG_LAYER = 2;
 
 type
 
 { TSpriteEngine }
 
 TSpriteEngine = class
-//  FTextures          : array of TTextureSet;
-//  FTextureSets       : Byte;
-//  FCurrentTextureSet : Byte;
   FTextureSet        : TTextureSet;
-
   FGrid              : TGLVec2i;
-  FTexUnit           : TGLVec2f;
   FPos               : TGLVec2i;
-  FLayers            : array[1..5] of TSpriteDataSet;
+  FLayers            : array[1..11] of TSpriteDataSet;
   FLayerCount        : Byte;
-  FStaticLayerCount  : Byte;
-  FCurrentTexture    : DWord;
-
-  FSpriteRowCount    : Word;
 
   constructor Create;
-  procedure Clear;
   procedure Draw;
+  procedure Update( aProjection : TMatrix44 );
   procedure DrawVTC( Data : TSpriteDataVTC );
   procedure DrawSet( const Data : TSpriteDataSet; const Tex : TTextureDataSet );
   // Foreground layer
   // Animation layer
   procedure SetTexture( TexID : DWord );
   destructor Destroy; override;
+private
+  FVAO            : Cardinal;
+  FProgram        : TGLProgram;
+  FProjection     : TMatrix44;
+
+  FCurrentTexture : DWord;
 end;
 
 
 implementation
 
 uses
-  vgllibrary, math;
+  math, vgl3library;
+
+const
+VSpriteVertexShader : Ansistring =
+'#version 330 core'+#10+
+'layout (location = 0) in vec3 position;'+#10+
+'layout (location = 1) in vec2 texcoord;'+#10+
+'layout (location = 2) in vec4 color;'+#10+
+'uniform mat4 utransform;'+#10+
+'uniform vec3 uposition;'+#10+
+#10+
+'out vec4 ocolor;'+#10+
+'out vec2 otexcoord;'+#10+
+#10+
+'void main() {'+#10+
+'ocolor    = color;'+#10+
+'otexcoord = texcoord;'+#10+
+'gl_Position = utransform * vec4(uposition + position, 1.0);'+#10+
+'}'+#10;
+VSpriteFragmentShader : Ansistring =
+'#version 330 core'+#10+
+'in vec4 ocolor;'+#10+
+'in vec2 otexcoord;'+#10+
+'uniform sampler2D utexture;'+#10+
+'out vec4 frag_color;'+#10+
+#10+
+'void main() {'+#10+
+'frag_color = texture(utexture, otexcoord) * ocolor;'+#10+
+'if ( frag_color.a < 0.01 ) discard;'+#10+
+'}'+#10;
 
 { TSpriteDataSet }
 
-constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean );
+constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean; aTilesX, aTilesY : Word );
 begin
   Normal  := nil;
   Cosplay := nil;
   Glow    := nil;
 
-  Normal  := TSpriteDataVTC.Create( aEngine );
-  if aCosplay then Cosplay := TSpriteDataVTC.Create( aEngine );
-  if aGlow    then Glow    := TSpriteDataVTC.Create( aEngine );
-end;
-
-procedure TSpriteDataSet.Resize( Size: DWord );
-begin
-  Normal.Resize( Size );
-  if Cosplay <> nil then Cosplay.Resize( Size );
-  if Glow    <> nil then Glow.Resize( Size );
-end;
-
-procedure TSpriteDataSet.Clear;
-begin
-  Normal.Clear;
-  if Cosplay <> nil then Cosplay.Clear;
-  if Glow    <> nil then Glow.Clear;
+  Normal  := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
+  if aCosplay then Cosplay := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
+  if aGlow    then Glow    := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
 end;
 
 destructor TSpriteDataSet.Destroy;
@@ -136,159 +137,174 @@ end;
 
 { TSpriteDataVTC }
 
-constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine );
+constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine; aTilesX, aTilesY : Word );
 begin
-  FSize     := 0;
-  FCapacity := 0;
   FEngine   := aEngine;
+  FData     := TGLTexturedColoredQuads.Create;
+  FRowSize  := aTilesX;
+  FTexUnit.Init( 1.0 / aTilesX, 1.0 / aTilesY );
 end;
 
-procedure TSpriteDataVTC.Push( Source: TSpriteDataVTC; Idx, Amount : DWord);
-begin
-  if Amount + FSize > FCapacity then GrowTo( Amount + FSize );
-  Move( Source.FCoords[ Idx ], FCoords[ FSize ], Amount * SizeOf(TGLRawQCoord) );
-  Move( Source.FTexCoords[ Idx ], FTexCoords[ FSize ], Amount * SizeOf(TGLRawQTexCoord) );
-  Move( Source.FColors[ Idx ], FColors[ FSize ], Amount * SizeOf(TGLRawQColor) );
-  FSize += Amount;
-end;
 
-procedure TSpriteDataVTC.Push(PosID : DWord; Pos : TGLVec2i; Color : TColor);
+procedure TSpriteDataVTC.Push(PosID : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0);
 var p1, p2     : TGLVec2i;
     t1, t2, tp : TGLVec2f;
 begin
-  if FSize >= FCapacity then GrowTo( Max( FCapacity * 2, 16 ) );
-
   p1 := Pos.Shifted(-1) * FEngine.FGrid;
   p2 := Pos * FEngine.FGrid;
 
-  FCoords[ FSize ].Init( p1, p2 );
+  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
+  t1 := tp * FTexUnit;
+  t2 := tp.Shifted(1) * FTexUnit;
 
-  tp := TGLVec2f.CreateModDiv( PosID-1, FEngine.FSpriteRowCount );
+  FData.PushQuad(
+    TGLVec3i.CreateFrom( p1, aZ ),
+    TGLVec3i.CreateFrom( p2, aZ ),
+    Color.toVec43f,
+    t1, t2
+  );
 
-  t1 := tp * FEngine.FTexUnit;
-  t2 := tp.Shifted(1) * FEngine.FTexUnit;
-
-  FTexCoords[ FSize ].Init( t1, t2 );
-  FColors[ FSize ].SetAll( TGLVec3b.Create( Color.R, Color.G, Color.B ) );
-
-  Inc( FSize );
 end;
 
-procedure TSpriteDataVTC.PushXY(PosID, Size : DWord; Pos : TGLVec2i; color: PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0 );
+procedure TSpriteDataVTC.PushXY(PosID, Size : DWord; Pos : TGLVec2i; color: PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
 var p2         : TGLVec2i;
     t1, t2, tp : TGLVec2f;
 begin
-  if FSize >= FCapacity then GrowTo( Max( FCapacity * 2, 16 ) );
-
   p2 := pos + FEngine.FGrid.Scaled( Size );
 
-  FCoords[ FSize ].Init( pos, p2 );
-
-  tp := TGLVec2f.CreateModDiv( PosID-1, FEngine.FSpriteRowCount );
+  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
   tp += TGLVec2f.Create( TShiftX, TShiftY );
 
-  t1 := tp * FEngine.FTexUnit;
-  t2 := tp.Shifted(Size) * FEngine.FTexUnit;
+  t1 := tp * FTexUnit;
+  t2 := tp.Shifted(Size) * FTexUnit;
 
-  FTexCoords[ FSize ].Init( t1, t2 );
-
-  FColors[ FSize ] := color^;
-  Inc( FSize );
+  FData.PushQuad(
+    TGLVec3i.CreateFrom( pos, aZ ),
+    TGLVec3i.CreateFrom( p2, aZ ),
+    TGLQVec4f.Create(
+      NewColor( color^.Data[0] ).toVec43f,
+      NewColor( color^.Data[1] ).toVec43f,
+      NewColor( color^.Data[2] ).toVec43f,
+      NewColor( color^.Data[3] ).toVec43f
+    ),
+    t1, t2
+  );
 end;
 
-procedure TSpriteDataVTC.PushXY(PosID, Size : DWord; Pos : TGLVec2i; Color : TColor );
+procedure TSpriteDataVTC.PushXY(PosID, Size : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
 var p2         : TGLVec2i;
     t1, t2, tp : TGLVec2f;
 begin
-  if FSize >= FCapacity then GrowTo( Max( FCapacity * 2, 16 ) );
-
   p2 := pos + FEngine.FGrid.Scaled( Size );
+  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
 
-  FCoords[ FSize ].Init( pos, p2 );
+  t1 := tp * FTexUnit;
+  t2 := tp.Shifted(Size) * FTexUnit;
 
-  tp := TGLVec2f.CreateModDiv( PosID-1, FEngine.FSpriteRowCount );
-
-  t1 := tp * FEngine.FTexUnit;
-  t2 := tp.Shifted(Size) * FEngine.FTexUnit;
-
-  FTexCoords[ FSize ].Init( t1, t2 );
-  FColors[ FSize ].SetAll( TGLVec3b.Create( Color.R, Color.G, Color.B ) );
-  Inc( FSize );
+  FData.PushQuad(
+    TGLVec3i.CreateFrom( pos, aZ ),
+    TGLVec3i.CreateFrom( p2, aZ ),
+    Color.toVec43f,
+    t1, t2
+  );
 end;
 
-procedure TSpriteDataVTC.Push(coord: PGLRawQCoord; tex: PGLRawQTexCoord; color: PGLRawQColor);
+procedure TSpriteDataVTC.Push(coord: PGLRawQCoord; tex: PGLRawQTexCoord; color: PGLRawQColor; aZ : Integer = 0);
 begin
-  if FSize >= FCapacity then GrowTo( Max( FCapacity * 2, 16 ) );
-  FCoords[ FSize ] := coord^;
-  FTexCoords[ FSize ] := tex^;
-  FColors[ FSize ] := color^;
-  Inc( FSize );
+  FData.PushQuad(
+    TGLQVec3i.Create(
+      TGLVec3i.CreateFrom( coord^.Data[0], aZ ),
+      TGLVec3i.CreateFrom( coord^.Data[1], aZ ),
+      TGLVec3i.CreateFrom( coord^.Data[2], aZ ),
+      TGLVec3i.CreateFrom( coord^.Data[3], aZ )
+    ),
+    TGLQVec4f.Create(
+      NewColor( color^.Data[0] ).toVec43f,
+      NewColor( color^.Data[1] ).toVec43f,
+      NewColor( color^.Data[2] ).toVec43f,
+      NewColor( color^.Data[3] ).toVec43f
+    ),
+    tex^.Data[0], tex^.Data[2]
+  );
 end;
 
-procedure TSpriteDataVTC.Resize( newSize: DWord );
+procedure TSpriteDataVTC.PushPart( PosID : DWord; p1,p2 : TGLVec2i; color : PGLRawQColor; aZ : Integer; t1,t2 : TGLVec2f );
+var tp : TGLVec2f;
 begin
-  Reserve( newSize );
-  FSize := newSize;
+  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
+  t1 := ( tp + t1 ) * FTexUnit;
+  t2 := ( tp + t2 ) * FTexUnit;
+
+  FData.PushQuad(
+    TGLVec3i.CreateFrom( p1, aZ ),
+    TGLVec3i.CreateFrom( p2, aZ ),
+    TGLQVec4f.Create(
+      NewColor( color^.Data[0] ).toVec43f,
+      NewColor( color^.Data[1] ).toVec43f,
+      NewColor( color^.Data[2] ).toVec43f,
+      NewColor( color^.Data[3] ).toVec43f
+    ),
+    t1, t2
+  );
 end;
 
-procedure TSpriteDataVTC.Reserve( newCapacity: DWord );
+destructor TSpriteDataVTC.Destroy;
 begin
-  SetLength( FCoords, newCapacity );
-  SetLength( FTexCoords, newCapacity );
-  SetLength( FColors, newCapacity );
-  FCapacity := newCapacity;
-end;
-
-procedure TSpriteDataVTC.Clear;
-begin
-  FSize := 0;
-end;
-
-procedure TSpriteDataVTC.GrowTo( NewSize: DWord );
-begin
-  Reserve( newSize );
+  FreeAndNil( FData );
 end;
 
 { TSpriteEngine }
 
+procedure TSpriteEngine.Update ( aProjection : TMatrix44 );
+var i : Integer;
+begin
+  for i := 0 to 15 do
+    if FProjection[i] <> aProjection[i] then
+    begin
+      FProjection := aProjection;
+      FProgram.Bind;
+      glUniformMatrix4fv( FProgram.GetUniformLocation( 'utransform' ), 1, GL_FALSE, @FProjection[0] );
+      glUniform1i( FProgram.GetUniformLocation('utexture'), 0 );
+      FProgram.UnBind;
+      Exit;
+    end;
+end;
+
 procedure TSpriteEngine.DrawVTC( Data : TSpriteDataVTC );
 begin
-  glEnableClientState( GL_VERTEX_ARRAY );
-  glEnableClientState( GL_TEXTURE_COORD_ARRAY );
-  glEnableClientState( GL_COLOR_ARRAY );
-
-  glVertexPointer( 2, GL_INT, 0, @(Data.FCoords[0]) );
-  glTexCoordPointer( 2, GL_FLOAT, 0, @(Data.FTexCoords[0]) );
-  glColorPointer( 3, GL_UNSIGNED_BYTE, 0, @(Data.FColors[0]) );
-  glDrawArrays( GL_QUADS, 0, Data.FSize*4 );
-
-  glDisableClientState( GL_VERTEX_ARRAY );
-  glDisableClientState( GL_TEXTURE_COORD_ARRAY );
-  glDisableClientState( GL_COLOR_ARRAY );
+  FProgram.Bind;
+  Data.FData.Update;
+  Data.FData.Draw;
+  Data.FData.Clear;
+  FProgram.UnBind;
 end;
 
 procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet; const Tex : TTextureDataSet);
 begin
-  if Data.Normal.Size > 0 then
+  glActiveTexture(0);
+
+  if not Data.Normal.FData.Empty then
   begin
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
     SetTexture( Tex.Normal );
     DrawVTC( Data.Normal );
   end;
 
-  if (Data.Cosplay <> nil) and (Data.Cosplay.Size > 0) then
+  if (Data.Cosplay <> nil) and (not Data.Cosplay.FData.Empty) then
   begin
     glBlendFunc( GL_ONE, GL_ONE );
     SetTexture( Tex.Cosplay );
     DrawVTC( Data.Cosplay );
   end;
 
-  if (Data.Glow <> nil) and (Data.Glow.Size > 0) then
+  if (Data.Glow <> nil) and (not Data.Glow.FData.Empty) then
   begin
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
     SetTexture( Tex.Glow );
     DrawVTC( Data.Glow );
   end;
+
+  glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 
 procedure TSpriteEngine.SetTexture(TexID: DWord);
@@ -305,6 +321,8 @@ var i : Byte;
 begin
   for i := 1 to High(FLayers) do
     FreeAndNil( FLayers[i] );
+  glDeleteVertexArrays(1, @FVAO);
+  FreeAndNil( FProgram );
 end;
 
 constructor TSpriteEngine.Create;
@@ -312,40 +330,26 @@ var i : Byte;
 begin
   for i := 1 to High(FLayers) do
     FLayers[i] := nil;
-  FSpriteRowCount    := 16;
   FGrid.Init( 32, 32 );
-  FTexUnit.Init( 1.0 / FSpriteRowCount, 1.0 / 32 );
   FPos.Init(0,0);
   FCurrentTexture    := 0;
   FLayerCount        := 0;
-  FStaticLayerCount  := 0;
-end;
 
-procedure TSpriteEngine.Clear;
-var i : Byte;
-begin
-  if FLayerCount > 0 then
-  for i := 1 to FLayerCount do
-    FLayers[ i ].Clear;
+  FProgram := TGLProgram.Create( VSpriteVertexShader, VSpriteFragmentShader );
+  glGenVertexArrays(1, @FVAO);
 end;
 
 procedure TSpriteEngine.Draw;
 var i : Byte;
+    c : Byte;
 begin
   FCurrentTexture := 0;
-  glTranslatef( -FPos.X, -FPos.Y, 0.0 );
-  glEnable( GL_TEXTURE_2D );
-  glDisable( GL_DEPTH_TEST );
-  glEnable( GL_BLEND );
-  glColor4f( 1.0, 1.0, 1.0, 1.0 );
-  glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-
+  FProgram.Bind;
+  glUniform3f( FProgram.GetUniformLocation('uposition'), -FPos.X, -FPos.Y, 0 );
   if FLayerCount > 0 then
   for i := 1 to FLayerCount do
     DrawSet( FLayers[ i ], FTextureSet.Layer[ i ] );
-
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-  glTranslatef( FPos.X, FPos.Y, 0.0 );
 end;
 
 initialization

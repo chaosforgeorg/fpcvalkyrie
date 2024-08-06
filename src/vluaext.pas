@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vluaext;
 interface
-uses sysutils, classes, variants, vvector, vlualibrary, typinfo;
+uses sysutils, classes, variants, vvector, vlualibrary, typinfo, vgenerics;
 
 type TOpenByteArray    = array of Byte;
 type TOpenWordArray    = array of Word;
@@ -9,6 +9,9 @@ type TOpenDWordArray   = array of DWord;
 type TOpenIntegerArray = array of Integer;
 type TOpenStringArray  = array of AnsiString;
 type TOpenFloatArray   = array of Single;
+
+type TGStringArray     = specialize TGArray<AnsiString>;
+
 
 
 function  vlua_tostring( L : Plua_State; idx : Integer) : AnsiString;
@@ -68,6 +71,11 @@ function  vlua_tovec4i(L: Plua_State; idx: Integer): TVec4i;
 function  vlua_tovec2b(L: Plua_State; idx: Integer): TVec2b;
 function  vlua_tovec3b(L: Plua_State; idx: Integer): TVec3b;
 function  vlua_tovec4b(L: Plua_State; idx: Integer): TVec4b;
+
+function  vlua_tostringlist( L : Plua_State; Index : Integer ) : TGStringArray;
+function  vlua_newmetatable( L: Plua_State; iName : Ansistring ): Integer;
+function  vlua_getuserdataname( L: Plua_State; Index: Integer ): Ansistring;
+
 
 implementation
 
@@ -217,6 +225,7 @@ function vlua_tabletovararray(L: Plua_State; idx: Integer): Variant;
 var cnt : Integer;
     va  : array of Variant;
 begin
+  va := nil;
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
 
@@ -272,6 +281,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_tobytearray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_tobytearray, cnt+1);
@@ -287,6 +297,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_towordarray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_towordarray, cnt+1);
@@ -302,6 +313,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_todwordarray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_todwordarray, cnt+1);
@@ -317,6 +329,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_tointegerarray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_tointegerarray, cnt+1);
@@ -332,6 +345,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_tostringarray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_tostringarray, cnt+1);
@@ -347,6 +361,7 @@ begin
   idx := lua_absindex( L, idx );
   lua_pushnil(L);
   cnt := 0;
+  vlua_tofloatarray := nil;
   while lua_next(L, idx) <> 0 do
   begin
     SetLength(vlua_tofloatarray, cnt+1);
@@ -430,6 +445,8 @@ end;
 
 procedure vlua_tostream(L: Plua_State; index : Integer; out_stream: TStream);
 var lnumber : LUA_NUMBER;
+    iData   : Pointer;
+    iSize   : Integer;
 begin
   index := lua_absindex(L,index);
   out_stream.WriteByte( lua_type(L, index) );
@@ -439,6 +456,15 @@ begin
     LUA_TTABLE   : vlua_tabletostream( L, index, out_stream );
     LUA_TNUMBER  : begin lnumber := lua_tonumber( L, index ); out_stream.Write( lnumber, sizeof( LUA_NUMBER ) ); end;
     LUA_TNIL     : ;
+    LUA_TUSERDATA: begin
+      out_stream.WriteAnsiString( vlua_getuserdataname( L, index ) );
+      iData := lua_touserdata( L, index );
+      iSize := lua_objlen( L, index );
+      Assert( iData <> nil );
+      Assert( iSize > 0 );
+      out_stream.WriteDWord( DWord( iSize ) );
+      out_stream.Write( iData^, iSize );
+    end;
     else raise ELuaException.Create('Trying to stream improper type : '+lua_typename( L, lua_type(L, -1) )+'!');
   end;
 end;
@@ -446,6 +472,9 @@ end;
 procedure vlua_pushfromstream(L: Plua_State; in_stream: TStream);
 var ltype   : byte;
     lnumber : LUA_NUMBER;
+    iName   : Ansistring;
+    iSize   : DWord;
+    iData   : Pointer;
 begin
   {$HINTS OFF}
   ltype := in_stream.ReadByte();
@@ -455,6 +484,14 @@ begin
     LUA_TNUMBER  : begin in_stream.Read( lnumber, sizeof( LUA_NUMBER ) ); lua_pushnumber( L, lnumber ); end;
     LUA_TTABLE   : begin lua_newtable( L ); vlua_tablefromstream( L, -1, in_stream ); end;
     LUA_TNIL     : lua_pushnil( L );
+    LUA_TUSERDATA: begin
+      iName := in_stream.ReadAnsiString();
+      iSize := in_stream.ReadDWord();
+      iData := lua_newuserdata( L, iSize );
+      in_stream.Read( iData^, iSize );
+      luaL_getmetatable( L, PChar(iName) );
+      lua_setmetatable( L, -2 );
+    end;
     else raise ELuaException.Create('Improper type in stream: '+lua_typename( L, ltype )+'!');
   end;
   {$HINTS ON}
@@ -849,6 +886,44 @@ begin
     lua_pop( L, 1 );
   end;
   lua_pop( L, 1 );
+end;
+
+function vlua_tostringlist( L: Plua_State; Index: Integer ): TGStringArray;
+var i : Integer;
+begin
+  if not lua_istable( L, Index ) then Exit( nil );
+  Result := TGStringArray.Create;
+  if lua_objlen( L, Index ) > 0 then
+  for i := 1 to lua_objlen( L, Index ) do
+  begin
+    lua_rawgeti( L, Index, i );
+    Result.Push( lua_tostring( L, -1 ) );
+    lua_pop( L, 1 );
+  end;
+end;
+
+function vlua_newmetatable( L: Plua_State; iName : Ansistring ): Integer;
+begin
+  Result := luaL_newmetatable( L, PChar(iName) );
+  if Result <> 0 then
+  begin
+    lua_pushstring( L, PChar( iName ) );
+    lua_setfield( L, -2, '__name' );
+  end;
+end;
+
+function vlua_getuserdataname( L: Plua_State; Index: Integer ): Ansistring;
+begin
+  if lua_getmetatable(L, index) then
+  begin
+    Result := '';
+    lua_getfield( L, -1, '__name' );
+    if lua_isstring( L, -1 ) then
+      Result := lua_tostring( L, -1 );
+    lua_pop( L, 2 );
+    Exit(Result);
+  end;
+  Result := '';
 end;
 
 end.

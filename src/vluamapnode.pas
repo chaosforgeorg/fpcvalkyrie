@@ -197,6 +197,7 @@ end;
 procedure TLuaMapNode.ClearEntities;
 var i : DWord;
 begin
+  if FArea.B.X * FArea.B.Y <> 0 then
   for i := 0 to FArea.B.X * FArea.B.Y - 1 do
   begin
     FCellMap[ i ].Being := nil;

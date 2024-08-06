@@ -156,7 +156,6 @@ const VALKYRIE_COORD = 'valkyrie.coord';
       VALKYRIE_POINT = 'valkyrie.point';
       VALKYRIE_RECT  = 'valkyrie.rect';
       VALKYRIE_VEC2D = 'valkyrie.vec2d';
-      VALKYRIE_VEC3D = 'valkyrie.vec3d';
 
 type TLuaCoord = class( TLuaType )
   constructor Create( const aCoord : TCoord2D );
@@ -1871,8 +1870,7 @@ begin
 end;
 
 function lua_kills_index( L: Plua_State ): Integer; cdecl;
-var PPoint : vutil.PPoint;
-    Index  : AnsiString;
+var Index  : AnsiString;
 begin
   Index  := lua_tostring( L, 2 );
        if Index = 'count'                   then lua_pushinteger( L, GKills.Count )
@@ -2160,7 +2158,7 @@ end;
 
 procedure RegisterCoordClass( L: Plua_State );
 begin
-  luaL_newmetatable( L, VALKYRIE_COORD );
+  vlua_newmetatable( L, VALKYRIE_COORD );
   luaL_register( L, nil, coordlib_m );
   luaL_register( L, 'coord', coordlib_f );
 
@@ -2174,7 +2172,7 @@ end;
 
 procedure RegisterAreaClass( L: Plua_State );
 begin
-  luaL_newmetatable( L, VALKYRIE_AREA );
+  vlua_newmetatable( L, VALKYRIE_AREA );
   luaL_register( L, nil, arealib_m );
   luaL_register( L, 'area', arealib_f );
   lua_pop( L, 2 );
@@ -2192,7 +2190,7 @@ end;
 
 procedure RegisterPointClass(L: Plua_State);
 begin
-  luaL_newmetatable( L, VALKYRIE_POINT );
+  vlua_newmetatable( L, VALKYRIE_POINT );
   luaL_register( L, nil, pointlib_m );
   luaL_register( L, 'point', pointlib_f );
 
@@ -2206,7 +2204,7 @@ end;
 
 procedure RegisterRectClass(L: Plua_State);
 begin
-  luaL_newmetatable( L, VALKYRIE_RECT );
+  vlua_newmetatable( L, VALKYRIE_RECT );
   luaL_register( L, nil, rectlib_m );
   luaL_register( L, 'rect', rectlib_f );
   lua_pop( L, 2 );
@@ -2214,7 +2212,7 @@ end;
 
 procedure RegisterVec2dClass( L: Plua_State );
 begin
-  luaL_newmetatable( L, VALKYRIE_VEC2D );
+  vlua_newmetatable( L, VALKYRIE_VEC2D );
   luaL_register( L, nil, vec2dlib_m );
   luaL_register( L, 'vec2d', vec2dlib_f );
 

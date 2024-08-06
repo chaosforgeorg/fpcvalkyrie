@@ -28,8 +28,8 @@ implementation
 
 uses vutil, keyboard, video;
 
-const ColorMask     = $000000FF;
-      ForeColorMask = $0000000F;
+const ForeColorMask = $0000000F;
+      BackColorMask = $000000F0;
 
 constructor TTextConsoleRenderer.Create ( aCols : Word; aRows : Word; aReqCapabilities : TIOConsoleCapSet ) ;
 begin
@@ -41,23 +41,31 @@ begin
   else
     video.SetCursorType( crHidden );
 
-  if (VIO_CON_BGCOLOR in FCapabilities) and (not (VIO_CON_BGSTABLE in FCapabilities))
-    then FOutputCMask := ColorMask
-    else FOutputCMask := ForeColorMask;
+  if VIO_CON_BGCOLOR in FCapabilities then
+    FOutputCMask := ForeColorMask;
 
   FClearCell := Ord(' ')+(LightGray shl 8);
 end;
 
 procedure TTextConsoleRenderer.OutputChar ( x, y : Integer; aColor : TIOColor; aChar : char ) ;
-var iIndex : LongInt;
-    iValue : Word;
+var iIndex     : LongInt;
+    iValue     : Word;
+    iBackColor : TIOColor;
 begin
   if aColor = ColorNone then Exit;
+  if VIO_CON_BGCOLOR in FCapabilities then
+  begin
+    iBackColor := (aColor and BackColorMask) shr 4;
+    if iBackColor <> 0 then
+    begin
+      OutputChar( x, y, aColor mod 16, iBackColor, aChar );
+      Exit;
+    end;
+  end;
   iIndex := (x-1)+(y-1)*ScreenWidth;
   if (iIndex < 0) or (iIndex > FSizeX * FSizeY) then Exit;
   iValue := Ord(aChar) + ((aColor and FOutputCMask) shl 8);
-  if VIO_CON_BGSTABLE in FCapabilities then
-    iValue += (VideoBuf^[iIndex] shr 12) shl 12;
+  iValue += (VideoBuf^[iIndex] shr 12) shl 12;
   VideoBuf^[iIndex] := iValue;
 end;
 
@@ -133,12 +141,16 @@ end;
 procedure TTextConsoleRenderer.ClearRect ( x1, y1, x2, y2 : Integer; aBackColor : TIOColor ) ;
 var x,y    : Word;
     iColor : Word;
+    iValue : Word;
 begin
   if aBackColor = ColorNone then
   begin
     for y := y1 to y2 do
       for x := x1 to x2 do
-        VideoBuf^[(x-1)+(y-1)*ScreenWidth] := ((VideoBuf^[(x-1)+(y-1)*ScreenWidth]) shr 8) shl 8;
+      begin
+        iValue := DWord((VideoBuf^[(x-1)+(y-1)*ScreenWidth]) shr 8) shl 8;
+        VideoBuf^[(x-1)+(y-1)*ScreenWidth] := TVideoCell(iValue);
+      end;
     Exit;
   end;
   iColor := Ord(' ')+LightGray shl 8;
@@ -157,7 +169,7 @@ end;
 
 function TTextConsoleRenderer.GetSupportedCapabilities : TIOConsoleCapSet;
 begin
-  Result := [ VIO_CON_BGCOLOR, VIO_CON_CURSOR, VIO_CON_BGSTABLE ];
+  Result := [ VIO_CON_BGCOLOR, VIO_CON_CURSOR ];
 end;
 
 

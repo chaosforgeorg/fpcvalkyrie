@@ -720,6 +720,7 @@ var iPosition : TUIPoint;
 begin
   iPosition := PointZero;
   iColor    := aColor;
+  Result    := nil;
   ChunkifyEx( Result, iPosition, iColor, aText, aColor, aDimensions );
 end;
 

@@ -279,7 +279,7 @@ begin
       if isEmpty( s, aEmptyFlags ) then
         iList.Add( s, Distance( aCoord, s ) );
 
-  if iList.IsEmpty then raise EPlacementException.Create('TMapArea.Drop(@1,@2) failed!',[aCoord.x, aCoord.y]);
+  if iList.IsEmpty then raise EPlacementException.CreateFmt('TMapArea.Drop(%d,%d) failed!',[aCoord.x, aCoord.y]);
 
   Drop := iList.Return;
   FreeAndNil( iList );

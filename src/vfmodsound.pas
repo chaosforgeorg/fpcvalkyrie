@@ -23,15 +23,13 @@ type
 TFMODSound = class(TSound)
        // Initializes the Sound system.
        constructor Create; override;
-       // Initializes the Sound system.
-       constructor Create( aConfig : TLuaConfig; const aPrefix : AnsiString = 'audio.' );
        // Deinitializes the Sound system.
        destructor Destroy; override;
      protected
        //Last used channel stored for StopSound
        FLastChannel: integer;
        // Open audio device with given parameters
-       function OpenDevice( aFrequency : integer; aMaxChannels : Word; aFlags: Cardinal ) : Boolean;
+       function OpenDevice : Boolean;
        // Implementation of Music Loading
        function LoadMusic( const aFileName : AnsiString; Streamed : Boolean ) : Pointer; override;
        // Implementation of Sound Loading
@@ -71,21 +69,7 @@ begin
   inherited Create;
   LoadFMOD;
 
-  if not OpenDevice(44100, 32, 0) then
-  begin
-    raise Exception.Create('FMODInit Failed -- '+GetError());
-    FSOUND_Close();
-  end;
-end;
-
-constructor TFMODSound.Create(aConfig: TLuaConfig; const aPrefix: AnsiString);
-begin
-  inherited Create;
-  LoadFMOD;
-  if not OpenDevice(
-    aConfig.Configure( aPrefix + 'frequency', 44100 ),
-    aConfig.Configure( aPrefix + 'fmod_mix_channels', 32 ),
-    aConfig.Configure( aPrefix + 'fmod_flags', 0 )) then
+  if not OpenDevice then
   begin
     raise Exception.Create('FMODInit Failed -- '+GetError());
     FSOUND_Close();
@@ -99,10 +83,10 @@ begin
     FSOUND_Close();
 end;
 
-function TFMODSound.OpenDevice(aFrequency: integer; aMaxChannels: Word; aFlags: Cardinal): Boolean;
+function TFMODSound.OpenDevice : Boolean;
 begin
-  Log( LOGINFO, 'Opening FMOD... ( frequency %d, max_channels %d, flags %d )', [ aFrequency, aMaxChannels, aFlags ] );
-  if not FSOUND_Init(44100, 32, 0) then
+  Log( LOGINFO, 'Opening FMOD...);
+  if not FSOUND_Init(44100, 32, FSOUND_INIT_USEDEFAULTMIDISYNTH) then
   begin
     Log( LOGERROR, 'FSOUND_Init failed, error : ' + GetError() );
     Exit( False );
@@ -235,9 +219,9 @@ begin
 procedure TFMODSound.VolumeMusic(aData: Pointer; const aType : string; aVolume: Byte );
 begin
   if ( aType = '.mp3' ) or ( aType = '.ogg' ) or ( aType = '.wav' ) then
-    FMUSIC_SetMasterVolume(aData, aVolume)
+    FSOUND_SetVolume(31, aVolume)
   else
-    FSOUND_SetVolume(31, aVolume);
+    FMUSIC_SetMasterVolume(aData, aVolume);
 end;
 
 end.

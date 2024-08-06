@@ -299,7 +299,7 @@ end;
 
 implementation
 
-uses strutils, vluaui, vutil, vmath;
+uses strutils, vluaext, vutil, vmath;
 
 { TUICustomPager }
 

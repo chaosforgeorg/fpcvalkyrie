@@ -8,11 +8,9 @@ type TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
   procedure FullUpdate; virtual;
   procedure Update( aMSec : DWord ); virtual;
-  function BreakUILoop( aSender : TUIElement ) : Boolean; virtual;
-  function EventFreeElement( aSender : TUIElement ) : Boolean;
-  function EventPending : Boolean;
   procedure Delay( aTime : Integer );
   procedure ClearEventBuffer;
+  function OnEvent( const event : TIOEvent ) : Boolean; virtual;
   function RunUILoop( aElement : TUIElement = nil ) : DWord; virtual;
   procedure SetUILoopResult( aResult : DWord );
   function HandleEvents : Boolean; virtual;
@@ -94,21 +92,9 @@ begin
   FConsole.Update;
 end;
 
-function TIO.BreakUILoop ( aSender : TUIElement ) : Boolean;
+function TIO.OnEvent( const event : TIOEvent ) : Boolean;
 begin
-  FUILoop := False;
-  Exit( True );
-end;
-
-function TIO.EventFreeElement ( aSender : TUIElement ) : Boolean;
-begin
-  FreeAndNil( aSender );
-  Exit( True );
-end;
-
-function TIO.EventPending : Boolean;
-begin
-  Exit( FIODriver.EventPending );
+  Exit( False );
 end;
 
 function TIO.RunUILoop ( aElement : TUIElement ) : DWord;
@@ -144,7 +130,7 @@ var iEvent : TIOEvent;
 begin
   HandleEvents := False;
   while FIODriver.PollEvent( iEvent ) do
-    HandleEvents := FUIRoot.OnEvent( iEvent ) or HandleEvents;
+    HandleEvents := OnEvent( iEvent ) or FUIRoot.OnEvent( iEvent ) or HandleEvents;
 end;
 
 procedure TIO.ClearEventBuffer;

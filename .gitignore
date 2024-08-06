@@ -1,0 +1,4 @@
+*.o
+*.ppu
+libs/backup/
+src/backup/

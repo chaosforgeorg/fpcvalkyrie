@@ -216,6 +216,10 @@ TLuaTable = class(TVObject)
   function IsRect( const aKey : AnsiString ) : Boolean;
   function IsFunction( const aKey : AnsiString ) : Boolean;
 
+  function IsNil( aKey : Integer ) : Boolean;
+  function IsNumber( aKey : Integer ) : Boolean;
+  function IsTable( aKey : Integer ) : Boolean;
+
   procedure SetInteger( const aKey : AnsiString; aValue : LongInt );
   procedure SetFloat( const aKey : AnsiString; aValue : Double );
   procedure SetString( const aKey : AnsiString; const aValue : AnsiString );
@@ -250,6 +254,7 @@ private
   procedure RunGetField( const aKey : AnsiString; ReqType : Byte ); inline;
   function TryGetField( const aKey : AnsiString; ReqType : Byte ) : Boolean; inline;
   function IsField( const aKey : AnsiString; ReqType : Byte ) : Boolean; inline;
+  function IsField( aKey : Integer; ReqType : Byte ) : Boolean; inline;
 private
   FClear : Integer;
   FState : PLua_State;
@@ -1124,6 +1129,29 @@ begin
   Reset;
 end;
 
+function TLuaTable.IsNil( aKey : Integer ) : Boolean;
+begin
+  Push;
+  lua_pushinteger( FState, aKey );
+  lua_gettable( FState, -2 );
+  Result := lua_isnoneornil( FState, -1 );
+  Reset;
+end;
+
+function TLuaTable.IsNumber( aKey : Integer ) : Boolean;
+begin
+  Push;
+  Result := IsField( aKey, LUA_TNUMBER );
+  Reset;
+end;
+
+function TLuaTable.IsTable( aKey : Integer ) : Boolean;
+begin
+  Push;
+  Result := IsField( aKey, LUA_TTABLE );
+  Reset;
+end;
+
 procedure TLuaTable.SetInteger ( const aKey : AnsiString; aValue : LongInt ) ;
 begin
   Push;
@@ -1321,6 +1349,13 @@ end;
 function TLuaTable.IsField ( const aKey : AnsiString; ReqType : Byte ) : Boolean;
 begin
   lua_getfield( FState, -1, PChar( aKey ) );
+  Exit( lua_type( FState, -1 ) = ReqType );
+end;
+
+function TLuaTable.IsField ( aKey : Integer; ReqType : Byte ) : Boolean;
+begin
+  lua_pushinteger( FState, aKey );
+  lua_gettable( FState, -2 );
   Exit( lua_type( FState, -1 ) = ReqType );
 end;
 

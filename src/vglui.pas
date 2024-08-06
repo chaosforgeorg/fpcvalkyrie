@@ -2,21 +2,23 @@
 unit vglui;
 interface
 uses Classes, SysUtils, vutil, viotypes, vioevent, vioconsole, vuitypes,
-     vuielement, vuielements, vgltypes, vglquadsheet, vbitmapfont;
+     vuielement, vuielements, vgltypes, vglquadrenderer, vglquadarrays, vbitmapfont;
+
+const VGLUI_Z = 0; // Be sure to adjust ortho if changing
 
 type TGLUILabel      = class( TUICustomLabel )
-  constructor Create( aParent : TUIElement; aTarget : TGLQuadSheet; aFont : TBitmapFont; const aPos : TUIPoint; const aText : TUIString );
+  constructor Create( aParent : TUIElement; aTarget : TGLQuadList; aFont : TBitmapFont; const aPos : TUIPoint; const aText : TUIString );
   procedure OnRedraw; override;
   procedure SetText( const aText : TUIString ); override;
 protected
-  FQuadList : TGLTexturedQuadList;
-  FTarget   : TGLQuadSheet;
+  FQuadList : TGLTexturedColoredQuads;
+  FTarget   : TGLQuadList;
   FBFont    : TBitmapFont;
   FGLPos    : TGLVec2i;
 end;
 
 type TGLUIMessages      = class( TUICustomMessages )
-  constructor Create( aParent : TUIElement; aTarget : TGLQuadSheet; aFont : TBitmapFont; const aPos : TUIPoint ); reintroduce;
+  constructor Create( aParent : TUIElement; aTarget : TGLQuadList; aFont : TBitmapFont; const aPos : TUIPoint ); reintroduce;
   procedure Add( const aMessage : Ansistring ); override;
   procedure Update; override;
   procedure Clear; override;
@@ -24,14 +26,14 @@ type TGLUIMessages      = class( TUICustomMessages )
 protected
   function Chunkify( const aString : AnsiString; aStart : Integer; aColor : TUIColor = ColorNone ) : TUIChunkBuffer; override;
 protected
-  FQuadList  : TGLTexturedQuadList;
+  FQuadList  : TGLTexturedColoredQuads;
   FLines     : DWord;
-  FTarget    : TGLQuadSheet;
+  FTarget    : TGLQuadList;
   FBFont     : TBitmapFont;
   FGLPos     : TGLVec2i;
 end;
 
-procedure TextToQuadList ( aList : TGLTexturedQuadList; const aText : AnsiString; aColor : TGLVec4f; aPosition : TGLVec2i; aFont : TBitmapFont; aSize : Byte = 1 );
+procedure TextToQuadList ( aList : TGLTexturedColoredQuads; const aText : AnsiString; aColor : TGLVec4f; aPosition : TGLVec2i; aFont : TBitmapFont; aSize : Byte = 1 );
 
 implementation
 
@@ -42,7 +44,7 @@ begin
   if aColor < 16 then Exit( GLFloatColors4[ aColor ] );
 end;
 
-procedure TextToQuadList ( aList : TGLTexturedQuadList; const aText : AnsiString; aColor : TGLVec4f;
+procedure TextToQuadList ( aList : TGLTexturedColoredQuads; const aText : AnsiString; aColor : TGLVec4f;
   aPosition : TGLVec2i; aFont : TBitmapFont; aSize : Byte = 1 );
 var iPosition : TGLVec2i;
     iGPos     : TGLVec2i;
@@ -50,6 +52,10 @@ var iPosition : TGLVec2i;
     iTexQuad  : TGLRawQTexCoord;
     iSize     : TGLVec2i;
     iLength   : DWord;
+  function To3D( aIn : TGLVec2i ) : TGLVec3i;
+  begin
+    Result.Init( aIn.X, aIn.Y, VGLUI_Z );
+  end;
 begin
   iPosition := aPosition;
   iSize.Init( aSize, aSize );
@@ -59,7 +65,11 @@ begin
   begin
     aFont.SetTexCoord( iTexQuad, aText[iCount] );
     iGPos := aFont.GetPosition( aText[iCount] );
-    aList.PostQuad( iPosition + iGPos, iPosition + iGPos + aFont.GetSize( aText[iCount] ) * iSize, TGLVec4f.Create(1,1,0,1){aColor}, iTexQuad );
+    aList.PushQuad(
+      To3D( iPosition + iGPos ),
+      To3D( iPosition + iGPos + aFont.GetSize( aText[iCount] ) * iSize ),
+      TGLVec4f.Create(1,1,0,1){aColor}, iTexQuad.Data[0], iTexQuad.Data[2]
+      );
     if iCount < iLength then
       iPosition.X := iPosition.X + aFont.GetKerning( aText[iCount], aText[iCount+1] );
   end;
@@ -67,12 +77,12 @@ end;
 
 { TGLUIMessages }
 
-constructor TGLUIMessages.Create( aParent : TUIElement; aTarget : TGLQuadSheet; aFont : TBitmapFont; const aPos : TUIPoint );
+constructor TGLUIMessages.Create( aParent : TUIElement; aTarget : TGLQuadList; aFont : TBitmapFont; const aPos : TUIPoint );
 begin
   inherited Create( aParent, aParent.GetAvailableDim, 2, nil );
   FBFont := aFont;
   FTarget := aTarget;
-  FQuadList := TGLTexturedQuadList.Create;
+  FQuadList := TGLTexturedColoredQuads.Create;
   FGLPos.Init( 10, 10 );
   FLines := 0;
 end;
@@ -110,7 +120,7 @@ end;
 
 { TGLUILabel }
 
-constructor TGLUILabel.Create ( aParent : TUIElement; aTarget : TGLQuadSheet; aFont : TBitmapFont; const aPos : TUIPoint; const aText : TUIString );
+constructor TGLUILabel.Create ( aParent : TUIElement; aTarget : TGLQuadList; aFont : TBitmapFont; const aPos : TUIPoint; const aText : TUIString );
 begin
   FQuadList := nil;
   FTarget   := aTarget;
@@ -124,7 +134,7 @@ procedure TGLUILabel.OnRedraw;
 begin
   if FQuadList = nil then
   begin
-    FQuadList := TGLTexturedQuadList.Create;
+    FQuadList := TGLTexturedColoredQuads.Create;
     SetText( FText );
   end;
   inherited OnRedraw;

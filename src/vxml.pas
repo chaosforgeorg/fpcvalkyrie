@@ -108,9 +108,7 @@ begin
   MDUpdate( iContext, PChar(iMark)^, length(iMark));
   iMark := aKey2;
   MDUpdate( iContext, PChar(iMark)^, length(iMark));
-  {$HINT OFF}
   MDFinal( iContext, iDigest );
-  {$HINT ON}
   CRC := MD5Print( iDigest );
 end;
 

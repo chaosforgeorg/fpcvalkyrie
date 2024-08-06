@@ -16,21 +16,23 @@ type TConUIRoot = class( TUIRoot )
   function DeviceCoordToConsoleCoord( aCoord : TPoint ) : TPoint;
   function ConsoleCoordToDeviceCoord( aCoord : TPoint ) : TPoint;
 private
-  FConsole     : TUIConsole;
-  FRenderer    : TIOConsoleRenderer;
-  FNeedRedraw  : Boolean;
-  FDeviceArea  : TUIRect;
-  FConsoleArea : TUIRect;
-  FDeviceDim   : TUIRect;
-  FConsoleDim  : TUIRect;
-  FCellX       : Integer;
-  FCellY       : Integer;
-  FAreaMatch   : Boolean;
+  FConsole        : TUIConsole;
+  FRenderer       : TIOConsoleRenderer;
+  FNeedRedraw     : Boolean;
+  FDeviceArea     : TUIRect;
+  FConsoleArea    : TUIRect;
+  FDeviceDim      : TUIRect;
+  FConsoleDim     : TUIRect;
+  FCellX          : Integer;
+  FCellY          : Integer;
+  FAreaMatch      : Boolean;
+  FUpdateOnRender : Boolean;
 public
-  property Console  : TUIConsole         read FConsole;
-  property Renderer : TIOConsoleRenderer read FRenderer;
-  property NeedRedraw : Boolean          read FNeedRedraw write FNeedRedraw;
-  property DeviceArea : TUIRect          read FDeviceArea;
+  property UpdateOnRender : Boolean      write FUpdateOnRender;
+  property Console  : TUIConsole         read  FConsole;
+  property Renderer : TIOConsoleRenderer read  FRenderer;
+  property NeedRedraw : Boolean          read  FNeedRedraw write FNeedRedraw;
+  property DeviceArea : TUIRect          read  FDeviceArea;
 end;
 
 type TConUILabel      = class( TUICustomLabel )
@@ -408,7 +410,7 @@ end;
 procedure TConUIMenu.RecalcDimensions;
 begin
   inherited RecalcDimensions;
-  FVisibleCount := Min( Max(FCount, FVisibleCount), FAbsolute.h );
+  FVisibleCount := Min( LongInt( Max(FCount, FVisibleCount) ), FAbsolute.h );
 end;
 
 { TConUIStringList }
@@ -426,7 +428,7 @@ begin
   iCon.Init( TConUIRoot(FRoot).Renderer );
   iCon.ClearRect( FAbsolute, FBackColor );
   if (FContent <> nil) and (FContent.Size > 0) then
-  for c := 1+FScroll to Min( FScroll+FVisibleCount, FContent.Size ) do
+  for c := 1+FScroll to Min( LongInt( FScroll+FVisibleCount ), FContent.Size ) do
      if ( FExStyle ) then
        iCon.PrintEx( FAbsolute.Pos + Point(0,c-1-FScroll), FOffset, FFont, FForeColor, FBackColor, FContent[ c-1 ], FCodedContent )
      else
@@ -456,7 +458,7 @@ begin
   iCon.Init( TConUIRoot(FRoot).Renderer );
   iCon.ClearRect( FAbsolute, FBackColor );
   if (FContent <> nil) and (FContent.Size > 0) then
-  for c := 1+FScroll to Min( FScroll+FVisibleCount, FContent.Size ) do
+  for c := 1+FScroll to Min( LongInt( FScroll+FVisibleCount ), FContent.Size ) do
      if ( FExStyle ) then
        iCon.PrintEx( FAbsolute.Pos + Point(0,c-1-FScroll), FOffset, FFont, FForeColor, FBackColor, FContent[ c-1 ], FCodedContent )
      else
@@ -485,7 +487,7 @@ begin
   iCon.Init( TConUIRoot(FRoot).Renderer );
   iCon.ClearRect( FAbsolute, FBackColor );
   if (FContent <> nil) and (FContent.Size > 0) then
-  for c := 1+FScroll to Min( FScroll+FVisibleCount, FContent.Size ) do
+  for c := 1+FScroll to Min( LongInt( FScroll+FVisibleCount ), FContent.Size ) do
      iCon.Print( FAbsolute.Pos + Point(0,c-1-FScroll), FContent[ c-1 ], FForeColor, FBackColor, FAbsolute );
 end;
 
@@ -513,7 +515,7 @@ begin
   inherited OnRedraw;
   iCon.Init( TConUIRoot(FRoot).Renderer );
   iCon.ClearRect( FAbsolute, FBackColor );
-  iMax := Min( FScroll+FVisibleCount, FContent.Size );
+  iMax := Min( LongInt( FScroll+FVisibleCount ), FContent.Size );
   if FContent.Size > 0 then
   for i := 1+FScroll to iMax do
   begin
@@ -530,8 +532,9 @@ var iCon       : TUIConsole;
     iColor     : TUIColor;
 begin
   iCon.Init( TConUIRoot(FRoot).Renderer );
-  iPosition := Point(aStart,0);
-  iColor    := aColor;
+  iPosition  := Point(aStart,0);
+  iColor     := aColor;
+  iChunkList := nil;
   iCon.ChunkifyEx( iChunkList, iPosition, iColor, aString, iColor, Dim );
   Exit( iCon.LinifyChunkList( iChunkList ) );
 end;
@@ -589,8 +592,8 @@ function TConUIConsole.OnKeyDown ( const event : TIOKeyEvent ) : Boolean;
 begin
   if FHistory <> nil then
   case event.Code of
-    VKEY_UP   : if FHPos < FHistory.Size then begin Inc( FHPos ); FInput.Input := FHistory.Get( -FHPos ); Exit( True ); end;
-    VKEY_DOWN : if FHPos > 1             then begin Dec( FHPos ); FInput.Input := FHistory.Get( -FHPos ); Exit( True ); end;
+    VKEY_UP   : if FHPos < FHistory.Size then begin Inc( FHPos ); FInput.Input := FHistory.Get( -FHPos ); FInput.SetCursorPosition( Length( FInput.Input ) + 1 ); Exit( True ); end;
+    VKEY_DOWN : if FHPos > 1             then begin Dec( FHPos ); FInput.Input := FHistory.Get( -FHPos ); FInput.SetCursorPosition( Length( FInput.Input ) + 1 ); Exit( True ); end;
   end;
   Result := inherited OnKeyDown ( event ) ;
 end;
@@ -621,6 +624,7 @@ begin
 
   if FStyle = nil then LoadDefaultStyle;
 
+  FUpdateOnRender := True;
   DeviceChanged;
 end;
 
@@ -676,7 +680,8 @@ end;
 procedure TConUIRoot.Render;
 begin
   inherited Render( FNeedRedraw or FDirty );
-  FConsole.Update;
+  if FUpdateOnRender then
+    FConsole.Update;
 end;
 
 function TConUIRoot.OnEvent ( const event : TIOEvent ) : Boolean;

@@ -2,7 +2,7 @@
 unit vglprogram;
 interface
 
-uses Classes, SysUtils, vgltypes;
+uses Classes, SysUtils;
 
 type
 
@@ -13,6 +13,10 @@ type
   procedure Bind;
   function GetAttribLocation( const aName : AnsiString ) : Integer;
   function GetUniformLocation( const aName : AnsiString ) : Integer;
+  procedure SetUniformi( const aName : AnsiString; aX : Integer );
+  procedure SetUniformi( const aName : AnsiString; aX, aY : Integer );
+  procedure SetUniformf( const aName : AnsiString; aX : Real );
+  procedure SetUniformf( const aName : AnsiString; aX, aY : Real );
   procedure UnBind;
   destructor Destroy; override;
 private
@@ -28,11 +32,9 @@ function SlurpFile( const aFileName : AnsiString ) : AnsiString;
 
 implementation
 
-uses vdebug, vgl2library;
+uses vutil, vdebug, vgl3library;
 
 function SlurpFile(const aFileName: AnsiString): AnsiString;
-var
-  iFileStream : TFileStream;
 begin
   Result := '';
   with TFileStream.Create(aFileName, fmOpenRead or fmShareDenyWrite) do
@@ -81,6 +83,38 @@ begin
     Log( 'Could not bind attribute '+aName+'!');
 end;
 
+procedure TGLProgram.SetUniformi( const aName : AnsiString; aX : Integer );
+var iLocation : Integer;
+begin
+  iLocation := GetUniformLocation( aName );
+  if iLocation <> -1 then
+    glUniform1i( iLocation, aX );
+end;
+
+procedure TGLProgram.SetUniformi( const aName : AnsiString; aX, aY : Integer );
+var iLocation : Integer;
+begin
+  iLocation := GetUniformLocation( aName );
+  if iLocation <> -1 then
+    glUniform2i( iLocation, aX, aY );
+end;
+
+procedure TGLProgram.SetUniformf( const aName : AnsiString; aX : Real );
+var iLocation : Integer;
+begin
+  iLocation := GetUniformLocation( aName );
+  if iLocation <> -1 then
+    glUniform1f( iLocation, aX );
+end;
+
+procedure TGLProgram.SetUniformf( const aName : AnsiString; aX, aY : Real );
+var iLocation : Integer;
+begin
+  iLocation := GetUniformLocation( aName );
+  if iLocation <> -1 then
+    glUniform2f( iLocation, aX, aY );
+end;
+
 destructor TGLProgram.Destroy;
 begin
   inherited Destroy;
@@ -104,11 +138,13 @@ begin
   glGetProgramiv( FProgramID, GL_LINK_STATUS, @iCompileOK);
   if iCompileOK = 0 then
   begin
+    iBuffer := '';
     SetLength( iBuffer, 1024 );
     glGetProgramInfoLog( FProgramID, 1024, @iLength, PChar(iBuffer) );
     SetLength( iBuffer, iLength );
     Log( 'glLinkProgram failure : '+ iBuffer );
   end;
+  Log( 'Program compiled successfuly.' );
 end;
 
 function TGLProgram.CompileShader( aType: Cardinal; const aSource: Ansistring ): Cardinal;
@@ -129,11 +165,14 @@ begin
   glGetShaderiv( iShaderID, GL_COMPILE_STATUS, @iCompileOK );
   if iCompileOK = 0 then
   begin
+    iBuffer := '';
     SetLength( iBuffer, 1024 );
     glGetShaderInfoLog( iShaderID, 1024, @iLength, PChar(iBuffer) );
     SetLength( iBuffer, iLength );
-    Log( 'Shader compile failure : '+ iBuffer );
-    Exit(0);
+    Log( aSource );
+    Log( LogError, 'Shader compile failure : '+ iBuffer );
+    Readln;
+    Exit( 0 );
   end;
   Log( 'Shader compiled successfuly.' );
   Exit( iShaderID );
