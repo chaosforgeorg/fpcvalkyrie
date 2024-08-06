@@ -11,9 +11,9 @@ const
   FMOD2DefaultPath = 'fmod64.dll';
 {$ELSE}
   {$IFDEF DARWIN}
-  FMODDefaultPath = 'libfmod.dylib';
+  FMOD2DefaultPath = 'libfmod.dylib';
   {$ELSE}
-  FMODDefaultPath = 'libfmod.so';
+  FMOD2DefaultPath = 'libfmod.so';
   {$ENDIF}
 {$ENDIF}
 
