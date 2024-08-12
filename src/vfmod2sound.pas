@@ -246,6 +246,7 @@ end;
 
 procedure TFMOD2Sound.PlayMusic(aData: Pointer; const aType : string; aRepeat: Boolean);
 begin
+  FMOD_ChannelGroup_SetVolume( GGroupMusic, Single( Min( MusicVolume, 128 ) / 128.0 ) );
   if aRepeat
     then FMOD_Sound_SetLoopCount( PFMOD_SOUND(aData), -1 )
     else FMOD_Sound_SetLoopCount( PFMOD_SOUND(aData), 0 );
