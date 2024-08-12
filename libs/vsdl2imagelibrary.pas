@@ -103,7 +103,6 @@ var
   IMG_LoadAnimationTyped_RW       : function (src: PSDL_RWops; freesrc: Integer; const _type: PChar): PIMG_Animation; cdecl;
   IMG_FreeAnimation               : procedure (anim: PIMG_Animation); cdecl;
   IMG_LoadGIFAnimation_RW         : function (src: PSDL_RWops): PIMG_Animation; cdecl;
-  IMG_LoadWEBPAnimation_RW        : function (src: PSDL_RWops): PIMG_Animation; cdecl;
 
 var
   SDL2_image : TLibrary = nil;
@@ -184,7 +183,6 @@ begin
   Pointer(IMG_LoadAnimationTyped_RW) := GetSymbol('IMG_LoadAnimationTyped_RW');
   Pointer(IMG_FreeAnimation) := GetSymbol('IMG_FreeAnimation');
   Pointer(IMG_LoadGIFAnimation_RW) := GetSymbol('IMG_LoadGIFAnimation_RW');
-  Pointer(IMG_LoadWEBPAnimation_RW) := GetSymbol('IMG_LoadWEBPAnimation_RW');
 
   Exit( True );
 end;
