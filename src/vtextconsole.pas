@@ -43,7 +43,7 @@ begin
   FCY := -1;
   if VIO_CON_CURSOR in FCapabilities then
   begin
-    SetCursorType( VIO_CURSOR_SMALL )
+    SetCursorType( VIO_CURSOR_SMALL );
     FCursorVisible := True;
   end
   else
