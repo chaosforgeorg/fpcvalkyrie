@@ -20,8 +20,10 @@ type TTextConsoleRenderer = class( TIOConsoleRenderer )
   function GetDeviceArea : TIORect; override;
   function GetSupportedCapabilities : TIOConsoleCapSet; override;
 private
-  FClearCell   : Word;
-  FOutputCMask : DWord;
+  FClearCell     : Word;
+  FOutputCMask   : DWord;
+  FCursorVisible : Boolean;
+  FCX, FCY       : Integer;
 end;
 
 implementation
@@ -36,10 +38,19 @@ begin
   Log('Initializing Text Console Renderer...');
   inherited Create( aCols, aRows, aReqCapabilities );
 
+  FCursorType    := VIO_CURSOR_SMALL;
+  FCX := -1;
+  FCY := -1;
   if VIO_CON_CURSOR in FCapabilities then
+  begin
     SetCursorType( VIO_CURSOR_SMALL )
+    FCursorVisible := True;
+  end
   else
+  begin
     video.SetCursorType( crHidden );
+    FCursorVisible := False;
+  end;
 
   if VIO_CON_BGCOLOR in FCapabilities then
     FOutputCMask := ForeColorMask;
@@ -100,30 +111,46 @@ end;
 
 procedure TTextConsoleRenderer.MoveCursor ( x, y : Integer ) ;
 begin
-  if VIO_CON_CURSOR in FCapabilities then
-    SetCursorPos(x-1,y-1);
+  if ( FCX <> x ) or ( FCY <> Y ) then
+  begin
+    if VIO_CON_CURSOR in FCapabilities then
+      SetCursorPos(x-1,y-1);
+    FCX := x;
+    FCY := y;
+  end;
 end;
 
 procedure TTextConsoleRenderer.ShowCursor;
 begin
-  if VIO_CON_CURSOR in FCapabilities then
-    SetCursorType( FCursorType );
+  if not FCursorVisible then
+  begin
+    if VIO_CON_CURSOR in FCapabilities then
+      SetCursorType( FCursorType );
+    FCursorVisible := True;
+  end;
 end;
 
 procedure TTextConsoleRenderer.HideCursor;
 begin
-  video.SetCursorType( crHidden );
+  if FCursorVisible then
+  begin
+    video.SetCursorType( crHidden );
+    FCursorVisible := False;
+  end;
 end;
 
 procedure TTextConsoleRenderer.SetCursorType ( aType : TIOCursorType ) ;
 begin
   if VIO_CON_CURSOR in FCapabilities then
   begin
-    FCursorType  := aType;
-    case aType of
-      VIO_CURSOR_SMALL : video.SetCursorType( crUnderLine );
-      VIO_CURSOR_HALF  : video.SetCursorType( crHalfBlock );
-      VIO_CURSOR_BLOCK : video.SetCursorType( crBlock );
+    if ( FCursorType <> aType ) then
+    begin
+      case aType of
+        VIO_CURSOR_SMALL : video.SetCursorType( crUnderLine );
+        VIO_CURSOR_HALF  : video.SetCursorType( crHalfBlock );
+        VIO_CURSOR_BLOCK : video.SetCursorType( crBlock );
+      end;
+      FCursorType := aType;
     end;
   end;
 end;

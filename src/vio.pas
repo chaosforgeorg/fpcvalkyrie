@@ -25,7 +25,6 @@ protected
   FUIRoot         : TConUIRoot;
   FConsole        : TIOConsoleRenderer;
   FConsoleWindow  : TConUIConsole;
-  FStoredCursor   : Boolean;
 
   FLastUpdate     : DWord;
   FUILoop         : Boolean;
