@@ -205,7 +205,6 @@ procedure TTIGIOState.Clear;
 begin
   if not Assigned( FRenderer ) then Exit;
   FRenderer.Clear;
-  FRenderer.HideCursor;
   FRenderer.Update;
 end;
 

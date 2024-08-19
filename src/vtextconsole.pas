@@ -38,7 +38,7 @@ begin
   Log('Initializing Text Console Renderer...');
   inherited Create( aCols, aRows, aReqCapabilities );
 
-  FCursorType    := VIO_CURSOR_SMALL;
+  FCursorType := VIO_CURSOR_BLOCK;
   FCX := -1;
   FCY := -1;
   if VIO_CON_CURSOR in FCapabilities then
@@ -48,6 +48,7 @@ begin
   end
   else
   begin
+    FCursorType    := VIO_CURSOR_SMALL;
     video.SetCursorType( crHidden );
     FCursorVisible := False;
   end;
@@ -143,15 +144,12 @@ procedure TTextConsoleRenderer.SetCursorType ( aType : TIOCursorType ) ;
 begin
   if VIO_CON_CURSOR in FCapabilities then
   begin
-    if ( FCursorType <> aType ) then
-    begin
-      case aType of
-        VIO_CURSOR_SMALL : video.SetCursorType( crUnderLine );
-        VIO_CURSOR_HALF  : video.SetCursorType( crHalfBlock );
-        VIO_CURSOR_BLOCK : video.SetCursorType( crBlock );
-      end;
-      FCursorType := aType;
+    case aType of
+      VIO_CURSOR_SMALL : video.SetCursorType( crUnderLine );
+      VIO_CURSOR_HALF  : video.SetCursorType( crHalfBlock );
+      VIO_CURSOR_BLOCK : video.SetCursorType( crBlock );
     end;
+    FCursorType := aType;
   end;
 end;
 
