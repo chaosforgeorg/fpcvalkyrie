@@ -205,7 +205,6 @@ procedure TTIGIOState.Clear;
 begin
   if not Assigned( FRenderer ) then Exit;
   FRenderer.Clear;
-  FRenderer.HideCursor;
   FRenderer.Update;
 end;
 
@@ -227,9 +226,7 @@ begin
   begin
     FRenderer.ShowCursor;
     FRenderer.MoveCursor( aData.FCursorPosition.X, aData.FCursorPosition.Y );
-  end
-  else
-    FRenderer.HideCursor;
+  end;
 
   for iList in aData.FLists do
     for iCmd in iList.FCommands do

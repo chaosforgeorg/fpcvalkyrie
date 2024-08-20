@@ -41,7 +41,9 @@ procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor
 procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0 ); overload;
 procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0 ); overload;
 procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0 ); overload;
-procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor; aBGColor : TIOColor );
+procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor );
+procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint );
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 function VTIG_Length( const aText: AnsiString ) : Integer;
@@ -956,12 +958,24 @@ begin
   VTIG_RenderText( aText, iStart, iClip, aParams );
 end;
 
-procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor; aBGColor : TIOColor );
 begin
-  if aColor = 0   then aColor   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
-  if aBGColor = 0 then aBGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
   GCtx.Color   := aColor;
   GCtx.BGColor := aBGColor;
+  VTIG_RenderChar( aChar, aPos );
+end;
+
+procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor );
+begin
+  GCtx.Color   := aColor;
+  GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
+  VTIG_RenderChar( aChar, aPos );
+end;
+
+procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint );
+begin
+  GCtx.Color   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+  GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
   VTIG_RenderChar( aChar, aPos );
 end;
 

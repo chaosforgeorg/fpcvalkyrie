@@ -158,6 +158,7 @@ end;
 
 procedure TSDLSound.PlayMusic(aData: Pointer; const aType : string; aRepeat: Boolean);
 begin
+  Mix_VolumeMusic(MusicVolume);
   if aRepeat then
     Mix_PlayMusic( PMix_Music(aData), -1 )
   else
