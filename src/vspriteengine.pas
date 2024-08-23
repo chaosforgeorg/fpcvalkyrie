@@ -36,18 +36,18 @@ type
 { TSpriteDataSet }
 
 TSpriteDataSet = class
-  Normal  : TSpriteDataVTC;
-  Cosplay : TSpriteDataVTC;
-  Glow    : TSpriteDataVTC;
-
-  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : TTexture );
+  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : TTexture; aOrder : Integer );
   destructor Destroy; override;
-end;
-
-type TTextureDataSet = record
-  Normal  : DWord;
-  Cosplay : DWord;
-  Glow    : DWord;
+private
+  FNormal  : TSpriteDataVTC;
+  FCosplay : TSpriteDataVTC;
+  FGlow    : TSpriteDataVTC;
+  FOrder   : Integer;
+public
+  property Normal  : TSpriteDataVTC read FNormal;
+  property Cosplay : TSpriteDataVTC read FCosplay;
+  property Glow    : TSpriteDataVTC read FGlow;
+  property Order   : Integer read FOrder;
 end;
 
 type
@@ -118,22 +118,24 @@ VSpriteFragmentShader : Ansistring =
 
 { TSpriteDataSet }
 
-constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : TTexture );
+constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : TTexture; aOrder : Integer );
 begin
-  Normal  := nil;
-  Cosplay := nil;
-  Glow    := nil;
+  FNormal  := nil;
+  FCosplay := nil;
+  FGlow    := nil;
 
-  if aNormal  <> nil then Normal  := TSpriteDataVTC.Create( aEngine, aNormal );
-  if aCosplay <> nil then Cosplay := TSpriteDataVTC.Create( aEngine, aCosplay );
-  if aGlow    <> nil then Glow    := TSpriteDataVTC.Create( aEngine, aGlow );
+  if aNormal  <> nil then FNormal  := TSpriteDataVTC.Create( aEngine, aNormal );
+  if aCosplay <> nil then FCosplay := TSpriteDataVTC.Create( aEngine, aCosplay );
+  if aGlow    <> nil then FGlow    := TSpriteDataVTC.Create( aEngine, aGlow );
+
+  FOrder := aOrder;
 end;
 
 destructor TSpriteDataSet.Destroy;
 begin
-  FreeAndNil( Normal );
-  FreeAndNil( Cosplay );
-  FreeAndNil( Glow );
+  FreeAndNil( FNormal );
+  FreeAndNil( FCosplay );
+  FreeAndNil( FGlow );
 end;
 
 { TSpriteDataVTC }
@@ -289,22 +291,22 @@ procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet );
 begin
   glActiveTexture(0);
 
-  if not Data.Normal.FData.Empty then
+  if not Data.FNormal.FData.Empty then
   begin
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    DrawVTC( Data.Normal );
+    DrawVTC( Data.FNormal );
   end;
 
-  if (Data.Cosplay <> nil) and (not Data.Cosplay.FData.Empty) then
+  if (Data.FCosplay <> nil) and (not Data.Cosplay.FData.Empty) then
   begin
     glBlendFunc( GL_ONE, GL_ONE );
-    DrawVTC( Data.Cosplay );
+    DrawVTC( Data.FCosplay );
   end;
 
-  if (Data.Glow <> nil) and (not Data.Glow.FData.Empty) then
+  if (Data.FGlow <> nil) and (not Data.Glow.FData.Empty) then
   begin
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    DrawVTC( Data.Glow );
+    DrawVTC( Data.FGlow );
   end;
 
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
