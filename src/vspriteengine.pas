@@ -1,8 +1,7 @@
 unit vspriteengine;
 {$include valkyrie.inc}
 interface
-uses
-  Classes, SysUtils, vcolor, vgltypes, vglprogram, vglquadarrays;
+uses SysUtils, vgenerics, vcolor, vgltypes, vglprogram, vglquadarrays, vtextures;
 
 type TSpriteEngine = class;
 
@@ -12,7 +11,7 @@ type
 { TSpriteDataVTC }
 
 TSpriteDataVTC = class
-  constructor Create( aEngine : TSpriteEngine; aTilesX, aTilesY : Word );
+  constructor Create( aEngine : TSpriteEngine; aTexture : TTexture );
   procedure Push( PosID : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
   procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; color : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
   procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
@@ -24,9 +23,11 @@ private
   FEngine    : TSpriteEngine;
   FTexUnit   : TGLVec2f;
   FRowSize   : Word;
+  FTextureID : DWord;
 public
-  property TexUnit : TGLVec2f read FTexUnit;
-  property RowSize : Word     read FRowSize;
+  property TexUnit   : TGLVec2f read FTexUnit;
+  property RowSize   : Word     read FRowSize;
+  property TextureID : DWord    read FTextureID;
 end;
 
 type
@@ -34,57 +35,56 @@ type
 { TSpriteDataSet }
 
 TSpriteDataSet = class
-  Normal  : TSpriteDataVTC;
-  Cosplay : TSpriteDataVTC;
-  Glow    : TSpriteDataVTC;
-
-  constructor Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean; aTilesX, aTilesY : Word );
+  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : TTexture; aOrder : Integer );
   destructor Destroy; override;
+private
+  FNormal  : TSpriteDataVTC;
+  FCosplay : TSpriteDataVTC;
+  FGlow    : TSpriteDataVTC;
+  FOrder   : Integer;
+public
+  property Normal  : TSpriteDataVTC read FNormal;
+  property Cosplay : TSpriteDataVTC read FCosplay;
+  property Glow    : TSpriteDataVTC read FGlow;
+  property Order   : Integer read FOrder;
 end;
 
-type TTextureDataSet = record
-  Normal  : DWord;
-  Cosplay : DWord;
-  Glow    : DWord;
-end;
-
-type TTextureSet = record
-  Layer      : array[1..11] of TTextureDataSet;
-end;
-
-type
+type TSpriteDataSetArray = specialize TGArray< TSpriteDataSet >;
 
 { TSpriteEngine }
 
 TSpriteEngine = class
-  FTextureSet        : TTextureSet;
-  FGrid              : TGLVec2i;
-  FPos               : TGLVec2i;
-  FLayers            : array[1..11] of TSpriteDataSet;
-  FLayerCount        : Byte;
-
-  constructor Create;
+  constructor Create( aTileSize : TGLVec2i; aScale : Byte = 1 );
+  procedure SetScale( aScale : Byte );
   procedure Draw;
   procedure Update( aProjection : TMatrix44 );
   procedure DrawVTC( Data : TSpriteDataVTC );
-  procedure DrawSet( const Data : TSpriteDataSet; const Tex : TTextureDataSet );
-  // Foreground layer
-  // Animation layer
+  procedure DrawSet( const Data : TSpriteDataSet );
   procedure SetTexture( TexID : DWord );
+  function Add( aNormal, aCosplay, aGlow : TTexture; aOrder : Integer ) : Integer;
   destructor Destroy; override;
 private
   FVAO            : Cardinal;
   FProgram        : TGLProgram;
   FProjection     : TMatrix44;
-
   FCurrentTexture : DWord;
+  FGrid           : TGLVec2i;
+  FTileSize       : TGLVec2i;
+  FPosition       : TGLVec2i;
+  FLayersDirty    : Boolean;
+  FLayers         : TSpriteDataSetArray;
+  FLayersSorted   : TSpriteDataSetArray;
+public
+  property Grid     : TGLVec2i read FGrid;
+  property TileSize : TGLVec2i read FTileSize;
+  property Position : TGLVec2i read FPosition write FPosition;
+  property Layers   : TSpriteDataSetArray read FLayers;
 end;
 
 
 implementation
 
-uses
-  math, vgl3library;
+uses vgl3library, vdebug;
 
 const
 VSpriteVertexShader : Ansistring =
@@ -117,32 +117,38 @@ VSpriteFragmentShader : Ansistring =
 
 { TSpriteDataSet }
 
-constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean; aTilesX, aTilesY : Word );
+constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : TTexture; aOrder : Integer );
 begin
-  Normal  := nil;
-  Cosplay := nil;
-  Glow    := nil;
+  FNormal  := nil;
+  FCosplay := nil;
+  FGlow    := nil;
 
-  Normal  := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
-  if aCosplay then Cosplay := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
-  if aGlow    then Glow    := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
+  if aNormal  <> nil then FNormal  := TSpriteDataVTC.Create( aEngine, aNormal );
+  if aCosplay <> nil then FCosplay := TSpriteDataVTC.Create( aEngine, aCosplay );
+  if aGlow    <> nil then FGlow    := TSpriteDataVTC.Create( aEngine, aGlow );
+
+  FOrder := aOrder;
 end;
 
 destructor TSpriteDataSet.Destroy;
 begin
-  FreeAndNil( Normal );
-  FreeAndNil( Cosplay );
-  FreeAndNil( Glow );
+  FreeAndNil( FNormal );
+  FreeAndNil( FCosplay );
+  FreeAndNil( FGlow );
 end;
 
 { TSpriteDataVTC }
 
-constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine; aTilesX, aTilesY : Word );
+constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine; aTexture : TTexture );
+var iTilesY : DWord;
 begin
-  FEngine   := aEngine;
-  FData     := TGLTexturedColoredQuads.Create;
-  FRowSize  := aTilesX;
-  FTexUnit.Init( 1.0 / aTilesX, 1.0 / aTilesY );
+  Assert( aTexture <> nil, 'Nil texture passed!');
+  FEngine    := aEngine;
+  FData      := TGLTexturedColoredQuads.Create;
+  FTextureID := aTexture.GLTexture;
+  FRowSize   := aTexture.Size.X div FEngine.TileSize.X;
+  iTilesY    := aTexture.Size.Y div FEngine.TileSize.Y;
+  FTexUnit.Init( 1.0 / FRowSize, 1.0 / iTilesY );
 end;
 
 
@@ -272,6 +278,7 @@ end;
 
 procedure TSpriteEngine.DrawVTC( Data : TSpriteDataVTC );
 begin
+  SetTexture( Data.TextureID );
   FProgram.Bind;
   Data.FData.Update;
   Data.FData.Draw;
@@ -279,29 +286,26 @@ begin
   FProgram.UnBind;
 end;
 
-procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet; const Tex : TTextureDataSet);
+procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet );
 begin
   glActiveTexture(0);
 
-  if not Data.Normal.FData.Empty then
+  if not Data.FNormal.FData.Empty then
   begin
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    SetTexture( Tex.Normal );
-    DrawVTC( Data.Normal );
+    DrawVTC( Data.FNormal );
   end;
 
-  if (Data.Cosplay <> nil) and (not Data.Cosplay.FData.Empty) then
+  if (Data.FCosplay <> nil) and (not Data.Cosplay.FData.Empty) then
   begin
     glBlendFunc( GL_ONE, GL_ONE );
-    SetTexture( Tex.Cosplay );
-    DrawVTC( Data.Cosplay );
+    DrawVTC( Data.FCosplay );
   end;
 
-  if (Data.Glow <> nil) and (not Data.Glow.FData.Empty) then
+  if (Data.FGlow <> nil) and (not Data.Glow.FData.Empty) then
   begin
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    SetTexture( Tex.Glow );
-    DrawVTC( Data.Glow );
+    DrawVTC( Data.FGlow );
   end;
 
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
@@ -317,38 +321,71 @@ begin
 end;
 
 destructor TSpriteEngine.Destroy;
-var i : Byte;
+var iSet : TSpriteDataSet;
 begin
-  for i := 1 to High(FLayers) do
-    FreeAndNil( FLayers[i] );
+  for iSet in FLayers do
+    iSet.Free;
   glDeleteVertexArrays(1, @FVAO);
   FreeAndNil( FProgram );
+  FreeAndNil( FLayers );
+  FreeAndNil( FLayersSorted );
 end;
 
-constructor TSpriteEngine.Create;
-var i : Byte;
+constructor TSpriteEngine.Create( aTileSize : TGLVec2i; aScale : Byte = 1 );
 begin
-  for i := 1 to High(FLayers) do
-    FLayers[i] := nil;
-  FGrid.Init( 32, 32 );
-  FPos.Init(0,0);
+  FTileSize := aTileSize;
+  SetScale( aScale );
+  FPosition.Init(0,0);
   FCurrentTexture    := 0;
-  FLayerCount        := 0;
+  FLayersDirty       := True;
 
   FProgram := TGLProgram.Create( VSpriteVertexShader, VSpriteFragmentShader );
   glGenVertexArrays(1, @FVAO);
+
+  FLayers       := TSpriteDataSetArray.Create;
+  FLayersSorted := TSpriteDataSetArray.Create;
+end;
+
+procedure TSpriteEngine.SetScale( aScale : Byte );
+begin
+  FGrid.Init( FTileSize.X * aScale, FTileSize.Y * aScale );
+end;
+
+function TSpriteEngine.Add( aNormal, aCosplay, aGlow : TTexture; aOrder : Integer ) : Integer;
+var i : DWord;
+begin
+  Assert( aNormal <> nil, 'Normal texture needs to be present in spritesheet!');
+  if FLayers.Size > 0 then
+  for i := 0 to FLayers.Size - 1 do
+    if FLayers[i].Normal.TextureID = aNormal.GLTexture then
+      Exit(i);
+  FLayersDirty := True;
+  FLayers.Push( TSpriteDataSet.Create( Self, aNormal, aCosplay, aGlow, aOrder ) );
+  Exit( Flayers.Size - 1 );
+end;
+
+function SpriteEngineLayerSort( const aLayerA, aLayerB : TSpriteDataSet ) : Integer;
+begin
+  Exit( aLayerA.Order - aLayerB.Order );
 end;
 
 procedure TSpriteEngine.Draw;
-var i : Byte;
-    c : Byte;
+var iSet : TSpriteDataSet;
 begin
+  if FLayersDirty then
+  begin
+    FLayersSorted.Clear;
+    for iSet in FLayers do
+      FLayersSorted.Push( iSet );
+    FLayersSorted.Sort( @SpriteEngineLayerSort );
+    FLayersDirty := False;
+  end;
+
   FCurrentTexture := 0;
   FProgram.Bind;
-  glUniform3f( FProgram.GetUniformLocation('uposition'), -FPos.X, -FPos.Y, 0 );
-  if FLayerCount > 0 then
-  for i := 1 to FLayerCount do
-    DrawSet( FLayers[ i ], FTextureSet.Layer[ i ] );
+  glUniform3f( FProgram.GetUniformLocation('uposition'), -FPosition.X, -FPosition.Y, 0 );
+  for iSet in FLayersSorted do
+    DrawSet( iSet );
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 
