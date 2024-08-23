@@ -48,22 +48,18 @@ type TTextureDataSet = record
   Glow    : DWord;
 end;
 
-type TTextureSet = record
-  Layer      : array[1..11] of TTextureDataSet;
-end;
-
 type
 
 { TSpriteEngine }
 
 TSpriteEngine = class
-  FTextureSet        : TTextureSet;
-  FGrid              : TGLVec2i;
-  FPos               : TGLVec2i;
-  FLayers            : array[1..11] of TSpriteDataSet;
-  FLayerCount        : Byte;
+  FTextureSet : array[1..11] of TTextureDataSet;
+  FPos        : TGLVec2i;
+  FLayers     : array[1..11] of TSpriteDataSet;
+  FLayerCount : Byte;
 
-  constructor Create;
+  constructor Create( aTileSize : TGLVec2i; aScale : Byte = 1 );
+  procedure SetScale( aScale : Byte );
   procedure Draw;
   procedure Update( aProjection : TMatrix44 );
   procedure DrawVTC( Data : TSpriteDataVTC );
@@ -76,8 +72,12 @@ private
   FVAO            : Cardinal;
   FProgram        : TGLProgram;
   FProjection     : TMatrix44;
-
   FCurrentTexture : DWord;
+  FGrid           : TGLVec2i;
+  FTileSize       : TGLVec2i;
+public
+  property Grid     : TGLVec2i read FGrid;
+  property TileSize : TGLVec2i read FTileSize;
 end;
 
 
@@ -325,18 +325,24 @@ begin
   FreeAndNil( FProgram );
 end;
 
-constructor TSpriteEngine.Create;
+constructor TSpriteEngine.Create( aTileSize : TGLVec2i; aScale : Byte = 1 );
 var i : Byte;
 begin
   for i := 1 to High(FLayers) do
     FLayers[i] := nil;
-  FGrid.Init( 32, 32 );
+  FTileSize := aTileSize;
+  SetScale( aScale );
   FPos.Init(0,0);
   FCurrentTexture    := 0;
   FLayerCount        := 0;
 
   FProgram := TGLProgram.Create( VSpriteVertexShader, VSpriteFragmentShader );
   glGenVertexArrays(1, @FVAO);
+end;
+
+procedure TSpriteEngine.SetScale( aScale : Byte );
+begin
+  FGrid.Init( FTileSize.X * aScale, FTileSize.Y * aScale );
 end;
 
 procedure TSpriteEngine.Draw;
@@ -348,7 +354,7 @@ begin
   glUniform3f( FProgram.GetUniformLocation('uposition'), -FPos.X, -FPos.Y, 0 );
   if FLayerCount > 0 then
   for i := 1 to FLayerCount do
-    DrawSet( FLayers[ i ], FTextureSet.Layer[ i ] );
+    DrawSet( FLayers[ i ], FTextureSet[ i ] );
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 
