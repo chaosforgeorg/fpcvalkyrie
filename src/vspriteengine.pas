@@ -1,8 +1,7 @@
 unit vspriteengine;
 {$include valkyrie.inc}
 interface
-uses
-  Classes, SysUtils, vcolor, vgltypes, vglprogram, vglquadarrays, vtextures;
+uses SysUtils, vgenerics, vcolor, vgltypes, vglprogram, vglquadarrays, vtextures;
 
 type TSpriteEngine = class;
 
@@ -50,24 +49,19 @@ public
   property Order   : Integer read FOrder;
 end;
 
-type
+type TSpriteDataSetArray = specialize TGArray< TSpriteDataSet >;
 
 { TSpriteEngine }
 
 TSpriteEngine = class
-  FPos        : TGLVec2i;
-  FLayers     : array[1..11] of TSpriteDataSet;
-  FLayerCount : Byte;
-
   constructor Create( aTileSize : TGLVec2i; aScale : Byte = 1 );
   procedure SetScale( aScale : Byte );
   procedure Draw;
   procedure Update( aProjection : TMatrix44 );
   procedure DrawVTC( Data : TSpriteDataVTC );
   procedure DrawSet( const Data : TSpriteDataSet );
-  // Foreground layer
-  // Animation layer
   procedure SetTexture( TexID : DWord );
+  procedure Add( aIndex : DWord; aSet : TSpriteDataSet );
   destructor Destroy; override;
 private
   FVAO            : Cardinal;
@@ -76,16 +70,21 @@ private
   FCurrentTexture : DWord;
   FGrid           : TGLVec2i;
   FTileSize       : TGLVec2i;
+  FPosition       : TGLVec2i;
+  FLayersDirty    : Boolean;
+  FLayers         : TSpriteDataSetArray;
+  FLayersSorted   : TSpriteDataSetArray;
 public
   property Grid     : TGLVec2i read FGrid;
   property TileSize : TGLVec2i read FTileSize;
+  property Position : TGLVec2i read FPosition write FPosition;
+  property Layers   : TSpriteDataSetArray read FLayers;
 end;
 
 
 implementation
 
-uses
-  math, vgl3library;
+uses vgl3library, vdebug;
 
 const
 VSpriteVertexShader : Ansistring =
@@ -322,27 +321,29 @@ begin
 end;
 
 destructor TSpriteEngine.Destroy;
-var i : Byte;
+var iSet : TSpriteDataSet;
 begin
-  for i := 1 to High(FLayers) do
-    FreeAndNil( FLayers[i] );
+  for iSet in FLayers do
+    iSet.Free;
   glDeleteVertexArrays(1, @FVAO);
   FreeAndNil( FProgram );
+  FreeAndNil( FLayers );
+  FreeAndNil( FLayersSorted );
 end;
 
 constructor TSpriteEngine.Create( aTileSize : TGLVec2i; aScale : Byte = 1 );
-var i : Byte;
 begin
-  for i := 1 to High(FLayers) do
-    FLayers[i] := nil;
   FTileSize := aTileSize;
   SetScale( aScale );
-  FPos.Init(0,0);
+  FPosition.Init(0,0);
   FCurrentTexture    := 0;
-  FLayerCount        := 0;
+  FLayersDirty       := True;
 
   FProgram := TGLProgram.Create( VSpriteVertexShader, VSpriteFragmentShader );
   glGenVertexArrays(1, @FVAO);
+
+  FLayers       := TSpriteDataSetArray.Create;
+  FLayersSorted := TSpriteDataSetArray.Create;
 end;
 
 procedure TSpriteEngine.SetScale( aScale : Byte );
@@ -350,16 +351,37 @@ begin
   FGrid.Init( FTileSize.X * aScale, FTileSize.Y * aScale );
 end;
 
-procedure TSpriteEngine.Draw;
-var i : Byte;
-    c : Byte;
+procedure TSpriteEngine.Add( aIndex : DWord; aSet : TSpriteDataSet );
 begin
+  if aIndex >= FLayers.Size then
+  FLayers.Resize( aIndex+1 );
+  FLayers[ aIndex ] := aSet;
+  FLayersDirty := True;
+end;
+
+function SpriteEngineLayerSort( const aLayerA, aLayerB : TSpriteDataSet ) : Integer;
+begin
+  Exit( aLayerA.Order - aLayerB.Order );
+end;
+
+procedure TSpriteEngine.Draw;
+var iSet : TSpriteDataSet;
+begin
+  if FLayersDirty then
+  begin
+    FLayersSorted.Clear;
+    for iSet in FLayers do
+      if iSet <> nil then
+        FLayersSorted.Push( iSet );
+    FLayersSorted.Sort( @SpriteEngineLayerSort );
+    FLayersDirty := False;
+  end;
+
   FCurrentTexture := 0;
   FProgram.Bind;
-  glUniform3f( FProgram.GetUniformLocation('uposition'), -FPos.X, -FPos.Y, 0 );
-  if FLayerCount > 0 then
-  for i := 1 to FLayerCount do
-    DrawSet( FLayers[ i ] );
+  glUniform3f( FProgram.GetUniformLocation('uposition'), -FPosition.X, -FPosition.Y, 0 );
+  for iSet in FLayersSorted do
+    DrawSet( iSet );
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 
