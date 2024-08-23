@@ -12,7 +12,7 @@ type
 { TSpriteDataVTC }
 
 TSpriteDataVTC = class
-  constructor Create( aEngine : TSpriteEngine; aTilesX, aTilesY : Word );
+  constructor Create( aEngine : TSpriteEngine; aTextureID : DWord; aTilesX, aTilesY : Word );
   procedure Push( PosID : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
   procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; color : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
   procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
@@ -24,9 +24,11 @@ private
   FEngine    : TSpriteEngine;
   FTexUnit   : TGLVec2f;
   FRowSize   : Word;
+  FTextureID : DWord;
 public
-  property TexUnit : TGLVec2f read FTexUnit;
-  property RowSize : Word     read FRowSize;
+  property TexUnit   : TGLVec2f read FTexUnit;
+  property RowSize   : Word     read FRowSize;
+  property TextureID : DWord    read FTextureID;
 end;
 
 type
@@ -38,7 +40,7 @@ TSpriteDataSet = class
   Cosplay : TSpriteDataVTC;
   Glow    : TSpriteDataVTC;
 
-  constructor Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean; aTilesX, aTilesY : Word );
+  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : DWord; aTilesX, aTilesY : Word );
   destructor Destroy; override;
 end;
 
@@ -53,7 +55,6 @@ type
 { TSpriteEngine }
 
 TSpriteEngine = class
-  FTextureSet : array[1..11] of TTextureDataSet;
   FPos        : TGLVec2i;
   FLayers     : array[1..11] of TSpriteDataSet;
   FLayerCount : Byte;
@@ -63,7 +64,7 @@ TSpriteEngine = class
   procedure Draw;
   procedure Update( aProjection : TMatrix44 );
   procedure DrawVTC( Data : TSpriteDataVTC );
-  procedure DrawSet( const Data : TSpriteDataSet; const Tex : TTextureDataSet );
+  procedure DrawSet( const Data : TSpriteDataSet );
   // Foreground layer
   // Animation layer
   procedure SetTexture( TexID : DWord );
@@ -117,15 +118,15 @@ VSpriteFragmentShader : Ansistring =
 
 { TSpriteDataSet }
 
-constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aCosplay, aGlow : Boolean; aTilesX, aTilesY : Word );
+constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : DWord; aTilesX, aTilesY : Word );
 begin
   Normal  := nil;
   Cosplay := nil;
   Glow    := nil;
 
-  Normal  := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
-  if aCosplay then Cosplay := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
-  if aGlow    then Glow    := TSpriteDataVTC.Create( aEngine, aTilesX, aTilesY );
+  Normal  := TSpriteDataVTC.Create( aEngine, aNormal, aTilesX, aTilesY );
+  if aCosplay > 0 then Cosplay := TSpriteDataVTC.Create( aEngine, aCosplay, aTilesX, aTilesY );
+  if aGlow    > 0 then Glow    := TSpriteDataVTC.Create( aEngine, aGlow, aTilesX, aTilesY );
 end;
 
 destructor TSpriteDataSet.Destroy;
@@ -137,11 +138,12 @@ end;
 
 { TSpriteDataVTC }
 
-constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine; aTilesX, aTilesY : Word );
+constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine; aTextureID : DWord; aTilesX, aTilesY : Word );
 begin
-  FEngine   := aEngine;
-  FData     := TGLTexturedColoredQuads.Create;
-  FRowSize  := aTilesX;
+  FEngine    := aEngine;
+  FData      := TGLTexturedColoredQuads.Create;
+  FRowSize   := aTilesX;
+  FTextureID := aTextureID;
   FTexUnit.Init( 1.0 / aTilesX, 1.0 / aTilesY );
 end;
 
@@ -272,6 +274,7 @@ end;
 
 procedure TSpriteEngine.DrawVTC( Data : TSpriteDataVTC );
 begin
+  SetTexture( Data.TextureID );
   FProgram.Bind;
   Data.FData.Update;
   Data.FData.Draw;
@@ -279,28 +282,25 @@ begin
   FProgram.UnBind;
 end;
 
-procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet; const Tex : TTextureDataSet);
+procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet );
 begin
   glActiveTexture(0);
 
   if not Data.Normal.FData.Empty then
   begin
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    SetTexture( Tex.Normal );
     DrawVTC( Data.Normal );
   end;
 
   if (Data.Cosplay <> nil) and (not Data.Cosplay.FData.Empty) then
   begin
     glBlendFunc( GL_ONE, GL_ONE );
-    SetTexture( Tex.Cosplay );
     DrawVTC( Data.Cosplay );
   end;
 
   if (Data.Glow <> nil) and (not Data.Glow.FData.Empty) then
   begin
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    SetTexture( Tex.Glow );
     DrawVTC( Data.Glow );
   end;
 
@@ -354,7 +354,7 @@ begin
   glUniform3f( FProgram.GetUniformLocation('uposition'), -FPos.X, -FPos.Y, 0 );
   if FLayerCount > 0 then
   for i := 1 to FLayerCount do
-    DrawSet( FLayers[ i ], FTextureSet[ i ] );
+    DrawSet( FLayers[ i ] );
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 
