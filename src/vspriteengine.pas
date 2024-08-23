@@ -2,7 +2,7 @@ unit vspriteengine;
 {$include valkyrie.inc}
 interface
 uses
-  Classes, SysUtils, vcolor, vgltypes, vglprogram, vglquadarrays;
+  Classes, SysUtils, vcolor, vgltypes, vglprogram, vglquadarrays, vtextures;
 
 type TSpriteEngine = class;
 
@@ -12,7 +12,7 @@ type
 { TSpriteDataVTC }
 
 TSpriteDataVTC = class
-  constructor Create( aEngine : TSpriteEngine; aTextureID : DWord; aTilesX, aTilesY : Word );
+  constructor Create( aEngine : TSpriteEngine; aTexture : TTexture );
   procedure Push( PosID : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
   procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; color : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
   procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
@@ -40,7 +40,7 @@ TSpriteDataSet = class
   Cosplay : TSpriteDataVTC;
   Glow    : TSpriteDataVTC;
 
-  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : DWord; aTilesX, aTilesY : Word );
+  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : TTexture );
   destructor Destroy; override;
 end;
 
@@ -118,15 +118,15 @@ VSpriteFragmentShader : Ansistring =
 
 { TSpriteDataSet }
 
-constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : DWord; aTilesX, aTilesY : Word );
+constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : TTexture );
 begin
   Normal  := nil;
   Cosplay := nil;
   Glow    := nil;
 
-  Normal  := TSpriteDataVTC.Create( aEngine, aNormal, aTilesX, aTilesY );
-  if aCosplay > 0 then Cosplay := TSpriteDataVTC.Create( aEngine, aCosplay, aTilesX, aTilesY );
-  if aGlow    > 0 then Glow    := TSpriteDataVTC.Create( aEngine, aGlow, aTilesX, aTilesY );
+  if aNormal  <> nil then Normal  := TSpriteDataVTC.Create( aEngine, aNormal );
+  if aCosplay <> nil then Cosplay := TSpriteDataVTC.Create( aEngine, aCosplay );
+  if aGlow    <> nil then Glow    := TSpriteDataVTC.Create( aEngine, aGlow );
 end;
 
 destructor TSpriteDataSet.Destroy;
@@ -138,13 +138,16 @@ end;
 
 { TSpriteDataVTC }
 
-constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine; aTextureID : DWord; aTilesX, aTilesY : Word );
+constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine; aTexture : TTexture );
+var iTilesY : DWord;
 begin
+  Assert( aTexture <> nil, 'Nil texture passed!');
   FEngine    := aEngine;
   FData      := TGLTexturedColoredQuads.Create;
-  FRowSize   := aTilesX;
-  FTextureID := aTextureID;
-  FTexUnit.Init( 1.0 / aTilesX, 1.0 / aTilesY );
+  FTextureID := aTexture.GLTexture;
+  FRowSize   := aTexture.Size.X div FEngine.TileSize.X;
+  iTilesY    := aTexture.Size.Y div FEngine.TileSize.Y;
+  FTexUnit.Init( 1.0 / FRowSize, 1.0 / iTilesY );
 end;
 
 
