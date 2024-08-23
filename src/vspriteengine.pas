@@ -61,7 +61,7 @@ TSpriteEngine = class
   procedure DrawVTC( Data : TSpriteDataVTC );
   procedure DrawSet( const Data : TSpriteDataSet );
   procedure SetTexture( TexID : DWord );
-  procedure Add( aIndex : DWord; aSet : TSpriteDataSet );
+  function Add( aNormal, aCosplay, aGlow : TTexture; aOrder : Integer ) : Integer;
   destructor Destroy; override;
 private
   FVAO            : Cardinal;
@@ -351,12 +351,17 @@ begin
   FGrid.Init( FTileSize.X * aScale, FTileSize.Y * aScale );
 end;
 
-procedure TSpriteEngine.Add( aIndex : DWord; aSet : TSpriteDataSet );
+function TSpriteEngine.Add( aNormal, aCosplay, aGlow : TTexture; aOrder : Integer ) : Integer;
+var i : DWord;
 begin
-  if aIndex >= FLayers.Size then
-  FLayers.Resize( aIndex+1 );
-  FLayers[ aIndex ] := aSet;
+  Assert( aNormal <> nil, 'Normal texture needs to be present in spritesheet!');
+  if FLayers.Size > 0 then
+  for i := 0 to FLayers.Size - 1 do
+    if FLayers[i].Normal.TextureID = aNormal.GLTexture then
+      Exit(i);
   FLayersDirty := True;
+  FLayers.Push( TSpriteDataSet.Create( Self, aNormal, aCosplay, aGlow, aOrder ) );
+  Exit( Flayers.Size - 1 );
 end;
 
 function SpriteEngineLayerSort( const aLayerA, aLayerB : TSpriteDataSet ) : Integer;
@@ -371,8 +376,7 @@ begin
   begin
     FLayersSorted.Clear;
     for iSet in FLayers do
-      if iSet <> nil then
-        FLayersSorted.Push( iSet );
+      FLayersSorted.Push( iSet );
     FLayersSorted.Sort( @SpriteEngineLayerSort );
     FLayersDirty := False;
   end;

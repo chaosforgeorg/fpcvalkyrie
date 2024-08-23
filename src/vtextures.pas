@@ -185,7 +185,8 @@ var iIndex : DWord;
 begin
   if FTextures.Size = 0 then Exit;
   for iIndex := 0 to FTextures.Size-1 do
-    FTextures[ iIndex ].Upload;
+    if FTextures[ iIndex ].GLTexture = 0 then
+      FTextures[ iIndex ].Upload;
 end;
 
 function TTextureManager.GetTextureID ( const aTextureName : AnsiString ) : TTextureID;
