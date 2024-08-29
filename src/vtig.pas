@@ -946,7 +946,9 @@ var iClip  : TIORect;
 begin
   if aColor = 0 then aColor := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
   GCtx.Color   := aColor;
-  GCtx.BGColor := GCtx.Current.FBackground;
+  if GCtx.WindowStack.Size = 1
+    then GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ]
+    else GCtx.BGColor := GCtx.Current.FBackground;
   iClip  := GCtx.Current.DC.FClip;
   iStart := VTIG_PositionResolve( aPos );
   iClip.Pos.X := iStart.X;
@@ -961,7 +963,9 @@ var iClip  : TIORect;
 begin
   if aColor = 0 then aColor := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
   GCtx.Color   := aColor;
-  GCtx.BGColor := GCtx.Current.FBackground;
+  if GCtx.WindowStack.Size = 1
+    then GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ]
+    else GCtx.BGColor := GCtx.Current.FBackground;
   iClip  := aArea;
   iStart := VTIG_PositionResolve( aArea.Pos );
   iClip.Pos.X := iStart.X;
