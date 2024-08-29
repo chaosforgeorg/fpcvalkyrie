@@ -54,12 +54,14 @@ public
 
 end;
 
-type TTIGWindowArray = specialize TGArray<TTIGWindow>;
+type TTIGStyleArray  = specialize TGArray<PTIGStyle>;
+     TTIGWindowArray = specialize TGArray<TTIGWindow>;
      TTIGWindowTable = specialize TGHashMap<TTIGWindow>;
 
 type TTIGContext = class
   Io                 : TTIGIOState;
   Style              : PTIGStyle;
+  StyleStack         : TTIGStyleArray;
   Size               : TIOPoint;
 
   Current            : TTIGWindow;
@@ -186,6 +188,7 @@ begin
   WindowOrder := TTIGWindowArray.Create;
   WindowStore := TTIGWindowTable.Create;
   DrawData    := TTIGDrawData.Create;
+  StyleStack  := TTIGStyleArray.Create;
 
   Style              := @VTIGDefaultStyle;
   Size               := Point(0,0);
@@ -210,6 +213,7 @@ begin
   FreeAndNil( WindowOrder );
   FreeAndNil( WindowStore );
   FreeAndNil( DrawData );
+  FreeAndNil( StyleStack );
   FreeAndNil( Io );
   inherited Destroy;
 end;

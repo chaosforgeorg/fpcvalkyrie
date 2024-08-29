@@ -63,6 +63,9 @@ function VTIG_EventConfirm : Boolean;
 function VTIG_EventCancel : Boolean;
 procedure VTIG_EventClear;
 
+procedure VTIG_PushStyle( aStyle : PTIGStyle );
+procedure VTIG_PopStyle;
+
 function VTIG_GetIOState : TTIGIOState;
 
 function VTIG_GetClipRect : TIORect;
@@ -1147,6 +1150,23 @@ end;
 procedure VTIG_EventClear;
 begin
   GCtx.IO.EventState.Clear;
+end;
+
+procedure VTIG_PushStyle( aStyle : PTIGStyle );
+begin
+  Assert( aStyle <> nil, 'VTIG_PushStyle passed nil!' );
+  Assert( GCtx.StyleStack.Size < 16, 'Style stack overflow?' );
+  GCtx.Style := aStyle;
+  GCtx.StyleStack.Push( aStyle );
+end;
+
+procedure VTIG_PopStyle;
+begin
+  Assert( GCtx.StyleStack.Size > 0, 'Style stack empty pop!' );
+  GCtx.StyleStack.Pop;
+  if GCtx.StyleStack.IsEmpty
+    then GCtx.Style := @VTIGDefaultStyle
+    else GCtx.Style := GCtx.StyleStack.Top;
 end;
 
 function VTIG_GetIOState : TTIGIOState;
