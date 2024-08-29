@@ -880,7 +880,7 @@ begin
   GCtx.Color   := GCtx.Style^.Color[ VTIG_TITLE_COLOR ];
   GCtx.BGColor := GCtx.Current.FBackground;
   iPos := iClip.Pos;
-  iPos.X += ( iClip.w - VTIG_Length( aName ) + 2 ) div 2;
+  iPos.X += ( iClip.w - VTIG_Length( aName ) - 2 ) div 2;
   // shall we worry about string alloc?
   VTIG_RenderText( ' ' + aName + ' ', iPos, iClip, [] );
 //  VTIG_RenderText( ' {1} ', iPos, iClip, [aName] );
