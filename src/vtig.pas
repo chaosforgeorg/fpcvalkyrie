@@ -23,7 +23,7 @@ procedure VTIG_AdjustPadding( aPos : TIOPoint );
 
 function VTIG_Selectable( aText : Ansistring; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
-function VTIG_Selected : Integer;
+function VTIG_Selected( aName : AnsiString = '' ) : Integer;
 procedure VTIG_ResetSelect( aName : AnsiString = ''; aValue : Integer = 0 );
 
 function VTIG_Scrollbar : Boolean;
@@ -758,9 +758,18 @@ begin
   Result := VTIG_Selectable( aText, [], aValid, aColor );
 end;
 
-function VTIG_Selected : Integer;
+function VTIG_Selected( aName : AnsiString = '' ) : Integer;
+var iWindow : TTIGWindow;
 begin
-  Result := GCtx.Current.FFocusInfo.Current;
+  Result := -1;
+  if aName <> '' then
+  begin
+    iWindow := GCtx.WindowStore.Get( aName, nil );
+    if Assigned( iWindow ) then
+      Result := iWindow.FFocusInfo.Current;
+  end
+  else
+    Result := GCtx.Current.FFocusInfo.Current;
 end;
 
 procedure VTIG_ResetSelect( aName : AnsiString = ''; aValue : Integer = 0 );
