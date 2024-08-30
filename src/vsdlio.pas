@@ -30,6 +30,8 @@ type TSDLIODriver = class( TIODriver )
   procedure ShowMouse( aShow : Boolean );
   procedure ScreenShot( const aFileName : AnsiString );
   function SetDisplayMode( aIndex : Integer ) : Boolean;
+  procedure StartTextInput; override;
+  procedure StopTextInput; override;
 private
   FFlags     : TSDLIOFlags;
   FSizeX     : DWord;
@@ -261,6 +263,12 @@ begin
   Result.Mouse.Pressed := event^.button.state = SDL_PRESSED;
 end;
 
+function SDLTextEventToIOEvent( event : PSDL_Event ) : TIOEvent;
+begin
+  Result.EType := VEVENT_TEXT;
+  Move( event^.text.text[0], Result.Text.Text[0], SDL_TEXTINPUTEVENT_TEXT_SIZE );
+end;
+
 function SDLMouseMoveEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 begin
   Result.EType := VEVENT_MOUSEMOVE;
@@ -278,6 +286,7 @@ begin
   case event^.type_ of
     SDL_KEYDOWN : Exit( SDLKeyEventToIOEvent( event ) );
     SDL_KEYUP   : Exit( SDLKeyEventToIOEvent( event ) );
+    SDL_TEXTINPUT : Exit( SDLTextEventToIOEvent( event ) );
 
     SDL_MOUSEMOTION     : Exit( SDLMouseMoveEventToIOEvent( event ) );
     SDL_MOUSEBUTTONDOWN : Exit( SDLMouseEventToIOEvent( event ) );
@@ -327,6 +336,7 @@ begin
   SDL_SYSWMEVENT_,
   SDL_KEYDOWN,
   SDL_KEYUP,
+  SDL_TEXTINPUT,
 //  SDL_TEXTEDITING,
 //  SDL_TEXTINPUT,
   SDL_MOUSEMOTION,
@@ -728,6 +738,16 @@ begin
     Exit( True );
   end;
   Exit( False );
+end;
+
+procedure TSDLIODriver.StartTextInput;
+begin
+  SDL_StartTextInput;
+end;
+
+procedure TSDLIODriver.StopTextInput;
+begin
+  SDL_StopTextInput;
 end;
 
 end.

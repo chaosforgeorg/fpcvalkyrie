@@ -22,7 +22,7 @@ const VKEY_UPRIGHT   = VKEY_PGUP;
       VKEY_UPLEFT    = VKEY_HOME;
       VKEY_DOWNLEFT  = VKEY_END;
 
-type TIOEventType      = ( VEVENT_SYSTEM, VEVENT_KEYDOWN, VEVENT_KEYUP, VEVENT_MOUSEMOVE, VEVENT_MOUSEDOWN, VEVENT_MOUSEUP );
+type TIOEventType      = ( VEVENT_SYSTEM, VEVENT_KEYDOWN, VEVENT_KEYUP, VEVENT_MOUSEMOVE, VEVENT_MOUSEDOWN, VEVENT_MOUSEUP, VEVENT_TEXT );
      TIOEventTypeSet   = set of TIOEventType;
      TIOModKey         = ( VKMOD_UNKNOWN, VKMOD_CTRL, VKMOD_SHIFT, VKMOD_ALT );
      TIOModKeySet      = set of TIOModKey;
@@ -32,6 +32,7 @@ type TIOEventType      = ( VEVENT_SYSTEM, VEVENT_KEYDOWN, VEVENT_KEYUP, VEVENT_M
      TIOMouseEvent     = record Button : TIOMouseButton; Pos : TPoint; Pressed : Boolean; end;
      TIOMouseMoveEvent = record ButtonState : TIOMouseButtonSet; Pos : TPoint; RelPos : TPoint; end;
      TIOSystemEvent    = record Code : DWord; Param1 : DWord; Param2 : DWord; end;
+     TIOTextEvent      = record Text : array[0..31] of Char; end;
 
 const VIO_SYSEVENT_NONE    = 0;
       VIO_SYSEVENT_UNKNOWN = 1;
@@ -52,6 +53,7 @@ type TIOEvent = record
     VEVENT_MOUSEMOVE  : ( MouseMove : TIOMouseMoveEvent; );
     VEVENT_MOUSEDOWN,
     VEVENT_MOUSEUP    : ( Mouse : TIOMouseEvent; );
+    VEVENT_TEXT       : ( Text : TIOTextEvent; );
   end;
 
 type  TIOKeyCode = Word;
@@ -361,6 +363,7 @@ begin
     VEVENT_MOUSEMOVE  : Result += '['+IOMouseMoveEventToString( aEvent.MouseMove )+']';
     VEVENT_MOUSEDOWN,
     VEVENT_MOUSEUP    : Result += '['+IOMouseEventToString( aEvent.Mouse )+']';
+    VEVENT_TEXT       : Result += '['+UTF8String(aEvent.Text.Text)+']';
   end;
 end;
 
@@ -373,6 +376,7 @@ begin
     VEVENT_MOUSEMOVE  : Exit('MouseMove');
     VEVENT_MOUSEDOWN  : Exit('MouseDown');
     VEVENT_MOUSEUP    : Exit('MouseUp');
+    VEVENT_TEXT       : Exit('Text');
   end;
 end;
 
