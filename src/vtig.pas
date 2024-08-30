@@ -49,6 +49,7 @@ procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOC
 function VTIG_Length( const aText: AnsiString ) : Integer;
 function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
 
+function VTIG_Input( aBuffer : PChar; aMaxSize : Word ) : Boolean;
 function VTIG_EnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
 function VTIG_IntInput( aValue : PInteger; aActive : Boolean; aMin, aMax, aStep : Integer ) : Boolean;
 function VTIG_EnumInput( aValue : PInteger; aActive : Boolean; aOpen : PBoolean; aNames : array of Ansistring ) : Boolean;
@@ -1014,6 +1015,61 @@ end;
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 begin
   VTIG_Text( aText, [], aColor, aBGColor );
+end;
+
+function VTIG_Input( aBuffer : PChar; aMaxSize : Word ) : Boolean;
+var i, iLength : Word;
+    iState     : TIOEventState;
+    iChar      : Byte;
+    iCmd       : TTIGDrawCommand;
+begin
+  iLength := StrLen( aBuffer );
+  Result  := VTIG_EventConfirm;
+  iState  := GCtx.Io.EventState;
+
+  for i := 0 to VIO_MAXINPUT - 1 do
+  begin
+    if iState.Input[i] = #0 then
+      Break;
+
+    if iLength + 1 < aMaxSize then
+    begin
+      iChar := Byte(iState.Input[i]);
+
+      if ( ((iChar >= Ord('a')) and (iChar <= Ord('z'))) or
+           ((iChar >= Ord('A')) and (iChar <= Ord('Z'))) or
+           ((iChar >= Ord('0')) and (iChar <= Ord('9'))) or
+           ((iChar = Ord('''')) or (iChar = Ord('_')) or (iChar = Ord(' '))) ) then
+      begin
+        aBuffer[iLength] := Char(iChar);
+        Inc(iLength);
+        aBuffer[iLength] := #0;
+      end;
+    end;
+  end;
+
+  if (iLength > 0) and ( VTIG_Event( VTIG_IE_BACKSPACE) ) then
+  begin
+    Dec(iLength);
+    aBuffer[iLength] := #0;
+  end;
+
+  Inc(GCtx.Current.FFocusInfo.Count);
+
+  GCtx.DrawData.CursorType     := VTIG_CTINPUT;
+  GCtx.DrawData.CursorPosition := Point(GCtx.Current.DC.FCursor.x + iLength, GCtx.Current.DC.FCursor.y );
+
+
+  GCtx.Color   := GCtx.Style^.Color[ VTIG_INPUT_TEXT_COLOR ];
+  GCtx.BGColor := GCtx.Style^.Color[ VTIG_INPUT_BACKGROUND_COLOR ];
+
+  FillChar( iCmd, Sizeof( iCmd ), 0 );
+  iCmd.CType := VTIG_CMD_CLEAR;
+  iCmd.Area  := Rectangle( GCtx.Current.DC.FCursor, GCtx.Current.DC.FContent.x2 - GCtx.Current.DC.FCursor.X, 1 );
+  iCmd.FG    := GCtx.Color;
+  iCmd.BG    := GCtx.BGColor;
+  GCtx.Current.DrawList.Push( iCmd );
+  VTIG_Text( aBuffer, [], GCtx.Color, GCtx.BGColor );
 end;
 
 function VTIG_EnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
