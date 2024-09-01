@@ -4,7 +4,8 @@ interface
 uses Classes, SysUtils, vutil, viotypes, vioevent;
 
 type TTextIODriver = class( TIODriver )
-  constructor Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False );
+  constructor Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False;
+    aSDLConsole : Boolean = False );
   function PollEvent( out aEvent : TIOEvent ) : Boolean; override;
   function PeekEvent( out aEvent : TIOEvent ) : Boolean; override;
   function EventPending : Boolean; override;
@@ -30,6 +31,7 @@ private
   FSizeX        : DWord;
   FSizeY        : DWord;
   FLastMousePos : TPoint;
+  FSDLConsole   : Boolean;
 end;
 
 var TextIO : TTextIODriver = nil;
@@ -39,7 +41,7 @@ implementation
 uses
   {$IFDEF UNIX}unix,{$ENDIF}
   {$IFDEF Windows}Windows,{$ENDIF}
-  math, video, keyboard, mouse, dateutils, vdebug;
+  math, video, keyboard, mouse, dateutils, vdebug, vsdlconsole;
 
 const InputKeyBackSpace = $0E08;
       InputKeyEnter     = $1C0D;
@@ -185,7 +187,8 @@ begin
 end;
 {$ENDIF}
 
-constructor TTextIODriver.Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False );
+constructor TTextIODriver.Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False;
+  aSDLConsole : Boolean = False );
 var iVideoMode : TVideoMode;
     {$IFDEF WINDOWS}
     iHandle    : HANDLE;
@@ -235,11 +238,14 @@ begin
   inherited Create;
   Log('Initializing TextIO driver...');
 
-  InitKeyboard;
-  Log('Terminal Keyboard system ready.');
+  FSDLConsole := aSDLConsole;
+  if FSDLConsole then SDLConsoleSetDrivers(aCols, aRows);
 
   InitVideo;
   ClearScreen;
+
+  InitKeyboard;
+  Log('Terminal Keyboard system ready.');
 
   if FMouse then
   begin
@@ -348,7 +354,7 @@ begin
   try if FMouse then DoneMouse; except on Exception do end;
   try DoneVideo except on Exception do end;
   //Unknown to myself, I have no clue why I get an access violation here...
-  {$IFDEF UNIX}fpSystem('reset');{$ENDIF}
+  {$IFDEF UNIX}if not FSDLConsole then fpSystem('reset');{$ENDIF}
   inherited Destroy;
 end;
 
@@ -388,6 +394,7 @@ begin
   {$IFDEF WIN32}
   SetConsoleTitle(PChar(aLongTitle));
   {$ENDIF}
+  if FSDLConsole then SDLConsoleSetTitle(aLongTitle);
 end;
 
 function TTextIODriver.PollKey : Cardinal;
