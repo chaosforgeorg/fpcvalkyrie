@@ -136,7 +136,7 @@ end;
 { TLuaTable }
 
 TLuaTable = class(TVObject)
-  constructor Create( L : PLua_State );
+  constructor Create( L : PLua_State; aIndex : Integer = -1 );
   constructor Create( L : PLua_State; const aPath : array of const; aIndex : Integer = 0 );
   constructor Create( L : PLua_State; const aPath : AnsiString; aIndex : Integer = 0 );
 
@@ -551,12 +551,17 @@ end;
 
 { TLuaTable }
 
-constructor TLuaTable.Create( L : PLua_State ) ;
+constructor TLuaTable.Create( L : PLua_State; aIndex : Integer = -1 ) ;
 begin
   inherited Create;
   FClear := lua_gettop( L );
   FState := L;
-  if not lua_istable( L, -1 ) then raise ELuaException.Create( 'Object passed to TLuaTable is not a table!' );
+  if aIndex <> -1 then lua_pushvalue( L, aIndex );
+  if not lua_istable( L, -1 ) then
+  begin
+    if aIndex <> -1 then lua_pop( L, 1 );
+    raise ELuaException.Create( 'Object passed to TLuaTable is not a table!' );
+  end;
   FRef   := luaL_ref( FState, LUA_REGISTRYINDEX );
 end;
 
