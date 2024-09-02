@@ -452,7 +452,8 @@ begin
   // render
   GCtx.DrawData.Lists.Clear;
   for iWindow in GCtx.WindowOrder do
-    GCtx.DrawData.Lists.Push( iWindow.DrawList );
+    if iWindow.FRenderable then
+      GCtx.DrawData.Lists.Push( iWindow.DrawList );
   GCtx.Io.EndFrame;
 end;
 
@@ -517,6 +518,8 @@ begin
   if ( aSize.Y = -1 ) and ( iWindow.FMaxSize.Y >= 0 ) then aSize.Y := iWindow.FMaxSize.Y + 4;
   if ( aSize.X < -1 ) and ( iWindow.FMaxSize.X >= 0 ) then aSize.X := Max( iWindow.FMaxSize.X + 4, -aSize.X );
   if ( aSize.Y < -1 ) and ( iWindow.FMaxSize.Y >= 0 ) then aSize.Y := Max( iWindow.FMaxSize.Y + 4, -aSize.Y );
+
+  iWindow.FRenderable := ( aSize.X > 0 ) and ( aSize.Y > 0 );
 
   if aPos.X = -1 then aPos.X := iParent.FClipContent.X + ( iParent.FClipContent.Dim.X - aSize.X ) div 2;
   if aPos.Y = -1 then aPos.Y := iParent.FClipContent.Y + ( iParent.FClipContent.Dim.Y - aSize.Y ) div 2;

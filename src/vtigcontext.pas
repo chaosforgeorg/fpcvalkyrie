@@ -41,6 +41,7 @@ type TTIGWindow = class
 
   FReset        : Boolean;
   FMaxSize      : TIOPoint;
+  FRenderable   : Boolean;
 
   constructor Create;
   procedure Advance( aSize : TIOPoint );
@@ -155,6 +156,7 @@ begin
   FillChar( FClipContent, SizeOf( FClipContent ), 0 );
   FBackground   := 0;
   FColor        := 0;
+  FRenderable   := True;
 
   FillChar( FFocusInfo, SizeOf( FFocusInfo ), 0 );
   FScroll       := 0;
