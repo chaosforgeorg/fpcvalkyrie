@@ -66,6 +66,7 @@ procedure VTIG_EventClear;
 
 procedure VTIG_PushStyle( aStyle : PTIGStyle );
 procedure VTIG_PopStyle;
+procedure VTIG_SetMaxCharacters( aMaxCharacters : Integer );
 
 function VTIG_GetIOState : TTIGIOState;
 
@@ -132,15 +133,31 @@ var iWindow        : TTIGWindow;
 
   procedure Render( const aPart : PAnsiChar; aLength : Integer );
   var iCmd    : TTIGDrawCommand;
+      iLength : Integer;
+      iCount  : Integer;
   begin
-    FillChar( iCmd, Sizeof( iCmd ), 0 );
-    iCmd.CType := VTIG_CMD_TEXT;
-    iCmd.Clip  := aClip;
-    iCmd.FG    := aStyleStack.Current;
-    iCmd.BG    := GCtx.BGColor; // TODO
-    iCmd.Area  := Rectangle( Point( aCurrentX, aCurrentY ), aClip.Pos2 );
-    iCmd.Text  := iWindow.DrawList.PushText( aPart, aLength );
-    iWindow.DrawList.Push( iCmd );
+    iLength := aLength;
+    if GCtx.MaxCharacters >= 0 then
+    begin
+      GCtx.MaxCharacters -= iLength;
+      if GCtx.MaxCharacters < 0 then
+      begin
+        iLength += GCtx.MaxCharacters;
+        GCtx.MaxCharacters := 0;
+      end;
+    end;
+
+    if iLength > 0 then
+    begin
+      FillChar( iCmd, Sizeof( iCmd ), 0 );
+      iCmd.CType := VTIG_CMD_TEXT;
+      iCmd.Clip  := aClip;
+      iCmd.FG    := aStyleStack.Current;
+      iCmd.BG    := GCtx.BGColor; // TODO
+      iCmd.Area  := Rectangle( Point( aCurrentX, aCurrentY ), aClip.Pos2 );
+      iCmd.Text  := iWindow.DrawList.PushText( aPart, iLength );
+      iWindow.DrawList.Push( iCmd );
+    end;
     aCurrentX += aLength;
   end;
 
@@ -284,6 +301,7 @@ begin
   iCurrentY := aPosition.Y;
   iStyleStack.Init( GCtx.Color ); // Initialize the style stack
   VTIG_RenderTextSegment( PAnsiChar(aText), iCurrentX, iCurrentY, aClip, iStyleStack, aParameters );
+  GCtx.MaxCharacters := -1;
   Exit( Point( iCurrentX, iCurrentY ) );
 end;
 
@@ -412,6 +430,7 @@ begin
   iTime := GCtx.IO.Driver.GetMs;
   GCtx.DTime := iTime - GCtx.Time;
   GCtx.Time  := iTime;
+  GCtx.MaxCharacters := -1;
 
   // teletype code not used
 
@@ -1230,6 +1249,11 @@ begin
   if GCtx.StyleStack.IsEmpty
     then GCtx.Style := @VTIGDefaultStyle
     else GCtx.Style := GCtx.StyleStack.Top;
+end;
+
+procedure VTIG_SetMaxCharacters( aMaxCharacters : Integer );
+begin
+  GCtx.MaxCharacters := aMaxCharacters;
 end;
 
 function VTIG_GetIOState : TTIGIOState;

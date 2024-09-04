@@ -78,6 +78,7 @@ type TTIGContext = class
 
   DTime              : DWord;
   Time               : DWord;
+  MaxCharacters      : Integer;
 
   WindowTransparency : Boolean;
 
@@ -201,6 +202,7 @@ begin
   DTime              := 0;
   Time               := 0;
   WindowTransparency := True;
+  MaxCharacters      := -1;
   Color              := 0;
   BGColor            := 0;
 end;
