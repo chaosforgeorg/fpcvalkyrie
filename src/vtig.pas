@@ -26,7 +26,7 @@ function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid :
 function VTIG_Selected( aName : AnsiString = '' ) : Integer;
 procedure VTIG_ResetSelect( aName : AnsiString = ''; aValue : Integer = 0 );
 
-function VTIG_Scrollbar : Boolean;
+function VTIG_Scrollbar( aScrollMax : Boolean = False ) : Boolean;
 procedure VTIG_ResetScroll( aName : AnsiString = ''; aValue : Integer = 0 );
 
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
@@ -860,7 +860,7 @@ begin
     GCtx.Current.FFocusInfo.Current:= aValue;
 end;
 
-function VTIG_Scrollbar : Boolean;
+function VTIG_Scrollbar( aScrollMax : Boolean = False ) : Boolean;
 var iWindow    : TTIGWindow;
     iOldScroll : Integer;
     iLines     : Integer;
@@ -882,8 +882,8 @@ begin
   iMaxScroll := iLines - iHeight;
   iPage      := Max( 1, iHeight );
 
-  if GCtx.Io.EventState.Activated( VTIG_IE_HOME, true )   then iWindow.FScroll := 0;
-  if GCtx.Io.EventState.Activated( VTIG_IE_END, true )    then iWindow.FScroll := iMaxScroll;
+  if GCtx.Io.EventState.Activated( VTIG_IE_HOME, true )              then iWindow.FScroll := 0;
+  if GCtx.Io.EventState.Activated( VTIG_IE_END, true ) or aScrollMax then iWindow.FScroll := iMaxScroll;
 
   if GCtx.Io.EventState.Activated( VTIG_IE_PGUP, true )   then iWindow.FScroll := Max( iWindow.FScroll - iPage, 0 );
   if GCtx.Io.EventState.Activated( VTIG_IE_PGDOWN, true ) then iWindow.FScroll := Min( iWindow.FScroll + iPage, iMaxScroll );
