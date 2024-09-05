@@ -48,6 +48,7 @@ procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOCo
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 function VTIG_Length( const aText: AnsiString ) : Integer;
 function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
+function VTIG_StripTags( const aText : AnsiString ) : AnsiString;
 
 function VTIG_Input( aBuffer : PChar; aMaxSize : Word ) : Boolean;
 function VTIG_EnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
@@ -384,6 +385,33 @@ function VTIG_Length( const aText: AnsiString ) : Integer;
 begin
   VTIG_Length := VTIG_PLength( PAnsiChar( aText ), [] );
 end;
+
+function VTIG_StripTags( const aText: AnsiString ): AnsiString;
+var i, iLen : Integer;
+begin
+  Result := '';
+  i := 1;
+  iLen := Length( aText );
+  while i <= iLen do
+  begin
+    if aText[i] = '{' then
+    begin
+      if (i < iLen) then
+      begin
+        Inc(i, 2);
+        Continue;
+      end;
+    end
+    else if aText[i] = '}' then
+    begin
+      Inc(i);
+      Continue;
+    end;
+    Result += aText[i];
+    Inc(i);
+  end;
+end;
+
 
 procedure VTIG_RenderChar( aChar : Char; aPosition : TIOPoint );
 var iCmd    : TTIGDrawCommand;
