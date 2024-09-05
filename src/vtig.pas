@@ -73,7 +73,10 @@ function VTIG_GetIOState : TTIGIOState;
 function VTIG_GetClipRect : TIORect;
 function VTIG_GetWindowRect : TIORect;
 
-var VTIG_ClipHack : Boolean = False;
+var VTIG_ClipHack  : Boolean = False;
+    VTIG_HighColor : Boolean = False;
+
+function VTIG_BoldenColor( aColor : TIOColor ) : TIOColor;
 
 implementation
 
@@ -81,6 +84,16 @@ uses Math, vdebug, SysUtils, vtigcontext, vioeventstate, viomousestate;
 
 var GDefaultContext : TTIGContext;
     GCtx            : TTIGContext;
+
+function VTIG_BoldenColor( aColor : TIOColor ) : TIOColor;
+begin
+  case aColor of
+    0    : Exit( 0 );
+    1..7 : Exit( aColor + 8 );
+    8    : Exit( 7 );
+  end;
+  Exit( 15 );
+end;
 
 type TTIGStyleStack = object
 private
@@ -122,6 +135,12 @@ begin
     Result := FColors[FIndex]
   else
     Result := FDefault;
+  if VTIG_HighColor and ( Result < 16 ) then
+  case Result of
+    1..7 : Result += 8;
+    8    : Result := 7;
+    9..14: Result := 15;
+  end;
 end;
 
 procedure VTIG_RenderTextSegment( const aText: PAnsiChar; var aCurrentX, aCurrentY : Integer; aClip: TIORect; var aStyleStack: TTIGStyleStack; aParameters: array of const );
@@ -202,6 +221,7 @@ begin
       if i <= Length(aText) then
       begin
         case aText[i] of
+          '^' : aStyleStack.Push(VTIG_BoldenColor(aStyleStack.Current));
           'r' : aStyleStack.Push(Red);
           'R' : aStyleStack.Push(LightRed);
           'b' : aStyleStack.Push(Blue);
