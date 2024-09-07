@@ -110,7 +110,7 @@ end;
 
 function TAnimation.IsExpired: Boolean;
 begin
-  Exit( FTime >= FDuration );
+  Exit( FTime > FDuration );
 end;
 
 constructor TAnimations.Create;
@@ -132,21 +132,18 @@ end;
 
 procedure TAnimations.Update( aTime : DWord );
 var iCount : DWord;
+    iAnim  : TAnimation;
 begin
   if aTime = 0 then aTime := 1;
   if FAnimations.Size > 0 then
   begin
+    for iAnim in FAnimations do
+      iAnim.OnUpdate( aTime );
     iCount := 0;
     repeat
-      if FAnimations[iCount].Expired then
-      begin
-        FAnimations.Delete( iCount )
-      end
-      else
-      begin
-        FAnimations[iCount].OnUpdate( aTime );
-        Inc(iCount);
-      end;
+      if FAnimations[iCount].Expired
+        then FAnimations.Delete( iCount )
+        else Inc( iCount );
     until iCount >= FAnimations.Size;
   end;
 end;
