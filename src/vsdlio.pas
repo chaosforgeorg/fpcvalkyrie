@@ -145,6 +145,7 @@ begin
   iCode  := event^.key.keysym.sym;
   iShift := ( (event^.key.keysym.mod_ and KMOD_SHIFT) <> 0 ) or
             ( (event^.key.keysym.mod_ and KMOD_CAPS) <> 0 );
+  Result.Key.Repeated := ( event^.type_ = SDL_KEYDOWN ) and (event^.key.repeat_ > 0);
 
   if ( iCode >= 32 )
     and ( iCode < 127 )
@@ -417,15 +418,6 @@ begin
     Log( LOGINFO, 'OpenGL Version      : %s', [ glGetString(GL_VERSION) ] );
     Log( LOGINFO, 'OpenGL GLSL Version : %s', [ glGetString(35724) ] );
   end;
-
-
-  SDL_EventState( SDL_KEYUP, 0 );
-//  SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
-//  SDL_EventState(SDL_MOUSEBUTTONDOWN, SDL_IGNORE);
-//  SDL_EventState(SDL_MOUSEBUTTONUP, SDL_IGNORE);
-//  SDL_EventState(SDL_VIDEORESIZE, SDL_IGNORE);
-//  SDL_EventState(SDL_VIDEOEXPOSE, SDL_IGNORE);
-//  SDL_EventState(SDL_USEREVENT, SDL_IGNORE);
 
   SDL_SetEventFilter( @SDLIOEventFilter, nil );
 
