@@ -558,6 +558,7 @@ end;
 procedure TSDLIODriver.Sleep ( Milliseconds : DWord ) ;
 begin
   SDL_Delay( Milliseconds );
+  SDL_PumpEvents;
 end;
 
 function TSDLIODriver.PollEvent ( out aEvent : TIOEvent ) : Boolean;
