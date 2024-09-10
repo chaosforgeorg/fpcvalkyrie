@@ -281,6 +281,8 @@ TAutoTarget = class(TVObject)
   procedure PriorityTarget( target : TCoord2D );
   // Resets the system -- GetNext after that will provide the closest target
   procedure Reset;
+  // Clears the system -- all memory is freed and the object can be reused
+  procedure Clear( newSource : TCoord2D );
   // Returns the pointer to the first target.
   function First : TCoord2D;
   // Returns the pointer to current target.
@@ -802,6 +804,15 @@ end;
 procedure TAutoTarget.Reset;
 begin
   CurrentEntry := FirstEntry;
+end;
+
+procedure TAutoTarget.Clear( newSource : TCoord2D );
+begin
+  while FirstEntry <> nil do
+    RemoveEntry( FirstEntry );
+  FirstEntry   := nil;
+  CurrentEntry := nil;
+  Source       := newSource;
 end;
 
 function TAutoTarget.First: TCoord2D;
