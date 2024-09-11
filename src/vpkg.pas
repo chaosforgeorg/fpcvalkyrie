@@ -60,6 +60,7 @@ begin
   FWriterSet := [];
   SetLength(FData,FSize);
 
+  RegisterWriter( FILETYPE_RAW,   @AddRawFile );
   RegisterWriter( FILETYPE_LUA,   @AddLuaFile );
   RegisterWriter( FILETYPE_HELP,  @AddTextFile );
   RegisterWriter( FILETYPE_ASCII, @AddTextFile );
