@@ -177,7 +177,8 @@ begin
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
   iInfo.length := Size;
   FMOD_CHECK( FMOD_System_CreateStream( GSystem, PChar(iData), FMOD_2D or FMOD_CREATESTREAM or FMOD_LOOP_NORMAL or FMOD_OPENMEMORY, @iInfo, @iStream) );
-  FreeMem( iData, Size );
+  // TODO: this memory is never freed, but needs to be freed with the MusicStream!
+  //FreeMem( iData, Size );
   Exit( iStream );
 end;
 
