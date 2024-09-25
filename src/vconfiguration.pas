@@ -138,6 +138,7 @@ constructor TToggleConfigurationEntry.Create( aID: Ansistring; aDefault: Boolean
 begin
   inherited Create( aID );
   FDefault := aDefault;
+  FValue   := aDefault;
 end;
 
 function TToggleConfigurationEntry.Access : PBoolean;
