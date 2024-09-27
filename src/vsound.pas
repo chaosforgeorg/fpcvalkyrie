@@ -119,7 +119,7 @@ TSound = class(TSystem)
        FPosMinVolume    : Byte;
        FPosFadeDist     : Byte;
        FListener        : TCoord2D;
-       MusicPlaying : Word;
+       MusicPlaying : Integer;
        MusicArray   : TPtrArray;
        MusicType    : TExtArray;
        MusicNames   : TIntAssocArray;
@@ -161,7 +161,7 @@ begin
   MusicNames   := TIntAssocArray.Create;
   SampleNames  := TIntAssocArray.Create;
   MusicType    := TExtArray.Create;
-  MusicPlaying := 0;
+  MusicPlaying := -1;
   MusicVolume  := 100;
   SoundVolume  := 100;
   CacheData    := TPtrArray.Create;
@@ -251,7 +251,7 @@ procedure TSound.PlayMusic(const mID : Ansistring);
 var iId : DWord;
 begin
   if not FMusicEnabled then Exit;
-  if MusicPlaying <> 0 then Silence;
+  if MusicPlaying >= 0 then Silence;
   if not MusicNames.Exists(mID) then raise ESoundException.Create('Trying play non-existent Music ID#'+mID+'!');
   iID := MusicNames[mID];
   PlayMusic( MusicArray[iID], MusicType[iID] );
@@ -262,7 +262,7 @@ procedure TSound.PlayMusicOnce(const mID : Ansistring);
 var iId : DWord;
 begin
   if not FMusicEnabled then Exit;
-  if MusicPlaying <> 0 then Silence;
+  if MusicPlaying >= 0 then Silence;
   if not MusicNames.Exists(mID) then raise ESoundException.Create('Trying play non-existent Music ID#'+mID+'!');
   iID := MusicNames[mID];
   PlayMusic( MusicArray[iID], MusicType[iID], False );
@@ -324,9 +324,9 @@ end;
 
 procedure TSound.Silence;
 begin
-  if MusicPlaying <> 0 then
+  if MusicPlaying >= 0 then
     StopMusic( MusicArray[MusicPlaying], MusicType[MusicPlaying] );
-  MusicPlaying := 0;
+  MusicPlaying := -1;
 end;
 
 procedure TSound.Update;
@@ -356,7 +356,7 @@ end;
 procedure TSound.SetMusicVolume(Volume: Byte);
 begin
   MusicVolume := Volume;
-  if MusicPlaying <> 0 then
+  if MusicPlaying >= 0 then
     VolumeMusic( MusicArray[MusicPlaying], MusicType[MusicPlaying], Volume );
 end;
 
@@ -395,7 +395,7 @@ begin
   MusicType.Reset;
   CacheData.Reset;
   CacheSize.Reset;
-  MusicPlaying := 0;
+  MusicPlaying := -1;
   MusicVolume  := 100;
   SoundVolume  := 100;
 end;
