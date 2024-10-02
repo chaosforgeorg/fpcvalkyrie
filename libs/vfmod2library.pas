@@ -331,7 +331,9 @@ begin
   if FMOD2 <> nil then Exit( True );
 
   Saved8087CW := Default8087CW;
-  Set8087CW($133f); { Disable all fpu exceptions }
+  {$IFDEF FPUSSE}
+    Set8087CW($133f); { Disable all fpu exceptions }
+  {$ENDIF}
 
   FMOD2 := TLibrary.Load( aPath );
   if FMOD2 = nil then Exit( False );
@@ -703,7 +705,9 @@ finalization
   if FMOD2 <> nil then
   begin
     FreeAndNil( FMOD2 );
-    Set8087CW(Saved8087CW);
+    {$IFDEF FPUSSE}
+      Set8087CW(Saved8087CW);
+    {$ENDIF}
   end;
 
 end.
