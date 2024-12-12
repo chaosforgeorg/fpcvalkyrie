@@ -72,8 +72,8 @@ const
   LUA_TTHREAD        = 8;
 
 type
-  lua_Number = Double;
-  lua_Integer = Integer;
+  lua_Number  = Double;
+  lua_Integer = int64;
 
 function  lua_newstate(f : lua_Alloc; ud : Pointer) : Plua_State;  cdecl; external LuaDLL;
 procedure lua_close(L: Plua_State);                                cdecl; external LuaDLL;

@@ -172,6 +172,7 @@ TLuaTable = class(TVObject)
   procedure SetField( const aKey : AnsiString; const aValue : Variant );
 
   function GetInteger( const aKey : AnsiString ) : LongInt; overload;
+  function GetQWord( const aKey : AnsiString ) : QWord; overload;
   function GetFloat( const aKey : AnsiString ) : Double; overload;
   function GetString( const aKey : AnsiString ) : AnsiString; overload;
   function GetChar( const aKey : AnsiString ) : Char; overload;
@@ -179,6 +180,7 @@ TLuaTable = class(TVObject)
   function GetFlags( const aKey : AnsiString ) : TFlags; overload;
 
   function GetInteger( const aKey : AnsiString; aDefault : LongInt ) : LongInt; overload;
+  function GetQWord( const aKey : AnsiString; aDefault : QWord ) : QWord; overload;
   function GetFloat( const aKey : AnsiString; aDefault : Double ) : Double; overload;
   function GetString( const aKey : AnsiString; const aDefault : AnsiString ) : AnsiString; overload;
   function GetChar( const aKey : AnsiString; aDefault : Char ) : Char; overload;
@@ -820,6 +822,14 @@ begin
   Reset;
 end;
 
+function TLuaTable.GetQWord ( const aKey : AnsiString ) : QWord;
+begin
+  Push;
+  RunGetField( aKey );
+  Result := QWord( lua_tointeger( FState, -1 ) );
+  Reset;
+end;
+
 function TLuaTable.GetFloat ( const aKey : AnsiString ) : Double;
 begin
   Push;
@@ -865,6 +875,15 @@ begin
   Push;
   if TryGetField( aKey, LUA_TNUMBER )
     then Result := lua_tointeger( FState, -1 )
+    else Result := aDefault;
+  Reset;
+end;
+
+function TLuaTable.GetQWord ( const aKey : AnsiString; aDefault : QWord ) : QWord;
+begin
+  Push;
+  if TryGetField( aKey, LUA_TNUMBER )
+    then Result := QWord( lua_tointeger( FState, -1 ) )
     else Result := aDefault;
   Reset;
 end;
