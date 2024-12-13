@@ -87,6 +87,8 @@ TVDataFile = class(TVObject)
   FLoaders : TVDFLoaders;
 end;
 
+TVDataFileArray = specialize TGArray<TVDataFile>;
+
 const VDF_SIGNATURE = 'VDFILE02';
 
 implementation
