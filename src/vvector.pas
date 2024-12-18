@@ -742,14 +742,14 @@ begin
   Vec4i.Data[3] := aW;
 end;
 
-function Vec3i( const aVec2i: TVec2i; aZ: Integer): TVec3i;
+function Vec3i( const aVec2i: TVec2i; aZ: Integer ): TVec3i;
 begin
   Vec3i.Data[0] := aVec2i.Data[0];
   Vec3i.Data[1] := aVec2i.Data[1];
   Vec3i.Data[2] := aZ;
 end;
 
-function Vec4i( const aVec3i: TVec3i; aW: Integer): TVec4i;
+function Vec4i( const aVec3i: TVec3i; aW: Integer ): TVec4i;
 begin
   Vec4i.Data[0] := aVec3i.Data[0];
   Vec4i.Data[1] := aVec3i.Data[1];
