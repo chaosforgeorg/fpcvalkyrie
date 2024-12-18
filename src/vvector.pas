@@ -157,6 +157,34 @@ type
     procedure FillAll( const q : TE );
   end;
 
+// Inline
+function Vec2f( aX : Single = 0; aY : Single = 0 ) : TVec2f; overload;
+function Vec3f( aX : Single = 0; aY : Single = 0; aZ : Single = 0 ) : TVec3f; overload;
+function Vec4f( aX : Single = 0; aY : Single = 0; aZ : Single = 0; aW : Single = 0 ) : TVec4f; overload;
+// Convert
+function Vec2f( const aVec2i : TVec2i ) : TVec2f; overload;
+function Vec3f( const aVec3i : TVec3i ) : TVec3f; overload;
+function Vec4f( const aVec4i : TVec4i ) : TVec4f; overload;
+// Expand
+function Vec3f( const aVec2f : TVec2f; aZ : Single = 0 ) : TVec3f; overload;
+function Vec4f( const aVec3f : TVec3f; aW : Single = 0 ) : TVec4f; overload;
+
+// Lerp support
+function Lerp( const a, b : TVec2f; aValue : Single ) : TVec2f; overload;
+function Lerp( const a, b : TVec3f; aValue : Single ) : TVec3f; overload;
+
+// Inline
+function Vec2i( aX : Integer = 0; aY : Integer = 0 ) : TVec2i; overload;
+function Vec3i( aX : Integer = 0; aY : Integer = 0; aZ : Integer = 0 ) : TVec3i; overload;
+function Vec4i( aX : Integer = 0; aY : Integer = 0; aZ : Integer = 0; aW : Integer = 0 ) : TVec4i; overload;
+// Expand
+function Vec3i( const aVec2i : TVec2i; aZ : Integer = 0 ) : TVec3i; overload;
+function Vec4i( const aVec3i : TVec3i; aW : Integer = 0 ) : TVec4i; overload;
+  
+// Lerp support
+function Lerp( const a, b : TVec2i; aValue : Single ) : TVec2i; overload;
+function Lerp( const a, b : TVec3i; aValue : Single ) : TVec3i; overload;
+
 implementation
 
 uses math;
@@ -619,6 +647,127 @@ begin
   Data[3] := T.CreateAll( q );
   Data[4] := T.CreateAll( q );
   Data[5] := T.CreateAll( q );
+end;
+
+function Vec2f(aX: Single; aY: Single): TVec2f;
+begin
+  Vec2f.Data[0] := aX;
+  Vec2f.Data[1] := aY;
+end;
+
+function Vec3f(aX: Single; aY: Single; aZ: Single): TVec3f;
+begin
+  Vec3f.Data[0] := aX;
+  Vec3f.Data[1] := aY;
+  Vec3f.Data[2] := aZ;
+end;
+
+function Vec4f(aX: Single; aY: Single; aZ: Single; aW: Single): TVec4f;
+begin
+  Vec4f.Data[0] := aX;
+  Vec4f.Data[1] := aY;
+  Vec4f.Data[2] := aZ;
+  Vec4f.Data[3] := aW;
+end;
+
+function Vec2f( const aVec2i: TVec2i): TVec2f;
+begin
+  Vec2f.Data[0] := aVec2i.Data[0];
+  Vec2f.Data[1] := aVec2i.Data[1];
+end;
+
+function Vec3f( const aVec3i: TVec3i): TVec3f;
+begin
+  Vec3f.Data[0] := aVec3i.Data[0];
+  Vec3f.Data[1] := aVec3i.Data[1];
+  Vec3f.Data[2] := aVec3i.Data[2];
+end;
+
+function Vec4f( const aVec4i: TVec4i): TVec4f;
+begin
+  Vec4f.Data[0] := aVec4i.Data[0];
+  Vec4f.Data[1] := aVec4i.Data[1];
+  Vec4f.Data[2] := aVec4i.Data[2];
+  Vec4f.Data[3] := aVec4i.Data[3];
+end;
+
+function Vec3f( const aVec2f: TVec2f; aZ: Single): TVec3f;
+begin
+  Vec3f.Data[0] := aVec2f.Data[0];
+  Vec3f.Data[1] := aVec2f.Data[1];
+  Vec3f.Data[2] := aZ;
+end;
+
+function Vec4f( const aVec3f: TVec3f; aW: Single): TVec4f;
+begin
+  Vec4f.Data[0] := aVec3f.Data[0];
+  Vec4f.Data[1] := aVec3f.Data[1];
+  Vec4f.Data[2] := aVec3f.Data[2];
+  Vec4f.Data[3] := aW;
+end;
+
+function Lerp( const a, b: TVec2f; aValue: Single): TVec2f;
+begin
+  Lerp.Data[0] := a.Data[0] + (b.Data[0] - a.Data[0]) * aValue;
+  Lerp.Data[1] := a.Data[1] + (b.Data[1] - a.Data[1]) * aValue;
+end;
+
+function Lerp( const a, b: TVec3f; aValue: Single): TVec3f;
+begin
+  Lerp.Data[0] := a.Data[0] + (b.Data[0] - a.Data[0]) * aValue;
+  Lerp.Data[1] := a.Data[1] + (b.Data[1] - a.Data[1]) * aValue;
+  Lerp.Data[2] := a.Data[2] + (b.Data[2] - a.Data[2]) * aValue;
+end;
+
+// Integer
+
+function Vec2i(aX: Integer; aY: Integer): TVec2i;
+begin
+  Vec2i.Data[0] := aX;
+  Vec2i.Data[1] := aY;
+end;
+
+function Vec3i(aX: Integer; aY: Integer; aZ: Integer): TVec3i;
+begin
+  Vec3i.Data[0] := aX;
+  Vec3i.Data[1] := aY;
+  Vec3i.Data[2] := aZ;
+end;
+
+function Vec4i(aX: Integer; aY: Integer; aZ: Integer; aW: Integer): TVec4i;
+begin
+  Vec4i.Data[0] := aX;
+  Vec4i.Data[1] := aY;
+  Vec4i.Data[2] := aZ;
+  Vec4i.Data[3] := aW;
+end;
+
+function Vec3i( const aVec2i: TVec2i; aZ: Integer): TVec3i;
+begin
+  Vec3i.Data[0] := aVec2i.Data[0];
+  Vec3i.Data[1] := aVec2i.Data[1];
+  Vec3i.Data[2] := aZ;
+end;
+
+function Vec4i( const aVec3i: TVec3i; aW: Integer): TVec4i;
+begin
+  Vec4i.Data[0] := aVec3i.Data[0];
+  Vec4i.Data[1] := aVec3i.Data[1];
+  Vec4i.Data[2] := aVec3i.Data[2];
+  Vec4i.Data[3] := aW;
+end;
+
+function Lerp( const a, b: TVec2i; aValue: Single ): TVec2i;
+begin
+  Lerp.Data[0] := a.Data[0] + Round( (b.Data[0] - a.Data[0]) * aValue );
+  Lerp.Data[1] := a.Data[1] + Round( (b.Data[1] - a.Data[1]) * aValue );
+end;
+
+function Lerp( const a, b: TVec3i; aValue: Single ): TVec3i;
+begin
+  Lerp.Data[0] := a.Data[0] + Round( (b.Data[0] - a.Data[0]) * aValue );
+  Lerp.Data[1] := a.Data[1] + Round( (b.Data[1] - a.Data[1]) * aValue );
+  Lerp.Data[2] := a.Data[2] + Round( (b.Data[2] - a.Data[2]) * aValue );
 end;
 
 end.
