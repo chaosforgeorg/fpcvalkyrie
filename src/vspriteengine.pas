@@ -157,7 +157,7 @@ var iv2a, iv2b    : TVec2i;
     ita, itb, its : TVec2f;
 begin
   iv2a := Vec2i( aCoord.X-1, aCoord.Y-1 ) * FEngine.FGrid;
-  iv2b := Vec2i( aCoord.Y, aCoord.Y )     * FEngine.FGrid;
+  iv2b := Vec2i( aCoord.X, aCoord.Y )     * FEngine.FGrid;
 
   its := TVec2f.CreateModDiv( aSpriteID-1, FRowSize );
   ita := its * FTexUnit;
