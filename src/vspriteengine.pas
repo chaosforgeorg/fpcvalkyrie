@@ -1,7 +1,7 @@
 unit vspriteengine;
 {$include valkyrie.inc}
 interface
-uses SysUtils, vgenerics, vcolor, vgltypes, vglprogram, vglquadarrays, vtextures;
+uses SysUtils, vgenerics, vvector, vrltools, vcolor, vgltypes, vglprogram, vglquadarrays, vtextures;
 
 type TSpriteEngine = class;
 
@@ -12,22 +12,22 @@ type
 
 TSpriteDataVTC = class
   constructor Create( aEngine : TSpriteEngine; aTexture : TTexture );
-  procedure Push( PosID : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
-  procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; color : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
-  procedure PushXY( PosID, Size : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
-  procedure Push( coord : PGLRawQCoord; tex : PGLRawQTexCoord; color : PGLRawQColor; aZ : Integer = 0 );
-  procedure PushPart( PosID : DWord; p1,p2 : TGLVec2i; color : PGLRawQColor; aZ : Integer; t1,t2 : TGLVec2f );
+  procedure Push( aSpriteID : DWord; aCoord : TCoord2D; aColor : TColor; aZ : Integer = 0 );
+  procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
+  procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor : TColor; aZ : Integer = 0 );
+  procedure Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aZ : Integer = 0 );
+  procedure PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aZ : Integer; aTa, aTb : TVec2f );
   destructor Destroy; override;
 private
   FData      : TGLTexturedColoredQuads;
   FEngine    : TSpriteEngine;
-  FTexUnit   : TGLVec2f;
+  FTexUnit   : TVec2f;
   FRowSize   : Word;
   FTextureID : DWord;
 public
-  property TexUnit   : TGLVec2f read FTexUnit;
-  property RowSize   : Word     read FRowSize;
-  property TextureID : DWord    read FTextureID;
+  property TexUnit   : TVec2f read FTexUnit;
+  property RowSize   : Word   read FRowSize;
+  property TextureID : DWord  read FTextureID;
 end;
 
 type
@@ -54,7 +54,7 @@ type TSpriteDataSetArray = specialize TGArray< TSpriteDataSet >;
 { TSpriteEngine }
 
 TSpriteEngine = class
-  constructor Create( aTileSize : TGLVec2i; aScale : Byte = 1 );
+  constructor Create( aTileSize : TVec2i; aScale : Byte = 1 );
   procedure SetScale( aScale : Byte );
   procedure Draw;
   procedure Update( aProjection : TMatrix44 );
@@ -68,16 +68,16 @@ private
   FProgram        : TGLProgram;
   FProjection     : TMatrix44;
   FCurrentTexture : DWord;
-  FGrid           : TGLVec2i;
-  FTileSize       : TGLVec2i;
-  FPosition       : TGLVec2i;
+  FGrid           : TVec2i;
+  FTileSize       : TVec2i;
+  FPosition       : TVec2i;
   FLayersDirty    : Boolean;
   FLayers         : TSpriteDataSetArray;
   FLayersSorted   : TSpriteDataSetArray;
 public
-  property Grid     : TGLVec2i read FGrid;
-  property TileSize : TGLVec2i read FTileSize;
-  property Position : TGLVec2i read FPosition write FPosition;
+  property Grid     : TVec2i read FGrid;
+  property TileSize : TVec2i read FTileSize;
+  property Position : TVec2i read FPosition write FPosition;
   property Layers   : TSpriteDataSetArray read FLayers;
 end;
 
@@ -152,105 +152,105 @@ begin
 end;
 
 
-procedure TSpriteDataVTC.Push(PosID : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0);
-var p1, p2     : TGLVec2i;
-    t1, t2, tp : TGLVec2f;
+procedure TSpriteDataVTC.Push( aSpriteID : DWord; aCoord : TCoord2D; aColor : TColor; aZ : Integer = 0);
+var iv2a, iv2b    : TVec2i;
+    ita, itb, its : TVec2f;
 begin
-  p1 := Pos.Shifted(-1) * FEngine.FGrid;
-  p2 := Pos * FEngine.FGrid;
+  iv2a := Vec2i( aCoord.X-1, aCoord.Y-1 ) * FEngine.FGrid;
+  iv2b := Vec2i( aCoord.Y, aCoord.Y )     * FEngine.FGrid;
 
-  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
-  t1 := tp * FTexUnit;
-  t2 := tp.Shifted(1) * FTexUnit;
+  its := TVec2f.CreateModDiv( aSpriteID-1, FRowSize );
+  ita := its * FTexUnit;
+  itb := its.Shifted(1) * FTexUnit;
 
   FData.PushQuad(
-    TGLVec3i.CreateFrom( p1, aZ ),
-    TGLVec3i.CreateFrom( p2, aZ ),
-    Color.toVec43f,
-    t1, t2
+    TVec3i.CreateFrom( iv2a, aZ ),
+    TVec3i.CreateFrom( iv2b, aZ ),
+    aColor.toVec43f,
+    ita, itb
   );
 
 end;
 
-procedure TSpriteDataVTC.PushXY(PosID, Size : DWord; Pos : TGLVec2i; color: PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
-var p2         : TGLVec2i;
-    t1, t2, tp : TGLVec2f;
+procedure TSpriteDataVTC.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
+var iv2b          : TVec2i;
+    ita, itb, its : TVec2f;
 begin
-  p2 := pos + FEngine.FGrid.Scaled( Size );
+  iv2b := aPos + FEngine.FGrid.Scaled( aSize );
 
-  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
-  tp += TGLVec2f.Create( TShiftX, TShiftY );
+  its := TVec2f.CreateModDiv( aSpriteID-1, FRowSize );
+  its += TVec2f.Create( TShiftX, TShiftY );
 
-  t1 := tp * FTexUnit;
-  t2 := tp.Shifted(Size) * FTexUnit;
+  ita := its * FTexUnit;
+  itb := its.Shifted( aSize ) * FTexUnit;
 
   FData.PushQuad(
-    TGLVec3i.CreateFrom( pos, aZ ),
-    TGLVec3i.CreateFrom( p2, aZ ),
+    TVec3i.CreateFrom( aPos, aZ ),
+    TVec3i.CreateFrom( iv2b, aZ ),
     TGLQVec4f.Create(
-      NewColor( color^.Data[0] ).toVec43f,
-      NewColor( color^.Data[1] ).toVec43f,
-      NewColor( color^.Data[2] ).toVec43f,
-      NewColor( color^.Data[3] ).toVec43f
+      NewColor( aQColor^.Data[0] ).toVec43f,
+      NewColor( aQColor^.Data[1] ).toVec43f,
+      NewColor( aQColor^.Data[2] ).toVec43f,
+      NewColor( aQColor^.Data[3] ).toVec43f
     ),
-    t1, t2
+    ita, itb
   );
 end;
 
-procedure TSpriteDataVTC.PushXY(PosID, Size : DWord; Pos : TGLVec2i; Color : TColor; aZ : Integer = 0 );
-var p2         : TGLVec2i;
-    t1, t2, tp : TGLVec2f;
+procedure TSpriteDataVTC.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor : TColor; aZ : Integer = 0 );
+var iv2b          : TVec2i;
+    ita, itb, its : TVec2f;
 begin
-  p2 := pos + FEngine.FGrid.Scaled( Size );
-  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
+  iv2b := aPos + FEngine.FGrid.Scaled( aSize );
+  its := TVec2f.CreateModDiv( aSpriteID-1, FRowSize );
 
-  t1 := tp * FTexUnit;
-  t2 := tp.Shifted(Size) * FTexUnit;
+  ita := its * FTexUnit;
+  itb := its.Shifted( aSize ) * FTexUnit;
 
   FData.PushQuad(
-    TGLVec3i.CreateFrom( pos, aZ ),
-    TGLVec3i.CreateFrom( p2, aZ ),
-    Color.toVec43f,
-    t1, t2
+    TVec3i.CreateFrom( aPos, aZ ),
+    TVec3i.CreateFrom( iv2b, aZ ),
+    aColor.toVec43f,
+    ita, itb
   );
 end;
 
-procedure TSpriteDataVTC.Push(coord: PGLRawQCoord; tex: PGLRawQTexCoord; color: PGLRawQColor; aZ : Integer = 0);
+procedure TSpriteDataVTC.Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aZ : Integer = 0);
 begin
   FData.PushQuad(
     TGLQVec3i.Create(
-      TGLVec3i.CreateFrom( coord^.Data[0], aZ ),
-      TGLVec3i.CreateFrom( coord^.Data[1], aZ ),
-      TGLVec3i.CreateFrom( coord^.Data[2], aZ ),
-      TGLVec3i.CreateFrom( coord^.Data[3], aZ )
+      TVec3i.CreateFrom( aQCoord^.Data[0], aZ ),
+      TVec3i.CreateFrom( aQCoord^.Data[1], aZ ),
+      TVec3i.CreateFrom( aQCoord^.Data[2], aZ ),
+      TVec3i.CreateFrom( aQCoord^.Data[3], aZ )
     ),
     TGLQVec4f.Create(
-      NewColor( color^.Data[0] ).toVec43f,
-      NewColor( color^.Data[1] ).toVec43f,
-      NewColor( color^.Data[2] ).toVec43f,
-      NewColor( color^.Data[3] ).toVec43f
+      NewColor( aQColor^.Data[0] ).toVec43f,
+      NewColor( aQColor^.Data[1] ).toVec43f,
+      NewColor( aQColor^.Data[2] ).toVec43f,
+      NewColor( aQColor^.Data[3] ).toVec43f
     ),
-    tex^.Data[0], tex^.Data[2]
+    aQTex^.Data[0], aQTex^.Data[2]
   );
 end;
 
-procedure TSpriteDataVTC.PushPart( PosID : DWord; p1,p2 : TGLVec2i; color : PGLRawQColor; aZ : Integer; t1,t2 : TGLVec2f );
-var tp : TGLVec2f;
+procedure TSpriteDataVTC.PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aZ : Integer; aTa, aTb : TVec2f );
+var its : TVec2f;
 begin
-  tp := TGLVec2f.CreateModDiv( PosID-1, FRowSize );
-  t1 := ( tp + t1 ) * FTexUnit;
-  t2 := ( tp + t2 ) * FTexUnit;
+  its := TVec2f.CreateModDiv( aSpriteID-1, FRowSize );
+  ata := ( its + aTa ) * FTexUnit;
+  atb := ( its + aTb ) * FTexUnit;
 
   FData.PushQuad(
-    TGLVec3i.CreateFrom( p1, aZ ),
-    TGLVec3i.CreateFrom( p2, aZ ),
+    TVec3i.CreateFrom( aPa, aZ ),
+    TVec3i.CreateFrom( aPb, aZ ),
     TGLQVec4f.Create(
-      NewColor( color^.Data[0] ).toVec43f,
-      NewColor( color^.Data[1] ).toVec43f,
-      NewColor( color^.Data[2] ).toVec43f,
-      NewColor( color^.Data[3] ).toVec43f
+      NewColor( aQColor^.Data[0] ).toVec43f,
+      NewColor( aQColor^.Data[1] ).toVec43f,
+      NewColor( aQColor^.Data[2] ).toVec43f,
+      NewColor( aQColor^.Data[3] ).toVec43f
     ),
-    t1, t2
+    ata, atb
   );
 end;
 
@@ -331,7 +331,7 @@ begin
   FreeAndNil( FLayersSorted );
 end;
 
-constructor TSpriteEngine.Create( aTileSize : TGLVec2i; aScale : Byte = 1 );
+constructor TSpriteEngine.Create( aTileSize : TVec2i; aScale : Byte = 1 );
 begin
   FTileSize := aTileSize;
   SetScale( aScale );

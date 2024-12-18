@@ -157,9 +157,69 @@ type
     procedure FillAll( const q : TE );
   end;
 
+// Inline
+function Vec2f( aX : Single = 0; aY : Single = 0 ) : TVec2f; overload;
+function Vec3f( aX : Single = 0; aY : Single = 0; aZ : Single = 0 ) : TVec3f; overload;
+function Vec4f( aX : Single = 0; aY : Single = 0; aZ : Single = 0; aW : Single = 0 ) : TVec4f; overload;
+// Convert
+function Vec2f( const aVec2i : TVec2i ) : TVec2f; overload;
+function Vec3f( const aVec3i : TVec3i ) : TVec3f; overload;
+function Vec4f( const aVec4i : TVec4i ) : TVec4f; overload;
+// Expand
+function Vec3f( const aVec2f : TVec2f; aZ : Single = 0 ) : TVec3f; overload;
+function Vec4f( const aVec3f : TVec3f; aW : Single = 0 ) : TVec4f; overload;
+
+// Lerp support
+function Lerp( const a, b : TVec2f; aValue : Single ) : TVec2f; overload;
+function Lerp( const a, b : TVec3f; aValue : Single ) : TVec3f; overload;
+
+// Clamp support
+function Clamp( const x, min, max : TVec2f ) : TVec2f; overload;
+function Clamp( const x, min, max : TVec3f ) : TVec3f; overload;
+function Clamp( const x, min, max : TVec4f ) : TVec4f; overload;
+
+// Ceil and floor
+function Ceilf( const aVec2f : TVec2f ) : TVec2f; overload;
+function Ceilf( const aVec3f : TVec3f ) : TVec3f; overload;
+function Ceilf( const aVec4f : TVec4f ) : TVec4f; overload;
+function Floorf( const aVec2f : TVec2f ) : TVec2f; overload;
+function Floorf( const aVec3f : TVec3f ) : TVec3f; overload;
+function Floorf( const aVec4f : TVec4f ) : TVec4f; overload;
+function Roundf( const aVec2f : TVec2f ) : TVec2f; overload;
+function Roundf( const aVec3f : TVec3f ) : TVec3f; overload;
+function Roundf( const aVec4f : TVec4f ) : TVec4f; overload;
+
+// Inline
+function Vec2i( aX : Integer = 0; aY : Integer = 0 ) : TVec2i; overload;
+function Vec3i( aX : Integer = 0; aY : Integer = 0; aZ : Integer = 0 ) : TVec3i; overload;
+function Vec4i( aX : Integer = 0; aY : Integer = 0; aZ : Integer = 0; aW : Integer = 0 ) : TVec4i; overload;
+// Expand
+function Vec3i( const aVec2i : TVec2i; aZ : Integer = 0 ) : TVec3i; overload;
+function Vec4i( const aVec3i : TVec3i; aW : Integer = 0 ) : TVec4i; overload;
+  
+// Lerp support
+function Lerp( const a, b : TVec2i; aValue : Single ) : TVec2i; overload;
+function Lerp( const a, b : TVec3i; aValue : Single ) : TVec3i; overload;
+
+// Ceil and floor I
+function Ceil( const aVec2f : TVec2f ) : TVec2i; overload;
+function Ceil( const aVec3f : TVec3f ) : TVec3i; overload;
+function Ceil( const aVec4f : TVec4f ) : TVec4i; overload;
+function Floor( const aVec2f : TVec2f ) : TVec2i; overload;
+function Floor( const aVec3f : TVec3f ) : TVec3i; overload;
+function Floor( const aVec4f : TVec4f ) : TVec4i; overload;
+function Round( const aVec2f : TVec2f ) : TVec2i; overload;
+function Round( const aVec3f : TVec3f ) : TVec3i; overload;
+function Round( const aVec4f : TVec4f ) : TVec4i; overload;
+
+// Clamp support
+function Clamp( const x, min, max : TVec2i ) : TVec2i; overload;
+function Clamp( const x, min, max : TVec3i ) : TVec3i; overload;
+function Clamp( const x, min, max : TVec4i ) : TVec4i; overload;
+
 implementation
 
-uses math;
+uses math, vmath;
 
 // --------------------- TGVEC 2 --------------------- //
 
@@ -619,6 +679,299 @@ begin
   Data[3] := T.CreateAll( q );
   Data[4] := T.CreateAll( q );
   Data[5] := T.CreateAll( q );
+end;
+
+function Vec2f(aX: Single; aY: Single): TVec2f;
+begin
+  Vec2f.Data[0] := aX;
+  Vec2f.Data[1] := aY;
+end;
+
+function Vec3f(aX: Single; aY: Single; aZ: Single): TVec3f;
+begin
+  Vec3f.Data[0] := aX;
+  Vec3f.Data[1] := aY;
+  Vec3f.Data[2] := aZ;
+end;
+
+function Vec4f(aX: Single; aY: Single; aZ: Single; aW: Single): TVec4f;
+begin
+  Vec4f.Data[0] := aX;
+  Vec4f.Data[1] := aY;
+  Vec4f.Data[2] := aZ;
+  Vec4f.Data[3] := aW;
+end;
+
+function Vec2f( const aVec2i: TVec2i): TVec2f;
+begin
+  Vec2f.Data[0] := aVec2i.Data[0];
+  Vec2f.Data[1] := aVec2i.Data[1];
+end;
+
+function Vec3f( const aVec3i: TVec3i): TVec3f;
+begin
+  Vec3f.Data[0] := aVec3i.Data[0];
+  Vec3f.Data[1] := aVec3i.Data[1];
+  Vec3f.Data[2] := aVec3i.Data[2];
+end;
+
+function Vec4f( const aVec4i: TVec4i): TVec4f;
+begin
+  Vec4f.Data[0] := aVec4i.Data[0];
+  Vec4f.Data[1] := aVec4i.Data[1];
+  Vec4f.Data[2] := aVec4i.Data[2];
+  Vec4f.Data[3] := aVec4i.Data[3];
+end;
+
+function Vec3f( const aVec2f: TVec2f; aZ: Single): TVec3f;
+begin
+  Vec3f.Data[0] := aVec2f.Data[0];
+  Vec3f.Data[1] := aVec2f.Data[1];
+  Vec3f.Data[2] := aZ;
+end;
+
+function Vec4f( const aVec3f: TVec3f; aW: Single): TVec4f;
+begin
+  Vec4f.Data[0] := aVec3f.Data[0];
+  Vec4f.Data[1] := aVec3f.Data[1];
+  Vec4f.Data[2] := aVec3f.Data[2];
+  Vec4f.Data[3] := aW;
+end;
+
+function Lerp( const a, b: TVec2f; aValue: Single): TVec2f;
+begin
+  Lerp.Data[0] := a.Data[0] + (b.Data[0] - a.Data[0]) * aValue;
+  Lerp.Data[1] := a.Data[1] + (b.Data[1] - a.Data[1]) * aValue;
+end;
+
+function Lerp( const a, b: TVec3f; aValue: Single): TVec3f;
+begin
+  Lerp.Data[0] := a.Data[0] + (b.Data[0] - a.Data[0]) * aValue;
+  Lerp.Data[1] := a.Data[1] + (b.Data[1] - a.Data[1]) * aValue;
+  Lerp.Data[2] := a.Data[2] + (b.Data[2] - a.Data[2]) * aValue;
+end;
+
+// Clamp support
+
+function Clamp( const x, min, max : TVec2f ) : TVec2f; overload;
+begin
+  Clamp.Data[0] := Clampf( x.Data[0], min.Data[0], max.Data[0] );
+  Clamp.Data[1] := Clampf( x.Data[1], min.Data[1], max.Data[1] );
+end;
+
+function Clamp( const x, min, max : TVec3f ) : TVec3f; overload;
+begin
+  Clamp.Data[0] := Clampf( x.Data[0], min.Data[0], max.Data[0] );
+  Clamp.Data[1] := Clampf( x.Data[1], min.Data[1], max.Data[1] );
+  Clamp.Data[2] := Clampf( x.Data[2], min.Data[2], max.Data[2] );
+end;
+
+function Clamp( const x, min, max : TVec4f ) : TVec4f; overload;
+begin
+  Clamp.Data[0] := Clampf( x.Data[0], min.Data[0], max.Data[0] );
+  Clamp.Data[1] := Clampf( x.Data[1], min.Data[1], max.Data[1] );
+  Clamp.Data[2] := Clampf( x.Data[2], min.Data[2], max.Data[2] );
+  Clamp.Data[3] := Clampf( x.Data[3], min.Data[3], max.Data[3] );
+end;
+
+// Ceil and floor
+
+function Ceilf( const aVec2f : TVec2f ) : TVec2f; overload;
+begin
+  Ceilf.Data[0] := Ceil( aVec2f.Data[0] );
+  Ceilf.Data[1] := Ceil( aVec2f.Data[1] );
+end;
+
+function Ceilf( const aVec3f : TVec3f ) : TVec3f; overload;
+begin
+  Ceilf.Data[0] := Ceil( aVec3f.Data[0] );
+  Ceilf.Data[1] := Ceil( aVec3f.Data[1] );
+  Ceilf.Data[2] := Ceil( aVec3f.Data[2] );
+end;
+
+function Ceilf( const aVec4f : TVec4f ) : TVec4f; overload;
+begin
+  Ceilf.Data[0] := Ceil( aVec4f.Data[0] );
+  Ceilf.Data[1] := Ceil( aVec4f.Data[1] );
+  Ceilf.Data[2] := Ceil( aVec4f.Data[2] );
+  Ceilf.Data[3] := Ceil( aVec4f.Data[3] );
+end;
+
+function Floorf( const aVec2f : TVec2f ) : TVec2f; overload;
+begin
+  Floorf.Data[0] := Floor( aVec2f.Data[0] );
+  Floorf.Data[1] := Floor( aVec2f.Data[1] );
+end;
+
+function Floorf( const aVec3f : TVec3f ) : TVec3f; overload;
+begin
+  Floorf.Data[0] := Floor( aVec3f.Data[0] );
+  Floorf.Data[1] := Floor( aVec3f.Data[1] );
+  Floorf.Data[2] := Floor( aVec3f.Data[2] );
+end;
+
+function Floorf( const aVec4f : TVec4f ) : TVec4f; overload;
+begin
+  Floorf.Data[0] := Floor( aVec4f.Data[0] );
+  Floorf.Data[1] := Floor( aVec4f.Data[1] );
+  Floorf.Data[2] := Floor( aVec4f.Data[2] );
+  Floorf.Data[3] := Floor( aVec4f.Data[3] );
+end;
+
+function Roundf( const aVec2f : TVec2f ) : TVec2f; overload;
+begin
+  Roundf.Data[0] := Round( aVec2f.Data[0] );
+  Roundf.Data[1] := Round( aVec2f.Data[1] );
+end;
+
+function Roundf( const aVec3f : TVec3f ) : TVec3f; overload;
+begin
+  Roundf.Data[0] := Round( aVec3f.Data[0] );
+  Roundf.Data[1] := Round( aVec3f.Data[1] );
+  Roundf.Data[2] := Round( aVec3f.Data[2] );
+end;
+
+function Roundf( const aVec4f : TVec4f ) : TVec4f; overload;
+begin
+  Roundf.Data[0] := Round( aVec4f.Data[0] );
+  Roundf.Data[1] := Round( aVec4f.Data[1] );
+  Roundf.Data[2] := Round( aVec4f.Data[2] );
+  Roundf.Data[3] := Round( aVec4f.Data[3] );
+end;
+
+// Integer
+
+function Vec2i(aX: Integer; aY: Integer): TVec2i;
+begin
+  Vec2i.Data[0] := aX;
+  Vec2i.Data[1] := aY;
+end;
+
+function Vec3i(aX: Integer; aY: Integer; aZ: Integer): TVec3i;
+begin
+  Vec3i.Data[0] := aX;
+  Vec3i.Data[1] := aY;
+  Vec3i.Data[2] := aZ;
+end;
+
+function Vec4i(aX: Integer; aY: Integer; aZ: Integer; aW: Integer): TVec4i;
+begin
+  Vec4i.Data[0] := aX;
+  Vec4i.Data[1] := aY;
+  Vec4i.Data[2] := aZ;
+  Vec4i.Data[3] := aW;
+end;
+
+function Vec3i( const aVec2i: TVec2i; aZ: Integer ): TVec3i;
+begin
+  Vec3i.Data[0] := aVec2i.Data[0];
+  Vec3i.Data[1] := aVec2i.Data[1];
+  Vec3i.Data[2] := aZ;
+end;
+
+function Vec4i( const aVec3i: TVec3i; aW: Integer ): TVec4i;
+begin
+  Vec4i.Data[0] := aVec3i.Data[0];
+  Vec4i.Data[1] := aVec3i.Data[1];
+  Vec4i.Data[2] := aVec3i.Data[2];
+  Vec4i.Data[3] := aW;
+end;
+
+function Lerp( const a, b: TVec2i; aValue: Single ): TVec2i;
+begin
+  Lerp.Data[0] := a.Data[0] + Round( (b.Data[0] - a.Data[0]) * aValue );
+  Lerp.Data[1] := a.Data[1] + Round( (b.Data[1] - a.Data[1]) * aValue );
+end;
+
+function Lerp( const a, b: TVec3i; aValue: Single ): TVec3i;
+begin
+  Lerp.Data[0] := a.Data[0] + Round( (b.Data[0] - a.Data[0]) * aValue );
+  Lerp.Data[1] := a.Data[1] + Round( (b.Data[1] - a.Data[1]) * aValue );
+  Lerp.Data[2] := a.Data[2] + Round( (b.Data[2] - a.Data[2]) * aValue );
+end;
+
+function Ceil( const aVec2f : TVec2f ) : TVec2i; overload;
+begin
+  Ceil.Data[0] := Ceil( aVec2f.Data[0] );
+  Ceil.Data[1] := Ceil( aVec2f.Data[1] );
+end;
+
+function Ceil( const aVec3f : TVec3f ) : TVec3i; overload;
+begin
+  Ceil.Data[0] := Ceil( aVec3f.Data[0] );
+  Ceil.Data[1] := Ceil( aVec3f.Data[1] );
+  Ceil.Data[2] := Ceil( aVec3f.Data[2] );
+end;
+
+function Ceil( const aVec4f : TVec4f ) : TVec4i; overload;
+begin
+  Ceil.Data[0] := Ceil( aVec4f.Data[0] );
+  Ceil.Data[1] := Ceil( aVec4f.Data[1] );
+  Ceil.Data[2] := Ceil( aVec4f.Data[2] );
+  Ceil.Data[3] := Ceil( aVec4f.Data[3] );
+end;
+
+function Floor( const aVec2f : TVec2f ) : TVec2i; overload;
+begin
+  Floor.Data[0] := Floor( aVec2f.Data[0] );
+  Floor.Data[1] := Floor( aVec2f.Data[1] );
+end;
+
+function Floor( const aVec3f : TVec3f ) : TVec3i; overload;
+begin
+  Floor.Data[0] := Floor( aVec3f.Data[0] );
+  Floor.Data[1] := Floor( aVec3f.Data[1] );
+  Floor.Data[2] := Floor( aVec3f.Data[2] );
+end;
+
+function Floor( const aVec4f : TVec4f ) : TVec4i; overload;
+begin
+  Floor.Data[0] := Floor( aVec4f.Data[0] );
+  Floor.Data[1] := Floor( aVec4f.Data[1] );
+  Floor.Data[2] := Floor( aVec4f.Data[2] );
+  Floor.Data[3] := Floor( aVec4f.Data[3] );
+end;
+
+function Round( const aVec2f : TVec2f ) : TVec2i; overload;
+begin
+  Round.Data[0] := Round( aVec2f.Data[0] );
+  Round.Data[1] := Round( aVec2f.Data[1] );
+end;
+
+function Round( const aVec3f : TVec3f ) : TVec3i; overload;
+begin
+  Round.Data[0] := Round( aVec3f.Data[0] );
+  Round.Data[1] := Round( aVec3f.Data[1] );
+  Round.Data[2] := Round( aVec3f.Data[2] );
+end;
+
+function Round( const aVec4f : TVec4f ) : TVec4i; overload;
+begin
+  Round.Data[0] := Round( aVec4f.Data[0] );
+  Round.Data[1] := Round( aVec4f.Data[1] );
+  Round.Data[2] := Round( aVec4f.Data[2] );
+  Round.Data[3] := Round( aVec4f.Data[3] );
+end;
+
+function Clamp( const x, min, max : TVec2i ) : TVec2i; overload;
+begin
+  Clamp.Data[0] := Clamp( x.Data[0], min.Data[0], max.Data[0] );
+  Clamp.Data[1] := Clamp( x.Data[1], min.Data[1], max.Data[1] );
+end;
+
+function Clamp( const x, min, max : TVec3i ) : TVec3i; overload;
+begin
+  Clamp.Data[0] := Clamp( x.Data[0], min.Data[0], max.Data[0] );
+  Clamp.Data[1] := Clamp( x.Data[1], min.Data[1], max.Data[1] );
+  Clamp.Data[2] := Clamp( x.Data[2], min.Data[2], max.Data[2] );
+end;
+
+function Clamp( const x, min, max : TVec4i ) : TVec4i; overload;
+begin
+  Clamp.Data[0] := Clamp( x.Data[0], min.Data[0], max.Data[0] );
+  Clamp.Data[1] := Clamp( x.Data[1], min.Data[1], max.Data[1] );
+  Clamp.Data[2] := Clamp( x.Data[2], min.Data[2], max.Data[2] );
+  Clamp.Data[3] := Clamp( x.Data[3], min.Data[3], max.Data[3] );
 end;
 
 end.
