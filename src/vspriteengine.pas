@@ -5,13 +5,12 @@ uses SysUtils, vgenerics, vvector, vrltools, vcolor, vgltypes, vglprogram, vglqu
 
 type TSpriteEngine = class;
 
-
 type
 
-{ TSpriteDataVTC }
+{ TSpriteDataSet }
 
-TSpriteDataVTC = class
-  constructor Create( aEngine : TSpriteEngine; aTexture, aTexture2 : TTexture );
+TSpriteDataSet = class
+  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay : TTexture; aOrder : Integer );
   procedure Push( aSpriteID : DWord; aCoord : TCoord2D; aColor, aCosColor : TColor; aZ : Integer = 0 );
   procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; aCosColor : TColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
   procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor, aCosColor : TColor; aZ : Integer = 0 );
@@ -25,26 +24,13 @@ private
   FRowSize    : Word;
   FTextureID  : DWord;
   FTexture2ID : DWord;
+  FOrder      : Integer;
 public
-  property TexUnit    : TVec2f read FTexUnit;
-  property RowSize    : Word   read FRowSize;
-  property TextureID  : DWord  read FTextureID;
-  property Texture2ID : DWord  read FTexture2ID;
-end;
-
-type
-
-{ TSpriteDataSet }
-
-TSpriteDataSet = class
-  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay : TTexture; aOrder : Integer );
-  destructor Destroy; override;
-private
-  FNormal  : TSpriteDataVTC;
-  FOrder   : Integer;
-public
-  property Normal  : TSpriteDataVTC read FNormal;
-  property Order   : Integer read FOrder;
+  property TexUnit    : TVec2f  read FTexUnit;
+  property RowSize    : Word    read FRowSize;
+  property TextureID  : DWord   read FTextureID;
+  property Texture2ID : DWord   read FTexture2ID;
+  property Order      : Integer read FOrder;
 end;
 
 type TSpriteDataSetArray = specialize TGArray< TSpriteDataSet >;
@@ -56,7 +42,6 @@ TSpriteEngine = class
   procedure SetScale( aScale : Byte );
   procedure Draw;
   procedure Update( aProjection : TMatrix44 );
-  procedure DrawVTC( Data : TSpriteDataVTC );
   procedure DrawSet( const Data : TSpriteDataSet );
   procedure SetTexture( TexID : DWord );
   function Add( aNormal, aCosplay : TTexture; aOrder : Integer ) : Integer;
@@ -121,37 +106,28 @@ VSpriteFragmentShader : Ansistring =
 { TSpriteDataSet }
 
 constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay : TTexture; aOrder : Integer );
+var iTilesY : Integer;
 begin
-  FNormal  := nil;
-
-  if aNormal  <> nil then FNormal  := TSpriteDataVTC.Create( aEngine, aNormal, aCosplay );
-
-  FOrder := aOrder;
+  Assert( aNormal <> nil, 'Nil texture passed!');
+  FEngine    := aEngine;
+  FData      := TGLTexturedColored2Quads.Create;
+  FTextureID := aNormal.GLTexture;
+  FTexture2ID:= 0;
+  if aCosplay <> nil then FTexture2ID := aCosplay.GLTexture;
+  FRowSize   := aNormal.Size.X div FEngine.TileSize.X;
+  iTilesY    := aNormal.Size.Y div FEngine.TileSize.Y;
+  FTexUnit.Init( 1.0 / FRowSize, 1.0 / iTilesY );
+  FOrder     := aOrder;
 end;
 
 destructor TSpriteDataSet.Destroy;
 begin
-  FreeAndNil( FNormal );
+  FreeAndNil( FData );
 end;
 
 { TSpriteDataVTC }
 
-constructor TSpriteDataVTC.Create( aEngine : TSpriteEngine; aTexture, aTexture2 : TTexture );
-var iTilesY : DWord;
-begin
-  Assert( aTexture <> nil, 'Nil texture passed!');
-  FEngine    := aEngine;
-  FData      := TGLTexturedColored2Quads.Create;
-  FTextureID := aTexture.GLTexture;
-  FTexture2ID:= 0;
-  if aTexture2 <> nil then FTexture2ID := aTexture2.GLTexture;
-  FRowSize   := aTexture.Size.X div FEngine.TileSize.X;
-  iTilesY    := aTexture.Size.Y div FEngine.TileSize.Y;
-  FTexUnit.Init( 1.0 / FRowSize, 1.0 / iTilesY );
-end;
-
-
-procedure TSpriteDataVTC.Push( aSpriteID : DWord; aCoord : TCoord2D; aColor, aCosColor : TColor; aZ : Integer = 0);
+procedure TSpriteDataSet.Push( aSpriteID : DWord; aCoord : TCoord2D; aColor, aCosColor : TColor; aZ : Integer = 0);
 var iv2a, iv2b    : TVec2i;
     ita, itb, its : TVec2f;
 begin
@@ -172,7 +148,7 @@ begin
 
 end;
 
-procedure TSpriteDataVTC.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; aCosColor : TColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
+procedure TSpriteDataSet.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; aCosColor : TColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
 var iv2b          : TVec2i;
     ita, itb, its : TVec2f;
 begin
@@ -198,7 +174,7 @@ begin
   );
 end;
 
-procedure TSpriteDataVTC.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor, aCosColor : TColor; aZ : Integer = 0 );
+procedure TSpriteDataSet.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor, aCosColor : TColor; aZ : Integer = 0 );
 var iv2b          : TVec2i;
     ita, itb, its : TVec2f;
 begin
@@ -217,7 +193,7 @@ begin
   );
 end;
 
-procedure TSpriteDataVTC.Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aCosColor : TColor; aZ : Integer = 0);
+procedure TSpriteDataSet.Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aCosColor : TColor; aZ : Integer = 0);
 begin
   FData.PushQuad(
     TGLQVec3i.Create(
@@ -237,7 +213,7 @@ begin
   );
 end;
 
-procedure TSpriteDataVTC.PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aCosColor : TColor; aZ : Integer; aTa, aTb : TVec2f );
+procedure TSpriteDataSet.PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aCosColor : TColor; aZ : Integer; aTa, aTb : TVec2f );
 var its : TVec2f;
 begin
   its := TVec2f.CreateModDiv( aSpriteID-1, FRowSize );
@@ -258,11 +234,6 @@ begin
   );
 end;
 
-destructor TSpriteDataVTC.Destroy;
-begin
-  FreeAndNil( FData );
-end;
-
 { TSpriteEngine }
 
 procedure TSpriteEngine.Update ( aProjection : TMatrix44 );
@@ -281,31 +252,26 @@ begin
     end;
 end;
 
-procedure TSpriteEngine.DrawVTC( Data : TSpriteDataVTC );
-begin
-  FProgram.Bind;
-  Data.FData.Update;
-  Data.FData.Draw;
-  Data.FData.Clear;
-  FProgram.UnBind;
-end;
-
 procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet );
 begin
   glActiveTexture( GL_TEXTURE0 );
 
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 
-  if not Data.FNormal.FData.Empty then
+  if not Data.FData.Empty then
   begin
     glActiveTexture( GL_TEXTURE0 );
-    SetTexture( Data.FNormal.TextureID );
-    if Data.FNormal.FTexture2ID <> 0 then
+    SetTexture( Data.TextureID );
+    if Data.FTexture2ID <> 0 then
     begin
       glActiveTexture( GL_TEXTURE1 );
-      SetTexture( Data.FNormal.FTexture2ID );
+      SetTexture( Data.FTexture2ID );
     end;
-    DrawVTC( Data.FNormal );
+    FProgram.Bind;
+    Data.FData.Update;
+    Data.FData.Draw;
+    Data.FData.Clear;
+    FProgram.UnBind;
   end;
 
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
@@ -353,7 +319,7 @@ begin
   Assert( aNormal <> nil, 'Normal texture needs to be present in spritesheet!');
   if FLayers.Size > 0 then
   for i := 0 to FLayers.Size - 1 do
-    if FLayers[i].Normal.TextureID = aNormal.GLTexture then
+    if FLayers[i].TextureID = aNormal.GLTexture then
       Exit(i);
   FLayersDirty := True;
   FLayers.Push( TSpriteDataSet.Create( Self, aNormal, aCosplay, aOrder ) );
