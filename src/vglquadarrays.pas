@@ -35,6 +35,15 @@ type TGLTexturedColoredQuads = class( TGLTexturedQuads )
   procedure Append( aList : TGLTexturedColoredQuads );
 end;
 
+type TGLTexturedColored2Quads = class( TGLTexturedQuads )
+  constructor Create;
+  procedure PushQuad ( aUR, aLL : TGLVec3i; aColor, aCosColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+  procedure PushQuad ( aUR, aLL : TGLVec3i; aColorQuad : TGLQVec4f; aCosColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+  procedure PushQuad ( aCoord : TGLQVec3i; aColorQuad : TGLQVec4f; aCosColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+  procedure PushRotatedQuad ( aCenter, aSize : TGLVec3i; aDegrees : Single; aColor, aCosColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+  procedure Append( aList : TGLTexturedColored2Quads );
+end;
+
 
 implementation
 
@@ -152,6 +161,51 @@ procedure TGLTexturedColoredQuads.Append( aList : TGLTexturedColoredQuads );
 begin
   inherited Append( aList );
   TGLQVec4fArray(FArrays[2]).Append( TGLQVec4fArray(aList.FArrays[2]) );
+end;
+
+{ TGLTexturedColored2Quads }
+
+constructor TGLTexturedColored2Quads.Create;
+begin
+  inherited Create;
+  PushArray( TGLQVec4fArray.Create, 4, GL_FLOAT, VGL_COLOR_LOCATION );
+  PushArray( TGLQVec4fArray.Create, 4, GL_FLOAT, VGL_COLOR2_LOCATION );
+end;
+
+procedure TGLTexturedColored2Quads.PushQuad ( aUR, aLL : TGLVec3i; aColor, aCosColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+begin
+  inherited PushQuad(aUR, aLL, aTUR, aTLL );
+  TGLQVec4fArray(FArrays[2]).Push( TGLQVec4f.CreateAll( aColor ) );
+  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
+end;
+
+procedure TGLTexturedColored2Quads.PushQuad(aUR, aLL: TGLVec3i; aColorQuad: TGLQVec4f; aCosColor : TGLVec4f; aTUR, aTLL: TGLVec2f);
+begin
+  inherited PushQuad(aUR, aLL, aTUR, aTLL );
+  TGLQVec4fArray(FArrays[2]).Push( aColorQuad );
+  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
+end;
+
+procedure TGLTexturedColored2Quads.PushQuad(aCoord: TGLQVec3i; aColorQuad: TGLQVec4f; aCosColor : TGLVec4f; aTUR, aTLL: TGLVec2f);
+begin
+  inherited PushQuad(aCoord, aTUR, aTLL );
+  TGLQVec4fArray(FArrays[2]).Push( aColorQuad );
+  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
+end;
+
+procedure TGLTexturedColored2Quads.PushRotatedQuad(aCenter, aSize: TGLVec3i;
+  aDegrees: Single; aColor, aCosColor: TGLVec4f; aTUR, aTLL: TGLVec2f);
+begin
+  inherited PushRotatedQuad( aCenter, aSize, aDegrees, aTUR, aTLL );
+  TGLQVec4fArray(FArrays[2]).Push( TGLQVec4f.CreateAll( aColor ) );
+  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
+end;
+
+procedure TGLTexturedColored2Quads.Append( aList : TGLTexturedColored2Quads );
+begin
+  inherited Append( aList );
+  TGLQVec4fArray(FArrays[2]).Append( TGLQVec4fArray(aList.FArrays[2]) );
+  TGLQVec4fArray(FArrays[3]).Append( TGLQVec4fArray(aList.FArrays[3]) );
 end;
 
 end.

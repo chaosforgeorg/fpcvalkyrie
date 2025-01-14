@@ -39,6 +39,7 @@ type
 const VGL_POSITION_LOCATION = 0;
       VGL_TEXCOORD_LOCATION = 1;
       VGL_COLOR_LOCATION    = 2;
+      VGL_COLOR2_LOCATION   = 3;
 
 // Inline
 function GLVec2f( aX : Single = 0; aY : Single = 0 ) : TGLVec2f; overload;
