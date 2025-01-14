@@ -22,14 +22,14 @@ private
   FEngine     : TSpriteEngine;
   FTexUnit    : TVec2f;
   FRowSize    : Word;
-  FTextureID  : DWord;
-  FTexture2ID : DWord;
+  FTNormalID  : DWord;
+  FTCosplayID : DWord;
   FOrder      : Integer;
 public
   property TexUnit    : TVec2f  read FTexUnit;
   property RowSize    : Word    read FRowSize;
-  property TextureID  : DWord   read FTextureID;
-  property Texture2ID : DWord   read FTexture2ID;
+  property TNormalID  : DWord   read FTNormalID;
+  property TCosplayID : DWord   read FTCosplayID;
   property Order      : Integer read FOrder;
 end;
 
@@ -94,12 +94,13 @@ VSpriteFragmentShader : Ansistring =
 'in vec4 ocolor;'+#10+
 'in vec4 ocolor2;'+#10+
 'in vec2 otexcoord;'+#10+
-'uniform sampler2D utexture;'+#10+
-'uniform sampler2D utexture2;'+#10+
+'uniform sampler2D unormal;'+#10+
+'uniform sampler2D ucosplay;'+#10+
 'out vec4 frag_color;'+#10+
 #10+
 'void main() {'+#10+
-'frag_color = texture(utexture, otexcoord) * ocolor + vec4( texture(utexture2, otexcoord).xyz, 0 ) * ocolor2;'+#10+
+'frag_color = texture(unormal, otexcoord) + vec4( texture(ucosplay, otexcoord).xyz, 0 ) * ocolor2;'+#10+
+'frag_color = frag_color * ocolor;'+#10+
 'if ( frag_color.a < 0.01 ) discard;'+#10+
 '}'+#10;
 
@@ -109,11 +110,11 @@ constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay : 
 var iTilesY : Integer;
 begin
   Assert( aNormal <> nil, 'Nil texture passed!');
-  FEngine    := aEngine;
-  FData      := TGLTexturedColored2Quads.Create;
-  FTextureID := aNormal.GLTexture;
-  FTexture2ID:= 0;
-  if aCosplay <> nil then FTexture2ID := aCosplay.GLTexture;
+  FEngine     := aEngine;
+  FData       := TGLTexturedColored2Quads.Create;
+  FTNormalID  := aNormal.GLTexture;
+  FTCosplayID := 0;
+  if aCosplay <> nil then FTCosplayID := aCosplay.GLTexture;
   FRowSize   := aNormal.Size.X div FEngine.TileSize.X;
   iTilesY    := aNormal.Size.Y div FEngine.TileSize.Y;
   FTexUnit.Init( 1.0 / FRowSize, 1.0 / iTilesY );
@@ -245,8 +246,8 @@ begin
       FProjection := aProjection;
       FProgram.Bind;
       glUniformMatrix4fv( FProgram.GetUniformLocation( 'utransform' ), 1, GL_FALSE, @FProjection[0] );
-      glUniform1i( FProgram.GetUniformLocation('utexture'), 0 );
-      glUniform1i( FProgram.GetUniformLocation('utexture2'), 1 );
+      glUniform1i( FProgram.GetUniformLocation('unormal'), 0 );
+      glUniform1i( FProgram.GetUniformLocation('ucosplay'), 1 );
       FProgram.UnBind;
       Exit;
     end;
@@ -261,11 +262,11 @@ begin
   if not Data.FData.Empty then
   begin
     glActiveTexture( GL_TEXTURE0 );
-    SetTexture( Data.TextureID );
-    if Data.FTexture2ID <> 0 then
+    SetTexture( Data.TNormalID );
+    if Data.TCosplayID <> 0 then
     begin
       glActiveTexture( GL_TEXTURE1 );
-      SetTexture( Data.FTexture2ID );
+      SetTexture( Data.TCosplayID );
     end;
     FProgram.Bind;
     Data.FData.Update;
@@ -319,7 +320,7 @@ begin
   Assert( aNormal <> nil, 'Normal texture needs to be present in spritesheet!');
   if FLayers.Size > 0 then
   for i := 0 to FLayers.Size - 1 do
-    if FLayers[i].TextureID = aNormal.GLTexture then
+    if FLayers[i].TNormalID = aNormal.GLTexture then
       Exit(i);
   FLayersDirty := True;
   FLayers.Push( TSpriteDataSet.Create( Self, aNormal, aCosplay, aOrder ) );
