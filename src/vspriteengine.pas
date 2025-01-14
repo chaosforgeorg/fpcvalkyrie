@@ -35,17 +35,15 @@ type
 { TSpriteDataSet }
 
 TSpriteDataSet = class
-  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : TTexture; aOrder : Integer );
+  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay : TTexture; aOrder : Integer );
   destructor Destroy; override;
 private
   FNormal  : TSpriteDataVTC;
   FCosplay : TSpriteDataVTC;
-  FGlow    : TSpriteDataVTC;
   FOrder   : Integer;
 public
   property Normal  : TSpriteDataVTC read FNormal;
   property Cosplay : TSpriteDataVTC read FCosplay;
-  property Glow    : TSpriteDataVTC read FGlow;
   property Order   : Integer read FOrder;
 end;
 
@@ -61,7 +59,7 @@ TSpriteEngine = class
   procedure DrawVTC( Data : TSpriteDataVTC );
   procedure DrawSet( const Data : TSpriteDataSet );
   procedure SetTexture( TexID : DWord );
-  function Add( aNormal, aCosplay, aGlow : TTexture; aOrder : Integer ) : Integer;
+  function Add( aNormal, aCosplay : TTexture; aOrder : Integer ) : Integer;
   destructor Destroy; override;
 private
   FVAO            : Cardinal;
@@ -117,15 +115,13 @@ VSpriteFragmentShader : Ansistring =
 
 { TSpriteDataSet }
 
-constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay, aGlow : TTexture; aOrder : Integer );
+constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay : TTexture; aOrder : Integer );
 begin
   FNormal  := nil;
   FCosplay := nil;
-  FGlow    := nil;
 
   if aNormal  <> nil then FNormal  := TSpriteDataVTC.Create( aEngine, aNormal );
   if aCosplay <> nil then FCosplay := TSpriteDataVTC.Create( aEngine, aCosplay );
-  if aGlow    <> nil then FGlow    := TSpriteDataVTC.Create( aEngine, aGlow );
 
   FOrder := aOrder;
 end;
@@ -134,7 +130,6 @@ destructor TSpriteDataSet.Destroy;
 begin
   FreeAndNil( FNormal );
   FreeAndNil( FCosplay );
-  FreeAndNil( FGlow );
 end;
 
 { TSpriteDataVTC }
@@ -290,22 +285,15 @@ procedure TSpriteEngine.DrawSet(const Data: TSpriteDataSet );
 begin
   glActiveTexture(0);
 
+  glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+
   if not Data.FNormal.FData.Empty then
-  begin
-    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
     DrawVTC( Data.FNormal );
-  end;
 
   if (Data.FCosplay <> nil) and (not Data.Cosplay.FData.Empty) then
   begin
     glBlendFunc( GL_ONE, GL_ONE );
     DrawVTC( Data.FCosplay );
-  end;
-
-  if (Data.FGlow <> nil) and (not Data.Glow.FData.Empty) then
-  begin
-    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-    DrawVTC( Data.FGlow );
   end;
 
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
@@ -351,7 +339,7 @@ begin
   FGrid.Init( FTileSize.X * aScale, FTileSize.Y * aScale );
 end;
 
-function TSpriteEngine.Add( aNormal, aCosplay, aGlow : TTexture; aOrder : Integer ) : Integer;
+function TSpriteEngine.Add( aNormal, aCosplay : TTexture; aOrder : Integer ) : Integer;
 var i : DWord;
 begin
   Assert( aNormal <> nil, 'Normal texture needs to be present in spritesheet!');
@@ -360,7 +348,7 @@ begin
     if FLayers[i].Normal.TextureID = aNormal.GLTexture then
       Exit(i);
   FLayersDirty := True;
-  FLayers.Push( TSpriteDataSet.Create( Self, aNormal, aCosplay, aGlow, aOrder ) );
+  FLayers.Push( TSpriteDataSet.Create( Self, aNormal, aCosplay, aOrder ) );
   Exit( Flayers.Size - 1 );
 end;
 
