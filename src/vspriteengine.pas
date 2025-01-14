@@ -102,14 +102,15 @@ VSpriteFragmentShader : Ansistring =
 'uniform sampler2D unormal;'+#10+
 'uniform sampler2D ucosplay;'+#10+
 'uniform sampler2D uemissive;'+#10+
-'out vec4 frag_color;'+#10+
+'layout (location = 0) out vec4 frag_color;'+#10+
+'layout (location = 1) out vec4 emissive_color;'+#10+
 #10+
 'void main() {'+#10+
 'frag_color     = texture(unormal, otexcoord) + vec4( texture(ucosplay, otexcoord).xyz, 0 ) * ocolor2;'+#10+
 'float emissive = texture(uemissive, otexcoord).x;'+#10+
 'vec4 color     = vec4( max( ocolor.xyz, vec3(emissive) ), ocolor.w );'+#10+
 'frag_color     = frag_color * color;'+#10+
-'if ( frag_color.a < 0.01 ) discard;'+#10+
+'emissive_color = vec4( emissive * frag_color.xyz, frag_color.w );'+#10+
 '}'+#10;
 
 { TSpriteDataSet }

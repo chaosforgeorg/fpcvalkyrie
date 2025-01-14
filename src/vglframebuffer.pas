@@ -10,7 +10,7 @@ type TGLFramebuffer = class
     FTextureIDs      : array of Cardinal;
     FAttachmentCount : Integer;
   public
-    constructor Create( aWidth, aHeight : Integer; aAttachmentCount: Integer = 0 );
+    constructor Create( aWidth, aHeight : Integer; aAttachmentCount: Integer = 1 );
     destructor Destroy; override;
     procedure Resize( aNewWidth, aNewHeight: Integer );
     procedure BindAndClear;
