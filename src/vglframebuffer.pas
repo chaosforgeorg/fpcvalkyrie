@@ -9,8 +9,9 @@ type TGLFramebuffer = class
     FFramebufferID   : Cardinal;
     FTextureIDs      : array of Cardinal;
     FAttachmentCount : Integer;
+    FLinear          : Boolean;
   public
-    constructor Create( aWidth, aHeight : Integer; aAttachmentCount: Integer = 1 );
+    constructor Create( aWidth, aHeight : Integer; aAttachmentCount: Integer = 1; aLinear : Boolean = True );
     destructor Destroy; override;
     procedure Resize( aNewWidth, aNewHeight: Integer );
     procedure BindAndClear;
@@ -24,7 +25,7 @@ implementation
 uses SysUtils, vgl3library;
           { TGLFramebuffer }
 
-constructor TGLFramebuffer.Create( aWidth, aHeight, aAttachmentCount: Integer );
+constructor TGLFramebuffer.Create( aWidth, aHeight, aAttachmentCount: Integer; aLinear : Boolean );
 begin
   if aAttachmentCount < 1 then
     raise Exception.Create('Framebuffer must have at least one color attachment.');
@@ -37,6 +38,7 @@ begin
 
   FWidth := 0;
   FHeight := 0;
+  FLinear := aLinear;
   Resize( aWidth, aHeight );
 end;
 
@@ -57,8 +59,16 @@ begin
   begin
     glBindTexture(GL_TEXTURE_2D, FTextureIDs[i]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, aNewWidth, aNewHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nil);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    if FLinear then
+    begin
+      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+    end
+    else
+    begin
+      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+    end;
 
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, FTextureIDs[i], 0);
 
