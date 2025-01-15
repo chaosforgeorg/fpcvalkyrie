@@ -8,10 +8,12 @@ type TGLFramebuffer = class
     FHeight          : Integer;
     FFramebufferID   : Cardinal;
     FTextureIDs      : array of Cardinal;
+    FDepthID         : Cardinal;
     FAttachmentCount : Integer;
     FLinear          : Boolean;
+    FDepth           : Boolean;
   public
-    constructor Create( aWidth, aHeight : Integer; aAttachmentCount: Integer = 1; aLinear : Boolean = True );
+    constructor Create( aWidth, aHeight : Integer; aAttachmentCount: Integer = 1; aLinear : Boolean = True; aDepth : Boolean = False );
     destructor Destroy; override;
     procedure Resize( aNewWidth, aNewHeight: Integer );
     procedure BindAndClear;
@@ -25,7 +27,7 @@ implementation
 uses SysUtils, vgl3library;
           { TGLFramebuffer }
 
-constructor TGLFramebuffer.Create( aWidth, aHeight, aAttachmentCount: Integer; aLinear : Boolean );
+constructor TGLFramebuffer.Create( aWidth, aHeight, aAttachmentCount: Integer; aLinear : Boolean; aDepth : Boolean );
 begin
   if aAttachmentCount < 1 then
     raise Exception.Create('Framebuffer must have at least one color attachment.');
@@ -38,6 +40,8 @@ begin
 
   FWidth := 0;
   FHeight := 0;
+  FDepthID := 0;
+  FDepth := aDepth;
   FLinear := aLinear;
   Resize( aWidth, aHeight );
 end;
@@ -50,9 +54,12 @@ begin
 
   if ( FWidth <> 0 ) then
     glDeleteTextures(FAttachmentCount, @FTextureIDs[0]);
+  if ( FDepthID <> 0 ) then
+    glDeleteRenderbuffers( 1, @FDepthID );
+
   glGenTextures(FAttachmentCount, @FTextureIDs[0]);
 
-  glBindFramebuffer(GL_FRAMEBUFFER, FFramebufferID);
+  glBindFramebuffer( GL_FRAMEBUFFER, FFramebufferID );
 
   SetLength( iBuffers, FAttachmentCount );
   for i := 0 to FAttachmentCount - 1 do
@@ -76,6 +83,15 @@ begin
   end;
 
   glBindTexture( GL_TEXTURE_2D, 0 );
+
+  if FDepth then
+  begin
+    glGenRenderbuffers( 1, @FDepthID );
+    glBindRenderbuffer( GL_RENDERBUFFER, FDepthID );
+    glRenderbufferStorage( GL_RENDERBUFFER, GL_DEPTH_COMPONENT, aNewWidth, aNewHeight );
+    glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, FDepthID );
+  end;
+
   glDrawBuffers( FAttachmentCount, @iBuffers[0] );
 
   if ( glCheckFramebufferStatus(GL_FRAMEBUFFER) <> GL_FRAMEBUFFER_COMPLETE ) then
@@ -93,6 +109,8 @@ begin
     glDeleteFramebuffers( 1, @FFramebufferID );
   if Length( FTextureIDs ) > 0 then
     glDeleteTextures( FAttachmentCount, @FTextureIDs[0] );
+  if ( FDepthID <> 0 ) then
+    glDeleteRenderbuffers( 1, @FDepthID );
   inherited Destroy;
 end;
 

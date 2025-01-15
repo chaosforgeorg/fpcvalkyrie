@@ -111,6 +111,7 @@ VSpriteFragmentShader : Ansistring =
 'vec4 color     = vec4( max( ocolor.xyz, vec3(emissive) ), ocolor.w );'+#10+
 'frag_color     = frag_color * color;'+#10+
 'emissive_color = vec4( emissive * frag_color.xyz, frag_color.w );'+#10+
+'if ( frag_color.w < 0.1 ) discard;'+#10+
 '}'+#10;
 
 { TSpriteDataSet }
