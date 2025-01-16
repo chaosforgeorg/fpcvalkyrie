@@ -42,8 +42,12 @@ end
 function os.mkdir( list )
 	if type(list) == "string" then list = { list } end
 	for _,path in ipairs(list) do
-		if OS == "WINDOWS" then path = path:gsub("/","\\") end
-		os.execute( "mkdir "..path )
+		if OS == "WINDOWS" then
+			path = path:gsub("/","\\")
+			os.execute( "mkdir "..path )
+		else
+			os.execute( "mkdir -p "..path )
+		end
 	end
 end
 
