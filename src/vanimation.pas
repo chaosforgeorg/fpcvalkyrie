@@ -59,6 +59,8 @@ private
   function UIDDuration( aUID : TUID ) : DWord;
 private
   FAnimations : TAnimationArray;
+public
+  property Animations : TAnimationArray read FAnimations;
 end;
 
 implementation
