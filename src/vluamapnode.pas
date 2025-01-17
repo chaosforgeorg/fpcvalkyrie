@@ -581,6 +581,18 @@ begin
   Exit( 1 );
 end;
 
+function lua_map_node_is_passable( L: Plua_State ): Integer; cdecl;
+var iState : TLuaGameState;
+    iNode  : TLuaMapNode;
+    iCoord : TCoord2D;
+begin
+  iState.Init(L);
+  iNode  := iState.ToObject( 1 ) as TLuaMapNode;
+  iCoord := iState.ToCoord( 2 );
+  iState.Push( iNode.isPassable( iCoord ) );
+  Exit( 1 );
+end;
+
 function lua_map_node_is_empty_area( L: Plua_State ): Integer; cdecl;
 var iState : TLuaGameState;
     iNode  : TLuaMapNode;
@@ -758,7 +770,7 @@ begin
 end;
 
 
-const lua_map_node_lib : array[0..17] of luaL_Reg = (
+const lua_map_node_lib : array[0..18] of luaL_Reg = (
   ( name : 'get_area';          func : @lua_map_node_get_area),
   ( name : 'set_hp';            func : @lua_map_node_set_hp),
   ( name : 'get_hp';            func : @lua_map_node_get_hp),
@@ -768,6 +780,7 @@ const lua_map_node_lib : array[0..17] of luaL_Reg = (
   ( name : 'raw_get_cell';      func : @lua_map_node_raw_get_cell),
   ( name : 'eye_contact';       func : @lua_map_node_eye_contact),
   ( name : 'is_visible';        func : @lua_map_node_is_visible),
+  ( name : 'is_passable';       func : @lua_map_node_is_passable),
   ( name : 'is_empty';          func : @lua_map_node_is_empty),
   ( name : 'is_empty_area';     func : @lua_map_node_is_empty_area),
   ( name : 'children_in_range'; func : @lua_map_node_children_in_range),
