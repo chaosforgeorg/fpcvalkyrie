@@ -1,3 +1,11 @@
+function os.is_wsl()
+	if OS ~= "LINUX" then return false end
+    local handle = io.popen("uname -r")
+    local result = handle:read("*a")
+    handle:close()
+    return result:find("Microsoft") or result:find("WSL")
+end
+
 if not OS then
 	local ENV_OS     = os.getenv("WINDIR")
 	local ENV_WINDIR = os.getenv("WINDIR")
@@ -15,6 +23,9 @@ if not OS then
 		error("OS not defined, and could not be autodetected!")
 	end
 	print ("Autodetected OS - "..OS)
+	if OS == "LINUX" and os.is_wsl() then 
+		print ("WSL detected!")
+	end
 end
 
 if OS ~= "WINDOWS" and OS ~= "LINUX" and OS ~= "MACOSX" then 
@@ -160,6 +171,21 @@ function make.publish( name, scheme, target )
 			path_from = path_from.."/"..what
 		end
 		os.copy( path_from, path_to )
+		if os.is_wsl() then
+			local has_ext = what:match( "%.[^%.]+$" )
+			local path
+			if type(what) == "table" then
+				path = path_to.."/"..what[2]
+			else
+				path = path_to.."/"..what
+			end
+	
+			if not has_ext then
+				os.execute( "chmod +x "..path_to )
+			else
+				os.execute( "chmod -x "..path )
+			end
+		end
 	end
 
 	for _,files in ipairs(publish.files or {}) do
@@ -170,6 +196,9 @@ function make.publish( name, scheme, target )
 	end
 	for _,files in ipairs(publish.os[ OS ] or {}) do
 		do_copy( files )
+		if os.is_wsl() and publish.os[ OS ].dos2unix then
+			os.execute( "dos2unix "..pkg_name.."/"..files )
+		end
 	end
 	for _,files in ipairs(publish.other or {}) do
 		do_copy( files )
