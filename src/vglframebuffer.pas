@@ -65,7 +65,7 @@ begin
   for i := 0 to FAttachmentCount - 1 do
   begin
     glBindTexture(GL_TEXTURE_2D, FTextureIDs[i]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, aNewWidth, aNewHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nil);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, aNewWidth, aNewHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, nil);
     if FLinear then
     begin
       glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );

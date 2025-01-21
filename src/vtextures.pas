@@ -88,7 +88,7 @@ begin
     glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT );
     glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT );
     glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_MIRRORED_REPEAT );
-    glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA,
+    glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA8,
       FImage.SizeX div FImage.SizeY, FImage.SizeY, FImage.SizeY, 0,
       GL_RGBA, GL_UNSIGNED_BYTE, FImage.Data );
     glBindTexture( GL_TEXTURE_3D, 0 );
@@ -98,7 +98,7 @@ begin
     glBindTexture( GL_TEXTURE_2D, FGLID );
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, iGLBlend );
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, iGLBlend );
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
       FImage.SizeX, FImage.SizeY, 0, GL_RGBA, GL_UNSIGNED_BYTE, FImage.Data );
     glBindTexture( GL_TEXTURE_2D, 0 );
   end;
