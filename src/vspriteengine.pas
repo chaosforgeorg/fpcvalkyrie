@@ -4,6 +4,7 @@ interface
 uses SysUtils, vgenerics, vvector, vrltools, vcolor, vgltypes, vglprogram, vglquadarrays, vtextures;
 
 type TSpriteEngine = class;
+type TGLTexturedColored3Quads = class;
 
 type
 
@@ -11,14 +12,14 @@ type
 
 TSpriteDataSet = class
   constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay, aEmissive, aOutline : TTexture; aOrder : Integer );
-  procedure Push( aSpriteID : DWord; aCoord : TCoord2D; aColor, aCosColor : TColor; aZ : Integer = 0 );
-  procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; aCosColor : TColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
-  procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor, aCosColor : TColor; aZ : Integer = 0; aScale : Single = 1.0 );
-  procedure Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aCosColor : TColor; aZ : Integer = 0 );
-  procedure PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aCosColor : TColor; aZ : Integer; aTa, aTb : TVec2f );
+  procedure Push( aSpriteID : DWord; aCoord : TCoord2D; aColor, aCosColor, aGlowColor : TColor; aZ : Integer = 0 );
+  procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; aCosColor, aGlowColor : TColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
+  procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor, aCosColor, aGlowColor : TColor; aZ : Integer = 0; aScale : Single = 1.0 );
+  procedure Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aCosColor, aGlowColor : TColor; aZ : Integer = 0 );
+  procedure PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aCosColor, aGlowColor : TColor; aZ : Integer; aTa, aTb : TVec2f );
   destructor Destroy; override;
 private
-  FData        : TGLTexturedColored2Quads;
+  FData        : TGLTexturedColored3Quads;
   FEngine      : TSpriteEngine;
   FTexUnit     : TVec2f;
   FRowSize     : Word;
@@ -71,6 +72,14 @@ public
   property Layers   : TSpriteDataSetArray read FLayers;
 end;
 
+type TGLTexturedColored3Quads = class( TGLTexturedQuads )
+  constructor Create;
+  procedure PushQuad ( aUR, aLL : TGLVec3i; aColor, aCosColor, aGlowColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+  procedure PushQuad ( aUR, aLL : TGLVec3i; aColorQuad : TGLQVec4f; aCosColor, aGlowColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+  procedure PushQuad ( aCoord : TGLQVec3i; aColorQuad : TGLQVec4f; aCosColor, aGlowColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+  procedure PushRotatedQuad ( aCenter, aSize : TGLVec3i; aDegrees : Single; aColor, aCosColor, aGlowColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+  procedure Append( aList : TGLTexturedColored3Quads );
+end;
 
 implementation
 
@@ -82,24 +91,28 @@ VSpriteVertexShader : Ansistring =
 'layout (location = 0) in vec3 position;'+#10+
 'layout (location = 1) in vec2 texcoord;'+#10+
 'layout (location = 2) in vec4 color;'+#10+
-'layout (location = 3) in vec4 color2;'+#10+
+'layout (location = 3) in vec4 cos_color;'+#10+
+'layout (location = 4) in vec4 glow_color;'+#10+
 'uniform mat4 utransform;'+#10+
 'uniform vec3 uposition;'+#10+
 #10+
 'out vec4 ocolor;'+#10+
-'out vec4 ocolor2;'+#10+
+'out vec4 ocos_color;'+#10+
+'out vec4 oglow_color;'+#10+
 'out vec2 otexcoord;'+#10+
 #10+
 'void main() {'+#10+
-'ocolor    = color;'+#10+
-'ocolor2   = color2;'+#10+
+'ocolor      = color;'+#10+
+'ocos_color  = cos_color;'+#10+
+'oglow_color = glow_color;'+#10+
 'otexcoord = texcoord;'+#10+
 'gl_Position = utransform * vec4(uposition + position, 1.0);'+#10+
 '}'+#10;
 VSpriteFragmentShader : Ansistring =
 '#version 330 core'+#10+
 'in vec4 ocolor;'+#10+
-'in vec4 ocolor2;'+#10+
+'in vec4 ocos_color;'+#10+
+'in vec4 oglow_color;'+#10+
 'in vec2 otexcoord;'+#10+
 'uniform sampler2D unormal;'+#10+
 'uniform sampler2D ucosplay;'+#10+
@@ -109,12 +122,18 @@ VSpriteFragmentShader : Ansistring =
 'layout (location = 1) out vec4 emissive_color;'+#10+
 #10+
 'void main() {'+#10+
-'vec4 out_color = texture(unormal, otexcoord) + vec4( texture(ucosplay, otexcoord).xyz, 0 ) * vec4( ocolor2.xyz, 1 );'+#10+
-'float emissive = texture(uemissive, otexcoord).x;'+#10+
-'vec4 color     = vec4( max( ocolor.xyz, vec3(emissive) ), ocolor.w );'+#10+
-'frag_color     = frag_color * color;'+#10+
-'emissive_color = vec4( emissive * frag_color.xyz, frag_color.w );'+#10+
-'if ( frag_color.w < 0.1 ) discard;'+#10+
+'vec4 out_color   = texture(unormal, otexcoord) + vec4( texture(ucosplay, otexcoord).xyz, 0 ) * vec4( ocos_color.xyz, 1 );'+#10+
+'float emissive   = texture(uemissive, otexcoord).x;'+#10+
+'float outline    = texture(uoutline, otexcoord).x;'+#10+
+'vec4 light_color = vec4( max( ocolor.xyz, vec3(emissive) ), ocolor.w );'+#10+
+'out_color        = out_color * light_color;'+#10+
+'if ( oglow_color.w > 0 && outline > 0 ) {'+#10+
+'  if ( oglow_color.w < 0.2 ) out_color.xyz = oglow_color.xyz * outline;'+#10+
+'  emissive_color = vec4( oglow_color.xyz, emissive > 0.0 ? 1.0 : 0.0 );'+#10+
+'} else'+#10+
+'  emissive_color = vec4( emissive * out_color.xyz, 1.0 );'+#10+
+'if ( out_color.w < 0.1 ) discard;'+#10+
+'frag_color     = out_color;'+#10+
 '}'+#10;
 
 { TSpriteDataSet }
@@ -124,7 +143,7 @@ var iTilesY : Integer;
 begin
   Assert( aNormal <> nil, 'Nil texture passed!');
   FEngine      := aEngine;
-  FData        := TGLTexturedColored2Quads.Create;
+  FData        := TGLTexturedColored3Quads.Create;
   FTNormalID   := aNormal.GLTexture;
   FTCosplayID  := 0;
   FTEmissiveID := 0;
@@ -145,7 +164,7 @@ end;
 
 { TSpriteDataVTC }
 
-procedure TSpriteDataSet.Push( aSpriteID : DWord; aCoord : TCoord2D; aColor, aCosColor : TColor; aZ : Integer = 0);
+procedure TSpriteDataSet.Push( aSpriteID : DWord; aCoord : TCoord2D; aColor, aCosColor, aGlowColor : TColor; aZ : Integer = 0);
 var iv2a, iv2b    : TVec2i;
     ita, itb, its : TVec2f;
 begin
@@ -161,12 +180,13 @@ begin
     TVec3i.CreateFrom( iv2b, aZ ),
     aColor.toVec43f,
     aCosColor.toVec43f,
+    aGlowColor.toVec4f,
     ita, itb
   );
 
 end;
 
-procedure TSpriteDataSet.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; aCosColor : TColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
+procedure TSpriteDataSet.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; aCosColor, aGlowColor : TColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
 var iv2b          : TVec2i;
     ita, itb, its : TVec2f;
 begin
@@ -188,11 +208,12 @@ begin
       NewColor( aQColor^.Data[3] ).toVec43f
     ),
     aCosColor.toVec43f,
+    aGlowColor.toVec4f,
     ita, itb
   );
 end;
 
-procedure TSpriteDataSet.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor, aCosColor : TColor; aZ : Integer = 0; aScale : Single = 1.0 );
+procedure TSpriteDataSet.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor, aCosColor, aGlowColor : TColor; aZ : Integer = 0; aScale : Single = 1.0 );
 var iv2a, iv2b, iv2o : TVec2i;
     ita, itb, its    : TVec2f;
 begin
@@ -215,11 +236,12 @@ begin
     TVec3i.CreateFrom( iv2b, aZ ),
     aColor.toVec43f,
     aCosColor.toVec4f,
+    aGlowColor.toVec4f,
     ita, itb
   );
 end;
 
-procedure TSpriteDataSet.Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aCosColor : TColor; aZ : Integer = 0);
+procedure TSpriteDataSet.Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aCosColor, aGlowColor : TColor; aZ : Integer = 0);
 begin
   FData.PushQuad(
     TGLQVec3i.Create(
@@ -235,11 +257,12 @@ begin
       NewColor( aQColor^.Data[3] ).toVec43f
     ),
     aCosColor.toVec43f,
+    aGlowColor.toVec4f,
     aQTex^.Data[0], aQTex^.Data[2]
   );
 end;
 
-procedure TSpriteDataSet.PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aCosColor : TColor; aZ : Integer; aTa, aTb : TVec2f );
+procedure TSpriteDataSet.PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aCosColor, aGlowColor : TColor; aZ : Integer; aTa, aTb : TVec2f );
 var its : TVec2f;
 begin
   its := TVec2f.CreateModDiv( aSpriteID-1, FRowSize );
@@ -256,6 +279,7 @@ begin
       NewColor( aQColor^.Data[3] ).toVec43f
     ),
     aCosColor.toVec43f,
+    aGlowColor.toVec4f,
     ata, atb
   );
 end;
@@ -285,6 +309,8 @@ begin
   glActiveTexture( GL_TEXTURE0 );
 
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+  glEnablei( GL_BLEND, 0 );
+  glDisablei( GL_BLEND, 1 );
 
   if not Data.FData.Empty then
   begin
@@ -392,6 +418,57 @@ begin
   for iSet in FLayersSorted do
     DrawSet( iSet );
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+end;
+
+{ TGLTexturedColored2Quads }
+
+constructor TGLTexturedColored3Quads.Create;
+begin
+  inherited Create;
+  PushArray( TGLQVec4fArray.Create, 4, GL_FLOAT, VGL_COLOR_LOCATION );
+  PushArray( TGLQVec4fArray.Create, 4, GL_FLOAT, VGL_COLOR2_LOCATION );
+  PushArray( TGLQVec4fArray.Create, 4, GL_FLOAT, VGL_COLOR3_LOCATION );
+end;
+
+procedure TGLTexturedColored3Quads.PushQuad ( aUR, aLL : TGLVec3i; aColor, aCosColor, aGlowColor : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
+begin
+  inherited PushQuad(aUR, aLL, aTUR, aTLL );
+  TGLQVec4fArray(FArrays[2]).Push( TGLQVec4f.CreateAll( aColor ) );
+  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
+  TGLQVec4fArray(FArrays[4]).Push( TGLQVec4f.CreateAll( aGlowColor ) );
+end;
+
+procedure TGLTexturedColored3Quads.PushQuad(aUR, aLL: TGLVec3i; aColorQuad: TGLQVec4f; aCosColor, aGlowColor : TGLVec4f; aTUR, aTLL: TGLVec2f);
+begin
+  inherited PushQuad(aUR, aLL, aTUR, aTLL );
+  TGLQVec4fArray(FArrays[2]).Push( aColorQuad );
+  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
+  TGLQVec4fArray(FArrays[4]).Push( TGLQVec4f.CreateAll( aGlowColor ) );
+end;
+
+procedure TGLTexturedColored3Quads.PushQuad(aCoord: TGLQVec3i; aColorQuad: TGLQVec4f; aCosColor, aGlowColor : TGLVec4f; aTUR, aTLL: TGLVec2f);
+begin
+  inherited PushQuad(aCoord, aTUR, aTLL );
+  TGLQVec4fArray(FArrays[2]).Push( aColorQuad );
+  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
+  TGLQVec4fArray(FArrays[4]).Push( TGLQVec4f.CreateAll( aGlowColor ) );
+end;
+
+procedure TGLTexturedColored3Quads.PushRotatedQuad(aCenter, aSize: TGLVec3i;
+  aDegrees: Single; aColor, aCosColor, aGlowColor : TGLVec4f; aTUR, aTLL: TGLVec2f);
+begin
+  inherited PushRotatedQuad( aCenter, aSize, aDegrees, aTUR, aTLL );
+  TGLQVec4fArray(FArrays[2]).Push( TGLQVec4f.CreateAll( aColor ) );
+  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
+  TGLQVec4fArray(FArrays[4]).Push( TGLQVec4f.CreateAll( aGlowColor ) );
+end;
+
+procedure TGLTexturedColored3Quads.Append( aList : TGLTexturedColored3Quads );
+begin
+  inherited Append( aList );
+  TGLQVec4fArray(FArrays[2]).Append( TGLQVec4fArray(aList.FArrays[2]) );
+  TGLQVec4fArray(FArrays[3]).Append( TGLQVec4fArray(aList.FArrays[3]) );
+  TGLQVec4fArray(FArrays[4]).Append( TGLQVec4fArray(aList.FArrays[4]) );
 end;
 
 initialization
