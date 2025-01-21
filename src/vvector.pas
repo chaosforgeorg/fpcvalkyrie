@@ -16,6 +16,7 @@ type
     class function CreateAll( A : T ) : TGVec2; static;
     class function CreateModDiv( A,B : LongInt ) : TGVec2; static;
     procedure Init( aX : T = 0; aY : T = 0 );
+    function ScaledF( A : Single ) : TGVec2;
     function Scaled( A : T ) : TGVec2;
     function Shifted( A : T ) : TGVec2;
     function Length() : Single;
@@ -47,6 +48,7 @@ type
     class function CreateFrom( const aVec2 : TVec2; aZ : T = 0 ) : TGVec3; static;
     class function CreateAll( A : T ) : TGVec3; static;
     procedure Init( aX : T = 0; aY : T = 0; aZ : T = 0 );
+    function ScaledF( A : Single ) : TGVec3;
     function Scaled( A : T ) : TGVec3;
     function Shifted( A : T ) : TGVec3;
     function Length() : Single;
@@ -80,6 +82,7 @@ type
   public
     class function Create( aX : T = 0; aY : T = 0; aZ : T = 0; aW : T = 0 ) : TGVec4; static;
     class function CreateAll( A : T ) : TGVec4; static;
+    function ScaledF( A : Single ) : TGVec4;
     function Scaled( A : T ) : TGVec4;
     function Shifted( A : T ) : TGVec4;
     procedure Init( aX : T = 0; aY : T = 0; aZ : T = 0; aW : T = 0 );
@@ -247,6 +250,12 @@ begin
   Data[1] := aY;
 end;
 
+function TGVec2.ScaledF( A : Single ) : TGVec2;
+begin
+  Result.Data[0] := T( Floor( Data[0] * A ) );
+  Result.Data[1] := T( Floor( Data[1] * A ) );
+end;
+
 function TGVec2.Scaled( A : T ) : TGVec2;
 begin
   Result.Data[0] := Data[0] * A;
@@ -357,6 +366,13 @@ begin
   Result.Data[0] := Data[0] * A;
   Result.Data[1] := Data[1] * A;
   Result.Data[2] := Data[2] * A;
+end;
+
+function TGVec3.ScaledF( A : Single ) : TGVec3;
+begin
+  Result.Data[0] := T( Floor( Data[0] * A ) );
+  Result.Data[1] := T( Floor( Data[1] * A ) );
+  Result.Data[2] := T( Floor( Data[2] * A ) );
 end;
 
 function TGVec3.Shifted( A : T ) : TGVec3;
@@ -473,6 +489,14 @@ begin
   Data[1] := aY;
   Data[2] := aZ;
   Data[3] := aW;
+end;
+
+function TGVec4.ScaledF( A : Single ) : TGVec4;
+begin
+  Result.Data[0] := T( Floor( Data[0] * A ) );
+  Result.Data[1] := T( Floor( Data[1] * A ) );
+  Result.Data[2] := T( Floor( Data[2] * A ) );
+  Result.Data[3] := T( Floor( Data[3] * A ) );
 end;
 
 function TGVec4.Scaled( A : T ) : TGVec4;
