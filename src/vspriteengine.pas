@@ -10,7 +10,7 @@ type
 { TSpriteDataSet }
 
 TSpriteDataSet = class
-  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay, aEmissive : TTexture; aOrder : Integer );
+  constructor Create( aEngine : TSpriteEngine; aNormal, aCosplay, aEmissive, aOutline : TTexture; aOrder : Integer );
   procedure Push( aSpriteID : DWord; aCoord : TCoord2D; aColor, aCosColor : TColor; aZ : Integer = 0 );
   procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; aCosColor : TColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
   procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor, aCosColor : TColor; aZ : Integer = 0; aScale : Single = 1.0 );
@@ -25,6 +25,7 @@ private
   FTNormalID   : DWord;
   FTCosplayID  : DWord;
   FTEmissiveID : DWord;
+  FTOutlineID  : DWord;
   FOrder       : Integer;
 public
   property TexUnit     : TVec2f  read FTexUnit;
@@ -32,6 +33,7 @@ public
   property TNormalID   : DWord   read FTNormalID;
   property TCosplayID  : DWord   read FTCosplayID;
   property TEmissiveID : DWord   read FTEmissiveID;
+  property TOutlineID  : DWord   read FTOutlineID;
   property Order       : Integer read FOrder;
 end;
 
@@ -45,7 +47,7 @@ TSpriteEngine = class
   procedure Draw;
   procedure Update( aProjection : TMatrix44 );
   procedure DrawSet( const Data : TSpriteDataSet );
-  function Add( aNormal, aCosplay, aEmissive : TTexture; aOrder : Integer ) : Integer;
+  function Add( aNormal, aCosplay, aEmissive, aOutline : TTexture; aOrder : Integer ) : Integer;
   destructor Destroy; override;
 private
   procedure SetTexture( aTextureID : DWord );
@@ -102,11 +104,12 @@ VSpriteFragmentShader : Ansistring =
 'uniform sampler2D unormal;'+#10+
 'uniform sampler2D ucosplay;'+#10+
 'uniform sampler2D uemissive;'+#10+
+'uniform sampler2D uoutline;'+#10+
 'layout (location = 0) out vec4 frag_color;'+#10+
 'layout (location = 1) out vec4 emissive_color;'+#10+
 #10+
 'void main() {'+#10+
-'frag_color     = texture(unormal, otexcoord) + vec4( texture(ucosplay, otexcoord).xyz, 0 ) * ocolor2;'+#10+
+'vec4 out_color = texture(unormal, otexcoord) + vec4( texture(ucosplay, otexcoord).xyz, 0 ) * vec4( ocolor2.xyz, 1 );'+#10+
 'float emissive = texture(uemissive, otexcoord).x;'+#10+
 'vec4 color     = vec4( max( ocolor.xyz, vec3(emissive) ), ocolor.w );'+#10+
 'frag_color     = frag_color * color;'+#10+
@@ -116,7 +119,7 @@ VSpriteFragmentShader : Ansistring =
 
 { TSpriteDataSet }
 
-constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay, aEmissive : TTexture; aOrder : Integer );
+constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay, aEmissive, aOutline : TTexture; aOrder : Integer );
 var iTilesY : Integer;
 begin
   Assert( aNormal <> nil, 'Nil texture passed!');
@@ -125,8 +128,10 @@ begin
   FTNormalID   := aNormal.GLTexture;
   FTCosplayID  := 0;
   FTEmissiveID := 0;
-  if aCosplay <> nil  then FTCosplayID  := aCosplay.GLTexture;
+  FTOutlineID  := 0;
+  if aCosplay  <> nil then FTCosplayID  := aCosplay.GLTexture;
   if aEmissive <> nil then FTEmissiveID := aEmissive.GLTexture;
+  if aOutline  <> nil then FTOutlineID  := aOutline.GLTexture;
   FRowSize     := aNormal.Size.X div FEngine.TileSize.X;
   iTilesY      := aNormal.Size.Y div FEngine.TileSize.Y;
   FTexUnit.Init( 1.0 / FRowSize, 1.0 / iTilesY );
@@ -266,9 +271,10 @@ begin
       FProjection := aProjection;
       FProgram.Bind;
       glUniformMatrix4fv( FProgram.GetUniformLocation( 'utransform' ), 1, GL_FALSE, @FProjection[0] );
-      glUniform1i( FProgram.GetUniformLocation('unormal'), 0 );
-      glUniform1i( FProgram.GetUniformLocation('ucosplay'), 1 );
+      glUniform1i( FProgram.GetUniformLocation('unormal'),   0 );
+      glUniform1i( FProgram.GetUniformLocation('ucosplay'),  1 );
       glUniform1i( FProgram.GetUniformLocation('uemissive'), 2 );
+      glUniform1i( FProgram.GetUniformLocation('uoutline'),  3 );
       FProgram.UnBind;
       Exit;
     end;
@@ -288,6 +294,8 @@ begin
     SetTexture( Data.TCosplayID );
     glActiveTexture( GL_TEXTURE2 );
     SetTexture( Data.TEmissiveID );
+    glActiveTexture( GL_TEXTURE3 );
+    SetTexture( Data.TOutlineID );
     FProgram.Bind;
     Data.FData.Update;
     Data.FData.Draw;
@@ -348,7 +356,7 @@ begin
   FGrid.Init( FTileSize.X * aScale, FTileSize.Y * aScale );
 end;
 
-function TSpriteEngine.Add( aNormal, aCosplay, aEmissive : TTexture; aOrder : Integer ) : Integer;
+function TSpriteEngine.Add( aNormal, aCosplay, aEmissive, aOutline : TTexture; aOrder : Integer ) : Integer;
 var i : DWord;
 begin
   Assert( aNormal <> nil, 'Normal texture needs to be present in spritesheet!');
@@ -357,7 +365,7 @@ begin
     if FLayers[i].TNormalID = aNormal.GLTexture then
       Exit(i);
   FLayersDirty := True;
-  FLayers.Push( TSpriteDataSet.Create( Self, aNormal, aCosplay, aEmissive, aOrder ) );
+  FLayers.Push( TSpriteDataSet.Create( Self, aNormal, aCosplay, aEmissive, aOutline, aOrder ) );
   Exit( Flayers.Size - 1 );
 end;
 
