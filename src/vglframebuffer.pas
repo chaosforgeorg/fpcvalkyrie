@@ -1,16 +1,32 @@
 {$INCLUDE valkyrie.inc}
 unit vglframebuffer;
 interface
+uses vgltypes, vgenerics;
+
+type TGLFramebufferAttachment = class
+  private
+    FFormat     : TGLPixelFormat;
+    FMultiplier : Single;
+    FLinear     : Boolean;
+    FTextureID  : Cardinal;
+    FIndex      : Cardinal;
+  public
+    constructor Create( aIndex : Cardinal; aFormat : TGLPixelFormat = RGBA8; aLinear : Boolean = True; aMultiplier : Single = 1.0 );
+    procedure Resize( aNewWidth, aNewHeight : Integer );
+    destructor Destroy; override;
+  public
+    property TextureID : Cardinal read FTextureID;
+end;
+
+type TGLFramebufferAttachmentArray = specialize TGObjectArray< TGLFramebufferAttachment >;
 
 type TGLFramebuffer = class
   private
     FWidth           : Integer;
     FHeight          : Integer;
     FFramebufferID   : Cardinal;
-    FTextureIDs      : array of Cardinal;
+    FAttachments     : TGLFramebufferAttachmentArray;
     FDepthID         : Cardinal;
-    FAttachmentCount : Integer;
-    FLinear          : Boolean;
     FDepth           : Boolean;
   public
     constructor Create( aWidth, aHeight : Integer; aAttachmentCount: Integer = 1; aLinear : Boolean = True; aDepth : Boolean = False );
@@ -24,25 +40,66 @@ type TGLFramebuffer = class
 
 implementation
 
-uses SysUtils, vgl3library;
-          { TGLFramebuffer }
+uses SysUtils, math, vgl3library;
+
+constructor TGLFramebufferAttachment.Create( aIndex : Cardinal; aFormat : TGLPixelFormat = RGBA8; aLinear : Boolean = True; aMultiplier : Single = 1.0 );
+begin
+  FIndex      := aIndex;
+  FFormat     := aFormat;
+  FLinear     := aLinear;
+  FMultiplier := aMultiplier;
+  FTextureID  := 0;
+end;
+
+procedure TGLFramebufferAttachment.Resize( aNewWidth, aNewHeight : Integer );
+begin
+  if FMultiplier <> 1.0 then
+  begin
+    aNewWidth  := Ceil( aNewWidth * FMultiplier );
+    aNewHeight := Ceil( aNewHeight * FMultiplier );
+  end;
+  if FTextureID <> 0 then glDeleteTextures( 1, @FTextureID );
+  glGenTextures( 1, @FTextureID );
+  glBindTexture( GL_TEXTURE_2D, FTextureID );
+  glTexImage2D( GL_TEXTURE_2D, 0, GLPixelFormatToInternalEnum( FFormat ),
+    aNewWidth, aNewHeight, 0, GLPixelFormatToEnum( FFormat ),
+    GLPixelFormatToType( FFormat ), nil);
+  if FLinear then
+  begin
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+  end
+  else
+  begin
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+  end;
+
+  glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + FIndex, GL_TEXTURE_2D, FTextureID, 0 );
+  glBindTexture( GL_TEXTURE_2D, 0 );
+end;
+
+destructor TGLFramebufferAttachment.Destroy;
+begin
+  if FTextureID <> 0 then glDeleteTextures( 1, @FTextureID );
+  inherited Destroy;
+end;
 
 constructor TGLFramebuffer.Create( aWidth, aHeight, aAttachmentCount: Integer; aLinear : Boolean; aDepth : Boolean );
+var i : Integer;
 begin
   if aAttachmentCount < 1 then
     raise Exception.Create('Framebuffer must have at least one color attachment.');
 
-  FAttachmentCount := aAttachmentCount;
-  SetLength(FTextureIDs, FAttachmentCount);
+  FAttachments := TGLFramebufferAttachmentArray.Create;
+  for i := 0 to aAttachmentCount - 1 do
+    FAttachments.Push( TGLFramebufferAttachment.Create( i, RGBA8, aLinear ) );
 
   glGenFramebuffers(1, @FFramebufferID);
-  glGenTextures(FAttachmentCount, @FTextureIDs[0]);
-
   FWidth := 0;
   FHeight := 0;
   FDepthID := 0;
   FDepth := aDepth;
-  FLinear := aLinear;
   Resize( aWidth, aHeight );
 end;
 
@@ -52,37 +109,17 @@ var i        : Integer;
 begin
   if ( aNewWidth = FWidth ) and ( aNewHeight = FHeight ) then Exit;
 
-  if ( FWidth <> 0 ) then
-    glDeleteTextures(FAttachmentCount, @FTextureIDs[0]);
   if ( FDepthID <> 0 ) then
     glDeleteRenderbuffers( 1, @FDepthID );
 
-  glGenTextures(FAttachmentCount, @FTextureIDs[0]);
-
   glBindFramebuffer( GL_FRAMEBUFFER, FFramebufferID );
 
-  SetLength( iBuffers, FAttachmentCount );
-  for i := 0 to FAttachmentCount - 1 do
+  SetLength( iBuffers, FAttachments.Size );
+  for i := 0 to FAttachments.Size - 1 do
   begin
-    glBindTexture(GL_TEXTURE_2D, FTextureIDs[i]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, aNewWidth, aNewHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, nil);
-    if FLinear then
-    begin
-      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-    end
-    else
-    begin
-      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-      glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-    end;
-
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, FTextureIDs[i], 0);
-
+    FAttachments[i].Resize( aNewWidth, aNewHeight );
     iBuffers[i] := GL_COLOR_ATTACHMENT0 + i;
   end;
-
-  glBindTexture( GL_TEXTURE_2D, 0 );
 
   if FDepth then
   begin
@@ -92,7 +129,7 @@ begin
     glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, FDepthID );
   end;
 
-  glDrawBuffers( FAttachmentCount, @iBuffers[0] );
+  glDrawBuffers( FAttachments.Size, @iBuffers[0] );
 
   if ( glCheckFramebufferStatus(GL_FRAMEBUFFER) <> GL_FRAMEBUFFER_COMPLETE ) then
     raise Exception.Create('Failed to resize framebuffer to complete state');
@@ -107,8 +144,7 @@ destructor TGLFramebuffer.Destroy;
 begin
   if FFramebufferID <> 0 then
     glDeleteFramebuffers( 1, @FFramebufferID );
-  if Length( FTextureIDs ) > 0 then
-    glDeleteTextures( FAttachmentCount, @FTextureIDs[0] );
+  FreeAndNil( FAttachments );
   if ( FDepthID <> 0 ) then
     glDeleteRenderbuffers( 1, @FDepthID );
   inherited Destroy;
@@ -134,9 +170,9 @@ end;
 
 function TGLFramebuffer.GetTextureID( aIndex : Integer = 0 ): Cardinal;
 begin
-  if ( aIndex < 0 ) or ( aIndex >= FAttachmentCount ) then
+  if ( aIndex < 0 ) or ( aIndex >= FAttachments.Size ) then
     raise Exception.Create('Invalid attachment index.');
-  Result := FTextureIDs[aIndex];
+  Result := FAttachments[aIndex].TextureID;
 end;
 
 end.
