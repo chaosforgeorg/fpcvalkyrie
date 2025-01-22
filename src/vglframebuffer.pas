@@ -11,7 +11,7 @@ type TGLFramebufferAttachment = class
     FTextureID  : Cardinal;
     FIndex      : Cardinal;
   public
-    constructor Create( aIndex : Cardinal; aFormat : TGLPixelFormat = RGBA8; aLinear : Boolean = True; aMultiplier : Single = 1.0 );
+    constructor Create( aIndex : Cardinal; aFormat : TGLPixelFormat; aLinear : Boolean; aMultiplier : Single );
     procedure Resize( aNewWidth, aNewHeight : Integer );
     destructor Destroy; override;
   public
@@ -29,7 +29,9 @@ type TGLFramebuffer = class
     FDepthID         : Cardinal;
     FDepth           : Boolean;
   public
-    constructor Create( aWidth, aHeight : Integer; aAttachmentCount: Integer = 1; aLinear : Boolean = True; aDepth : Boolean = False );
+    constructor Create;
+    procedure AddAttachment( aFormat : TGLPixelFormat = RGBA8; aLinear : Boolean = True; aMultiplier : Single = 1.0 );
+    procedure AddDepthBuffer;
     destructor Destroy; override;
     procedure Resize( aNewWidth, aNewHeight: Integer );
     procedure BindAndClear;
@@ -42,7 +44,7 @@ implementation
 
 uses SysUtils, math, vgl3library;
 
-constructor TGLFramebufferAttachment.Create( aIndex : Cardinal; aFormat : TGLPixelFormat = RGBA8; aLinear : Boolean = True; aMultiplier : Single = 1.0 );
+constructor TGLFramebufferAttachment.Create( aIndex : Cardinal; aFormat : TGLPixelFormat; aLinear : Boolean; aMultiplier : Single );
 begin
   FIndex      := aIndex;
   FFormat     := aFormat;
@@ -85,22 +87,25 @@ begin
   inherited Destroy;
 end;
 
-constructor TGLFramebuffer.Create( aWidth, aHeight, aAttachmentCount: Integer; aLinear : Boolean; aDepth : Boolean );
-var i : Integer;
+constructor TGLFramebuffer.Create;
 begin
-  if aAttachmentCount < 1 then
-    raise Exception.Create('Framebuffer must have at least one color attachment.');
-
   FAttachments := TGLFramebufferAttachmentArray.Create;
-  for i := 0 to aAttachmentCount - 1 do
-    FAttachments.Push( TGLFramebufferAttachment.Create( i, RGBA8, aLinear ) );
+  FFramebufferID := 0;
+  FDepthID       := 0;
+  FWidth         := 0;
+  FHeight        := 0;
+  FDepth         := False;
+end;
 
-  glGenFramebuffers(1, @FFramebufferID);
-  FWidth := 0;
-  FHeight := 0;
-  FDepthID := 0;
-  FDepth := aDepth;
-  Resize( aWidth, aHeight );
+procedure TGLFramebuffer.AddAttachment( aFormat : TGLPixelFormat = RGBA8; aLinear : Boolean = True; aMultiplier : Single = 1.0 );
+begin
+  FAttachments.Push( TGLFramebufferAttachment.Create( FAttachments.Size, aFormat, aLinear, aMultiplier ) );
+end;
+
+procedure TGLFramebuffer.AddDepthBuffer;
+begin
+  if FDepth then raise Exception.Create('Framebuffer can''t have more than one depth attachment!');
+  FDepth         := True;
 end;
 
 procedure TGLFramebuffer.Resize( aNewWidth, aNewHeight: Integer );
@@ -108,10 +113,14 @@ var i        : Integer;
     iBuffers : array of Cardinal;
 begin
   if ( aNewWidth = FWidth ) and ( aNewHeight = FHeight ) then Exit;
+  if FAttachments.Size < 1 then
+    raise Exception.Create('Framebuffer must have at least one color attachment.');
 
   if ( FDepthID <> 0 ) then
     glDeleteRenderbuffers( 1, @FDepthID );
 
+  if FFramebufferID = 0 then
+    glGenFramebuffers(1, @FFramebufferID);
   glBindFramebuffer( GL_FRAMEBUFFER, FFramebufferID );
 
   SetLength( iBuffers, FAttachments.Size );
@@ -152,12 +161,14 @@ end;
 
 procedure TGLFramebuffer.Bind;
 begin
+  if FFramebufferID = 0 then raise Exception.Create('Framebuffer not created!');
   glBindFramebuffer( GL_FRAMEBUFFER, FFramebufferID );
   glViewport( 0, 0, FWidth, FHeight );
 end;
 
 procedure TGLFramebuffer.BindAndClear;
 begin
+  if FFramebufferID = 0 then raise Exception.Create('Framebuffer not created!');
   glBindFramebuffer( GL_FRAMEBUFFER, FFramebufferID );
   glViewport( 0, 0, FWidth, FHeight );
   glClear( GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT );
@@ -170,6 +181,7 @@ end;
 
 function TGLFramebuffer.GetTextureID( aIndex : Integer = 0 ): Cardinal;
 begin
+  if FFramebufferID = 0 then raise Exception.Create('Framebuffer not created!');
   if ( aIndex < 0 ) or ( aIndex >= FAttachments.Size ) then
     raise Exception.Create('Invalid attachment index.');
   Result := FAttachments[aIndex].TextureID;
