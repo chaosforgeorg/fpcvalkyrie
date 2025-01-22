@@ -72,7 +72,17 @@ function Lerp( const a, b : TGLVec3i; aValue : Single ) : TGLVec3i; overload;
 
 function GLCreateOrtho( left, right, bottom, top, nearVal, farVal: Single ) : TMatrix44;
 
+type TGLPixelFormat = ( RGB8, RGBA8, R8, DEPTH16, DEPTH24, DEPTH32, R8I, R8UI, R16F, R32F, RGBA16F, RGBA32F );
+
+function GLPixelFormatIsDepth( aFormat : TGLPixelFormat ) : Boolean;
+function GLPixelFormatToEnum( aFormat : TGLPixelFormat ) : Integer;
+function GLPixelFormatToInternalEnum( aFormat : TGLPixelFormat ) : Integer;
+function GLPixelFormatToSize( aFormat : TGLPixelFormat ) : Integer;
+function GLPixelFormatToType( aFormat : TGLPixelFormat ) : Integer;
+
 implementation
+
+uses vgl3library;
 
 function GLVec2f(aX: Single; aY: Single): TGLVec2f;
 begin
@@ -207,6 +217,83 @@ begin
   Result[1] := 0;                   Result[5] := 2 / (top - bottom);   Result[9] := 0;                   Result[13] := ty;
   Result[2] := 0;                   Result[6] := 0;                    Result[10] := -2 / (farVal - nearVal); Result[14] := tz;
   Result[3] := 0;                   Result[7] := 0;                    Result[11] := 0;                  Result[15] := 1;
+end;
+
+function GLPixelFormatIsDepth( aFormat : TGLPixelFormat ) : Boolean;
+begin
+  Exit( aFormat in [ DEPTH16, DEPTH24, DEPTH32 ] );
+end;
+
+function GLPixelFormatToEnum( aFormat : TGLPixelFormat ) : Integer;
+begin
+  case aFormat of
+    RGB8    : Exit( GL_RGB );
+    RGBA8   : Exit( GL_RGBA );
+    R8      : Exit( GL_RED );
+    DEPTH16 : Exit( GL_DEPTH_COMPONENT );
+    DEPTH24 : Exit( GL_DEPTH_COMPONENT );
+    DEPTH32 : Exit( GL_DEPTH_COMPONENT );
+    R8I     : Exit( GL_RED_INTEGER );
+    R8UI    : Exit( GL_RED_INTEGER );
+    R16F    : Exit( GL_RED );
+    R32F    : Exit( GL_RED );
+    RGBA16F : Exit( GL_RGBA );
+    RGBA32F : Exit( GL_RGBA );
+  end;
+end;
+
+function GLPixelFormatToInternalEnum( aFormat : TGLPixelFormat ) : Integer;
+begin
+  case aFormat of
+    RGB8    : Exit( GL_RGB8 );
+    RGBA8   : Exit( GL_RGBA8 );
+    R8      : Exit( GL_R8 );
+    DEPTH16 : Exit( GL_DEPTH_COMPONENT16 );
+    DEPTH24 : Exit( GL_DEPTH_COMPONENT24 );
+    DEPTH32 : Exit( GL_DEPTH_COMPONENT32 );
+    R8I     : Exit( GL_R8I );
+    R8UI    : Exit( GL_R8UI );
+    R16F    : Exit( GL_R16F );
+    R32F    : Exit( GL_R32F );
+    RGBA16F : Exit( GL_RGBA16F );
+    RGBA32F : Exit( GL_RGBA32F );
+  end;
+end;
+
+function GLPixelFormatToSize( aFormat : TGLPixelFormat ) : Integer;
+begin
+  case aFormat of
+    RGB8    : Exit( 3 );
+    RGBA8   : Exit( 4 );
+    R8      : Exit( 1 );
+    DEPTH16 : Exit( 1 );
+    DEPTH24 : Exit( 1 );
+    DEPTH32 : Exit( 1 );
+    R8I     : Exit( 1 );
+    R8UI    : Exit( 1 );
+    R16F    : Exit( 1 );
+    R32F    : Exit( 1 );
+    RGBA16F : Exit( 4 );
+    RGBA32F : Exit( 4 );
+  end;
+end;
+
+function GLPixelFormatToType( aFormat : TGLPixelFormat ) : Integer;
+begin
+  case aFormat of
+    RGB8    : Exit( GL_UNSIGNED_BYTE );
+    RGBA8   : Exit( GL_UNSIGNED_BYTE );
+    R8      : Exit( GL_UNSIGNED_BYTE );
+    DEPTH16 : Exit( GL_UNSIGNED_SHORT );
+    DEPTH24 : Exit( GL_UNSIGNED_INT );
+    DEPTH32 : Exit( GL_UNSIGNED_INT );
+    R8I     : Exit( GL_BYTE );
+    R8UI    : Exit( GL_UNSIGNED_BYTE );
+    R16F    : Exit( GL_HALF_FLOAT );
+    R32F    : Exit( GL_FLOAT );
+    RGBA16F : Exit( GL_HALF_FLOAT );
+    RGBA32F : Exit( GL_FLOAT );
+  end;
 end;
 
 end.
