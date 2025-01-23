@@ -51,7 +51,7 @@ public
   property OpenGLMode : Boolean read FOpenGL;
   property FullScreen : Boolean read FFScreen;
   property Flags : TSDLIOFlags  read FFlags;
-
+  property NativeWindow : PSDL_Window read FWindow;
   property OnResizeEvent : TIOInterrupt write FOnResize;
 end;
 
