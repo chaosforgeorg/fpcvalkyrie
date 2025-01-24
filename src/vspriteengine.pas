@@ -60,7 +60,7 @@ private
   FCurrentTexture : DWord;
   FGrid           : TVec2i;
   FTileSize       : TVec2i;
-  FPosition       : TVec2f;
+  FPosition       : TVec2i;
   FLayersDirty    : Boolean;
   FLayers         : TSpriteDataSetArray;
   FLayersSorted   : TSpriteDataSetArray;
@@ -68,7 +68,7 @@ private
 public
   property Grid     : TVec2i read FGrid;
   property TileSize : TVec2i read FTileSize;
-  property Position : TVec2f read FPosition write FPosition;
+  property Position : TVec2i read FPosition write FPosition;
   property Layers   : TSpriteDataSetArray read FLayers;
 end;
 
@@ -414,7 +414,7 @@ begin
 
   FCurrentTexture := 0;
   FProgram.Bind;
-  glUniform3f( FProgram.GetUniformLocation('uposition'), -FPosition.X-0.1, -FPosition.Y-0.1, 0 );
+  glUniform3f( FProgram.GetUniformLocation('uposition'), -FPosition.X, -FPosition.Y, 0 );
   for iSet in FLayersSorted do
     DrawSet( iSet );
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
