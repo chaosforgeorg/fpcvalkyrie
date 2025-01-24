@@ -43,7 +43,8 @@ type TSpriteDataSetArray = specialize TGArray< TSpriteDataSet >;
 { TSpriteEngine }
 
 TSpriteEngine = class
-  constructor Create( aTileSize : TVec2i );
+  constructor Create( aTileSize : TVec2i; aScale : Byte = 1 );
+  procedure SetScale( aScale : Byte );
   procedure Draw;
   procedure Update( aProjection : TMatrix44 );
   procedure DrawSet( const Data : TSpriteDataSet );
@@ -52,10 +53,12 @@ TSpriteEngine = class
 private
   procedure SetTexture( aTextureID : DWord );
 private
+
   FVAO            : Cardinal;
   FProgram        : TGLProgram;
   FProjection     : TMatrix44;
   FCurrentTexture : DWord;
+  FGrid           : TVec2i;
   FTileSize       : TVec2i;
   FPosition       : TVec2f;
   FLayersDirty    : Boolean;
@@ -63,6 +66,7 @@ private
   FLayersSorted   : TSpriteDataSetArray;
   FTZeroID        : DWord;
 public
+  property Grid     : TVec2i read FGrid;
   property TileSize : TVec2i read FTileSize;
   property Position : TVec2f read FPosition write FPosition;
   property Layers   : TSpriteDataSetArray read FLayers;
@@ -164,8 +168,8 @@ procedure TSpriteDataSet.Push( aSpriteID : DWord; aCoord : TCoord2D; aColor, aCo
 var iv2a, iv2b    : TVec2i;
     ita, itb, its : TVec2f;
 begin
-  iv2a := Vec2i( aCoord.X-1, aCoord.Y-1 ) * FEngine.FTileSize;
-  iv2b := Vec2i( aCoord.X, aCoord.Y )     * FEngine.FTileSize;
+  iv2a := Vec2i( aCoord.X-1, aCoord.Y-1 ) * FEngine.FGrid;
+  iv2b := Vec2i( aCoord.X, aCoord.Y )     * FEngine.FGrid;
 
   its := TVec2f.CreateModDiv( aSpriteID-1, FRowSize );
   ita := its * FTexUnit;
@@ -186,7 +190,7 @@ procedure TSpriteDataSet.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColo
 var iv2b          : TVec2i;
     ita, itb, its : TVec2f;
 begin
-  iv2b := aPos + FEngine.FTileSize.Scaled( aSize );
+  iv2b := aPos + FEngine.FGrid.Scaled( aSize );
 
   its := TVec2f.CreateModDiv( aSpriteID-1, FRowSize );
   its += TVec2f.Create( TShiftX, TShiftY );
@@ -214,7 +218,7 @@ var iv2a, iv2b, iv2o : TVec2i;
     ita, itb, its    : TVec2f;
 begin
   iv2a := aPos;
-  iv2b := aPos + FEngine.FTileSize.Scaled( aSize );
+  iv2b := aPos + FEngine.FGrid.Scaled( aSize );
   if aScale <> 1.0 then
   begin
     iv2o := iv2b - iv2a;
@@ -346,10 +350,11 @@ begin
   FreeAndNil( FLayersSorted );
 end;
 
-constructor TSpriteEngine.Create( aTileSize : TVec2i );
+constructor TSpriteEngine.Create( aTileSize : TVec2i; aScale : Byte = 1 );
 var iZeroPixel : array[0..3] of GLubyte = (0, 0, 0, 0);
 begin
   FTileSize := aTileSize;
+  SetScale( aScale );
   FPosition.Init(0,0);
   FCurrentTexture    := 0;
   FLayersDirty       := True;
@@ -370,6 +375,11 @@ begin
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
   glBindTexture( GL_TEXTURE_2D, 0 );
 
+end;
+
+procedure TSpriteEngine.SetScale( aScale : Byte );
+begin
+  FGrid.Init( FTileSize.X * aScale, FTileSize.Y * aScale );
 end;
 
 function TSpriteEngine.Add( aNormal, aCosplay, aEmissive, aOutline : TTexture; aOrder : Integer ) : Integer;
