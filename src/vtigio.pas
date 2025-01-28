@@ -205,7 +205,6 @@ procedure TTIGIOState.Clear;
 begin
   if not Assigned( FRenderer ) then Exit;
   FRenderer.Clear;
-  FRenderer.Update;
 end;
 
 procedure TTIGIOState.Render( aData : TTIGDrawData );
