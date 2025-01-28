@@ -127,6 +127,7 @@ VSpriteFragmentShader : Ansistring =
 'float outline    = texture(uoutline, otexcoord).x;'+#10+
 'vec4 light_color = vec4( max( ocolor.xyz, vec3(emissive) ), ocolor.w );'+#10+
 'out_color        = out_color * light_color;'+#10+
+'if ( emissive > 0.0 && ( ocolor.x != ocolor.y || ocolor.y != ocolor.z ) ) out_color = out_color * ocolor;'+#10+
 'if ( oglow_color.w > 0 && outline > 0 && emissive == 0.0 ) {'+#10+
 '  if ( oglow_color.w < 0.2 ) out_color.xyz = oglow_color.xyz * outline;'+#10+
 '  emissive_color = vec4( oglow_color.xyz, emissive > 0.0 ? 1.0 : 0.0 );'+#10+
