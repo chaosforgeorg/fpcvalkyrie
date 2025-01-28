@@ -86,7 +86,7 @@ end;
 
 type TTextClearMarkAnimation = class(TTextAnimation)
   constructor Create( aDelay : DWord = 0 );
-  procedure OnDraw; override;
+  destructor Destroy; override;
 end;
 
 type TTextExplosionArray = array of record Color : TIOColor; Time : DWord; end;
@@ -345,9 +345,10 @@ begin
   inherited Create( 1, aDelay );
 end;
 
-procedure TTextClearMarkAnimation.OnDraw;
+destructor TTextClearMarkAnimation.Destroy;
 begin
   FMap.ClearMarks;
+  inherited Destroy;
 end;
 
 constructor TTextExplosionAnimation.Create ( aWhere : TCoord2D; aChar : Char;
