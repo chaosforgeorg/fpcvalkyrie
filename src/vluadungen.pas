@@ -225,14 +225,28 @@ begin
 end;
 
 function lua_dungen_random_square( L : Plua_State ) : Integer; cdecl;
-var
-  Res : Boolean;
+const kLimit      = 6000;
+var   iLimitCount : DWord;
+      iCell       : TCoord2D;
+      iCellSet    : TCellSet;
 begin
-  Res := Gen.RandomCellSquare( lua_tocellset( L, 1 ) );
-  if Res then
-    vlua_pushcoord( L, Gen.FoundCell )
-  else
-    lua_pushnil( L );
+  iLimitCount := 0;
+  iCellSet    := lua_tocellset( L, 1 );
+  repeat
+    Inc(iLimitCount);
+    if (iLimitCount > kLimit) then
+    begin
+      lua_pushnil( L );
+      Exit( 1 );
+    end;
+    try
+      iCell := Gen.RanCoord(iCellSet);
+    except
+      lua_pushnil( L );
+      Exit( 1 );
+    end;
+  until Gen.Around( iCell, iCellSet ) = 8;
+  vlua_pushcoord( L, iCell );
   Exit( 1 );
 end;
 
@@ -373,17 +387,37 @@ end;
 
 
 function lua_dungen_plot_line( L : Plua_State ) : Integer; cdecl;
-var
-  Coord :   TCoord2D;
-  Horiz :   Boolean;
-  Cell :    Byte;
-  CellSet : TFlags;
+var iPoint      : TCoord2D;
+    iCoord      : TCoord2D;
+    iStep       : TCoord2D;
+    iHoriz      : Boolean;
+    iCell       : Byte;
+    iBlockCells : TFlags;
 begin
-  Coord := vlua_tocoord( L, 1 );
-  Horiz := lua_toboolean( L, 2 );
-  Cell := lua_tocell( L, 3 );
-  CellSet := lua_tocellset( L, 4 );
-  Gen.PlotLine( Coord, Horiz, Cell, 0, CellSet, 0 );
+  iPoint      := vlua_tocoord( L, 1 );
+  iHoriz      := lua_toboolean( L, 2 );
+  iCell       := lua_tocell( L, 3 );
+  iBlockCells := lua_tocellset( L, 4 );
+
+  if iHoriz
+    then iStep := NewCoord2D( +1,  0 )
+    else iStep := NewCoord2D(  0, +1 );
+
+  iCoord := iPoint;
+
+  while iCoord.Horiz(iHoriz) < Gen.Area.B.Horiz(iHoriz) do
+  begin
+    iCoord += iStep;
+    if Gen.GetCell( iCoord ) in iBlockCells then Break else Gen.PutCell( iCoord, iCell );
+  end;
+  iCoord := iPoint;
+  while iCoord.Horiz(iHoriz) > Gen.Area.A.Horiz(iHoriz) do
+  begin
+    iCoord -= iStep;
+    if Gen.GetCell( iCoord ) in iBlockCells then Break else Gen.PutCell( iCoord, iCell );
+  end;
+
+  Gen.PutCell( iPoint, iCell );
   Exit( 0 );
 end;
 
@@ -430,15 +464,31 @@ begin
 end;
 
 function lua_dungen_scan( L : Plua_State ) : Integer; cdecl;
-var
-  Area :   TArea;
-  Ignore : TCellSet;
-  Bound :  Boolean;
+var iArea   : TArea;
+    iIgnore : TCellSet;
+    iClamp  : Boolean;
+    iResult : Integer;
+    iCoord  : TCoord2D;
 begin
-  Area := vlua_toarea( L, 1 );
-  Ignore := lua_tocellset( L, 2 );
-  Bound := lua_toboolean( L, 3 );
-  lua_pushinteger( L, Gen.Scan( Area, Ignore, Bound ) );
+  iArea   := vlua_toarea( L, 1 );
+  iIgnore := lua_tocellset( L, 2 );
+  iClamp  := lua_toboolean( L, 3 );
+
+  if iClamp then
+    Gen.Area.Clamp( iArea )
+  else
+    if ( not Gen.Area.Contains( iArea.A ) ) or ( not Gen.Area.Contains( iArea.B ) ) then
+    begin
+      lua_pushinteger( L, -1 );
+      Exit(1);
+    end;
+
+  iResult := 0;
+  for iCoord in iArea do
+    if not ( Gen.GetCell(iCoord) in iIgnore ) then
+       Inc(iResult);
+
+  lua_pushinteger( L, iResult );
   Exit( 1 );
 end;
 
@@ -546,20 +596,20 @@ end;
 
 function lua_dungen_run_drunkard_walk( L : Plua_State ) : Integer; cdecl;
 var
-  iSteps :  DWord;
-  iCount :  DWord;
-  iCoord :  TCoord2D;
-  iArea :   TArea;
-  iCell :   Byte;
+  iSteps  : DWord;
+  iCount  : DWord;
+  iCoord  : TCoord2D;
+  iArea   : TArea;
+  iCell   : Byte;
   iIgnore : TCellSet;
-  iBreak :  Boolean;
+  iBreak  : Boolean;
 begin
-  iArea := vlua_toarea( L, 1 );
-  iCoord := vlua_tocoord( L, 2 );
-  iCount := lua_tointeger( L, 3 );
-  iCell := lua_tocell( L, 4 );
+  iArea   := vlua_toarea( L, 1 );
+  iCoord  := vlua_tocoord( L, 2 );
+  iCount  := lua_tointeger( L, 3 );
+  iCell   := lua_tocell( L, 4 );
   iIgnore := [];
-  iBreak := False;
+  iBreak  := False;
 
   if lua_gettop( L ) > 4 then
     iIgnore := lua_tocellset( L, 5 );
