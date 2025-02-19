@@ -22,7 +22,7 @@
 unit vluamapnode;
 interface
 uses SysUtils, Classes,
-     vnode, vutil, vmaparea, vdungen, vvision, vrltools, vluaentitynode;
+     vnode, vutil, vmaparea, vvision, vrltools, vluaentitynode;
 
 const vlfExplored     = 0;
       vlfVisible      = 1;
@@ -45,7 +45,7 @@ end;
 
 type PMapCell = ^TMapCell;
 
-type TLuaMapNode = class( TNode, IMapArea, ICellIDSource, IVisionQuery )
+type TLuaMapNode = class( TNode, IMapArea, IVisionQuery )
   // Create and setup
   constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte );
   // Removes given bits from lightMap
@@ -125,8 +125,6 @@ protected
 protected
   // Area holding the level boundaries.
   FArea      : TArea;
-  // Level generator.
-  FGenerator : TDungeonBuilder;
   // MapArea class
   FMapArea   : TMapArea;
   // MapArea class
@@ -142,8 +140,6 @@ public
   property Area      : TArea           read FArea;
   // Property for Map Area
   property MapArea   : TMapArea        read FMapArea;
-  // Property for Generator
-  property Generator : TDungeonBuilder read FGenerator;
   // Property for Vison
   property Vision    : TVision         read FVision;
   // Property for Cell ID access.
@@ -165,7 +161,6 @@ begin
   inherited Create( aID, True );
   FArea.Create( NewCoord2D( 1, 1 ), NewCoord2D( aMaxX, aMaxY ) );
   FMapArea   := TMapArea.Create( FArea, Self );
-  FGenerator := TDungeonBuilder.Create( aMaxX, aMaxY, Self, Self );
   FVision    := TIsaacVision.Create( Self, aMaxVision );
   FMaxVision := aMaxVision;
   FCellMap   := GetMem( aMaxX * aMaxY * SizeOf( TMapCell ) );
@@ -417,7 +412,6 @@ end;
 destructor TLuaMapNode.Destroy;
 begin
   FreeAndNil( FVision );
-  FreeAndNil( FGenerator );
   inherited Destroy;
   FreeMem( FCellMap, FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );
 end;
@@ -432,7 +426,6 @@ begin
   FMaxVision := Stream.ReadByte;
   FCellsName := Stream.ReadAnsiString;
   FMapArea   := TMapArea.Create( FArea, Self );
-  FGenerator := TDungeonBuilder.Create( FArea.B.X, FArea.B.Y, Self, Self );
   FVision    := TIsaacVision.Create( Self, FMaxVision );
 
   FCellMap := GetMem( FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );

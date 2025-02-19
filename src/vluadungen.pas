@@ -3,17 +3,16 @@ unit vluadungen;
 {$mode objfpc}
 interface
 
-uses Classes, SysUtils, vlualibrary, vrltools, vdungen;
+uses Classes, SysUtils, vlualibrary, vrltools, vluamapnode;
 
 procedure RegisterDungenClass( L : Plua_State; ObjectName : AnsiString = '' );
-procedure RegisterDungen( DunGen : TDungeonBuilder );
+procedure RegisterDungen( aMapNode : TLuaMapNode );
 
 implementation
 
 uses vutil, vmaparea, vluatools, vluaext, strutils;
 
-var
-  Gen : TDungeonBuilder;
+var GCurrentMap : TLuaMapNode;
 
 const
   VALKYRIE_DUNGEN      = 'valkyrie.dungen';
@@ -46,7 +45,7 @@ end;
 function lua_tocell( L : Plua_State; Index : Integer ) : Byte;
 begin
   if lua_type( L, Index ) = LUA_TSTRING then
-    Exit( Gen.IDtoCell( lua_tostring( L, Index ) ) )
+    Exit( GCurrentMap.IDtoCell( lua_tostring( L, Index ) ) )
   else
     Exit( lua_tointeger( L, Index ) );
 end;
@@ -79,13 +78,13 @@ begin
       while lua_next( L, Index ) <> 0 do
       begin
         if lua_type( L, -1 ) = LUA_TSTRING then
-          Include( lua_tocellset, Gen.IDtoCell( lua_tostring( L, -1 ) ) )
+          Include( lua_tocellset, GCurrentMap.IDtoCell( lua_tostring( L, -1 ) ) )
         else
           Include( lua_tocellset, lua_tointeger( L, -1 ) );
         lua_pop( L, 1 );
       end;
     end;
-    LUA_TSTRING : Include( lua_tocellset, Gen.IDtoCell( lua_tostring( L, Index ) ) );
+    LUA_TSTRING : Include( lua_tocellset, GCurrentMap.IDtoCell( lua_tostring( L, Index ) ) );
     LUA_TNUMBER : Include( lua_tocellset, lua_tointeger( L, Index ) );
   end;
 end;
@@ -96,7 +95,7 @@ var
   Coord : PCoord2D;
 begin
   Coord := vlua_topcoord( L, 1 );
-  lua_pushansistring( L, Gen.CellToID( Gen.GetCell( Coord^ ) ) );
+  lua_pushansistring( L, GCurrentMap.CellToID( GCurrentMap.GetCell( Coord^ ) ) );
   Exit( 1 );
 end;
 
@@ -105,7 +104,7 @@ var
   Coord : PCoord2D;
 begin
   Coord := vlua_topcoord( L, 1 );
-  lua_pushinteger( L, Gen.GetCell( Coord^ ) );
+  lua_pushinteger( L, GCurrentMap.GetCell( Coord^ ) );
   Exit( 1 );
 end;
 
@@ -118,22 +117,22 @@ begin
   LType := lua_type( L, 2 );
 
   if LType = LUA_TSTRING then
-    Gen.PutCell( Coord^, Gen.IDtoCell( lua_tostring( L, 2 ) ) )
+    GCurrentMap.PutCell( Coord^, GCurrentMap.IDtoCell( lua_tostring( L, 2 ) ) )
   else
-    Gen.PutCell( Coord^, lua_tointeger( L, 2 ) );
+    GCurrentMap.PutCell( Coord^, lua_tointeger( L, 2 ) );
 
   Exit( 0 );
 end;
 
 function lua_dungen_fast_get_cell( L : Plua_State ) : Integer; cdecl;
 begin
-  lua_pushinteger( L, Gen.GetCell( NewCoord2D( lua_tointeger( L, 1 ), lua_tointeger( L, 2 ) ) ) );
+  lua_pushinteger( L, GCurrentMap.GetCell( NewCoord2D( lua_tointeger( L, 1 ), lua_tointeger( L, 2 ) ) ) );
   Exit( 1 );
 end;
 
 function lua_dungen_fast_set_cell( L : Plua_State ) : Integer; cdecl;
 begin
-  Gen.PutCell( NewCoord2D( lua_tointeger( L, 1 ), lua_tointeger( L, 2 ) ), lua_tointeger( L, 3 ) );
+  GCurrentMap.PutCell( NewCoord2D( lua_tointeger( L, 1 ), lua_tointeger( L, 2 ) ), lua_tointeger( L, 3 ) );
   Exit( 0 );
 end;
 
@@ -143,7 +142,7 @@ var
   Coord : PCoord2D;
 begin
   Coord := vlua_topcoord( L, 1 );
-  lua_pushboolean( L, Gen.isEmpty( Coord^, lua_toflags32( L, 2 ) ) );
+  lua_pushboolean( L, GCurrentMap.isEmpty( Coord^, lua_toflags32( L, 2 ) ) );
   Exit( 1 );
 end;
 
@@ -156,7 +155,7 @@ begin
   Area := vlua_toarea( L, 1 );
   Flags := lua_toflags32( L, 2 );
   for Coord in Area do
-    if not Gen.isEmpty( Coord, Flags ) then
+    if not GCurrentMap.isEmpty( Coord, Flags ) then
     begin
       lua_pushboolean( L, False );
       Exit( 1 );
@@ -171,9 +170,9 @@ var
 begin
   Fill := lua_tocell( L, 1 );
   if vlua_isarea( L, 2 ) then
-    Gen.Fill( vlua_toarea( L, 2 ), Fill )
+    GCurrentMap.MapArea.Fill( vlua_toarea( L, 2 ), Fill )
   else
-    Gen.Fill( Fill );
+    GCurrentMap.MapArea.Fill( Fill );
   Exit( 0 );
 end;
 
@@ -185,16 +184,16 @@ begin
   Area := vlua_toarea( L, 1 );
   Horiz := lua_toboolean( L, 2 );
   if lua_type( L, 4 ) = LUA_TTABLE then
-    Gen.Fill( Area, lua_tocellarray( L, 3 ), lua_tocellarray( L, 4 ), Horiz )
+    GCurrentMap.MapArea.Fill( Area, lua_tocellarray( L, 3 ), lua_tocellarray( L, 4 ), Horiz )
   else
-    Gen.Fill( Area, lua_tocellarray( L, 3 ), Horiz );
+    GCurrentMap.MapArea.Fill( Area, lua_tocellarray( L, 3 ), Horiz );
   Exit( 0 );
 end;
 
 
 function lua_dungen_fill_edges( L : Plua_State ) : Integer; cdecl;
 begin
-  Gen.FillEdges( lua_tocell( L, 1 ) );
+  GCurrentMap.MapArea.FillEdges( lua_tocell( L, 1 ) );
   Exit( 0 );
 end;
 
@@ -206,21 +205,21 @@ begin
   From := lua_tocellset( L, 1 );
   Too := lua_tocell( L, 2 );
   if vlua_isarea( L, 3 ) then
-    Gen.Transmute( vlua_toarea( L, 3 ), From, Too )
+    GCurrentMap.MapArea.Transmute( vlua_toarea( L, 3 ), From, Too )
   else
-    Gen.Transmute( From, Too );
+    GCurrentMap.MapArea.Transmute( From, Too );
   Exit( 0 );
 end;
 
 function lua_dungen_around( L : Plua_State ) : Integer; cdecl;
 begin
-  lua_pushinteger( L, Gen.Around( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ), lua_tointeger_def( L, 3, 1 ) ) );
+  lua_pushinteger( L, GCurrentMap.MapArea.Around( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ), lua_tointeger_def( L, 3, 1 ) ) );
   Exit( 1 );
 end;
 
 function lua_dungen_cross_around( L : Plua_State ) : Integer; cdecl;
 begin
-  lua_pushinteger( L, Gen.CrossAround( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ) ) );
+  lua_pushinteger( L, GCurrentMap.MapArea.CrossAround( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ) ) );
   Exit( 1 );
 end;
 
@@ -240,12 +239,12 @@ begin
       Exit( 1 );
     end;
     try
-      iCell := Gen.RanCoord(iCellSet);
+      iCell := GCurrentMap.MapArea.RanCoord(iCellSet);
     except
       lua_pushnil( L );
       Exit( 1 );
     end;
-  until Gen.Around( iCell, iCellSet ) = 8;
+  until GCurrentMap.MapArea.Around( iCell, iCellSet ) = 8;
   vlua_pushcoord( L, iCell );
   Exit( 1 );
 end;
@@ -260,7 +259,7 @@ begin
 
   if T1 <= LUA_TNIL then
   begin
-    vlua_pushcoord( L, Gen.RanCoord );
+    vlua_pushcoord( L, GCurrentMap.MapArea.RanCoord );
     Exit( 1 );
   end;
   if T1 = LUA_TUSERDATA then
@@ -272,9 +271,9 @@ begin
 
   try
     if lua_type( L, 2 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, Gen.RanCoord( CellSet, vlua_toparea( L, 2 )^ ) )
+      vlua_pushcoord( L, GCurrentMap.MapArea.RanCoord( CellSet, vlua_toparea( L, 2 )^ ) )
     else
-      vlua_pushcoord( L, Gen.RanCoord( CellSet ) );
+      vlua_pushcoord( L, GCurrentMap.MapArea.RanCoord( CellSet ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -294,20 +293,20 @@ begin
 
     if T1 <= LUA_TNIL then
     begin
-      vlua_pushcoord( L, Gen.EmptyRanCoord( Flags ) );
+      vlua_pushcoord( L, GCurrentMap.MapArea.EmptyRanCoord( Flags ) );
       Exit( 1 );
     end;
     if T1 = LUA_TUSERDATA then
     begin
-      vlua_pushcoord( L, Gen.EmptyRanCoord( Flags, vlua_toparea( L, 2 )^ ) );
+      vlua_pushcoord( L, GCurrentMap.MapArea.EmptyRanCoord( Flags, vlua_toparea( L, 2 )^ ) );
       Exit( 1 );
     end;
     CellSet := lua_tocellset( L, 2 );
 
     if lua_type( L, 3 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, Gen.EmptyRanCoord( CellSet, Flags, vlua_toparea( L, 3 )^ ) )
+      vlua_pushcoord( L, GCurrentMap.MapArea.EmptyRanCoord( CellSet, Flags, vlua_toparea( L, 3 )^ ) )
     else
-      vlua_pushcoord( L, Gen.EmptyRanCoord( CellSet, Flags ) );
+      vlua_pushcoord( L, GCurrentMap.MapArea.EmptyRanCoord( CellSet, Flags ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -321,7 +320,7 @@ var
 begin
   Coord := vlua_topcoord( L, 1 );
   try
-    vlua_pushcoord( L, Gen.Drop( Coord^, lua_toflags32( L, 2 ) ) );
+    vlua_pushcoord( L, GCurrentMap.MapArea.Drop( Coord^, lua_toflags32( L, 2 ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -333,9 +332,9 @@ function lua_dungen_find_coord( L : Plua_State ) : Integer; cdecl;
 begin
   try
     if lua_type( L, 2 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, Gen.FindCell( lua_tocellset( L, 1 ), vlua_toparea( L, 2 )^ ) )
+      vlua_pushcoord( L, GCurrentMap.MapArea.FindCell( lua_tocellset( L, 1 ), vlua_toparea( L, 2 )^ ) )
     else
-      vlua_pushcoord( L, Gen.FindCell( lua_tocellset( L, 1 ) ) );
+      vlua_pushcoord( L, GCurrentMap.MapArea.FindCell( lua_tocellset( L, 1 ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -347,9 +346,9 @@ function lua_dungen_find_empty_coord( L : Plua_State ) : Integer; cdecl;
 begin
   try
     if lua_type( L, 3 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, Gen.FindCell( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ), vlua_toparea( L, 3 )^ ) )
+      vlua_pushcoord( L, GCurrentMap.MapArea.FindCell( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ), vlua_toparea( L, 3 )^ ) )
     else
-      vlua_pushcoord( L, Gen.FindCell( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ) ) );
+      vlua_pushcoord( L, GCurrentMap.MapArea.FindCell( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -361,9 +360,9 @@ function lua_dungen_find_random_coord( L : Plua_State ) : Integer; cdecl;
 begin
   try
     if lua_type( L, 2 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, Gen.FindRanCoord( lua_tocellset( L, 1 ), vlua_toparea( L, 2 )^ ) )
+      vlua_pushcoord( L, GCurrentMap.MapArea.FindRanCoord( lua_tocellset( L, 1 ), vlua_toparea( L, 2 )^ ) )
     else
-      vlua_pushcoord( L, Gen.FindRanCoord( lua_tocellset( L, 1 ) ) );
+      vlua_pushcoord( L, GCurrentMap.MapArea.FindRanCoord( lua_tocellset( L, 1 ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -375,9 +374,9 @@ function lua_dungen_find_random_empty_coord( L : Plua_State ) : Integer; cdecl;
 begin
   try
     if lua_type( L, 3 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, Gen.FindEmptyRanCoord( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ), vlua_toparea( L, 3 )^ ) )
+      vlua_pushcoord( L, GCurrentMap.MapArea.FindEmptyRanCoord( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ), vlua_toparea( L, 3 )^ ) )
     else
-      vlua_pushcoord( L, Gen.FindEmptyRanCoord( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ) ) );
+      vlua_pushcoord( L, GCurrentMap.MapArea.FindEmptyRanCoord( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -405,19 +404,19 @@ begin
 
   iCoord := iPoint;
 
-  while iCoord.Horiz(iHoriz) < Gen.Area.B.Horiz(iHoriz) do
+  while iCoord.Horiz(iHoriz) < GCurrentMap.Area.B.Horiz(iHoriz) do
   begin
     iCoord += iStep;
-    if Gen.GetCell( iCoord ) in iBlockCells then Break else Gen.PutCell( iCoord, iCell );
+    if GCurrentMap.GetCell( iCoord ) in iBlockCells then Break else GCurrentMap.PutCell( iCoord, iCell );
   end;
   iCoord := iPoint;
-  while iCoord.Horiz(iHoriz) > Gen.Area.A.Horiz(iHoriz) do
+  while iCoord.Horiz(iHoriz) > GCurrentMap.Area.A.Horiz(iHoriz) do
   begin
     iCoord -= iStep;
-    if Gen.GetCell( iCoord ) in iBlockCells then Break else Gen.PutCell( iCoord, iCell );
+    if GCurrentMap.GetCell( iCoord ) in iBlockCells then Break else GCurrentMap.PutCell( iCoord, iCell );
   end;
 
-  Gen.PutCell( iPoint, iCell );
+  GCurrentMap.PutCell( iPoint, iCell );
   Exit( 0 );
 end;
 
@@ -442,7 +441,7 @@ begin
   while True do
   begin
     Coord += Step;
-    cell := Gen.GetCell( Coord );
+    cell := GCurrentMap.GetCell( Coord );
     if not ( cell in CellSet ) then
     begin
       lua_pushinteger( L, cell );
@@ -453,7 +452,7 @@ begin
   while True do
   begin
     Coord -= Step;
-    cell := Gen.GetCell( Coord );
+    cell := GCurrentMap.GetCell( Coord );
     if not ( cell in CellSet ) then
     begin
       lua_pushinteger( L, cell );
@@ -475,9 +474,9 @@ begin
   iClamp  := lua_toboolean( L, 3 );
 
   if iClamp then
-    Gen.Area.Clamp( iArea )
+    GCurrentMap.Area.Clamp( iArea )
   else
-    if ( not Gen.Area.Contains( iArea.A ) ) or ( not Gen.Area.Contains( iArea.B ) ) then
+    if ( not GCurrentMap.Area.Contains( iArea.A ) ) or ( not GCurrentMap.Area.Contains( iArea.B ) ) then
     begin
       lua_pushinteger( L, -1 );
       Exit(1);
@@ -485,7 +484,7 @@ begin
 
   iResult := 0;
   for iCoord in iArea do
-    if not ( Gen.GetCell(iCoord) in iIgnore ) then
+    if not ( GCurrentMap.GetCell(iCoord) in iIgnore ) then
        Inc(iResult);
 
   lua_pushinteger( L, iResult );
@@ -514,7 +513,7 @@ begin
         Exit( 1 );
       end;
     end;
-  until Gen.GetCell( c^ ) = cell;
+  until GCurrentMap.GetCell( c^ ) = cell;
   vlua_pushcoord( L, c^ );
   Exit( 1 );
 end;
@@ -533,8 +532,8 @@ begin
   end
   else
   begin
-    vlua_pusharea( L, Gen.Area );
-    A := Gen.Area.A;
+    vlua_pusharea( L, GCurrentMap.Area );
+    A := GCurrentMap.Area.A;
   end;
   A.X := A.X - 1;
   vlua_pushcoord( L, A );
@@ -554,9 +553,9 @@ var
 
   function RoomStart( ax, ay : Integer ) : Boolean;
   begin
-    Exit( ( Gen.GetCell( NewCoord2D( ax + 1, ay ) ) = Cell ) and ( Gen.GetCell(
-      NewCoord2D( ax, ay + 1 ) ) = Cell ) and ( Gen.GetCell( NewCoord2D( ax - 1, ay ) ) <> Cell ) and
-      ( Gen.GetCell( NewCoord2D( ax, ay - 1 ) ) <> Cell ) );
+    Exit( ( GCurrentMap.GetCell( NewCoord2D( ax + 1, ay ) ) = Cell ) and ( GCurrentMap.GetCell(
+      NewCoord2D( ax, ay + 1 ) ) = Cell ) and ( GCurrentMap.GetCell( NewCoord2D( ax - 1, ay ) ) <> Cell ) and
+      ( GCurrentMap.GetCell( NewCoord2D( ax, ay - 1 ) ) <> Cell ) );
   end;
 
 begin
@@ -567,17 +566,17 @@ begin
 
   c := Area.a;
   repeat
-    if Gen.GetCell( c ) = Cell then
+    if GCurrentMap.GetCell( c ) = Cell then
       if RoomStart( c.x, c.y ) then
       begin
         rx := c;
         ry := c;
         repeat
           Inc( rx.x );
-        until Gen.GetCell( rx ) <> Cell;
+        until GCurrentMap.GetCell( rx ) <> Cell;
         repeat
           Inc( ry.y );
-        until Gen.GetCell( ry ) <> Cell;
+        until GCurrentMap.GetCell( ry ) <> Cell;
         Room.A := c;
         Room.B := NewCoord2D( rx.x - 1, ry.y - 1 );
         vlua_pusharea( L, Room );
@@ -626,8 +625,8 @@ begin
       else
         iArea.Clamp( iCoord );
 
-    if not ( Gen.GetCell( iCoord ) in iIgnore ) then
-      Gen.PutCell( iCoord, iCell );
+    if not ( GCurrentMap.GetCell( iCoord ) in iIgnore ) then
+      GCurrentMap.PutCell( iCoord, iCell );
     iCoord.RandomShift( 1 );
   end;
   Exit( 0 );
@@ -769,7 +768,7 @@ begin
     begin
       c := Tile^.Data[Y * Tile^.SizeX + X];
       if c <> 0 then
-        Gen.PutCell( Coord + NewCoord2D( X, Y ), Tile^.Data[Y * Tile^.SizeX + X] );
+        GCurrentMap.PutCell( Coord + NewCoord2D( X, Y ), Tile^.Data[Y * Tile^.SizeX + X] );
     end;
 
   Exit( 0 );
@@ -1097,9 +1096,9 @@ begin
   luaL_register( L, nil, dungentile_f );
 end;
 
-procedure RegisterDungen( DunGen : TDungeonBuilder );
+procedure RegisterDungen( aMapNode : TLuaMapNode );
 begin
-  Gen := DunGen;
+  GCurrentMap := aMapNode;
 end;
 
 
