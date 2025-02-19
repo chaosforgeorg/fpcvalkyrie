@@ -632,6 +632,98 @@ begin
   Exit( 0 );
 end;
 
+function lua_dungen_cellular_init( L : Plua_State ) : Integer; cdecl;
+var iCoord  : TCoord2D;
+    iArea   : TArea;
+    iFull   : Byte;
+    iEmpty  : Byte;
+    iChance : lua_Number;
+begin
+  iFull   := lua_tocell( L, 1 );
+  iEmpty  := lua_tocell( L, 2 );
+  iChance := lua_tonumber( L, 3 );
+  iArea   := GCurrentMap.Area.Shrinked(1);
+  if vlua_isarea( L, 4 ) then iArea := vlua_toarea( L, 4 );
+  GCurrentMap.Area.Clamp( iArea );
+
+  for iCoord in iArea do
+    if Random < iChance
+      then GCurrentMap.putCell( iCoord, iFull )
+      else GCurrentMap.putCell( iCoord, iEmpty );
+
+  Exit( 0 );
+end;
+
+function lua_dungen_cellular_random( L : Plua_State ) : Integer; cdecl;
+var iCoord  : TCoord2D;
+    iC      : TCoord2D;
+    iArea   : TArea;
+    iFull   : Byte;
+    iEmpty  : Byte;
+    iCell   : Byte;
+    iNeigh  : Integer;
+    iCount  : Integer;
+    i, iCnt : Integer;
+    iStrict : Boolean;
+    iChance : lua_Number;
+begin
+  iFull   := lua_tocell( L, 1 );
+  iEmpty  := lua_tocell( L, 2 );
+  iNeigh  := lua_tointeger( L, 3 );
+  iCount  := lua_tointeger( L, 4 );
+  iArea   := GCurrentMap.Area.Shrinked(1);
+  if vlua_isarea( L, 5 ) then iArea := vlua_toarea( L, 5 );
+  GCurrentMap.Area.Clamp( iArea );
+  iStrict := lua_toboolean( L, 7 );
+
+  i := 0;
+  repeat
+    Inc( i );
+    iCoord := iArea.RandomCoord;
+    if iStrict then
+    begin
+      iCell := GCurrentMap.getCell( iCoord );
+      if ( iCell <> iFull ) and ( iCell <> iEmpty ) then
+      begin
+        Dec( i );
+        Continue;
+      end;
+    end;
+    iCnt := 0;
+    for iC in NewArea( iCoord, 1 ) do
+      if GCurrentMap.GetCell( iC ) = iFull then
+      begin
+        Inc( iCnt );
+        if iCnt > iNeigh then
+          Break;
+      end;
+
+    if iCnt > iNeigh
+      then GCurrentMap.putCell( iCoord, iFull )
+      else GCurrentMap.putCell( iCoord, iEmpty );
+  until i >= iCount;
+  Exit( 0 );
+end;
+
+function lua_dungen_cellular_clear( L : Plua_State ) : Integer; cdecl;
+var iCoord : TCoord2D;
+    iArea  : TArea;
+    iCell  : Byte;
+    iNeigh : Integer;
+begin
+  iCell   := lua_tocell( L, 1 );
+  iNeigh  := lua_tointeger( L, 2 );
+  iArea   := GCurrentMap.Area.Shrinked(1);
+  if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
+  GCurrentMap.Area.Clamp( iArea );
+
+  for iCoord in iArea do
+    if GCurrentMap.getCell( iCoord ) <> iCell then
+      if GCurrentMap.MapArea.CrossAround( iCoord, [ iCell ] ) >= iNeigh then
+         GCurrentMap.putCell( iCoord, iCell );
+  Exit( 0 );
+end;
+
 // -------- Tile support ---------------------------------------------- //
 
 type
@@ -1030,7 +1122,7 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..29] of luaL_Reg = (
+  dungenlib_f : array[0..32] of luaL_Reg = (
     ( Name : 'get_cell_id'; func : @lua_dungen_get_cell_id; ),
     ( Name : 'get_cell'; func : @lua_dungen_get_cell; ),
     ( Name : 'set_cell'; func : @lua_dungen_set_cell; ),
@@ -1060,6 +1152,9 @@ const
     ( Name : 'each'; func : @lua_dungen_each; ),
     ( Name : 'read_rooms'; func : @lua_dungen_read_rooms; ),
     ( Name : 'run_drunkard_walk'; func : @lua_dungen_run_drunkard_walk; ),
+    ( Name : 'cellular_init'; func : @lua_dungen_cellular_init; ),
+    ( Name : 'cellular_random'; func : @lua_dungen_cellular_random; ),
+    ( Name : 'cellular_clear'; func : @lua_dungen_cellular_clear; ),
     ( Name : nil; func : nil; )
     );
 
