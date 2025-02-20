@@ -10,9 +10,12 @@ procedure RegisterDungen( aMapNode : TLuaMapNode );
 
 implementation
 
-uses vutil, vmaparea, vluatools, vluaext, strutils;
+uses vutil, vgenerics, vluatools, vluaext, strutils;
 
 var GCurrentMap : TLuaMapNode;
+
+type TCoordArray = specialize TGArray<TCoord2D>;
+
 
 const
   VALKYRIE_DUNGEN      = 'valkyrie.dungen';

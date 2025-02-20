@@ -39,6 +39,9 @@ const DIR_NONE      = 0;
       DIR_UP        = 8;
       DIR_UPRIGHT   = 9;
 
+type EPlacementException = class(EException);
+type TCellSet            = set of Byte;
+
 type TByteRange = object
   Min : Byte;
   Max : Byte;

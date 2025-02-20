@@ -22,7 +22,7 @@
 unit vluamapnode;
 interface
 uses SysUtils, Classes,
-     vnode, vutil, vmaparea, vvision, vrltools, vluaentitynode;
+     vnode, vutil, vvision, vrltools, vluaentitynode;
 
 const vlfExplored     = 0;
       vlfVisible      = 1;
@@ -45,7 +45,7 @@ end;
 
 type PMapCell = ^TMapCell;
 
-type TLuaMapNode = class( TNode, IMapArea, IVisionQuery )
+type TLuaMapNode = class( TNode, IVisionQuery )
   // Create and setup
   constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte );
   // Removes given bits from lightMap
@@ -132,8 +132,6 @@ protected
   // Area holding the level boundaries.
   FArea      : TArea;
   // MapArea class
-  FMapArea   : TMapArea;
-  // MapArea class
   FVision    : TVision;
   // Max vision distance
   FMaxVision : Byte;
@@ -144,8 +142,6 @@ protected
 public
   // Property for Area
   property Area      : TArea           read FArea;
-  // Property for Map Area
-  property MapArea   : TMapArea        read FMapArea;
   // Property for Vison
   property Vision    : TVision         read FVision;
   // Property for Cell ID access.
@@ -168,7 +164,6 @@ constructor TLuaMapNode.Create ( const aID : AnsiString; aMaxX, aMaxY : DWord; a
 begin
   inherited Create( aID, True );
   FArea.Create( NewCoord2D( 1, 1 ), NewCoord2D( aMaxX, aMaxY ) );
-  FMapArea   := TMapArea.Create( FArea, Self );
   FVision    := TIsaacVision.Create( Self, aMaxVision );
   FMaxVision := aMaxVision;
   FCellMap   := GetMem( aMaxX * aMaxY * SizeOf( TMapCell ) );
@@ -477,7 +472,6 @@ begin
   Stream.Read( FArea, SizeOf( FArea ) );
   FMaxVision := Stream.ReadByte;
   FCellsName := Stream.ReadAnsiString;
-  FMapArea   := TMapArea.Create( FArea, Self );
   FVision    := TIsaacVision.Create( Self, FMaxVision );
 
   FCellMap := GetMem( FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );
