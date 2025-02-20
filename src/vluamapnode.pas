@@ -102,6 +102,12 @@ type TLuaMapNode = class( TNode, IMapArea, IVisionQuery )
   function GetItem( const aCoord : TCoord2D ) : TLuaEntityNode; virtual;
   // Drop something onto the map
   function Drop( aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 = [] ) : TLuaEntityNode;
+  // Find a suitable drop coord
+  function DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32 ) : TCoord2D;
+  // Returns the number of cells in aCells around cell (excluding self)
+  function CellsAround( const aWhere : TCoord2D; const aCells : TCellSet; aRange : Byte = 1 ) : Byte;
+  // Returns the number of cells in aCells around cell in cardinal dirs (excluding self );
+  function CellsCrossAround( const aWhere : TCoord2D; const aCells : TCellSet) : Byte;
   // Change position of given thing, no error checking
   procedure Displace( aWhat : TLuaEntityNode; const aWhere : TCoord2D ); reintroduce;
   // Override of remove - automatic map clear
@@ -152,7 +158,9 @@ end;
 
 implementation
 
-uses vluasystem, vmath, vluastate, vluagamestate, vluatools, vluatype, vlualibrary, math;
+uses vluasystem, vgenerics, vmath, vluastate, vluagamestate, vluatools, vluatype, vlualibrary, math;
+
+type TMinCoordChoice = specialize TGMinimalChoice<TCoord2D>;
 
 { TLuaMapNode }
 
@@ -365,7 +373,7 @@ begin
   end;
 
   try
-    aPosition := FMapArea.Drop( aPosition, aEmptyFlags );
+    aPosition := DropCoord( aPosition, aEmptyFlags );
     if aWhat.Parent <> Self then Add( aWhat );
     aWhat.Displace( aPosition );
     case aWhat.EntityID of
@@ -378,6 +386,50 @@ begin
   Result := aWhat;
 end;
 
+function TLuaMapNode.DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32 ): TCoord2D;
+var iC    : TCoord2D;
+    iList : TMinCoordChoice;
+begin
+  if isEmpty( aCoord, aEmptyFlags ) then
+    Exit( aCoord );
+
+  iList := TMinCoordChoice.Create;
+
+  for iC in NewArea( aCoord, 1 ) do
+    if FArea.Contains( iC ) then
+      if isEmpty( iC, aEmptyFlags ) then
+        iList.Add( iC, Distance( aCoord, iC ) );
+
+  if iList.IsEmpty then
+    for iC in NewArea( aCoord, 5 ) do
+      if FArea.Contains( iC ) then
+        if isEmpty( iC, aEmptyFlags ) then
+          iList.Add( iC, Distance( aCoord, iC ) );
+
+  if iList.IsEmpty then raise EPlacementException.CreateFmt('TLuaMapNode.DropCoord(%d,%d) failed!',[aCoord.x, aCoord.y]);
+
+  Result := iList.Return;
+  FreeAndNil( iList );
+end;
+
+function TLuaMapNode.CellsAround( const aWhere : TCoord2D; const aCells : TCellSet; aRange : Byte = 1 ) : Byte;
+var iCoord : TCoord2D;
+begin
+  Result := 0;
+  for iCoord in NewArea( aWhere, aRange ).Clamped( FArea ) do
+    if iCoord <> aWhere then
+      if GetCell( iCoord ) in aCells then
+        Inc( Result );
+end;
+
+function TLuaMapNode.CellsCrossAround( const aWhere : TCoord2D; const aCells : TCellSet ) : Byte;
+begin
+  Result := 0;
+  if ( aWhere.x < FArea.B.X ) and ( GetCell( aWhere.ifIncX( 1) ) in aCells ) then Inc( Result );
+  if ( aWhere.y < FArea.B.Y ) and ( GetCell( aWhere.ifIncY( 1) ) in aCells ) then Inc( Result );
+  if ( aWhere.x > FArea.A.X ) and ( GetCell( aWhere.ifIncX(-1) ) in aCells ) then Inc( Result );
+  if ( aWhere.y > FArea.A.Y ) and ( GetCell( aWhere.ifIncY(-1) ) in aCells ) then Inc( Result );
+end;
 
 procedure TLuaMapNode.Displace ( aWhat : TLuaEntityNode; const aWhere : TCoord2D ) ;
 begin

@@ -268,114 +268,157 @@ end;
 
 function lua_dungen_around( L : Plua_State ) : Integer; cdecl;
 begin
-  lua_pushinteger( L, GCurrentMap.MapArea.Around( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ), lua_tointeger_def( L, 3, 1 ) ) );
+  lua_pushinteger( L, GCurrentMap.CellsAround( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ), lua_tointeger_def( L, 3, 1 ) ) );
   Exit( 1 );
 end;
 
 function lua_dungen_cross_around( L : Plua_State ) : Integer; cdecl;
 begin
-  lua_pushinteger( L, GCurrentMap.MapArea.CrossAround( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ) ) );
+  lua_pushinteger( L, GCurrentMap.CellsCrossAround( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ) ) );
   Exit( 1 );
 end;
 
 function lua_dungen_random_square( L : Plua_State ) : Integer; cdecl;
-const kLimit      = 6000;
+const kLimit      = 40000;
 var   iLimitCount : DWord;
-      iCell       : TCoord2D;
+      iCoord      : TCoord2D;
       iCellSet    : TCellSet;
+      iArea       : TArea;
 begin
   iLimitCount := 0;
   iCellSet    := lua_tocellset( L, 1 );
+  iArea       := GCurrentMap.Area.Shrinked( 1 );
   repeat
-    Inc(iLimitCount);
-    if (iLimitCount > kLimit) then
+    iCoord := iArea.RandomCoord;
+    if ( GCurrentMap.GetCell( iCoord ) in iCellSet ) and ( GCurrentMap.CellsAround( iCoord, iCellSet ) = 8 ) then
     begin
-      lua_pushnil( L );
+      vlua_pushcoord( L, iCoord );
       Exit( 1 );
     end;
-    try
-      iCell := GCurrentMap.MapArea.RanCoord(iCellSet);
-    except
-      lua_pushnil( L );
+    Inc(iLimitCount);
+  until iLimitCount > kLimit;
+
+  for iCoord in iArea do
+    if ( GCurrentMap.GetCell( iCoord ) in iCellSet ) and ( GCurrentMap.CellsAround( iCoord, iCellSet ) = 8 ) then
+    begin
+      vlua_pushcoord( L, iCoord );
       Exit( 1 );
     end;
-  until GCurrentMap.MapArea.Around( iCell, iCellSet ) = 8;
-  vlua_pushcoord( L, iCell );
-  Exit( 1 );
+
+  Exit( 0 );
 end;
 
 
 function lua_dungen_random_coord( L : Plua_State ) : Integer; cdecl;
-var
-  T1 :      Integer;
-  CellSet : TFlags;
+const kLimit = 5000;
+var iType1   : Integer;
+    iCellSet : TFlags;
+    iArea    : TArea;
+    iCount   : Integer;
+    iCoord   : TCoord2D;
 begin
-  T1 := lua_type( L, 1 );
-
-  if T1 <= LUA_TNIL then
+  iType1 := lua_type( L, 1 );
+  if iType1 <= LUA_TNIL then
   begin
-    vlua_pushcoord( L, GCurrentMap.MapArea.RanCoord );
+    vlua_pushcoord( L, GCurrentMap.Area.RandomCoord );
     Exit( 1 );
   end;
-  if T1 = LUA_TUSERDATA then
+  if iType1 = LUA_TUSERDATA then
   begin
     vlua_pushcoord( L, vlua_toparea( L, 1 )^.RandomCoord );
     Exit( 1 );
   end;
-  CellSet := lua_tocellset( L, 1 );
+  iCellSet := lua_tocellset( L, 1 );
+  iArea    := GCurrentMap.Area;
+  if vlua_isarea( L, 2 ) then iArea := vlua_toarea( L, 2 );
 
-  try
-    if lua_type( L, 2 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, GCurrentMap.MapArea.RanCoord( CellSet, vlua_toparea( L, 2 )^ ) )
-    else
-      vlua_pushcoord( L, GCurrentMap.MapArea.RanCoord( CellSet ) );
-    Exit( 1 );
-  except
-    on EPlacementException do
-  end;
+  iCount := 0;
+  repeat
+    iCoord := iArea.RandomCoord;
+    if GCurrentMap.GetCell( iCoord ) in iCellSet then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+    Inc( iCount );
+  until iCount > kLimit;
+
+  for iCoord in iArea do
+    if GCurrentMap.GetCell( iCoord ) in iCellSet then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+
   Exit( 0 );
 end;
 
 function lua_dungen_random_empty_coord( L : Plua_State ) : Integer; cdecl;
-var
-  T1 :      Integer;
-  CellSet : TFlags;
-  Flags :   TFlags32;
+const kLimit = 10000;
+var iType2   : Integer;
+    iCellSet : TFlags;
+    iArea    : TArea;
+    iCount   : Integer;
+    iCoord   : TCoord2D;
+    iFlags   : TFlags32;
 begin
-  Flags := lua_toflags32( L, 1 );
-  try
-    T1 := lua_type( L, 2 );
+  iFlags := lua_toflags32( L, 1 );
+  iType2 := lua_type( L, 2 );
+  iArea  := GCurrentMap.Area;
+  if ( iType2 <= LUA_TNIL ) or (iType2 = LUA_TUSERDATA) then
+  begin
+    if vlua_isarea( L, 2 ) then iArea := vlua_toarea( L, 2 );
 
-    if T1 <= LUA_TNIL then
-    begin
-      vlua_pushcoord( L, GCurrentMap.MapArea.EmptyRanCoord( Flags ) );
-      Exit( 1 );
-    end;
-    if T1 = LUA_TUSERDATA then
-    begin
-      vlua_pushcoord( L, GCurrentMap.MapArea.EmptyRanCoord( Flags, vlua_toparea( L, 2 )^ ) );
-      Exit( 1 );
-    end;
-    CellSet := lua_tocellset( L, 2 );
+    iCount := 0;
+    repeat
+      iCoord := iArea.RandomCoord;
+      if GCurrentMap.isEmpty( iCoord, iFlags ) then
+      begin
+        vlua_pushcoord( L, iCoord );
+        Exit( 1 );
+      end;
+      Inc( iCount );
+    until iCount > kLimit;
 
-    if lua_type( L, 3 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, GCurrentMap.MapArea.EmptyRanCoord( CellSet, Flags, vlua_toparea( L, 3 )^ ) )
-    else
-      vlua_pushcoord( L, GCurrentMap.MapArea.EmptyRanCoord( CellSet, Flags ) );
-    Exit( 1 );
-  except
-    on EPlacementException do
+    for iCoord in iArea do
+      if GCurrentMap.isEmpty( iCoord, iFlags ) then
+      begin
+        vlua_pushcoord( L, iCoord );
+        Exit( 1 );
+      end;
+    Exit( 0 );
   end;
+
+  iCellSet := lua_tocellset( L, 2 );
+  if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
+
+  iCount := 0;
+  repeat
+    iCoord := iArea.RandomCoord;
+    if ( GCurrentMap.GetCell( iCoord ) in iCellSet ) and ( GCurrentMap.isEmpty( iCoord, iFlags ) ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+    Inc( iCount );
+  until iCount > kLimit;
+
+  for iCoord in iArea do
+    if ( GCurrentMap.GetCell( iCoord ) in iCellSet ) and ( GCurrentMap.isEmpty( iCoord, iFlags ) ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+
   Exit( 0 );
 end;
 
 function lua_dungen_drop_coord( L : Plua_State ) : Integer; cdecl;
-var
-  Coord : PCoord2D;
+var iCoord : TCoord2D;
 begin
-  Coord := vlua_topcoord( L, 1 );
+  iCoord := vlua_tocoord( L, 1 );
   try
-    vlua_pushcoord( L, GCurrentMap.MapArea.Drop( Coord^, lua_toflags32( L, 2 ) ) );
+    vlua_pushcoord( L, GCurrentMap.DropCoord( iCoord, lua_toflags32( L, 2 ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -384,30 +427,40 @@ begin
 end;
 
 function lua_dungen_find_coord( L : Plua_State ) : Integer; cdecl;
+var iCoord : TCoord2D;
+    iCells : TCellSet;
+    iArea  : TArea;
 begin
-  try
-    if lua_type( L, 2 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, GCurrentMap.MapArea.FindCell( lua_tocellset( L, 1 ), vlua_toparea( L, 2 )^ ) )
-    else
-      vlua_pushcoord( L, GCurrentMap.MapArea.FindCell( lua_tocellset( L, 1 ) ) );
-    Exit( 1 );
-  except
-    on EPlacementException do
-  end;
+  iCells := lua_tocellset( L, 1 );
+  iArea  := GCurrentMap.Area;
+  if vlua_isarea( L, 2 ) then iArea := vlua_toarea( L, 2 );
+
+  for iCoord in iArea do
+    if GCurrentMap.GetCell( iCoord ) in iCells then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
   Exit( 0 );
 end;
 
 function lua_dungen_find_empty_coord( L : Plua_State ) : Integer; cdecl;
+var iCoord : TCoord2D;
+    iCells : TCellSet;
+    iEmpty : TFlags32;
+    iArea  : TArea;
 begin
-  try
-    if lua_type( L, 3 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, GCurrentMap.MapArea.FindCell( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ), vlua_toparea( L, 3 )^ ) )
-    else
-      vlua_pushcoord( L, GCurrentMap.MapArea.FindCell( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ) ) );
-    Exit( 1 );
-  except
-    on EPlacementException do
-  end;
+  iCells := lua_tocellset( L, 1 );
+  iEmpty := lua_toflags32( L, 2 );
+  iArea  := GCurrentMap.Area;
+  if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
+
+  for iCoord in iArea do
+    if ( GCurrentMap.GetCell( iCoord ) in iCells ) and GCurrentMap.isEmpty( iCoord, iEmpty ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
   Exit( 0 );
 end;
 
@@ -795,7 +848,7 @@ begin
 
   for iCoord in iArea do
     if GCurrentMap.getCell( iCoord ) <> iCell then
-      if GCurrentMap.MapArea.CrossAround( iCoord, [ iCell ] ) >= iNeigh then
+      if GCurrentMap.CellsCrossAround( iCoord, [ iCell ] ) >= iNeigh then
          GCurrentMap.putCell( iCoord, iCell );
   Exit( 0 );
 end;
