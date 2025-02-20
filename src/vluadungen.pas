@@ -165,49 +165,104 @@ begin
 end;
 
 function lua_dungen_fill( L : Plua_State ) : Integer; cdecl;
-var
-  Fill : Byte;
+var iFill  : Byte;
+    iArea  : TArea;
+    iCoord : TCoord2D;
 begin
-  Fill := lua_tocell( L, 1 );
-  if vlua_isarea( L, 2 ) then
-    GCurrentMap.MapArea.Fill( vlua_toarea( L, 2 ), Fill )
-  else
-    GCurrentMap.MapArea.Fill( Fill );
+  iFill := lua_tocell( L, 1 );
+  iArea := GCurrentMap.Area;
+  if vlua_isarea( L, 2 ) then iArea := vlua_toarea( L, 2 );
+  for iCoord in iArea do
+    GCurrentMap.PutCell( iCoord, iFill );
   Exit( 0 );
 end;
 
 function lua_dungen_fill_pattern( L : Plua_State ) : Integer; cdecl;
-var
-  Area :  TArea;
-  Horiz : Boolean;
+var iArea     : TArea;
+    iHoriz    : Boolean;
+    iPattern  : TOpenByteArray;
+    iPatternB : TOpenByteArray;
+    iCount    : Integer;
+    iSizeA    : Integer;
+    iSizeB    : Integer;
+    iCoord    : TCoord2D;
+    iFlip     : Boolean;
+
+  function NextCell : Byte;
+  begin
+    if iCoord.Horiz(iHoriz) = iArea.A.Horiz(iHoriz) then iCount := 0;
+    NextCell := iPattern[ iCount mod (iSizeA+1) ];
+    Inc(iCount);
+  end;
+
+  function NextCell2 : Byte;
+  begin
+    if iCoord.Horiz(iHoriz) = iArea.A.Horiz(iHoriz) then
+    begin
+      iCount := 0;
+      iFlip  := not iFlip;
+    end;
+    if iFlip
+      then NextCell2 := iPatternB[ iCount mod (iSizeB+1) ]
+      else NextCell2 := iPattern [ iCount mod (iSizeA+1) ];
+    Inc(iCount);
+  end;
+
 begin
-  Area := vlua_toarea( L, 1 );
-  Horiz := lua_toboolean( L, 2 );
+  iArea    := vlua_toarea( L, 1 );
+  iHoriz   := lua_toboolean( L, 2 );
+  iPattern := lua_tocellarray( L, 3 );
+
+  iCoord.Create(0,0);
+  iCount := 0;
+  iFlip  := True;
+  iSizeA := High( iPattern );
+
   if lua_type( L, 4 ) = LUA_TTABLE then
-    GCurrentMap.MapArea.Fill( Area, lua_tocellarray( L, 3 ), lua_tocellarray( L, 4 ), Horiz )
+  begin
+    iPatternB := lua_tocellarray( L, 3 );
+    iSizeB    := High( iPatternB );
+    while iArea.NextCoord( iCoord, iHoriz ) do GCurrentMap.PutCell( iCoord, NextCell2 );
+  end
   else
-    GCurrentMap.MapArea.Fill( Area, lua_tocellarray( L, 3 ), Horiz );
+    while iArea.NextCoord( iCoord, iHoriz ) do GCurrentMap.PutCell( iCoord, NextCell );
   Exit( 0 );
 end;
 
 
 function lua_dungen_fill_edges( L : Plua_State ) : Integer; cdecl;
+var iX,iY : Word;
+    iCell : Byte;
+    iArea : TArea;
 begin
-  GCurrentMap.MapArea.FillEdges( lua_tocell( L, 1 ) );
+  iCell := lua_tocell( L, 1 );
+  iArea := GCurrentMap.Area;
+  for iX := iArea.A.X to iArea.B.X do
+  begin
+    GCurrentMap.PutCell( NewCoord2D( iX, iArea.A.Y ), iCell );
+    GCurrentMap.PutCell( NewCoord2D( iX, iArea.B.Y ), iCell );
+  end;
+  for iY := iArea.A.Y to iArea.B.Y do
+  begin
+    GCurrentMap.PutCell( NewCoord2D( iArea.A.X, iY ), iCell );
+    GCurrentMap.PutCell( NewCoord2D( iArea.B.X, iY ), iCell );
+  end;
   Exit( 0 );
 end;
 
 function lua_dungen_transmute( L : Plua_State ) : Integer; cdecl;
-var
-  From : TFlags;
-  Too :  Byte;
+var iFrom  : TFlags;
+    iTo    : Byte;
+    iArea  : TArea;
+    iCoord : TCoord2D;
 begin
-  From := lua_tocellset( L, 1 );
-  Too := lua_tocell( L, 2 );
-  if vlua_isarea( L, 3 ) then
-    GCurrentMap.MapArea.Transmute( vlua_toarea( L, 3 ), From, Too )
-  else
-    GCurrentMap.MapArea.Transmute( From, Too );
+  iFrom := lua_tocellset( L, 1 );
+  iTo   := lua_tocell( L, 2 );
+  iArea := GCurrentMap.Area;
+  if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
+  for iCoord in iArea do
+    if GCurrentMap.getCell( iCoord ) in iFrom then
+      GCurrentMap.putCell( iCoord, iTo );
   Exit( 0 );
 end;
 
@@ -357,31 +412,53 @@ begin
 end;
 
 function lua_dungen_find_random_coord( L : Plua_State ) : Integer; cdecl;
+var iCoord : TCoord2D;
+    iCells : TCellSet;
+    iArea  : TArea;
 begin
+  iCells := lua_tocellset( L, 1 );
+  iArea  := GCurrentMap.Area;
+  if vlua_isarea( L, 2 ) then iArea := vlua_toarea( L, 2 );
+
+  with TCoordArray.Create do
   try
-    if lua_type( L, 2 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, GCurrentMap.MapArea.FindRanCoord( lua_tocellset( L, 1 ), vlua_toparea( L, 2 )^ ) )
-    else
-      vlua_pushcoord( L, GCurrentMap.MapArea.FindRanCoord( lua_tocellset( L, 1 ) ) );
-    Exit( 1 );
-  except
-    on EPlacementException do
+    for iCoord in iArea do
+      if GCurrentMap.GetCell( iCoord ) in iCells then
+        Push( iCoord );
+    if IsEmpty then Exit( 0 );
+    iCoord := Items[ Random( Size ) ];
+  finally
+    Free
   end;
-  Exit( 0 );
+
+  vlua_pushcoord( L, iCoord );
+  Exit( 1 );
 end;
 
 function lua_dungen_find_random_empty_coord( L : Plua_State ) : Integer; cdecl;
+var iCoord : TCoord2D;
+    iCells : TCellSet;
+    iFlags : TFlags32;
+    iArea  : TArea;
 begin
+  iCells := lua_tocellset( L, 1 );
+  iFlags := lua_toflags32( L, 2 );
+  iArea  := GCurrentMap.Area;
+  if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
+
+  with TCoordArray.Create do
   try
-    if lua_type( L, 3 ) = LUA_TUSERDATA then
-      vlua_pushcoord( L, GCurrentMap.MapArea.FindEmptyRanCoord( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ), vlua_toparea( L, 3 )^ ) )
-    else
-      vlua_pushcoord( L, GCurrentMap.MapArea.FindEmptyRanCoord( lua_tocellset( L, 1 ), lua_toflags32( L, 2 ) ) );
-    Exit( 1 );
-  except
-    on EPlacementException do
+    for iCoord in iArea do
+      if (GCurrentMap.GetCell( iCoord ) in iCells) and GCurrentMap.isEmpty( iCoord, iFlags ) then
+        Push( iCoord );
+    if IsEmpty then Exit( 0 );
+    iCoord := Items[ Random( Size ) ];
+  finally
+    Free
   end;
-  Exit( 0 );
+
+  vlua_pushcoord( L, iCoord );
+  Exit( 1 );
 end;
 
 
@@ -665,7 +742,6 @@ var iCoord  : TCoord2D;
     iCount  : Integer;
     i, iCnt : Integer;
     iStrict : Boolean;
-    iChance : lua_Number;
 begin
   iFull   := lua_tocell( L, 1 );
   iEmpty  := lua_tocell( L, 2 );

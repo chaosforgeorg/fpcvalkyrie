@@ -24,22 +24,6 @@ type
 
 TMapArea = class;
 
-{ TCellFilterEnumerator }
-
-TCellFilterEnumerator = object
-private
-  FMapArea    : TMapArea;
-  FFilter     : TCellSet;
-  FEnumerator : TAreaEnumerator;
-public
-  constructor Create( MapArea : TMapArea; const Filter : TCellSet );
-  function MoveNext : Boolean;
-  function GetCurrent : TCoord2D;
-  function GetEnumerator : TCellFilterEnumerator;
-public
-  property Current : TCoord2D read GetCurrent;
-end;
-
 IMapArea = interface['valkyrie.imaparea']
   function GetCell( const aWhere : TCoord2D ) : Byte;
   procedure PutCell( const aWhere : TCoord2D; const aWhat : Byte );
@@ -60,26 +44,7 @@ TMapArea = class(TNode, IMapArea)
     function EmptyRanCoord( const EmptyFlags : TFlags32; const aArea : TArea ) : TCoord2D;
     function EmptyRanCoord( const aSeekedCells : TCellSet; const EmptyFlags : TFlags32 ) : TCoord2D;
     function EmptyRanCoord( const aSeekedCells : TCellSet; const EmptyFlags : TFlags32; const aArea : TArea ) : TCoord2D;
-    function FindRanCoord( const aSeekedCells : TCellSet ) : TCoord2D;
-    function FindRanCoord( const aSeekedCells : TCellSet; const aArea : TArea ) : TCoord2D;
-    function FindEmptyRanCoord( const EmptyFlags : TFlags32 ) : TCoord2D;
-    function FindEmptyRanCoord( const EmptyFlags : TFlags32; const aArea : TArea ) : TCoord2D;
-    function FindEmptyRanCoord( const aSeekedCells : TCellSet; const EmptyFlags : TFlags32 ) : TCoord2D;
-    function FindEmptyRanCoord( const aSeekedCells : TCellSet; const EmptyFlags : TFlags32; const aArea : TArea ) : TCoord2D;
-    procedure ForAllCells( aWhatArea : TArea; aWhat : TCellMethod ); overload;
-    procedure ForAllCells( aWhat : TCellMethod ); overload;
     function Drop( const aCoord : TCoord2D; const aEmptyFlags : TFlags32 ) : TCoord2D; // raises EPlacementException
-    procedure Fill( const WhatArea : TArea; const CellID : Byte ); overload;
-    procedure Fill( CellID : byte ); overload;
-    procedure Fill( CellID : byte; Chance : byte ); overload;
-    procedure Fill( const aArea : TArea; const Pattern : array of byte; Horiz : Boolean; StartOver : Boolean = True ); overload;
-    procedure Fill( const aArea : TArea; const PatternA, PatternB : array of byte; Horiz : Boolean); overload;
-    procedure FillEdges( const CellID : byte );
-    procedure Sprinkle(const CellID : Byte; const Amount : DWord);
-    procedure Transmute( const aWhatArea : TArea; const aFrom : TCellSet; aTo : Byte ); overload;
-    procedure Transmute( const aFrom : TCellSet; aTo : Byte ); overload;
-    procedure Transmute( const aWhatArea : TArea; const aFrom : TCellSet; const Translation : TCellTranslateMethod ); overload;
-    procedure Transmute( const aFrom : TCellSet; const Translation : TCellTranslateMethod ); overload;
     function Around(const Where : TCoord2D; const Cell : TCellSet; Range : Byte = 1 ) : byte;
     function CrossAround(const Coord : TCoord2D; const Cell : TCellSet) : byte;
     function TryFindCell( out aResult : TCoord2D; const aSeekedCells : TCellSet ) : Boolean;
@@ -94,11 +59,8 @@ TMapArea = class(TNode, IMapArea)
     function GetCell( const aWhere : TCoord2D ) : Byte; virtual;
     procedure PutCell( const aWhere : TCoord2D; const aWhat : Byte ); virtual;
     function isEmpty( const coord : TCoord2D; EmptyFlags : TFlags32 = []) : Boolean; virtual;
-    function FindCells( aCellSet : TCellSet ) : TCellFilterEnumerator;
-    function FindCells( aWhat : Byte ) : TCellFilterEnumerator;
     constructor CreateFromStream( ISt : TStream ); override;
     procedure WriteToStream( OSt : TStream ); override;
-
   end;
 
 operator enumerator (ma : TMapArea) : TAreaEnumerator;
@@ -184,81 +146,6 @@ until (GetCell( iCoord ) in aSeekedCells) and ( isEmpty(iCoord, EmptyFlags) );
   Exit( iCoord );
 end;
 
-function TMapArea.FindRanCoord(const aSeekedCells: TCellSet): TCoord2D;
-begin
-  Exit( FindRanCoord( aSeekedCells, Area ) );
-end;
-
-function TMapArea.FindRanCoord(const aSeekedCells: TCellSet; const aArea: TArea
-  ): TCoord2D;
-var c  : TCoord2D;
-begin
-  with TCoordArray.Create do
-  try
-    for c in aArea do
-      if GetCell( c ) in aSeekedCells then
-        Push( c );
-    if IsEmpty then raise EPlacementException.Create('TMapArea.FindRanCoord failed!');
-    Result := Items[ Random( Size ) ];
-  finally
-    Free
-  end;
-end;
-
-function TMapArea.FindEmptyRanCoord(const EmptyFlags: TFlags32): TCoord2D;
-begin
-  Exit( FindEmptyRanCoord( EmptyFlags, Area ) );
-end;
-
-function TMapArea.FindEmptyRanCoord(const EmptyFlags: TFlags32;
-  const aArea: TArea): TCoord2D;
-var c  : TCoord2D;
-begin
-  with TCoordArray.Create do
-  try
-    for c in aArea do
-      if Self.isEmpty( c, EmptyFlags ) then
-        Push( c );
-    if IsEmpty then raise EPlacementException.Create('TMapArea.FindEmptyRanCoord failed!');
-    Result := Items[ Random( Size ) ];
-  finally
-    Free
-  end;
-end;
-
-function TMapArea.FindEmptyRanCoord(const aSeekedCells: TCellSet;
-  const EmptyFlags: TFlags32): TCoord2D;
-begin
-  Exit( FindEmptyRanCoord( aSeekedCells, EmptyFlags, Area ) );
-end;
-
-function TMapArea.FindEmptyRanCoord(const aSeekedCells: TCellSet;
-  const EmptyFlags: TFlags32; const aArea: TArea): TCoord2D;
-var c  : TCoord2D;
-begin
-  with TCoordArray.Create do
-  try
-    for c in aArea do
-      if (GetCell( c ) in aSeekedCells) and (Self.isEmpty( c, EmptyFlags )) then
-        Push( c );
-    if IsEmpty then raise EPlacementException.Create('TMapArea.FindEmptyRanCoord failed!');
-    Result := Items[ Random( Size ) ];
-  finally
-    Free
-  end;
-end;
-
-procedure TMapArea.ForAllCells( aWhatArea: TArea; aWhat: TCellMethod );
-begin
-  aWhatArea.ForAllCells( aWhat );
-end;
-
-procedure TMapArea.ForAllCells( aWhat: TCellMethod );
-begin
-  Area.ForAllCells( aWhat );
-end;
-
-
 function TMapArea.Drop(const aCoord: TCoord2D; const aEmptyFlags: TFlags32): TCoord2D;
 var s     : TCoord2D;
     iList : TMinCoordChoice;
@@ -284,118 +171,6 @@ begin
   Drop := iList.Return;
   FreeAndNil( iList );
   Exit( Drop );
-end;
-
-procedure TMapArea.Fill(const WhatArea: TArea; const CellID: Byte);
-var c : TCoord2D;
-begin
-  for c in WhatArea do
-    PutCell( c, CellID );
-end;
-
-procedure TMapArea.Fill(CellID: byte);
-begin
-  Fill( Area, CellID );
-end;
-
-procedure TMapArea.Fill(CellID: byte; Chance: byte);
-var c : TCoord2D;
-begin
-  for c in Area do
-    if Random(100) < Chance then
-      PutCell( c, CellID );
-end;
-
-procedure TMapArea.Fill(const aArea: TArea; const Pattern: array of byte; Horiz: Boolean; StartOver: Boolean);
-var Coord : TCoord2D;
-    Count : DWord;
-    ASize : DWord;
-  function NextCell : Byte;
-  begin
-    if StartOver and (Coord.Horiz(Horiz) = aArea.A.Horiz(Horiz)) then Count := 0;
-    NextCell := Count mod (ASize+1);
-    Inc(Count);
-  end;
-begin
-  Coord.Create(0,0);
-  Count := 0;
-  ASize := High(Pattern);
-  while aArea.NextCoord(Coord,Horiz) do PutCell(Coord, Pattern[NextCell]);
-end;
-
-procedure TMapArea.Fill(const aArea: TArea; const PatternA, PatternB: array of byte; Horiz: Boolean);
-var Coord : TCoord2D;
-    Count : DWord;
-    SizeA : DWord;
-    SizeB : DWord;
-    Flip  : Boolean;
-  function NextCell : Byte;
-  begin
-    if Coord.Horiz(Horiz) = aArea.A.Horiz(Horiz) then
-    begin
-      Count := 0;
-      Flip := not Flip;
-    end;
-    if Flip
-      then NextCell := PatternB[Count mod (SizeB+1)]
-      else NextCell := PatternA[Count mod (SizeA+1)];
-    Inc(Count);
-  end;
-begin
-  Flip := True;
-  Coord.Create(0,0);
-  Count := 0;
-  SizeA := High(PatternA);
-  SizeB := High(PatternB);
-  while aArea.NextCoord(Coord,Horiz) do PutCell(Coord, NextCell);
-end;
-
-procedure TMapArea.FillEdges(const CellID: byte);
-var cx,cy : Word;
-begin
-  for cx := Area.A.X to Area.B.X do
-  begin
-    PutCell(NewCoord2D(cx,Area.A.Y),CellID);
-    PutCell(NewCoord2D(cx,Area.B.Y),CellID);
-  end;
-  for cy := Area.A.Y to Area.B.Y do
-  begin
-    PutCell(NewCoord2D(Area.A.X,cy),CellID);
-    PutCell(NewCoord2D(Area.B.X,cy),CellID);
-  end;
-end;
-
-procedure TMapArea.Sprinkle(const CellID : Byte; const Amount : DWord);
-var Count : word;
-begin
-  for Count := 1 to Amount do
-    PutCell(Area.RandomCoord,CellID);
-end;
-
-procedure TMapArea.Transmute(const aWhatArea : TArea; const aFrom: TCellSet; aTo: Byte);
-var c : TCoord2D;
-begin
-  for c in aWhatArea do
-    if GetCell( c ) in aFrom then
-      putCell( c, aTo );
-end;
-
-procedure TMapArea.Transmute(const aFrom: TCellSet; aTo: Byte);
-begin
-  Transmute( Area, aFrom, aTo );
-end;
-
-procedure TMapArea.Transmute(const aWhatArea: TArea; const aFrom: TCellSet; const Translation: TCellTranslateMethod);
-var c : TCoord2D;
-begin
-  for c in aWhatArea do
-    if GetCell(c) in aFrom then
-      PutCell(c,Translation(c));
-end;
-
-procedure TMapArea.Transmute( const aFrom: TCellSet; const Translation: TCellTranslateMethod);
-begin
-  Transmute( Area, aFrom, Translation );
 end;
 
 function TMapArea.Around(const Where : TCoord2D; const Cell : TCellSet; Range : Byte = 1) : byte;
@@ -493,16 +268,6 @@ begin
   Exit( Target.isEmpty ( coord, EmptyFlags ) );
 end;
 
-function TMapArea.FindCells(aCellSet: TCellSet): TCellFilterEnumerator;
-begin
-  FindCells.Create(Self,aCellSet);
-end;
-
-function TMapArea.FindCells(aWhat: Byte): TCellFilterEnumerator;
-begin
-  FindCells.Create(Self,[aWhat]);
-end;
-
 constructor TMapArea.CreateFromStream ( ISt : TStream ) ;
 begin
   inherited CreateFromStream ( ISt ) ;
@@ -513,33 +278,6 @@ procedure TMapArea.WriteToStream ( OSt : TStream ) ;
 begin
   inherited WriteToStream ( OSt ) ;
   OSt.Write( Area, SizeOf(TArea) );
-end;
-
-{ TCellFilterEnumerator }
-
-constructor TCellFilterEnumerator.Create(MapArea: TMapArea;
-  const Filter: TCellSet);
-begin
-  FMapArea := MapArea;
-  FFilter  := Filter;
-  FEnumerator.Create(MapArea.Area);
-end;
-
-function TCellFilterEnumerator.MoveNext: Boolean;
-begin
-  while FEnumerator.MoveNext do
-    if FMapArea.GetCell(FEnumerator.Current) in FFilter then Exit(True);
-  Exit(False);
-end;
-
-function TCellFilterEnumerator.GetCurrent: TCoord2D;
-begin
-  Exit( FEnumerator.Current );
-end;
-
-function TCellFilterEnumerator.GetEnumerator: TCellFilterEnumerator;
-begin
-  Exit( Self );
 end;
 
 end.
