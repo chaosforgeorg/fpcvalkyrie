@@ -24,8 +24,8 @@ interface
 uses Classes, SysUtils, vluastate, vrltools;
 
 type TLuaGameState = object( TLuaState )
-  function ToPosition( Index : Integer ) : TCoord2D;
-  function ToID( Index : Integer ) : DWord;
+  function ToPosition( aIndex : Integer ) : TCoord2D;
+  function ToID( aIndex : Integer ) : DWord;
 end;
 
 implementation
@@ -34,20 +34,26 @@ uses vluasystem, vluaentitynode;
 
 { TLuaGameState }
 
-function TLuaGameState.ToPosition ( Index : Integer ) : TCoord2D;
+function TLuaGameState.ToPosition ( aIndex : Integer ) : TCoord2D;
+var iObject : TObject;
 begin
-  if IsObject( Index ) then
-    with ToObject( Index ) as TLuaEntityNode do
-      Exit( Position );
-  if IsCoord( Index ) then Exit( ToCoord( Index ) );
-  Error('Position expected!');
+  if IsCoord( aIndex ) then Exit( ToCoord( aIndex ) );
+  iObject := ToObject( aIndex );
+  if iObject is TLuaEntityNode then Exit( TLuaEntityNode(iObject).Position );
+  Error( 'Position expected at index '+IntToStr(aIndex)+'!' );
 end;
 
-function TLuaGameState.ToID ( Index : Integer ) : DWord;
+function TLuaGameState.ToID ( aIndex : Integer ) : DWord;
+var iValue : Integer;
 begin
-  if isNumber( Index ) then Exit( ToInteger( Index ) );
-  if isString( Index ) then Exit( LuaSystem.Defines[ ToString( Index ) ] );
-  Error('ID expected!');
+  if isNumber( aIndex ) then Exit( ToInteger( aIndex ) );
+  if isString( aIndex ) then
+  begin
+    iValue := LuaSystem.Defines.Get( ToString( aIndex ), -1 );
+    if iValue >= 0 then Exit( DWord( iValue ) );
+    Error('Unknown ID ("'+ToString( aIndex )+'") at index '+ToString( aIndex ) +'!');
+  end;
+  Error('ID expected at index '+IntToStr( aIndex ) +'!');
 end;
 
 end.
