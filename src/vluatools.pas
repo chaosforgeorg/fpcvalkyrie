@@ -52,6 +52,7 @@ function vlua_toflags_array( L : Plua_State; Index : Integer ): TFlags;
 function vlua_toflags_set( L : Plua_State; Index : Integer ): TFlags;
 procedure vlua_pushflags_array( L : Plua_State; const Flags : TFlags );
 procedure vlua_pushflags_set( L : Plua_State; const Flags : TFlags );
+function vlua_toflags32_array( L : Plua_State; Index : Integer ): TFlags32;
 
 function vlua_tochar( L : Plua_State; Index : Integer ) : Char;
 function vlua_ischar( L : Plua_State; Index : Integer ) : Boolean;
@@ -150,6 +151,22 @@ begin
     lua_rawseti( L, -2, Flag );
   end;
 end;
+
+function vlua_toflags32_array( L : Plua_State; Index : Integer ) : TFlags32;
+begin
+  vlua_toflags32_array := [];
+  if lua_istable( L, Index ) then
+  begin
+    lua_pushnil( L );
+    while lua_next( L, Index ) <> 0 do
+    begin
+      if lua_isnumber( L, -1 ) then
+        Include( vlua_toflags32_array, lua_tointeger( L, -1 ) );
+      lua_pop( L, 1 );
+    end;
+  end;
+end;
+
 
 const VALKYRIE_COORD = 'valkyrie.coord';
       VALKYRIE_AREA  = 'valkyrie.area';

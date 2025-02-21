@@ -21,29 +21,6 @@ const
   VALKYRIE_DUNGEN      = 'valkyrie.dungen';
   VALKYRIE_DUNGEN_TILE = 'valkyrie.dungen.tile';
 
-function lua_tointeger_def( L : Plua_State; Index : Integer; DValue : Integer ) : Integer;
-begin
-  if lua_type( L, Index ) = LUA_TNUMBER then
-    Exit( lua_tointeger( L, Index ) )
-  else
-    Exit( DValue );
-end;
-
-function lua_toflags32( L : Plua_State; Index : Integer ) : TFlags32;
-begin
-  lua_toflags32 := [];
-  if lua_istable( L, Index ) then
-  begin
-    lua_pushnil( L );
-    while lua_next( L, Index ) <> 0 do
-    begin
-      if lua_isnumber( L, -1 ) then
-        Include( lua_toflags32, lua_tointeger( L, -1 ) );
-      lua_pop( L, 1 );
-    end;
-  end;
-end;
-
 // not used in set_cell on purpose!
 function lua_tocell( L : Plua_State; Index : Integer ) : Byte;
 begin
@@ -145,7 +122,7 @@ var
   Coord : PCoord2D;
 begin
   Coord := vlua_topcoord( L, 1 );
-  lua_pushboolean( L, GCurrentMap.isEmpty( Coord^, lua_toflags32( L, 2 ) ) );
+  lua_pushboolean( L, GCurrentMap.isEmpty( Coord^, vlua_toflags32_array( L, 2 ) ) );
   Exit( 1 );
 end;
 
@@ -155,8 +132,8 @@ var
   Flags : TFlags32;
   Coord : TCoord2D;
 begin
-  Area := vlua_toarea( L, 1 );
-  Flags := lua_toflags32( L, 2 );
+  Area  := vlua_toarea( L, 1 );
+  Flags := vlua_toflags32_array( L, 2 );
   for Coord in Area do
     if not GCurrentMap.isEmpty( Coord, Flags ) then
     begin
@@ -270,8 +247,11 @@ begin
 end;
 
 function lua_dungen_around( L : Plua_State ) : Integer; cdecl;
+var iRange : Integer;
 begin
-  lua_pushinteger( L, GCurrentMap.CellsAround( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ), lua_tointeger_def( L, 3, 1 ) ) );
+  iRange := 1;
+  if lua_type( L, 3 ) = LUA_TNUMBER then iRange := lua_tointeger( L, 3 );
+  lua_pushinteger( L, GCurrentMap.CellsAround( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ), iRange ) );
   Exit( 1 );
 end;
 
@@ -365,7 +345,7 @@ var iType2   : Integer;
     iCoord   : TCoord2D;
     iFlags   : TFlags32;
 begin
-  iFlags := lua_toflags32( L, 1 );
+  iFlags := vlua_toflags32_array( L, 1 );
   iType2 := lua_type( L, 2 );
   iArea  := GCurrentMap.Area;
   if ( iType2 <= LUA_TNIL ) or (iType2 = LUA_TUSERDATA) then
@@ -421,7 +401,7 @@ var iCoord : TCoord2D;
 begin
   iCoord := vlua_tocoord( L, 1 );
   try
-    vlua_pushcoord( L, GCurrentMap.DropCoord( iCoord, lua_toflags32( L, 2 ) ) );
+    vlua_pushcoord( L, GCurrentMap.DropCoord( iCoord, vlua_toflags32_array( L, 2 ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -454,7 +434,7 @@ var iCoord : TCoord2D;
     iArea  : TArea;
 begin
   iCells := lua_tocellset( L, 1 );
-  iEmpty := lua_toflags32( L, 2 );
+  iEmpty := vlua_toflags32_array( L, 2 );
   iArea  := GCurrentMap.Area;
   if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
 
@@ -498,7 +478,7 @@ var iCoord : TCoord2D;
     iArea  : TArea;
 begin
   iCells := lua_tocellset( L, 1 );
-  iFlags := lua_toflags32( L, 2 );
+  iFlags := vlua_toflags32_array( L, 2 );
   iArea  := GCurrentMap.Area;
   if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
 
@@ -1308,7 +1288,6 @@ const
     ( Name : 'set_ascii'; func : @lua_dungen_tile_ascii_set ),
     ( Name : '__gc'; func : @lua_dungen_tile_gc ),
     ( Name : nil; func : nil; ) );
-
 
 procedure RegisterDungenClass( L : Plua_State; ObjectName : AnsiString = '' );
 begin
