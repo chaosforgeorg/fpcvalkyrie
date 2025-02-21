@@ -586,23 +586,29 @@ function lua_map_node_set_cell (L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init( L );
-  iState.Map.PutCell( iState.ToPosition( 2 ), iState.ToID( 3 ) );
+  if lua_isnumber( L, 2 )
+    then iState.Map.PutCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ), iState.ToID( 4 ) )
+    else iState.Map.PutCell( iState.ToPosition( 2 ), iState.ToID( 3 ) );
   Result := 0;
-end;
-
-function lua_map_node_get_cell_id (L: Plua_State): Integer; cdecl;
-var iState : TLuaMapState;
-begin
-  iState.Init(L);
-  iState.Push( iState.Map.CellToID( iState.Map.GetCell( iState.ToPosition( 2 ) ) ) );
-  Result := 1;
 end;
 
 function lua_map_node_get_cell (L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iState.Push( iState.Map.CellToID( iState.Map.GetCell( iState.ToPosition( 2 ) ) ) );
+  if lua_isnumber( L, 2 )
+    then iState.Push( iState.Map.GetCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ) ) )
+    else iState.Push( iState.Map.GetCell( iState.ToPosition( 2 ) ) );
+  Result := 1;
+end;
+
+function lua_map_node_get_cell_id (L: Plua_State): Integer; cdecl;
+var iState : TLuaMapState;
+begin
+  iState.Init(L);
+  if lua_isnumber( L, 2 )
+    then iState.Push( iState.Map.CellToID( iState.Map.GetCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ) ) ) )
+    else iState.Push( iState.Map.CellToID( iState.Map.GetCell( iState.ToPosition( 2 ) ) ) );
   Result := 1;
 end;
 
@@ -610,7 +616,9 @@ function lua_map_node_set_hp (L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iState.Map.SetHitpoints( iState.ToPosition( 2 ), iState.ToInteger( 3 ) );
+  if lua_isnumber( L, 2 )
+    then iState.Map.SetHitpoints( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ), iState.ToInteger( 4 ) )
+    else iState.Map.SetHitpoints( iState.ToPosition( 2 ), iState.ToInteger( 3 ) );
   Result := 0;
 end;
 
@@ -618,27 +626,9 @@ function lua_map_node_get_hp (L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iState.Push( iState.Map.GetHitpoints( iState.ToPosition( 2 ) ) );
-  Result := 1;
-end;
-
-function lua_map_node_raw_set_cell (L: Plua_State): Integer; cdecl;
-var iState : TLuaMapState;
-begin
-  iState.Init(L);
-  if iState.IsNumber( 2 )
-    then iState.Map.PutCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ), iState.ToInteger( 4 ) )
-    else iState.Map.PutCell( iState.ToCoord( 2 ), iState.ToInteger( 3 ) );
-  Result := 0;
-end;
-
-function lua_map_node_raw_get_cell (L: Plua_State): Integer; cdecl;
-var iState : TLuaMapState;
-begin
-  iState.Init(L);
-  if iState.IsNumber( 2 )
-    then iState.Push( iState.Map.GetCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ) ) )
-    else iState.Push( iState.Map.GetCell( iState.ToCoord( 2 ) ) );
+  if lua_isnumber( L, 2 )
+    then iState.Push( iState.Map.GetHitpoints(  NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ) ) )
+    else iState.Push( iState.Map.GetHitpoints( iState.ToPosition( 2 ) ) );
   Result := 1;
 end;
 
@@ -850,8 +840,6 @@ const lua_map_node_lib : array[0..19] of luaL_Reg = (
   ( name : 'set_cell';          func : @lua_map_node_set_cell),
   ( name : 'get_cell';          func : @lua_map_node_get_cell),
   ( name : 'get_cell_id';       func : @lua_map_node_get_cell_id),
-  ( name : 'raw_set_cell';      func : @lua_map_node_raw_set_cell),
-  ( name : 'raw_get_cell';      func : @lua_map_node_raw_get_cell),
   ( name : 'eye_contact';       func : @lua_map_node_eye_contact),
   ( name : 'is_visible';        func : @lua_map_node_is_visible),
   ( name : 'is_passable';       func : @lua_map_node_is_passable),

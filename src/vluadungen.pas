@@ -1151,7 +1151,7 @@ begin
   Exit( 0 );
 end;
 
-function lua_dungen_tile_raw_get( L : Plua_State ) : Integer; cdecl;
+function lua_dungen_tile_get( L : Plua_State ) : Integer; cdecl;
 var
   Tile :  PTileRecord;
   Coord : TCoord2D;
@@ -1167,7 +1167,7 @@ begin
   Exit( 1 );
 end;
 
-function lua_dungen_tile_raw_set( L : Plua_State ) : Integer; cdecl;
+function lua_dungen_tile_set( L : Plua_State ) : Integer; cdecl;
 var
   Tile :  PTileRecord;
   Coord : TCoord2D;
@@ -1282,8 +1282,8 @@ const
     ( Name : 'get_size_y'; func : @lua_dungen_tile_get_size_y ),
     ( Name : 'get_area'; func : @lua_dungen_tile_get_area ),
     ( Name : 'expand'; func : @lua_dungen_tile_expand ),
-    ( Name : 'raw_get'; func : @lua_dungen_tile_raw_get ),
-    ( Name : 'raw_set'; func : @lua_dungen_tile_raw_set ),
+    ( Name : 'get'; func : @lua_dungen_tile_get ),
+    ( Name : 'set'; func : @lua_dungen_tile_set ),
     ( Name : 'get_ascii'; func : @lua_dungen_tile_ascii_get ),
     ( Name : 'set_ascii'; func : @lua_dungen_tile_ascii_set ),
     ( Name : '__gc'; func : @lua_dungen_tile_gc ),
