@@ -590,6 +590,14 @@ begin
   Result := 0;
 end;
 
+function lua_map_node_get_cell_id (L: Plua_State): Integer; cdecl;
+var iState : TLuaMapState;
+begin
+  iState.Init(L);
+  iState.Push( iState.Map.CellToID( iState.Map.GetCell( iState.ToPosition( 2 ) ) ) );
+  Result := 1;
+end;
+
 function lua_map_node_get_cell (L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
@@ -835,12 +843,13 @@ begin
 end;
 
 
-const lua_map_node_lib : array[0..18] of luaL_Reg = (
+const lua_map_node_lib : array[0..19] of luaL_Reg = (
   ( name : 'get_area';          func : @lua_map_node_get_area),
   ( name : 'set_hp';            func : @lua_map_node_set_hp),
   ( name : 'get_hp';            func : @lua_map_node_get_hp),
   ( name : 'set_cell';          func : @lua_map_node_set_cell),
   ( name : 'get_cell';          func : @lua_map_node_get_cell),
+  ( name : 'get_cell_id';       func : @lua_map_node_get_cell_id),
   ( name : 'raw_set_cell';      func : @lua_map_node_raw_set_cell),
   ( name : 'raw_get_cell';      func : @lua_map_node_raw_get_cell),
   ( name : 'eye_contact';       func : @lua_map_node_eye_contact),
