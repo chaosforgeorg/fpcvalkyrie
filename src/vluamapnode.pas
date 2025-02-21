@@ -833,7 +833,7 @@ begin
 end;
 
 
-const lua_map_node_lib : array[0..19] of luaL_Reg = (
+const lua_map_node_lib : array[0..17] of luaL_Reg = (
   ( name : 'get_area';          func : @lua_map_node_get_area),
   ( name : 'set_hp';            func : @lua_map_node_set_hp),
   ( name : 'get_hp';            func : @lua_map_node_get_hp),
