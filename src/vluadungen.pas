@@ -69,54 +69,6 @@ begin
   end;
 end;
 
-
-function lua_dungen_get_cell_id( L : Plua_State ) : Integer; cdecl;
-var
-  Coord : PCoord2D;
-begin
-  Coord := vlua_topcoord( L, 1 );
-  lua_pushansistring( L, GCurrentMap.CellToID( GCurrentMap.GetCell( Coord^ ) ) );
-  Exit( 1 );
-end;
-
-function lua_dungen_get_cell( L : Plua_State ) : Integer; cdecl;
-var
-  Coord : PCoord2D;
-begin
-  Coord := vlua_topcoord( L, 1 );
-  lua_pushinteger( L, GCurrentMap.GetCell( Coord^ ) );
-  Exit( 1 );
-end;
-
-function lua_dungen_set_cell( L : Plua_State ) : Integer; cdecl;
-var
-  Coord : PCoord2D;
-  LType : Integer;
-begin
-  Coord := vlua_topcoord( L, 1 );
-  LType := lua_type( L, 2 );
-
-  if LType = LUA_TSTRING then
-    GCurrentMap.PutCell( Coord^, GCurrentMap.IDtoCell( lua_tostring( L, 2 ) ) )
-  else
-    GCurrentMap.PutCell( Coord^, lua_tointeger( L, 2 ) );
-
-  Exit( 0 );
-end;
-
-function lua_dungen_fast_get_cell( L : Plua_State ) : Integer; cdecl;
-begin
-  lua_pushinteger( L, GCurrentMap.GetCell( NewCoord2D( lua_tointeger( L, 1 ), lua_tointeger( L, 2 ) ) ) );
-  Exit( 1 );
-end;
-
-function lua_dungen_fast_set_cell( L : Plua_State ) : Integer; cdecl;
-begin
-  GCurrentMap.PutCell( NewCoord2D( lua_tointeger( L, 1 ), lua_tointeger( L, 2 ) ), lua_tointeger( L, 3 ) );
-  Exit( 0 );
-end;
-
-
 function lua_dungen_is_empty( L : Plua_State ) : Integer; cdecl;
 var
   Coord : PCoord2D;
@@ -244,21 +196,6 @@ begin
     if GCurrentMap.getCell( iCoord ) in iFrom then
       GCurrentMap.putCell( iCoord, iTo );
   Exit( 0 );
-end;
-
-function lua_dungen_around( L : Plua_State ) : Integer; cdecl;
-var iRange : Integer;
-begin
-  iRange := 1;
-  if lua_type( L, 3 ) = LUA_TNUMBER then iRange := lua_tointeger( L, 3 );
-  lua_pushinteger( L, GCurrentMap.CellsAround( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ), iRange ) );
-  Exit( 1 );
-end;
-
-function lua_dungen_cross_around( L : Plua_State ) : Integer; cdecl;
-begin
-  lua_pushinteger( L, GCurrentMap.CellsCrossAround( vlua_tocoord( L, 1 ), lua_tocellset( L, 2 ) ) );
-  Exit( 1 );
 end;
 
 function lua_dungen_random_square( L : Plua_State ) : Integer; cdecl;
@@ -1234,20 +1171,13 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..32] of luaL_Reg = (
-    ( Name : 'get_cell_id'; func : @lua_dungen_get_cell_id; ),
-    ( Name : 'get_cell'; func : @lua_dungen_get_cell; ),
-    ( Name : 'set_cell'; func : @lua_dungen_set_cell; ),
-    ( Name : 'fast_get_cell'; func : @lua_dungen_fast_get_cell; ),
-    ( Name : 'fast_set_cell'; func : @lua_dungen_fast_set_cell; ),
+  dungenlib_f : array[0..25] of luaL_Reg = (
     ( Name : 'is_empty'; func : @lua_dungen_is_empty; ),
     ( Name : 'is_empty_area'; func : @lua_dungen_is_empty_area; ),
     ( Name : 'fill'; func : @lua_dungen_fill; ),
     ( Name : 'fill_pattern'; func : @lua_dungen_fill_pattern; ),
     ( Name : 'fill_edges'; func : @lua_dungen_fill_edges; ),
     ( Name : 'transmute'; func : @lua_dungen_transmute; ),
-    ( Name : 'around'; func : @lua_dungen_around; ),
-    ( Name : 'cross_around'; func : @lua_dungen_cross_around; ),
     ( Name : 'random_square'; func : @lua_dungen_random_square; ),
     ( Name : 'random_coord'; func : @lua_dungen_random_coord; ),
     ( Name : 'random_empty_coord'; func : @lua_dungen_random_empty_coord; ),
