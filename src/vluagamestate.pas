@@ -21,16 +21,17 @@
 unit vluagamestate;
 interface
 
-uses Classes, SysUtils, vluastate, vrltools;
+uses Classes, SysUtils, vluastate, vrltools, vutil;
 
 type TLuaGameState = object( TLuaState )
   function ToPosition( aIndex : Integer ) : TCoord2D;
   function ToID( aIndex : Integer ) : DWord;
+  function ToCellSet( aIndex : Integer ) : TFlags;
 end;
 
 implementation
 
-uses vluasystem, vluaentitynode;
+uses vlualibrary, vluasystem, vluaentitynode;
 
 { TLuaGameState }
 
@@ -56,5 +57,23 @@ begin
   Error('ID expected at index '+IntToStr( aIndex ) +'!');
 end;
 
+function TLuaGameState.ToCellSet ( aIndex : Integer ) : TFlags;
+begin
+  ToCellSet := [];
+
+  case lua_type( FState, aIndex ) of
+    LUA_TTABLE :
+    begin
+      lua_pushnil( FState );
+      while lua_next( FState, aIndex ) <> 0 do
+      begin
+        Include( ToCellSet, ToID( -1 ) );
+        lua_pop( FState, 1 );
+      end;
+    end;
+    LUA_TSTRING : Include( ToCellSet, ToID( aIndex ) );
+    LUA_TNUMBER : Include( ToCellSet, lua_tointeger( FState, aIndex ) );
+  end;
+end;
 end.
 

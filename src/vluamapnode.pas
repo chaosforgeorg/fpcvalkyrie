@@ -612,6 +612,33 @@ begin
   Result := 1;
 end;
 
+function lua_map_node_around( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iRange : Integer;
+begin
+  iState.Init(L);
+  iRange := 1;
+  if lua_isnumber( L, 2 ) then
+  begin
+    if lua_type( L, 5 ) = LUA_TNUMBER then iRange := iState.ToInteger( 5 );
+    lua_pushinteger( L, iState.Map.CellsAround( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ), iState.ToCellset( 4 ), iRange ) );
+  end
+  else
+  begin
+    if lua_type( L, 4 ) = LUA_TNUMBER then iRange := iState.ToInteger( 4 );
+    lua_pushinteger( L, iState.Map.CellsAround( iState.ToPosition( 2 ), iState.ToCellset( 3 ), iRange ) );
+  end;
+  Exit( 1 );
+end;
+
+function lua_map_node_cross_around( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+begin
+  iState.Init(L);
+  lua_pushinteger( L, iState.Map.CellsCrossAround( iState.ToPosition( 2 ), iState.ToCellset( 3 ) ) );
+  Exit( 1 );
+end;
+
 function lua_map_node_set_hp (L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
@@ -833,13 +860,15 @@ begin
 end;
 
 
-const lua_map_node_lib : array[0..17] of luaL_Reg = (
+const lua_map_node_lib : array[0..19] of luaL_Reg = (
   ( name : 'get_area';          func : @lua_map_node_get_area),
   ( name : 'set_hp';            func : @lua_map_node_set_hp),
   ( name : 'get_hp';            func : @lua_map_node_get_hp),
   ( name : 'set_cell';          func : @lua_map_node_set_cell),
   ( name : 'get_cell';          func : @lua_map_node_get_cell),
   ( name : 'get_cell_id';       func : @lua_map_node_get_cell_id),
+  ( name : 'around';            func : @lua_map_node_around),
+  ( name : 'cross_around';      func : @lua_map_node_cross_around),
   ( name : 'eye_contact';       func : @lua_map_node_eye_contact),
   ( name : 'is_visible';        func : @lua_map_node_is_visible),
   ( name : 'is_passable';       func : @lua_map_node_is_passable),
