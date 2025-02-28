@@ -29,6 +29,7 @@ TLuaState = object
     function ToBoolean( Index : Integer ) : Boolean; overload;
     function ToChar( Index : Integer ) : Char;
     function ToFlags( Index : Integer ) : TFlags;
+    function ToFlags32( Index : Integer ) : TFlags32;
     function ToVariant( Index : Integer ) : Variant;
     function ToObject( Index : Integer ) : TObject;
     function ToObjectOrNil( Index : Integer ) : TObject;
@@ -191,6 +192,11 @@ end;
 function TLuaState.ToFlags( Index: Integer ): TFlags;
 begin
   Exit( vlua_toflags( FState, Index ) );
+end;
+
+function TLuaState.ToFlags32( Index: Integer ): TFlags32;
+begin
+  Exit( vlua_toflags32( FState, Index ) );
 end;
 
 function TLuaState.ToObject(Index: Integer): TObject;

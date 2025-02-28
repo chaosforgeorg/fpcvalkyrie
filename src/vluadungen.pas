@@ -74,7 +74,7 @@ var
   Coord : PCoord2D;
 begin
   Coord := vlua_topcoord( L, 1 );
-  lua_pushboolean( L, GCurrentMap.isEmpty( Coord^, vlua_toflags32_array( L, 2 ) ) );
+  lua_pushboolean( L, GCurrentMap.isEmpty( Coord^, vlua_toflags32( L, 2 ) ) );
   Exit( 1 );
 end;
 
@@ -85,7 +85,7 @@ var
   Coord : TCoord2D;
 begin
   Area  := vlua_toarea( L, 1 );
-  Flags := vlua_toflags32_array( L, 2 );
+  Flags := vlua_toflags32( L, 2 );
   for Coord in Area do
     if not GCurrentMap.isEmpty( Coord, Flags ) then
     begin
@@ -282,7 +282,7 @@ var iType2   : Integer;
     iCoord   : TCoord2D;
     iFlags   : TFlags32;
 begin
-  iFlags := vlua_toflags32_array( L, 1 );
+  iFlags := vlua_toflags32( L, 1 );
   iType2 := lua_type( L, 2 );
   iArea  := GCurrentMap.Area;
   if ( iType2 <= LUA_TNIL ) or (iType2 = LUA_TUSERDATA) then
@@ -338,7 +338,7 @@ var iCoord : TCoord2D;
 begin
   iCoord := vlua_tocoord( L, 1 );
   try
-    vlua_pushcoord( L, GCurrentMap.DropCoord( iCoord, vlua_toflags32_array( L, 2 ) ) );
+    vlua_pushcoord( L, GCurrentMap.DropCoord( iCoord, vlua_toflags32( L, 2 ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -371,7 +371,7 @@ var iCoord : TCoord2D;
     iArea  : TArea;
 begin
   iCells := lua_tocellset( L, 1 );
-  iEmpty := vlua_toflags32_array( L, 2 );
+  iEmpty := vlua_toflags32( L, 2 );
   iArea  := GCurrentMap.Area;
   if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
 
@@ -415,7 +415,7 @@ var iCoord : TCoord2D;
     iArea  : TArea;
 begin
   iCells := lua_tocellset( L, 1 );
-  iFlags := vlua_toflags32_array( L, 2 );
+  iFlags := vlua_toflags32( L, 2 );
   iArea  := GCurrentMap.Area;
   if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
 
