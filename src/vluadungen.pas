@@ -69,33 +69,6 @@ begin
   end;
 end;
 
-function lua_dungen_is_empty( L : Plua_State ) : Integer; cdecl;
-var
-  Coord : PCoord2D;
-begin
-  Coord := vlua_topcoord( L, 1 );
-  lua_pushboolean( L, GCurrentMap.isEmpty( Coord^, vlua_toflags32( L, 2 ) ) );
-  Exit( 1 );
-end;
-
-function lua_dungen_is_empty_area( L : Plua_State ) : Integer; cdecl;
-var
-  Area :  TArea;
-  Flags : TFlags32;
-  Coord : TCoord2D;
-begin
-  Area  := vlua_toarea( L, 1 );
-  Flags := vlua_toflags32( L, 2 );
-  for Coord in Area do
-    if not GCurrentMap.isEmpty( Coord, Flags ) then
-    begin
-      lua_pushboolean( L, False );
-      Exit( 1 );
-    end;
-  lua_pushboolean( L, True );
-  Exit( 1 );
-end;
-
 function lua_dungen_fill( L : Plua_State ) : Integer; cdecl;
 var iFill  : Byte;
     iArea  : TArea;
@@ -1171,9 +1144,7 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..25] of luaL_Reg = (
-    ( Name : 'is_empty'; func : @lua_dungen_is_empty; ),
-    ( Name : 'is_empty_area'; func : @lua_dungen_is_empty_area; ),
+  dungenlib_f : array[0..23] of luaL_Reg = (
     ( Name : 'fill'; func : @lua_dungen_fill; ),
     ( Name : 'fill_pattern'; func : @lua_dungen_fill_pattern; ),
     ( Name : 'fill_edges'; func : @lua_dungen_fill_edges; ),

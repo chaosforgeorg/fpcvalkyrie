@@ -679,7 +679,7 @@ function lua_map_node_is_empty( L: Plua_State ): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iState.Push( iState.Map.isEmpty( iState.ToCoord( 2 ), iState.ToFlags( 2 ) ) );
+  iState.Push( iState.Map.isEmpty( iState.ToCoord( 2 ), iState.ToFlags32( 3 ) ) );
   Exit( 1 );
 end;
 
@@ -707,7 +707,7 @@ var iState : TLuaMapState;
 begin
   iState.Init(L);
   iArea  := iState.ToArea( 2 );
-  iFlags := iState.ToFlags( 3 );
+  iFlags := iState.ToFlags32( 3 );
   for iCoord in iArea do
     if not iState.Map.isEmpty( iCoord, iFlags ) then
     begin
