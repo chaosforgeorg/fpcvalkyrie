@@ -1153,7 +1153,7 @@ begin
   iState.Init( L );
   iFlags := iState.ToFlags32( 2 );
   iType3 := lua_type( L, 3 );
-  if ( iType2 <= LUA_TNIL ) or (iType2 = LUA_TUSERDATA) then
+  if ( iType3 <= LUA_TNIL ) or (iType3 = LUA_TUSERDATA) then
   begin
     iArea := iState.ToOptionalArea( 3 );
     iCount := 0;
