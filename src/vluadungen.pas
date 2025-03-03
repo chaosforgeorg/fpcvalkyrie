@@ -69,108 +69,6 @@ begin
   end;
 end;
 
-function lua_dungen_fill( L : Plua_State ) : Integer; cdecl;
-var iFill  : Byte;
-    iArea  : TArea;
-    iCoord : TCoord2D;
-begin
-  iFill := lua_tocell( L, 1 );
-  iArea := GCurrentMap.Area;
-  if vlua_isarea( L, 2 ) then iArea := vlua_toarea( L, 2 );
-  for iCoord in iArea do
-    GCurrentMap.PutCell( iCoord, iFill );
-  Exit( 0 );
-end;
-
-function lua_dungen_fill_pattern( L : Plua_State ) : Integer; cdecl;
-var iArea     : TArea;
-    iHoriz    : Boolean;
-    iPattern  : TOpenByteArray;
-    iPatternB : TOpenByteArray;
-    iCount    : Integer;
-    iSizeA    : Integer;
-    iSizeB    : Integer;
-    iCoord    : TCoord2D;
-    iFlip     : Boolean;
-
-  function NextCell : Byte;
-  begin
-    if iCoord.Horiz(iHoriz) = iArea.A.Horiz(iHoriz) then iCount := 0;
-    NextCell := iPattern[ iCount mod (iSizeA+1) ];
-    Inc(iCount);
-  end;
-
-  function NextCell2 : Byte;
-  begin
-    if iCoord.Horiz(iHoriz) = iArea.A.Horiz(iHoriz) then
-    begin
-      iCount := 0;
-      iFlip  := not iFlip;
-    end;
-    if iFlip
-      then NextCell2 := iPatternB[ iCount mod (iSizeB+1) ]
-      else NextCell2 := iPattern [ iCount mod (iSizeA+1) ];
-    Inc(iCount);
-  end;
-
-begin
-  iArea    := vlua_toarea( L, 1 );
-  iHoriz   := lua_toboolean( L, 2 );
-  iPattern := lua_tocellarray( L, 3 );
-
-  iCoord.Create(0,0);
-  iCount := 0;
-  iFlip  := True;
-  iSizeA := High( iPattern );
-
-  if lua_type( L, 4 ) = LUA_TTABLE then
-  begin
-    iPatternB := lua_tocellarray( L, 3 );
-    iSizeB    := High( iPatternB );
-    while iArea.NextCoord( iCoord, iHoriz ) do GCurrentMap.PutCell( iCoord, NextCell2 );
-  end
-  else
-    while iArea.NextCoord( iCoord, iHoriz ) do GCurrentMap.PutCell( iCoord, NextCell );
-  Exit( 0 );
-end;
-
-
-function lua_dungen_fill_edges( L : Plua_State ) : Integer; cdecl;
-var iX,iY : Word;
-    iCell : Byte;
-    iArea : TArea;
-begin
-  iCell := lua_tocell( L, 1 );
-  iArea := GCurrentMap.Area;
-  for iX := iArea.A.X to iArea.B.X do
-  begin
-    GCurrentMap.PutCell( NewCoord2D( iX, iArea.A.Y ), iCell );
-    GCurrentMap.PutCell( NewCoord2D( iX, iArea.B.Y ), iCell );
-  end;
-  for iY := iArea.A.Y to iArea.B.Y do
-  begin
-    GCurrentMap.PutCell( NewCoord2D( iArea.A.X, iY ), iCell );
-    GCurrentMap.PutCell( NewCoord2D( iArea.B.X, iY ), iCell );
-  end;
-  Exit( 0 );
-end;
-
-function lua_dungen_transmute( L : Plua_State ) : Integer; cdecl;
-var iFrom  : TFlags;
-    iTo    : Byte;
-    iArea  : TArea;
-    iCoord : TCoord2D;
-begin
-  iFrom := lua_tocellset( L, 1 );
-  iTo   := lua_tocell( L, 2 );
-  iArea := GCurrentMap.Area;
-  if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
-  for iCoord in iArea do
-    if GCurrentMap.getCell( iCoord ) in iFrom then
-      GCurrentMap.putCell( iCoord, iTo );
-  Exit( 0 );
-end;
-
 function lua_dungen_random_square( L : Plua_State ) : Integer; cdecl;
 const kLimit      = 40000;
 var   iLimitCount : DWord;
@@ -483,86 +381,6 @@ begin
     end;
   end;
   Exit( 2 );
-end;
-
-function lua_dungen_scan( L : Plua_State ) : Integer; cdecl;
-var iArea   : TArea;
-    iIgnore : TCellSet;
-    iClamp  : Boolean;
-    iResult : Integer;
-    iCoord  : TCoord2D;
-begin
-  iArea   := vlua_toarea( L, 1 );
-  iIgnore := lua_tocellset( L, 2 );
-  iClamp  := lua_toboolean( L, 3 );
-
-  if iClamp then
-    GCurrentMap.Area.Clamp( iArea )
-  else
-    if ( not GCurrentMap.Area.Contains( iArea.A ) ) or ( not GCurrentMap.Area.Contains( iArea.B ) ) then
-    begin
-      lua_pushinteger( L, -1 );
-      Exit(1);
-    end;
-
-  iResult := 0;
-  for iCoord in iArea do
-    if not ( GCurrentMap.GetCell(iCoord) in iIgnore ) then
-       Inc(iResult);
-
-  lua_pushinteger( L, iResult );
-  Exit( 1 );
-end;
-
-function lua_dungen_each_closure( L : Plua_State ) : Integer; cdecl;
-var
-  Area : PArea;
-  c :    PCoord2D;
-  cell : Byte;
-begin
-  Area := vlua_toparea( L, lua_upvalueindex( 1 ) );
-  c := vlua_topcoord( L, lua_upvalueindex( 2 ) );
-  cell := lua_tointeger( L, lua_upvalueindex( 3 ) );
-
-  repeat
-    c^.x := c^.x + 1;
-    if c^.x > Area^.b.x then
-    begin
-      c^.x := Area^.a.x;
-      c^.y := c^.y + 1;
-      if c^.y > Area^.b.y then
-      begin
-        lua_pushnil( L );
-        Exit( 1 );
-      end;
-    end;
-  until GCurrentMap.GetCell( c^ ) = cell;
-  vlua_pushcoord( L, c^ );
-  Exit( 1 );
-end;
-
-function lua_dungen_each( L : Plua_State ) : Integer; cdecl;
-var
-  Area : PArea;
-  A :    TCoord2D;
-  Cell : Byte;
-begin
-  Cell := lua_tocell( L, 1 );
-  if vlua_isarea( L, 2 ) then
-  begin
-    Area := vlua_toparea( L, 2 );
-    A := Area^.A;
-  end
-  else
-  begin
-    vlua_pusharea( L, GCurrentMap.Area );
-    A := GCurrentMap.Area.A;
-  end;
-  A.X := A.X - 1;
-  vlua_pushcoord( L, A );
-  lua_pushinteger( L, Cell );
-  lua_pushcclosure( L, @lua_dungen_each_closure, 3 );
-  Exit( 1 );
 end;
 
 function lua_dungen_read_rooms( L : Plua_State ) : Integer; cdecl;
@@ -1144,11 +962,7 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..23] of luaL_Reg = (
-    ( Name : 'fill'; func : @lua_dungen_fill; ),
-    ( Name : 'fill_pattern'; func : @lua_dungen_fill_pattern; ),
-    ( Name : 'fill_edges'; func : @lua_dungen_fill_edges; ),
-    ( Name : 'transmute'; func : @lua_dungen_transmute; ),
+  dungenlib_f : array[0..17] of luaL_Reg = (
     ( Name : 'random_square'; func : @lua_dungen_random_square; ),
     ( Name : 'random_coord'; func : @lua_dungen_random_coord; ),
     ( Name : 'random_empty_coord'; func : @lua_dungen_random_empty_coord; ),
@@ -1161,8 +975,6 @@ const
     ( Name : 'tile_place'; func : @lua_dungen_tile_place; ),
     ( Name : 'plot_line'; func : @lua_dungen_plot_line; ),
     ( Name : 'get_endpoints'; func : @lua_dungen_get_endpoints; ),
-    ( Name : 'scan'; func : @lua_dungen_scan; ),
-    ( Name : 'each'; func : @lua_dungen_each; ),
     ( Name : 'read_rooms'; func : @lua_dungen_read_rooms; ),
     ( Name : 'run_drunkard_walk'; func : @lua_dungen_run_drunkard_walk; ),
     ( Name : 'cellular_init'; func : @lua_dungen_cellular_init; ),
