@@ -1064,7 +1064,142 @@ begin
   Exit( 0 );
 end;
 
-const lua_map_node_lib : array[0..25] of luaL_Reg = (
+function lua_map_node_random_square( L : Plua_State ) : Integer; cdecl;
+const kLimit    = 40000;
+var iState      : TLuaMapState;
+    iLimitCount : DWord;
+    iCoord      : TCoord2D;
+    iCellSet    : TCellSet;
+    iArea       : TArea;
+begin
+  iState.Init( L );
+  iLimitCount := 0;
+  iCellSet    := iState.ToCellSet( 2 );
+  iArea       := iState.ToOptionalArea( 3 ).Shrinked(1);
+  repeat
+    iCoord := iArea.RandomCoord;
+    if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.CellsAround( iCoord, iCellSet ) = 8 ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+    Inc(iLimitCount);
+  until iLimitCount > kLimit;
+
+  for iCoord in iArea do
+    if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.CellsAround( iCoord, iCellSet ) = 8 ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+  Exit( 0 );
+end;
+
+function lua_map_node_random_coord( L : Plua_State ) : Integer; cdecl;
+const kLimit = 5000;
+var iState   : TLuaMapState;
+    iType2   : Integer;
+    iCellSet : TFlags;
+    iArea    : TArea;
+    iCount   : Integer;
+    iCoord   : TCoord2D;
+begin
+  iState.Init( L );
+  iType2 := lua_type( L, 2 );
+  if iType2 <= LUA_TNIL then
+  begin
+    vlua_pushcoord( L, iState.Map.Area.RandomCoord );
+    Exit( 1 );
+  end;
+  if iType2 = LUA_TUSERDATA then
+  begin
+    vlua_pushcoord( L, vlua_toparea( L, 2 )^.RandomCoord );
+    Exit( 1 );
+  end;
+  iCellSet := iState.ToCellSet( 2 );
+  iArea    := iState.ToOptionalArea( 3 );
+
+  iCount := 0;
+  repeat
+    iCoord := iArea.RandomCoord;
+    if iState.Map.GetCell( iCoord ) in iCellSet then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+    Inc( iCount );
+  until iCount > kLimit;
+
+  for iCoord in iArea do
+    if iState.Map.GetCell( iCoord ) in iCellSet then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+
+  Exit( 0 );
+end;
+
+function lua_map_node_random_empty_coord( L : Plua_State ) : Integer; cdecl;
+const kLimit = 10000;
+var iState   : TLuaMapState;
+    iType3   : Integer;
+    iCellSet : TFlags;
+    iArea    : TArea;
+    iCount   : Integer;
+    iCoord   : TCoord2D;
+    iFlags   : TFlags32;
+begin
+  iState.Init( L );
+  iFlags := iState.ToFlags32( 2 );
+  iType3 := lua_type( L, 3 );
+  if ( iType2 <= LUA_TNIL ) or (iType2 = LUA_TUSERDATA) then
+  begin
+    iArea := iState.ToOptionalArea( 3 );
+    iCount := 0;
+    repeat
+      iCoord := iArea.RandomCoord;
+      if iState.Map.isEmpty( iCoord, iFlags ) then
+      begin
+        vlua_pushcoord( L, iCoord );
+        Exit( 1 );
+      end;
+      Inc( iCount );
+    until iCount > kLimit;
+
+    for iCoord in iArea do
+      if iState.Map.isEmpty( iCoord, iFlags ) then
+      begin
+        vlua_pushcoord( L, iCoord );
+        Exit( 1 );
+      end;
+    Exit( 0 );
+  end;
+
+  iCellSet := iState.ToCellSet( 3 );
+  iArea    := iState.ToOptionalArea( 4 );
+  iCount   := 0;
+  repeat
+    iCoord := iArea.RandomCoord;
+    if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.isEmpty( iCoord, iFlags ) ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+    Inc( iCount );
+  until iCount > kLimit;
+
+  for iCoord in iArea do
+    if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.isEmpty( iCoord, iFlags ) ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+
+  Exit( 0 );
+end;
+
+const lua_map_node_lib : array[0..28] of luaL_Reg = (
   ( name : 'get_area';          func : @lua_map_node_get_area),
   ( name : 'set_hp';            func : @lua_map_node_set_hp),
   ( name : 'get_hp';            func : @lua_map_node_get_hp),
@@ -1090,6 +1225,10 @@ const lua_map_node_lib : array[0..25] of luaL_Reg = (
   ( Name : 'scan';              func : @lua_map_node_scan; ),
   ( Name : 'each';              func : @lua_map_node_each; ),
   ( Name : 'transmute';         func : @lua_map_node_transmute; ),
+  ( Name : 'random_square';     func : @lua_map_node_random_square; ),
+  ( Name : 'random_coord';      func : @lua_map_node_random_coord; ),
+  ( Name : 'random_empty_coord';func : @lua_map_node_random_empty_coord; ),
+
   ( name : nil;                 func : nil; )
 );
 
