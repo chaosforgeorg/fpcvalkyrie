@@ -157,6 +157,7 @@ TLuaMapState = object(TLuaGameState)
   function ToCell( aIndex : Integer ) : Byte;
   function ToCellSet( aIndex : Integer ) : TFlags;
   function ToCellArray( aIndex : Integer ) : TOpenByteArray;
+  function ToOptionalArea( aIndex : Integer ) : TArea;
 protected
   FMap : TLuaMapNode;
 public
@@ -582,6 +583,12 @@ begin
   end;
 end;
 
+function TLuaMapState.ToOptionalArea( aIndex : Integer ) : TArea;
+begin
+  if vlua_isarea( FState, aIndex ) then Exit( vlua_toarea( FState, aIndex ) );
+  Exit( FMap.Area );
+end;
+
 function lua_map_node_set_cell (L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
@@ -859,8 +866,205 @@ begin
   Result := 1;
 end;
 
+function lua_map_node_fill( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iFill  : Byte;
+    iArea  : TArea;
+    iCoord : TCoord2D;
+begin
+  iState.Init( L );
+  iFill := iState.ToCell( 2 );
+  iArea := iState.ToOptionalArea( 3 );
+  for iCoord in iArea do
+    iState.Map.PutCell( iCoord, iFill );
+  Exit( 0 );
+end;
 
-const lua_map_node_lib : array[0..19] of luaL_Reg = (
+function lua_map_node_fill_pattern( L : Plua_State ) : Integer; cdecl;
+var iState    : TLuaMapState;
+    iArea     : TArea;
+    iHoriz    : Boolean;
+    iPattern  : TOpenByteArray;
+    iPatternB : TOpenByteArray;
+    iCount    : Integer;
+    iSizeA    : Integer;
+    iSizeB    : Integer;
+    iCoord    : TCoord2D;
+    iFlip     : Boolean;
+
+  function NextCell : Byte;
+  begin
+    if iCoord.Horiz(iHoriz) = iArea.A.Horiz(iHoriz) then iCount := 0;
+    NextCell := iPattern[ iCount mod (iSizeA+1) ];
+    Inc(iCount);
+  end;
+
+  function NextCell2 : Byte;
+  begin
+    if iCoord.Horiz(iHoriz) = iArea.A.Horiz(iHoriz) then
+    begin
+      iCount := 0;
+      iFlip  := not iFlip;
+    end;
+    if iFlip
+      then NextCell2 := iPatternB[ iCount mod (iSizeB+1) ]
+      else NextCell2 := iPattern [ iCount mod (iSizeA+1) ];
+    Inc(iCount);
+  end;
+
+begin
+  iState.Init( L );
+  iArea    := iState.ToArea( 2 );
+  iHoriz   := iState.ToBoolean( 3 );
+  iPattern := iState.ToCellArray( 4 );
+
+  iCoord.Create(0,0);
+  iCount := 0;
+  iFlip  := True;
+  iSizeA := High( iPattern );
+
+  if iState.IsTable( 5 ) then
+  begin
+    iPatternB := iState.ToCellArray( 5 );
+    iSizeB    := High( iPatternB );
+    while iArea.NextCoord( iCoord, iHoriz ) do iState.Map.PutCell( iCoord, NextCell2 );
+  end
+  else
+    while iArea.NextCoord( iCoord, iHoriz ) do iState.Map.PutCell( iCoord, NextCell );
+  Exit( 0 );
+end;
+
+
+function lua_map_node_fill_edges( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iX,iY  : Word;
+    iCell  : Byte;
+    iArea  : TArea;
+begin
+  iState.Init( L );
+  iCell := iState.ToCell( 2 );
+  iArea := iState.Map.Area;
+  for iX := iArea.A.X to iArea.B.X do
+  begin
+    iState.Map.PutCell( NewCoord2D( iX, iArea.A.Y ), iCell );
+    iState.Map.PutCell( NewCoord2D( iX, iArea.B.Y ), iCell );
+  end;
+  for iY := iArea.A.Y to iArea.B.Y do
+  begin
+    iState.Map.PutCell( NewCoord2D( iArea.A.X, iY ), iCell );
+    iState.Map.PutCell( NewCoord2D( iArea.B.X, iY ), iCell );
+  end;
+  Exit( 0 );
+end;
+
+function lua_map_node_scan( L : Plua_State ) : Integer; cdecl;
+var iState  : TLuaMapState;
+    iArea   : TArea;
+    iIgnore : TCellSet;
+    iCount  : Boolean;
+    iResult : Integer;
+    iCoord  : TCoord2D;
+begin
+  iState.Init( L );
+  iArea   := iState.ToArea( 2 );
+  iIgnore := iState.ToCellSet( 3 );
+  iCount  := iState.ToBoolean( 4, False );
+
+  if ( not iState.Map.Area.Contains( iArea.A ) ) or ( not iState.Map.Area.Contains( iArea.B ) ) then
+  begin
+    if iCount
+      then lua_pushinteger( L, -1 )
+      else lua_pushboolean( L, False );
+    Exit(1);
+  end;
+
+  iResult := 0;
+  for iCoord in iArea do
+    if not ( iState.Map.GetCell(iCoord) in iIgnore ) then
+    begin
+      if not iCount then
+      begin
+        lua_pushboolean( L, False );
+        Exit( 1 );
+      end;
+      Inc(iResult);
+    end;
+
+  if iCount
+    then lua_pushinteger( L, iResult )
+    else lua_pushboolean( L, True );
+  Exit( 1 );
+end;
+
+function lua_map_node_each_closure( L : Plua_State ) : Integer; cdecl;
+var iMap   : TLuaMapNode;
+    iArea  : PArea;
+    iCoord : PCoord2D;
+    iCell  : Byte;
+begin
+  iArea  := vlua_toparea( L, lua_upvalueindex( 1 ) );
+  iCoord := vlua_topcoord( L, lua_upvalueindex( 2 ) );
+  iCell  := lua_tointeger( L, lua_upvalueindex( 3 ) );
+  iMap   := TObject( lua_touserdata( L, lua_upvalueindex( 4 ) ) ) as TLuaMapNode;
+
+  repeat
+    iCoord^.x := iCoord^.x + 1;
+    if iCoord^.x > iArea^.b.x then
+    begin
+      iCoord^.x := iArea^.a.x;
+      iCoord^.y := iCoord^.y + 1;
+      if iCoord^.y > iArea^.b.y then
+      begin
+        lua_pushnil( L );
+        Exit( 1 );
+      end;
+    end;
+  until iMap.GetCell( iCoord^ ) = iCell;
+  vlua_pushcoord( L, iCoord^ );
+  Exit( 1 );
+end;
+
+function lua_map_node_each( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iCell  : Byte;
+begin
+  iState.Init( L );
+  iCell := iState.ToCell( 2 );
+  if vlua_isarea( L, 3 )
+    then iCoord := vlua_toparea( L, 3 )^.A
+    else
+    begin
+      lua_settop( L, 2 );
+      vlua_pusharea( L, iState.Map.Area );
+      iCoord := iState.Map.Area.A;
+    end;
+  iCoord.X := iCoord.X - 1;
+  vlua_pushcoord( L, iCoord );
+  lua_pushinteger( L, iCell );
+  lua_pushlightuserdata( L, iState.Map );
+  lua_pushcclosure( L, @lua_map_node_each_closure, 4 );
+  Exit( 1 );
+end;
+
+function lua_map_node_transmute( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iFrom  : TFlags;
+    iTo    : Byte;
+    iArea  : TArea;
+    iCoord : TCoord2D;
+begin
+  iState.Init( L );
+  iFrom := iState.ToCellSet( 2 );
+  iTo   := iState.ToCell( 3 );
+  iArea := iState.ToOptionalArea( 4 );
+  for iCoord in iArea do
+    if iState.Map.getCell( iCoord ) in iFrom then
+      iState.Map.putCell( iCoord, iTo );
+  Exit( 0 );
+end;
+
+const lua_map_node_lib : array[0..25] of luaL_Reg = (
   ( name : 'get_area';          func : @lua_map_node_get_area),
   ( name : 'set_hp';            func : @lua_map_node_set_hp),
   ( name : 'get_hp';            func : @lua_map_node_get_hp),
@@ -880,6 +1084,12 @@ const lua_map_node_lib : array[0..19] of luaL_Reg = (
   ( name : 'drop';              func : @lua_map_node_drop),
   ( name : 'get_being';         func : @lua_map_node_get_being),
   ( name : 'get_item';          func : @lua_map_node_get_item),
+  ( name : 'fill';              func : @lua_map_node_fill),
+  ( name : 'fill_pattern';      func : @lua_map_node_fill_pattern),
+  ( name : 'fill_edges';        func : @lua_map_node_fill_edges),
+  ( Name : 'scan';              func : @lua_map_node_scan; ),
+  ( Name : 'each';              func : @lua_map_node_each; ),
+  ( Name : 'transmute';         func : @lua_map_node_transmute; ),
   ( name : nil;                 func : nil; )
 );
 
