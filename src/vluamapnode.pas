@@ -688,7 +688,7 @@ function lua_map_node_is_empty( L: Plua_State ): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iState.Push( iState.Map.isEmpty( iState.ToCoord( 2 ), iState.ToFlags32( 3 ) ) );
+  iState.Push( iState.Map.isEmpty( iState.ToPosition( 2 ), iState.ToFlags32( 3 ) ) );
   Exit( 1 );
 end;
 
@@ -696,7 +696,7 @@ function lua_map_node_is_visible( L: Plua_State ): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iState.Push( iState.Map.isVisible( iState.ToCoord( 2 ) ) );
+  iState.Push( iState.Map.isVisible( iState.ToPosition( 2 ) ) );
   Exit( 1 );
 end;
 
@@ -704,7 +704,7 @@ function lua_map_node_is_passable( L: Plua_State ): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iState.Push( iState.Map.isPassable( iState.ToCoord( 2 ) ) );
+  iState.Push( iState.Map.isPassable( iState.ToPosition( 2 ) ) );
   Exit( 1 );
 end;
 
@@ -756,9 +756,9 @@ begin
   begin
     lua_pushstring( L, '__coord' );
     lua_rawget( L, 1 );
-    iState.Push( iState.Map.LightFlag[ iState.ToCoord(-1), iState.ToInteger(2) ] )
+    iState.Push( iState.Map.LightFlag[ iState.ToPosition(-1), iState.ToInteger(2) ] )
   end
-  else iState.Push( iState.Map.LightFlag[ iState.ToCoord(2), iState.ToInteger(3) ] );
+  else iState.Push( iState.Map.LightFlag[ iState.ToPosition(2), iState.ToInteger(3) ] );
   Result := 1;
 end;
 
@@ -864,7 +864,7 @@ function lua_map_node_drop(L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init( L );
-  iState.Push( iState.Map.Drop( iState.ToObject(2) as TLuaEntityNode, iState.ToCoord(3), iState.ToFlags(4) ) );
+  iState.Push( iState.Map.Drop( iState.ToObject(2) as TLuaEntityNode, iState.ToPosition(3), iState.ToFlags(4) ) );
   Result := 1;
 end;
 
@@ -1206,7 +1206,7 @@ var iState : TLuaMapState;
     iCoord : TCoord2D;
 begin
   iState.Init( L );
-  iCoord := iState.ToCoord( 2 );
+  iCoord := iState.ToPosition( 2 );
   try
     vlua_pushcoord( L, iState.Map.DropCoord( iCoord, iState.ToFlags32( 3 ) ) );
     Exit( 1 );
