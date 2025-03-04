@@ -238,6 +238,8 @@ function NewArea( const x1,y1,x2,y2 : Integer ) : TArea; inline; overload;
 function NewArea( const TopLeft,BottomRight : TCoord2D ) : TArea; inline; overload;
 function NewArea( const Center : TCoord2D; Radius : Word ) : TArea; inline; overload;
 
+operator = (a,b : TArea) r : boolean;
+
 operator = (a,b : TCoord2D) r : boolean; inline;
 operator + (a,b : TCoord2D) r : TCoord2D; inline;
 operator - (a,b : TCoord2D) r : TCoord2D; inline;
@@ -673,6 +675,10 @@ begin
   if Horizontal then X := Value else Y := Value;
 end;
 
+operator = (a,b : TArea) r : boolean;
+begin
+  r := (a.a = b.a) and (a.b = b.b);
+end;
 
 operator = (a,b : TCoord2D) r : boolean; inline;
 begin
