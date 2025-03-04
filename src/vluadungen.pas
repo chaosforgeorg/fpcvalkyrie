@@ -69,108 +69,6 @@ begin
   end;
 end;
 
-function lua_dungen_drop_coord( L : Plua_State ) : Integer; cdecl;
-var iCoord : TCoord2D;
-begin
-  iCoord := vlua_tocoord( L, 1 );
-  try
-    vlua_pushcoord( L, GCurrentMap.DropCoord( iCoord, vlua_toflags32( L, 2 ) ) );
-    Exit( 1 );
-  except
-    on EPlacementException do
-  end;
-  Exit( 0 );
-end;
-
-function lua_dungen_find_coord( L : Plua_State ) : Integer; cdecl;
-var iCoord : TCoord2D;
-    iCells : TCellSet;
-    iArea  : TArea;
-begin
-  iCells := lua_tocellset( L, 1 );
-  iArea  := GCurrentMap.Area;
-  if vlua_isarea( L, 2 ) then iArea := vlua_toarea( L, 2 );
-
-  for iCoord in iArea do
-    if GCurrentMap.GetCell( iCoord ) in iCells then
-    begin
-      vlua_pushcoord( L, iCoord );
-      Exit( 1 );
-    end;
-  Exit( 0 );
-end;
-
-function lua_dungen_find_empty_coord( L : Plua_State ) : Integer; cdecl;
-var iCoord : TCoord2D;
-    iCells : TCellSet;
-    iEmpty : TFlags32;
-    iArea  : TArea;
-begin
-  iCells := lua_tocellset( L, 1 );
-  iEmpty := vlua_toflags32( L, 2 );
-  iArea  := GCurrentMap.Area;
-  if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
-
-  for iCoord in iArea do
-    if ( GCurrentMap.GetCell( iCoord ) in iCells ) and GCurrentMap.isEmpty( iCoord, iEmpty ) then
-    begin
-      vlua_pushcoord( L, iCoord );
-      Exit( 1 );
-    end;
-  Exit( 0 );
-end;
-
-function lua_dungen_find_random_coord( L : Plua_State ) : Integer; cdecl;
-var iCoord : TCoord2D;
-    iCells : TCellSet;
-    iArea  : TArea;
-begin
-  iCells := lua_tocellset( L, 1 );
-  iArea  := GCurrentMap.Area;
-  if vlua_isarea( L, 2 ) then iArea := vlua_toarea( L, 2 );
-
-  with TCoordArray.Create do
-  try
-    for iCoord in iArea do
-      if GCurrentMap.GetCell( iCoord ) in iCells then
-        Push( iCoord );
-    if IsEmpty then Exit( 0 );
-    iCoord := Items[ Random( Size ) ];
-  finally
-    Free
-  end;
-
-  vlua_pushcoord( L, iCoord );
-  Exit( 1 );
-end;
-
-function lua_dungen_find_random_empty_coord( L : Plua_State ) : Integer; cdecl;
-var iCoord : TCoord2D;
-    iCells : TCellSet;
-    iFlags : TFlags32;
-    iArea  : TArea;
-begin
-  iCells := lua_tocellset( L, 1 );
-  iFlags := vlua_toflags32( L, 2 );
-  iArea  := GCurrentMap.Area;
-  if vlua_isarea( L, 3 ) then iArea := vlua_toarea( L, 3 );
-
-  with TCoordArray.Create do
-  try
-    for iCoord in iArea do
-      if (GCurrentMap.GetCell( iCoord ) in iCells) and GCurrentMap.isEmpty( iCoord, iFlags ) then
-        Push( iCoord );
-    if IsEmpty then Exit( 0 );
-    iCoord := Items[ Random( Size ) ];
-  finally
-    Free
-  end;
-
-  vlua_pushcoord( L, iCoord );
-  Exit( 1 );
-end;
-
-
 function lua_dungen_plot_line( L : Plua_State ) : Integer; cdecl;
 var iPoint      : TCoord2D;
     iCoord      : TCoord2D;
@@ -827,12 +725,7 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..14] of luaL_Reg = (
-    ( Name : 'drop_coord'; func : @lua_dungen_drop_coord; ),
-    ( Name : 'find_coord'; func : @lua_dungen_find_coord; ),
-    ( Name : 'find_empty_coord'; func : @lua_dungen_find_empty_coord; ),
-    ( Name : 'find_random_coord'; func : @lua_dungen_find_random_coord; ),
-    ( Name : 'find_random_empty_coord'; func : @lua_dungen_find_random_empty_coord; ),
+  dungenlib_f : array[0..9] of luaL_Reg = (
     ( Name : 'tile_new'; func : @lua_dungen_tile_new ),
     ( Name : 'tile_place'; func : @lua_dungen_tile_place; ),
     ( Name : 'plot_line'; func : @lua_dungen_plot_line; ),
