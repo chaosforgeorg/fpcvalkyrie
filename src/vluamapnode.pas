@@ -170,6 +170,8 @@ uses vluasystem, vgenerics, vmath,
      vluatools, vluatype, vlualibrary, math;
 
 type TMinCoordChoice = specialize TGMinimalChoice<TCoord2D>;
+     TCoordArray     = specialize TGArray<TCoord2D>;
+
 
 { TLuaMapNode }
 
@@ -1199,37 +1201,149 @@ begin
   Exit( 0 );
 end;
 
-const lua_map_node_lib : array[0..28] of luaL_Reg = (
-  ( name : 'get_area';          func : @lua_map_node_get_area),
-  ( name : 'set_hp';            func : @lua_map_node_set_hp),
-  ( name : 'get_hp';            func : @lua_map_node_get_hp),
-  ( name : 'set_cell';          func : @lua_map_node_set_cell),
-  ( name : 'get_cell';          func : @lua_map_node_get_cell),
-  ( name : 'get_cell_id';       func : @lua_map_node_get_cell_id),
-  ( name : 'around';            func : @lua_map_node_around),
-  ( name : 'cross_around';      func : @lua_map_node_cross_around),
-  ( name : 'eye_contact';       func : @lua_map_node_eye_contact),
-  ( name : 'is_visible';        func : @lua_map_node_is_visible),
-  ( name : 'is_passable';       func : @lua_map_node_is_passable),
-  ( name : 'is_empty';          func : @lua_map_node_is_empty),
-  ( name : 'is_empty_area';     func : @lua_map_node_is_empty_area),
-  ( name : 'children_in_range'; func : @lua_map_node_children_in_range),
-  ( name : 'get_light_flag'  ;  func : @lua_map_node_get_light_flag),
-  ( name : 'set_light_flag'  ;  func : @lua_map_node_set_light_flag),
-  ( name : 'drop';              func : @lua_map_node_drop),
-  ( name : 'get_being';         func : @lua_map_node_get_being),
-  ( name : 'get_item';          func : @lua_map_node_get_item),
-  ( name : 'fill';              func : @lua_map_node_fill),
-  ( name : 'fill_pattern';      func : @lua_map_node_fill_pattern),
-  ( name : 'fill_edges';        func : @lua_map_node_fill_edges),
-  ( Name : 'scan';              func : @lua_map_node_scan; ),
-  ( Name : 'each';              func : @lua_map_node_each; ),
-  ( Name : 'transmute';         func : @lua_map_node_transmute; ),
-  ( Name : 'random_square';     func : @lua_map_node_random_square; ),
-  ( Name : 'random_coord';      func : @lua_map_node_random_coord; ),
-  ( Name : 'random_empty_coord';func : @lua_map_node_random_empty_coord; ),
+function lua_map_node_drop_coord( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+begin
+  iState.Init( L );
+  iCoord := iState.ToCoord( 2 );
+  try
+    vlua_pushcoord( L, iState.Map.DropCoord( iCoord, iState.ToFlags32( 3 ) ) );
+    Exit( 1 );
+  except
+    on EPlacementException do
+  end;
+  Exit( 0 );
+end;
 
-  ( name : nil;                 func : nil; )
+function lua_map_node_find_coord( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iCells : TCellSet;
+    iArea  : TArea;
+begin
+  iState.Init( L );
+  iCells := iState.ToCellSet( 2 );
+  iArea  := iState.ToOptionalArea( 3 );
+
+  for iCoord in iArea do
+    if iState.Map.GetCell( iCoord ) in iCells then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+  Exit( 0 );
+end;
+
+function lua_map_node_find_empty_coord( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iCells : TCellSet;
+    iEmpty : TFlags32;
+    iArea  : TArea;
+begin
+  iState.Init( L );
+  iCells := iState.ToCellSet( 2 );
+  iEmpty := iState.ToFlags32( 3 );
+  iArea  := iState.ToOptionalArea( 4 );
+
+  for iCoord in iArea do
+    if ( iState.Map.GetCell( iCoord ) in iCells ) and iState.Map.isEmpty( iCoord, iEmpty ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+  Exit( 0 );
+end;
+
+function lua_map_node_find_random_coord( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iCells : TCellSet;
+    iArea  : TArea;
+begin
+  iState.Init( L );
+  iCells := iState.ToCellSet( 2 );
+  iArea  := iState.ToOptionalArea( 3 );
+
+  with TCoordArray.Create do
+  try
+    for iCoord in iArea do
+      if iState.Map.GetCell( iCoord ) in iCells then
+        Push( iCoord );
+    if IsEmpty then Exit( 0 );
+    iCoord := Items[ Random( Size ) ];
+  finally
+    Free
+  end;
+
+  vlua_pushcoord( L, iCoord );
+  Exit( 1 );
+end;
+
+function lua_map_node_find_random_empty_coord( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iCells : TCellSet;
+    iFlags : TFlags32;
+    iArea  : TArea;
+begin
+  iState.Init( L );
+  iCells := iState.ToCellSet( 2 );
+  iFlags := iState.ToFlags32( 3 );
+  iArea  := iState.ToOptionalArea( 4 );
+
+  with TCoordArray.Create do
+  try
+    for iCoord in iArea do
+      if (iState.Map.GetCell( iCoord ) in iCells) and iState.Map.isEmpty( iCoord, iFlags ) then
+        Push( iCoord );
+    if IsEmpty then Exit( 0 );
+    iCoord := Items[ Random( Size ) ];
+  finally
+    Free
+  end;
+
+  vlua_pushcoord( L, iCoord );
+  Exit( 1 );
+end;
+
+
+const lua_map_node_lib : array[0..33] of luaL_Reg = (
+  ( name : 'get_area';                func : @lua_map_node_get_area ),
+  ( name : 'set_hp';                  func : @lua_map_node_set_hp ),
+  ( name : 'get_hp';                  func : @lua_map_node_get_hp ),
+  ( name : 'set_cell';                func : @lua_map_node_set_cell ),
+  ( name : 'get_cell';                func : @lua_map_node_get_cell ),
+  ( name : 'get_cell_id';             func : @lua_map_node_get_cell_id ),
+  ( name : 'around';                  func : @lua_map_node_around ),
+  ( name : 'cross_around';            func : @lua_map_node_cross_around ),
+  ( name : 'eye_contact';             func : @lua_map_node_eye_contact ),
+  ( name : 'is_visible';              func : @lua_map_node_is_visible ),
+  ( name : 'is_passable';             func : @lua_map_node_is_passable ),
+  ( name : 'is_empty';                func : @lua_map_node_is_empty ),
+  ( name : 'is_empty_area';           func : @lua_map_node_is_empty_area ),
+  ( name : 'children_in_range';       func : @lua_map_node_children_in_range ),
+  ( name : 'get_light_flag'  ;        func : @lua_map_node_get_light_flag ),
+  ( name : 'set_light_flag'  ;        func : @lua_map_node_set_light_flag ),
+  ( name : 'drop';                    func : @lua_map_node_drop ),
+  ( name : 'get_being';               func : @lua_map_node_get_being ),
+  ( name : 'get_item';                func : @lua_map_node_get_item ),
+  ( name : 'fill';                    func : @lua_map_node_fill ),
+  ( name : 'fill_pattern';            func : @lua_map_node_fill_pattern ),
+  ( name : 'fill_edges';              func : @lua_map_node_fill_edges ),
+  ( name : 'scan';                    func : @lua_map_node_scan ),
+  ( name : 'each';                    func : @lua_map_node_each ),
+  ( name : 'transmute';               func : @lua_map_node_transmute ),
+  ( name : 'random_square';           func : @lua_map_node_random_square ),
+  ( name : 'random_coord';            func : @lua_map_node_random_coord ),
+  ( name : 'random_empty_coord';      func : @lua_map_node_random_empty_coord ),
+  ( name : 'drop_coord';              func : @lua_map_node_drop_coord ),
+  ( name : 'find_coord';              func : @lua_map_node_find_coord ),
+  ( name : 'find_empty_coord';        func : @lua_map_node_find_empty_coord ),
+  ( name : 'find_random_coord';       func : @lua_map_node_find_random_coord ),
+  ( name : 'find_random_empty_coord'; func : @lua_map_node_find_random_empty_coord ),
+  ( name : nil;                       func : nil; )
 );
 
 class procedure TLuaMapNode.RegisterLuaAPI ( const aTableName : AnsiString ) ;
