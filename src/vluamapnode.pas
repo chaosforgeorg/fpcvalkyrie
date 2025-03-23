@@ -1066,6 +1066,27 @@ begin
   Exit( 0 );
 end;
 
+function lua_map_node_transmute_by_flag( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iFrom  : TFlags;
+    iTo    : Byte;
+    iLightFlag : Byte;
+    iArea  : TArea;
+    iCoord : TCoord2D;
+begin
+
+  iState.Init( L );
+  iFrom := iState.ToCellSet( 2 );
+  iTo   := iState.ToCell( 3 );
+  iLightFlag := iState.ToInteger( 4 );
+  iArea := iState.ToOptionalArea( 5 );
+  for iCoord in iArea do
+    if iState.Map.getCell( iCoord ) in iFrom then
+      if iState.Map.getLightFlag( iCoord, iLightFlag) then
+        iState.Map.putCell( iCoord, iTo );
+  Exit( 0 );
+end;
+
 function lua_map_node_random_square( L : Plua_State ) : Integer; cdecl;
 const kLimit    = 40000;
 var iState      : TLuaMapState;
@@ -1309,7 +1330,7 @@ begin
 end;
 
 
-const lua_map_node_lib : array[0..33] of luaL_Reg = (
+const lua_map_node_lib : array[0..34] of luaL_Reg = (
   ( name : 'get_area';                func : @lua_map_node_get_area ),
   ( name : 'set_hp';                  func : @lua_map_node_set_hp ),
   ( name : 'get_hp';                  func : @lua_map_node_get_hp ),
@@ -1335,6 +1356,7 @@ const lua_map_node_lib : array[0..33] of luaL_Reg = (
   ( name : 'scan';                    func : @lua_map_node_scan ),
   ( name : 'each';                    func : @lua_map_node_each ),
   ( name : 'transmute';               func : @lua_map_node_transmute ),
+  ( name : 'transmute_by_flag';       func : @lua_map_node_transmute_by_flag ),
   ( name : 'random_square';           func : @lua_map_node_random_square ),
   ( name : 'random_coord';            func : @lua_map_node_random_coord ),
   ( name : 'random_empty_coord';      func : @lua_map_node_random_empty_coord ),
