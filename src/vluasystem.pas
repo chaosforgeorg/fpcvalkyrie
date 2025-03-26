@@ -1267,7 +1267,7 @@ end;
 
 procedure TLuaClassInfo.RegisterHook ( aHookID : Byte; const aHookName : AnsiString ) ;
 begin
-  if aHookID > High(FHooks) then SetLength( FHooks, Max(Max( 2*Length( FHooks ), 16 ),aHookID ) );
+  if aHookID >= High(FHooks) then SetLength( FHooks, Max(Max( 2*Length( FHooks ), 16 ),aHookID+1 ) );
   FHooks[ aHookID ] := aHookName;
   Include( FHookSet, aHookID );
   FHookMax := Max( FHookMax, aHookID );
