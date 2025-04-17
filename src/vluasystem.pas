@@ -344,6 +344,14 @@ begin
   Result := 0;
 end;
 
+function lua_core_warning(L: Plua_State): Integer; cdecl;
+var State : TLuaState;
+begin
+  State.Init( L );
+  Log( LOGWARN, State.ToString(1) );
+  Result := 0;
+end;
+
 function core_make_id( const aName : AnsiString ) : AnsiString;
 const ValidChars = ['a'..'z','_','-','A'..'Z','0','1'..'9'];
 var iName  : AnsiString;
@@ -1222,7 +1230,7 @@ begin
   Result := 1;
 end;
 
-const lua_core_lib : array[0..28] of luaL_Reg = (
+const lua_core_lib : array[0..29] of luaL_Reg = (
     ( name : 'TID';                      func : @lua_core_type_id),
     ( name : 'TNID';                     func : @lua_core_type_nid),
     ( name : 'TFLAGS';                   func : @lua_core_type_flags),
@@ -1231,6 +1239,7 @@ const lua_core_lib : array[0..28] of luaL_Reg = (
     ( name : 'TMAP';                     func : @lua_core_type_map),
     ( name : 'TIDIN';                    func : @lua_core_type_idin),
     ( name : 'log';                      func : @lua_core_log),
+    ( name : 'warning';                  func : @lua_core_warning),
     ( name : 'iif';                      func : @lua_core_iif),
     ( name : 'register_blueprint';       func : @lua_core_register_blueprint),
     ( name : 'register_storage';         func : @lua_core_register_storage),
@@ -1827,7 +1836,8 @@ except on e : Exception do
 end;
 end;
 
-procedure TLuaSystem.DeepPointerCopy(Index: Integer; Obj : Pointer );
+procedure TLuaSystem.DeepPointerCopy(Index: Integer; Obj
+: Pointer );
 var HasFunctions : Boolean;
     HasMetatable : Boolean;
 begin
