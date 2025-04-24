@@ -754,42 +754,42 @@ begin
 end;
 
 function lua_area_shrink( L: Plua_State): Integer; cdecl;
-var Area   : PArea;
-    Amount : Integer;
+var iArea   : PArea;
 begin
-  Area   := vlua_toparea( L, 1 );
-  Amount := lua_tointeger_def( L, 2, 1 );
-  Area^.Shrink( Amount );
+  iArea   := vlua_toparea( L, 1 );
+  if lua_isnumber( L, 3 )
+    then iArea^.Shrink( lua_tointeger_def( L, 2, 1 ), lua_tointeger( L, 3 ) )
+    else iArea^.Shrink( lua_tointeger_def( L, 2, 1 ) );
   Exit(0);
 end;
 
 function lua_area_shrinked( L: Plua_State): Integer; cdecl;
-var Area : PArea;
-    Amount : Integer;
+var iArea   : PArea;
 begin
-  Area   := vlua_toparea( L, 1 );
-  Amount := lua_tointeger_def( L, 2, 1 );
-  vlua_pusharea( L, Area^.Shrinked( Amount ) );
+  iArea   := vlua_toparea( L, 1 );
+  if lua_isnumber( L, 3 )
+    then vlua_pusharea( L, iArea^.Shrinked( lua_tointeger_def( L, 2, 1 ), lua_tointeger( L, 3 ) ) )
+    else vlua_pusharea( L, iArea^.Shrinked( lua_tointeger_def( L, 2, 1 ) ) );
   Exit(1);
 end;
 
 function lua_area_expand( L: Plua_State): Integer; cdecl;
-var Area   : PArea;
-    Amount : Integer;
+var iArea   : PArea;
 begin
-  Area   := vlua_toparea( L, 1 );
-  Amount := lua_tointeger_def( L, 2, 1 );
-  Area^.Expand( Amount );
+  iArea   := vlua_toparea( L, 1 );
+  if lua_isnumber( L, 3 )
+    then iArea^.Expand( lua_tointeger_def( L, 2, 1 ), lua_tointeger( L, 3 ) )
+    else iArea^.Expand( lua_tointeger_def( L, 2, 1 ) );
   Exit(0);
 end;
 
 function lua_area_expanded( L: Plua_State): Integer; cdecl;
-var Area : PArea;
-    Amount : Integer;
+var iArea : PArea;
 begin
-  Area   := vlua_toparea( L, 1 );
-  Amount := lua_tointeger_def( L, 2, 1 );
-  vlua_pusharea( L, Area^.Expanded( Amount ) );
+  iArea   := vlua_toparea( L, 1 );
+  if lua_isnumber( L, 3 )
+    then vlua_pusharea( L, iArea^.Expanded( lua_tointeger_def( L, 2, 1 ), lua_tointeger( L, 3 ) ) )
+    else vlua_pusharea( L, iArea^.Expanded( lua_tointeger_def( L, 2, 1 ) ) );
   Exit(1);
 end;
 
