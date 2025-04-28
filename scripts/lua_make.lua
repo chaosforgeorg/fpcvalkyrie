@@ -213,6 +213,17 @@ function make.publish( name, scheme, target )
 			do_copy( files, dir )
 		end
 	end
+	for _,files in ipairs(publish.create or {}) do
+		local name    = files[1]
+		local content = files[2]
+		local path    = pkg_name.."/"..name
+		-- create file with the given content
+		os.remove( path )
+		local f = assert(io.open(path, "w"))
+		f:write(content)
+	    f:close()
+	end
+
 	return pkg_name
 end
 
@@ -666,3 +677,18 @@ end tell
 	end
 end
 
+function make.steam( folder, path )
+	local ENV_STEAM_USER = os.getenv("VALKYRIE_STEAM_USER")
+	if not ENV_STEAM_USER then
+		error( "VALKYRIE_STEAM_USER not set! Please set it to your Steam user!" )
+		return
+	end
+	print( "Steam user: "..ENV_STEAM_USER )
+	local ENV_STEAM_DIR = os.getenv("VALKYRIE_STEAM_DIR")
+	if not ENV_STEAM_DIR then
+		error( "VALKYRIE_STEAM_DIR not set! Please set it to your Steam directory!" )
+		return
+	end
+	print( "Steam dir: "..ENV_STEAM_DIR )
+	os.execute_in_dir( ENV_STEAM_DIR.."steamcmd +login "..ENV_STEAM_USER.." +run_app_build \""..path.."\" +quit", folder )
+end
