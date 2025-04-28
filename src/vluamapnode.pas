@@ -793,6 +793,7 @@ begin
       iState.Map.LightFlag[ iState.ToCoord(2), iState.ToInteger(3) ] := iState.ToBoolean(4)
     else
     begin
+      iArea  := iState.ToArea(2);
       iFlag  := iState.ToInteger(3);
       iValue := iState.ToBoolean(4);
       for iCoord in iArea do

@@ -232,7 +232,6 @@ begin
   iArea   := iState.ToOptionalArea( 6 );
   iStrict := iState.ToBoolean( 7, False );
   iState.Map.Area.Clamp( iArea );
-
   i := 0;
   repeat
     Inc( i );
@@ -247,7 +246,7 @@ begin
       end;
     end;
     iCnt := 0;
-    for iC in NewArea( iCoord, 1 ) do
+    for iC in NewArea( iCoord, 1 ).Clamped(iArea) do
       if iState.Map.GetCell( iC ) = iFull then
       begin
         Inc( iCnt );
