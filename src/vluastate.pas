@@ -98,6 +98,7 @@ TLuaState = object
     procedure SubTableToStream( Obj : ILuaReferencedObject; const Name : AnsiString; OSt : TStream );
     procedure SubTableFromStream( Obj : ILuaReferencedObject; const Name : AnsiString; ISt : TStream );
     procedure NewSubTableFromStream( Obj : ILuaReferencedObject; const Name : AnsiString; ISt : TStream );
+    procedure ClearLuaProperties( Obj : ILuaReferencedObject );
     function GetLuaProperty( Obj : ILuaReferencedObject; const aPropertyName : AnsiString ) : Variant;
     procedure SetLuaProperty( Obj : ILuaReferencedObject; const aPropertyName : AnsiString; aValue : Variant );
     function GetLuaProperty( Obj : ILuaReferencedObject; const aPropertyPath : array of Const; aDefValue : Variant ) : Variant;
@@ -626,6 +627,15 @@ begin
   lua_pushansistring( FState, Name );
   lua_createtable( FState, 0, 0 );
   vlua_tablefromstream( FState, -1, Ist );
+  lua_rawset( FState, -3 );
+  lua_pop( FState, 1 );
+end;
+
+procedure TLuaState.ClearLuaProperties( Obj : ILuaReferencedObject );
+begin
+  Push( Obj );
+  lua_pushansistring( FState, '__props' );
+  lua_createtable( FState, 0, 0 );
   lua_rawset( FState, -3 );
   lua_pop( FState, 1 );
 end;
