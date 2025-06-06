@@ -65,7 +65,7 @@ uses vgl3library,
      {Screenshot support}
      vdebug,
      FPImage, FPCanvas,
-     FPWritePNG;
+     FPWritePNG, Windows;
 
 var HackLastMouseX : Integer;
     HackLastMouseY : Integer;
@@ -361,12 +361,39 @@ begin
   Exit(0);
 end;
 
+function SetProcessDPIAware: BOOL; stdcall; external 'user32.dll';
+
+procedure SetDPIAwareness;
+type TProcessDpiAwareness = (
+    PROCESS_DPI_UNAWARE = 0,
+    PROCESS_SYSTEM_DPI_AWARE = 1,
+    PROCESS_PER_MONITOR_DPI_AWARE = 2
+  );
+  TSetProcessDpiAwareness = function( aValue : TProcessDpiAwareness ): HRESULT; stdcall;
+var iShcoreHandle    : HMODULE;
+    iSetDpiAwareness : TSetProcessDpiAwareness;
+begin
+  Log('Setting process DPI awareness...');
+  iShcoreHandle := LoadLibrary( 'Shcore.dll' );
+  if iShcoreHandle <> 0 then
+  begin
+    Pointer(iSetDpiAwareness) := GetProcAddress( iShcoreHandle, 'SetProcessDpiAwareness' );
+    if Assigned( iSetDpiAwareness )
+      then iSetDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE)
+      else SetProcessDPIAware;
+    FreeLibrary( iShcoreHandle );
+  end
+  else
+    SetProcessDPIAware;
+end;
+
 { TSDLIODriver }
 
 class function TSDLIODriver.GetCurrentResolution ( out aResult : TIOPoint ) : Boolean;
 var iCurrent      : TSDL_DisplayMode;
     iDisplayIndex : Integer;
 begin
+  SetDPIAwareness;
   LoadSDL2;
   if ( SDL_Init(SDL_INIT_VIDEO) < 0 ) then
   begin
@@ -628,7 +655,7 @@ begin
   //if SDL_GetAppState() and SDL_APPMOUSEFOCUS = 0 then Exit( False );
   x := 0; y := 0;
   SDL_GetMouseState(@x,@y);
-  aResult := Point( x, y );
+  aResult := vutil.Point( x, y );
   Exit( True );
 end;
 
