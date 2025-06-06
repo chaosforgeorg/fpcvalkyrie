@@ -364,6 +364,8 @@ end;
 {$IFDEF WINDOWS}
 function SetProcessDPIAware: BOOL; stdcall; external 'user32.dll';
 
+var GSetDPIAwarenessSet : Boolean = False;
+
 procedure SetDPIAwareness;
 type TProcessDpiAwareness = (
     PROCESS_DPI_UNAWARE = 0,
@@ -374,6 +376,8 @@ type TProcessDpiAwareness = (
 var iShcoreHandle    : HMODULE;
     iSetDpiAwareness : TSetProcessDpiAwareness;
 begin
+  if GSetDPIAwarenessSet then Exit;
+  GSetDPIAwarenessSet := True;
   Log('Setting process DPI awareness...');
   iShcoreHandle := LoadLibrary( 'Shcore.dll' );
   if iShcoreHandle <> 0 then
@@ -420,6 +424,9 @@ begin
   FWindow    := nil;
   FGLContext := nil;
 
+  {$IFDEF WINDOWS}
+  SetDPIAwareness;
+  {$ENDIF}
   LoadSDL2;
 
   Log('Initializing SDL...');
@@ -517,7 +524,7 @@ begin
     Exit( True );
   end;
 
-  iSDLFlags := SDL_WINDOW_SHOWN;
+  iSDLFlags := SDL_WINDOW_SHOWN or SDL_WINDOW_ALLOW_HIGHDPI;
   if FOpenGL  then iSDLFlags := iSDLFlags or SDL_WINDOW_OPENGL;
   if FFScreen then iSDLFlags := iSDLFlags or SDL_WINDOW_FULLSCREEN;
 
