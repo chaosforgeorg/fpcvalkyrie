@@ -65,7 +65,7 @@ uses vgl3library,
      {Screenshot support}
      vdebug,
      FPImage, FPCanvas,
-     FPWritePNG, Windows;
+     FPWritePNG{$IFDEF WINDOWS}, Windows{$ENDIF};
 
 var HackLastMouseX : Integer;
     HackLastMouseY : Integer;
@@ -361,6 +361,7 @@ begin
   Exit(0);
 end;
 
+{$IFDEF WINDOWS}
 function SetProcessDPIAware: BOOL; stdcall; external 'user32.dll';
 
 procedure SetDPIAwareness;
@@ -386,6 +387,7 @@ begin
   else
     SetProcessDPIAware;
 end;
+{$ENDIF}
 
 { TSDLIODriver }
 
@@ -393,7 +395,9 @@ class function TSDLIODriver.GetCurrentResolution ( out aResult : TIOPoint ) : Bo
 var iCurrent      : TSDL_DisplayMode;
     iDisplayIndex : Integer;
 begin
+{$IFDEF WINDOWS}
   SetDPIAwareness;
+{$ENDIF}
   LoadSDL2;
   if ( SDL_Init(SDL_INIT_VIDEO) < 0 ) then
   begin
