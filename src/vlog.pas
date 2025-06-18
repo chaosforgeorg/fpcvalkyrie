@@ -373,7 +373,16 @@ begin
   FFlush      := aFlush;
 
   Assign( FText, FFileName );
+
+  {$I-}
   Rewrite( FText );
+  if IOResult <> 0 then
+  begin
+    FText := StdErr;
+    LogImpl( LOGERROR, 'CAN''T OPEN LOG FILE '+aFileName+'!');
+    Exit;
+  end;
+  {$I+}
 
   LogImpl( LOGINFO, '--- Logging start : '+TimeStamp+' ---' );
 end;
