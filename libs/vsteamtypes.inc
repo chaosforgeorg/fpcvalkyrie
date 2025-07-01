@@ -15,6 +15,17 @@ type
   ISteamUGC       = Pointer;
   ISteamUtils     = Pointer;
 
+const k_cchMaxSteamErrMsg = 1024;
+type  TSteamErrMsg        = array[0..k_cchMaxSteamErrMsg - 1] of AnsiChar;
+      PSteamErrMsg        = ^TSteamErrMsg;
+
+type Steam_ESteamAPIInitResult = (
+  k_ESteamAPIInitResult_OK = 0,
+  k_ESteamAPIInitResult_FailedGeneric = 1,
+  k_ESteamAPIInitResult_NoSteamClient = 2,
+  k_ESteamAPIInitResult_VersionMismatch = 3
+);
+
 type Steam_EResult = (
     k_EResultNone = 0,
     k_EResultOK = 1,

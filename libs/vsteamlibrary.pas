@@ -28,18 +28,18 @@ const
 {$include vsteamtypes.inc}
 
 var
-  SteamAPI_Init           : function () : Boolean; extdecl;
+  SteamAPI_InitFlat       : function ( const msg : PSteamErrMsg ) : Steam_ESteamAPIInitResult; extdecl;
   SteamAPI_Shutdown       : procedure; extdecl;
   SteamAPI_IsSteamRunning : function () : Boolean; extdecl;
   SteamAPI_RunCallbacks   : procedure; extdecl;
 
   SteamAPI_ISteamClient_CreateSteamPipe     : function( instancePtr : PtrInt ) : HSteamPipe; extdecl;
   SteamAPI_ISteamClient_ConnectToGlobalUser : function( instancePtr : PtrInt; ahsteampipe : HSteamPipe ) : HSteamUser; extdecl;
-  SteamAPI_ISteamClient_GetISteamFriends    : function( instancePtr : PtrInt; aHSteamUser : HSteamUser; aHSteamPipe : HSteamPipe; const pchVersion : PChar ) : ISteamUserStats; extdecl;
+  SteamAPI_ISteamClient_GetISteamFriends    : function( instancePtr : PtrInt; aHSteamUser : HSteamUser; aHSteamPipe : HSteamPipe; const pchVersion : PChar ) : ISteamFriends; extdecl;
   SteamAPI_ISteamClient_GetISteamUserStats  : function( instancePtr : PtrInt; aHSteamUser : HSteamUser; aHSteamPipe : HSteamPipe; const pchVersion : PChar ) : ISteamUserStats; extdecl;
-  SteamAPI_ISteamClient_GetISteamUtils      : function( instancePtr : PtrInt;                           aHSteamPipe : HSteamPipe; const pchVersion : PChar ) : ISteamUserStats; extdecl;
-  SteamAPI_ISteamClient_GetISteamUser       : function( instancePtr : PtrInt; aHSteamUser : HSteamUser; aHSteamPipe : HSteamPipe; const pchVersion : PChar ) : ISteamUserStats; extdecl;
-  SteamAPI_ISteamClient_GetISteamUGC        : function( instancePtr : PtrInt; aHSteamUser : HSteamUser; aHSteamPipe : HSteamPipe; const pchVersion : PChar ) : ISteamUserStats; extdecl;
+  SteamAPI_ISteamClient_GetISteamUtils      : function( instancePtr : PtrInt;                           aHSteamPipe : HSteamPipe; const pchVersion : PChar ) : ISteamUtils; extdecl;
+  SteamAPI_ISteamClient_GetISteamUser       : function( instancePtr : PtrInt; aHSteamUser : HSteamUser; aHSteamPipe : HSteamPipe; const pchVersion : PChar ) : ISteamUser; extdecl;
+  SteamAPI_ISteamClient_GetISteamUGC        : function( instancePtr : PtrInt; aHSteamUser : HSteamUser; aHSteamPipe : HSteamPipe; const pchVersion : PChar ) : ISteamUGC; extdecl;
 
   SteamAPI_ISteamUser_GetSteamID            : function( aSelf : ISteamUser ) : QWord; extdecl;
 
@@ -48,7 +48,6 @@ var
   SteamAPI_ISteamUtils_IsAPICallCompleted   : function( aSelf : ISteamUtils; aApiCall : TSteamAPICall; aFailed : PBoolean ) : Boolean; extdecl;
   SteamAPI_ISteamUtils_GetAPICallResult     : function( aSelf : ISteamUtils; aApiCall : TSteamAPICall; pCallback : Pointer; cubCallback : Integer; iCallbackExpected : Integer; aFailed : PBoolean ) : Boolean; extdecl;
 
-  SteamAPI_ISteamUserStats_RequestCurrentStats : function( aSelf : ISteamUserStats ) : Boolean; extdecl;
   SteamAPI_ISteamUserStats_GetStatInt32        : function( aSelf : ISteamUserStats; const pchName : PChar; pData : PInteger ) : Boolean; extdecl;
   SteamAPI_ISteamUserStats_GetStatFloat        : function( aSelf : ISteamUserStats; const pchName : PChar; pData : PSingle ) : Boolean; extdecl;
   SteamAPI_ISteamUserStats_SetStatInt32        : function( aSelf : ISteamUserStats; const pchName : PChar; nData : Integer ) : Boolean; extdecl;
@@ -100,7 +99,7 @@ begin
   Steam := TLibrary.Load( aPath );
   if Steam = nil then Exit( False );
 
-  Pointer(SteamAPI_Init)           := GetSymbol('SteamAPI_Init');
+  Pointer(SteamAPI_InitFlat)       := GetSymbol('SteamAPI_InitFlat');
   Pointer(SteamAPI_Shutdown)       := GetSymbol('SteamAPI_Shutdown');
   Pointer(SteamAPI_IsSteamRunning) := GetSymbol('SteamAPI_IsSteamRunning');
   Pointer(SteamAPI_RunCallbacks)   := GetSymbol('SteamAPI_RunCallbacks');
@@ -120,7 +119,6 @@ begin
   Pointer(SteamAPI_ISteamUtils_IsAPICallCompleted) := GetSymbol('SteamAPI_ISteamUtils_IsAPICallCompleted');
   Pointer(SteamAPI_ISteamUtils_GetAPICallResult)   := GetSymbol('SteamAPI_ISteamUtils_GetAPICallResult');
 
-  Pointer(SteamAPI_ISteamUserStats_RequestCurrentStats) := GetSymbol('SteamAPI_ISteamUserStats_RequestCurrentStats');
   Pointer(SteamAPI_ISteamUserStats_GetStatInt32)        := GetSymbol('SteamAPI_ISteamUserStats_GetStatInt32');
   Pointer(SteamAPI_ISteamUserStats_GetStatFloat)        := GetSymbol('SteamAPI_ISteamUserStats_GetStatFloat');
   Pointer(SteamAPI_ISteamUserStats_SetStatInt32)        := GetSymbol('SteamAPI_ISteamUserStats_SetStatInt32');

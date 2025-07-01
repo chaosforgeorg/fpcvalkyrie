@@ -132,7 +132,6 @@ type TSteamUserStats = class( TVObject )
     function RequestGlobalStats( aDays : Integer = 0 ) : TSteamAPICall;
     function GetGlobalStat( const aName : Ansistring; out aValue : Int64 ) : Boolean;
     function GetGlobalStat( const aName : Ansistring; out aValue : Double ) : Boolean;
-    function RequestCurrentStats : Boolean;
     function SetAchievement( const aName : Ansistring ) : Boolean;
     function StoreStats : Boolean;
   private
@@ -178,11 +177,6 @@ end;
 function TSteamUserStats.GetGlobalStat( const aName : Ansistring; out aValue : Double ) : Boolean;
 begin
   Exit( SteamAPI_ISteamUserStats_GetGlobalStatDouble( FUserStats, PChar( aName ), @aValue ) );
-end;
-
-function TSteamUserStats.RequestCurrentStats : Boolean;
-begin
-  Exit( SteamAPI_ISteamUserStats_RequestCurrentStats( FUserStats ) );
 end;
 
 function TSteamUserStats.SetAchievement( const aName : Ansistring ) : Boolean;
@@ -404,15 +398,16 @@ var GSteamCore   : TSteamCore = nil;
 { TSteamCore }
 
 constructor TSteamCore.Create;
+var iMsg : TSteamErrMsg;
 begin
   inherited Create;
   if not LoadSteam then
     Exit;
 
-  FInitialized := SteamAPI_Init();
+  FInitialized := ( SteamAPI_InitFlat( @iMsg ) = k_ESteamAPIInitResult_OK );
   if not FInitialized then
   begin
-    Log( LOGWARN, 'SteamAPI failed to initialize - not ran from Steam, or no steamappid!');
+    Log( LOGWARN, 'SteamAPI failed to initialize - not ran from Steam, or no steamappid? (%s)',[PChar(@iMsg)]);
     Exit;
   end;
 
@@ -483,12 +478,6 @@ begin
       Log( 'Hello, '+FUserName+'!' )
     else
       Log( LOGWARN, 'GetPersonaName failed!' );
-  end;
-
-  if iClient.UserStats <> nil then
-  begin
-    if not iClient.Userstats.RequestCurrentStats() then
-      Log( LOGWARN, 'RequestCurrentStats failed!' );
   end;
 
   if iClient.User <> nil then
