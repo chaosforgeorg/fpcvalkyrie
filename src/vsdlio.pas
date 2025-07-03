@@ -271,6 +271,36 @@ begin
   Result.Mouse.Pressed := event^.button.state = SDL_PRESSED;
 end;
 
+function SDLPadDeviceEventToIOEvent( event : PSDL_Event ) : TIOEvent;
+begin
+  Result.EType := VEVENT_PADDEVICE;
+  Result.PadDevice.Which := event^.cdevice.which;
+  case event^.type_ of
+    SDL_CONTROLLERDEVICEADDED    : Result.PadDevice.Event := VPAD_ADDED;
+    SDL_CONTROLLERDEVICEREMOVED  : Result.PadDevice.Event := VPAD_REMOVED;
+    SDL_CONTROLLERDEVICEREMAPPED : Result.PadDevice.Event := VPAD_REMAPPED;
+  end;
+end;
+
+function SDLPadAxisEventToIOEvent( event : PSDL_Event ) : TIOEvent;
+begin
+  Result.EType         := VEVENT_PADAXIS;
+  Result.PadAxis.Axis  := TIOPadAxis( event^.caxis.axis );
+  Result.PadAxis.Value := event^.caxis.value;
+  Result.PadAxis.Which := event^.caxis.which;
+end;
+
+function SDLPadEventToIOEvent( event : PSDL_Event ) : TIOEvent;
+begin
+  case event^.type_ of
+    SDL_CONTROLLERBUTTONDOWN    : Result.EType := VEVENT_PADDOWN;
+    SDL_CONTROLLERBUTTONUP      : Result.EType := VEVENT_PADUP;
+  end;
+  Result.Pad.Button  := TIOPadButton( event^.cbutton.button );
+  Result.Pad.Which   := event^.cbutton.which;
+  Result.Pad.Pressed := event^.cbutton.state = SDL_PRESSED;
+end;
+
 function SDLTextEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 begin
   Result.EType := VEVENT_TEXT;
@@ -301,13 +331,17 @@ begin
     SDL_MOUSEBUTTONUP   : Exit( SDLMouseEventToIOEvent( event ) );
     SDL_MOUSEWHEEL      : Exit( SDLMouseEventToIOEvent( event ) );
 
-    SDL_CONTROLLERAXISMOTION,
+    SDL_CONTROLLERAXISMOTION : Exit( SDLPadAxisEventToIOEvent( event ) );
     SDL_CONTROLLERBUTTONDOWN,
-    SDL_CONTROLLERBUTTONUP : ;
+    SDL_CONTROLLERBUTTONUP : Exit( SDLPadEventToIOEvent( event ) );
 
     SDL_CONTROLLERDEVICEADDED,
     SDL_CONTROLLERDEVICEREMOVED,
-    SDL_CONTROLLERDEVICEREMAPPED : SDLIO.ScanGamepads;
+    SDL_CONTROLLERDEVICEREMAPPED :
+    begin
+      SDLIO.ScanGamepads;
+      Exit( SDLPadDeviceEventToIOEvent( event ) );
+    end;
 
     SDL_JOYAXISMOTION : ;
     SDL_JOYBALLMOTION : ;
