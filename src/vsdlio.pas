@@ -3,7 +3,7 @@ unit vsdlio;
 interface
 uses Classes, SysUtils, vutil, viotypes, vsdl2library, vioevent;
 
-type TSDLIOFlag  = ( SDLIO_OpenGL, SDLIO_FullScreen, SDLIO_Resizable );
+type TSDLIOFlag  = ( SDLIO_OpenGL, SDLIO_FullScreen, SDLIO_Resizable, SDLIO_Gamepad );
      TSDLIOFlags = set of TSDLIOFlag;
 
 type TSDLIODriver = class( TIODriver )
@@ -42,12 +42,19 @@ private
   FOnResize  : TIOInterrupt;
   FWindow    : PSDL_Window;
   FGLContext : SDL_GLContext;
+
+  FGamePadSupport : Boolean;
+  FGamePadIndex   : Integer;
+  FGamePadHandle  : Pointer;
 private
   procedure ScanDisplayModes;
+  function ScanGamepads( aAllowLoop : Boolean = True ) : Boolean;
+  procedure SetGamePadSupport( aValue : Boolean  );
 public
-  property Width : DWord        read FSizeX;
-  property Height : DWord       read FSizeY;
-  property BPP : DWord          read FBPP;
+  property Width : DWord            read FSizeX;
+  property Height : DWord           read FSizeY;
+  property BPP : DWord              read FBPP;
+  property GamePadSupport : Boolean read FGamePadSupport write SetGamePadSupport;
   property OpenGLMode : Boolean read FOpenGL;
   property FullScreen : Boolean read FFScreen;
   property Flags : TSDLIOFlags  read FFlags;
@@ -294,6 +301,14 @@ begin
     SDL_MOUSEBUTTONUP   : Exit( SDLMouseEventToIOEvent( event ) );
     SDL_MOUSEWHEEL      : Exit( SDLMouseEventToIOEvent( event ) );
 
+    SDL_CONTROLLERAXISMOTION,
+    SDL_CONTROLLERBUTTONDOWN,
+    SDL_CONTROLLERBUTTONUP : ;
+
+    SDL_CONTROLLERDEVICEADDED,
+    SDL_CONTROLLERDEVICEREMOVED,
+    SDL_CONTROLLERDEVICEREMAPPED : SDLIO.ScanGamepads;
+
     SDL_JOYAXISMOTION : ;
     SDL_JOYBALLMOTION : ;
     SDL_JOYHATMOTION  : ;
@@ -344,19 +359,19 @@ begin
   SDL_MOUSEBUTTONDOWN,
   SDL_MOUSEBUTTONUP,
   SDL_MOUSEWHEEL : Exit(1);
-//  SDL_JOYAXISMOTION,
-//  SDL_JOYBALLMOTION,
-//  SDL_JOYHATMOTION,
-//  SDL_JOYBUTTONDOWN,
-//  SDL_JOYBUTTONUP,
-//  SDL_JOYDEVICEADDED,
-//  SDL_JOYDEVICEREMOVED,
-//  SDL_CONTROLLERAXISMOTION,
-//  SDL_CONTROLLERBUTTONDOWN,
-//  SDL_CONTROLLERBUTTONUP,
-//  SDL_CONTROLLERDEVICEADDED,
-//  SDL_CONTROLLERDEVICEREMOVED,
-//  SDL_CONTROLLERDEVICEREMAPPED,
+  SDL_JOYAXISMOTION,
+  SDL_JOYBALLMOTION,
+  SDL_JOYHATMOTION,
+  SDL_JOYBUTTONDOWN,
+  SDL_JOYBUTTONUP,
+  SDL_JOYDEVICEADDED,
+  SDL_JOYDEVICEREMOVED,
+  SDL_CONTROLLERAXISMOTION,
+  SDL_CONTROLLERBUTTONDOWN,
+  SDL_CONTROLLERBUTTONUP,
+  SDL_CONTROLLERDEVICEADDED,
+  SDL_CONTROLLERDEVICEREMOVED,
+  SDL_CONTROLLERDEVICEREMAPPED : if SDLIO.GamePadSupport then Exit(1);
   end;
   Exit(0);
 end;
@@ -423,7 +438,9 @@ begin
   inherited Create;
   FWindow    := nil;
   FGLContext := nil;
-
+  FGamePadSupport := SDLIO_Gamepad in aFlags;
+  FGamePadIndex   := -1;
+  FGamePadHandle  := nil;
   {$IFDEF WINDOWS}
   SetDPIAwareness;
   {$ENDIF}
@@ -431,7 +448,7 @@ begin
 
   Log('Initializing SDL...');
 
-  if ( SDL_Init(SDL_INIT_VIDEO) < 0 ) then
+  if ( SDL_Init( SDL_INIT_VIDEO or SDL_INIT_TIMER or SDL_INIT_JOYSTICK or SDL_INIT_GAMECONTROLLER  ) < 0 ) then
   begin
     SDL_Quit();
     SDLIO := nil;
@@ -458,6 +475,8 @@ begin
   end;
 
   SDL_SetEventFilter( @SDLIOEventFilter, nil );
+
+  if FGamePadSupport then ScanGamepads;
 
   Log('SDL IO system ready.');
 end;
@@ -769,6 +788,75 @@ begin
     Exit( True );
   end;
   Exit( False );
+end;
+
+function TSDLIODriver.ScanGamepads( aAllowLoop : Boolean ) : Boolean;
+var iController : PSDL_GameController = nil;
+    iJoystick   : PSDL_Joystick;
+    i, iNew     : Integer;
+begin
+  Result      := False;
+  iNew        := -1;
+  iController := nil;
+  iJoystick   := nil;
+  for i := 0 to SDL_NumJoysticks() - 1 do
+    if SDL_IsGameController(i) then
+    begin
+      if i <> FGamePadIndex then
+      begin
+        iController := SDL_GameControllerOpen(i);
+        iNew := i;
+        if iController <> nil then
+          Break
+        else
+          Log(LOGERROR, 'Could not open gamecontroller %d: %s', [i, SDL_GetError()]);
+      end
+      else
+      begin
+        iNew := FGamePadIndex;
+        Break;
+      end;
+    end;
+
+  if iNew <> FGamePadIndex then
+  begin
+    if FGamePadHandle <> nil then
+      SDL_GameControllerClose( FGamePadHandle );
+    FGamePadIndex  := iNew;
+    FGamePadHandle := iController;
+
+    if iController <> nil then
+    begin
+      iJoystick      := SDL_GameControllerGetJoystick(iController);
+      Log('Controller connected.');
+      Log('Index: %d  Name: %s', [FGamePadIndex,SDL_GameControllerNameForIndex(FGamePadIndex)]);
+      Log('Axes: %d  Buttons: %d  Balls: %d', [SDL_JoystickNumAxes(iJoystick), SDL_JoystickNumButtons(iJoystick),SDL_JoystickNumBalls(iJoystick)]);
+    end
+    else
+      Log('Controller has been removed, no fallback present.');
+
+    Result := True;
+  end;
+
+  if (FGamePadHandle <> nil) and (not SDL_GameControllerGetAttached(FGamePadHandle) ) then
+  begin
+    Log( LOGERROR, 'Controller %d is not attached anymore, disabling!', [FGamePadIndex]);
+    SDL_GameControllerClose( FGamePadHandle );
+    FGamePadIndex  := -1;
+    FGamePadHandle := nil;
+
+    Log( LOGINFO, 'Attempting to reaquire another controller...');
+    if aAllowLoop then ScanGamepads( False );
+  end;
+end;
+
+procedure TSDLIODriver.SetGamePadSupport( aValue : Boolean );
+begin
+  if aValue <> FGamePadSupport then
+  begin
+    if aValue then ScanGamepads;
+    FGamePadSupport := aValue;
+  end;
 end;
 
 procedure TSDLIODriver.StartTextInput;
