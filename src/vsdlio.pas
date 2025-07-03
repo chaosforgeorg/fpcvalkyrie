@@ -153,7 +153,7 @@ begin
   iShift := ( (event^.key.keysym.mod_ and KMOD_SHIFT) <> 0 ) or
             ( (event^.key.keysym.mod_ and KMOD_CAPS) <> 0 );
   Result.Key.Repeated := ( event^.type_ = SDL_KEYDOWN ) and (event^.key.repeat_ > 0);
-
+  Result.Key.Pressed  := event^.type_ = SDL_KEYDOWN;
   if ( iCode >= 32 )
     and ( iCode < 127 )
     and ( iCode <> SDLK_PAGEDOWN )
