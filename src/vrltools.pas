@@ -97,7 +97,8 @@ TCoord2D = object
   function ToString : AnsiString;
   function Horiz( Horizontal : Boolean ) : Integer; overload;
   procedure Horiz( Horizontal : Boolean; Value : Integer ); overload;
-
+  function Zero : Boolean;
+  function NotZero : Boolean;
 end;
 
 TCoord2DArray = array of TCoord2D;
@@ -673,6 +674,16 @@ end;
 procedure TCoord2D.Horiz(Horizontal: Boolean; Value: Integer);
 begin
   if Horizontal then X := Value else Y := Value;
+end;
+
+function TCoord2D.Zero : Boolean;
+begin
+  Exit( ( X = 0 ) and ( Y = 0 ) );
+end;
+
+function TCoord2D.NotZero : Boolean;
+begin
+  Exit( ( X <> 0 ) or ( Y <> 0 ) );
 end;
 
 operator = (a,b : TArea) r : boolean;
