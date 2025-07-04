@@ -51,6 +51,7 @@ const
   VTIG_IE_7         = 157;
   VTIG_IE_8         = 158;
   VTIG_IE_9         = 159;
+  VTIG_IE_SHIFT     = 160;
 
 type TTIGDrawCommand = record
     CType : TTIGDrawCommandType;
