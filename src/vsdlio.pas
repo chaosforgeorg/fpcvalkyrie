@@ -181,6 +181,7 @@ begin
         end
     end;
     Result := PrintableToIOEvent( Char( iCode ) );
+    Result.Key.Pressed := event^.type_ = SDL_KEYDOWN;
     if event^.type_ = SDL_KEYUP then Result.EType := VEVENT_KEYUP;
     Exit;
   end;
