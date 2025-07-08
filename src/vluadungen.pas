@@ -281,6 +281,75 @@ begin
   Exit( 0 );
 end;
 
+function lua_dungen_flood_fill( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iStart : TCoord2D;
+    iCur   : TCoord2D;
+    iC     : TCoord2D;
+    iFrom  : TCellSet;
+    iTo    : Byte;
+    iArea  : TArea;
+    iAround: TArea;
+
+    iQueue : array of TCoord2D;
+    iHead  : Integer;
+    iTail  : Integer;
+    iCount : Integer;
+
+    iFFrom : Boolean;
+    iFTo   : Boolean;
+begin
+  iState.Init( L );
+  iStart  := iState.ToCoord( 2 );
+  iFTo    := iState.IsFunction( 3 );
+  if not iFTo   then iTo := iState.ToCell( 3 );
+  iFFrom  := iState.IsFunction( 4 );
+  if not iFFrom then iFrom   := iState.ToCellSet( 4 );
+  iArea   := iState.ToOptionalArea( 5 );
+  iState.Map.Area.Clamp( iArea );
+
+  if not iState.Map.isProperCoord( iStart ) then Exit( 0 );
+  if not iArea.Contains( iStart )           then Exit( 0 );
+
+  iState.Map.ClearLightMapBits( [vlfFlood] );
+  SetLength( iQueue, ( iArea.Width + 1 ) * ( iArea.Height + 1 ) + 1 );
+  iHead  := 0;
+  iTail  := 0;
+  iCount := 0;
+
+  iState.Map.LightFlag[ iStart, vlfFlood ] := True;
+  if iFTo
+    then iState.CallFunction( 3, [LuaCoord( iStart )] )
+    else iState.Map.putCell( iStart, iTo );
+
+  iQueue[ iTail ] := iStart;
+  Inc( iTail );
+  while iHead < iTail do
+  begin
+    iCur := iQueue[iHead];
+    Inc( iHead );
+    iAround := NewArea( iCur, 1 ).Clamped( iArea );
+    for iC in iAround do
+      if iC <> iCur then
+        if not iState.Map.LightFlag[ iC, vlfFlood ] then
+        begin
+          iState.Map.LightFlag[ iC, vlfFlood ] := True;
+          if ( ( not iFFrom ) and ( iState.Map.getCell( iC ) in iFrom ) ) or
+             ( iFFrom and Boolean( iState.CallFunction( 4, [LuaCoord( iC )] ) ) ) then
+          begin
+            if iFTo
+              then iState.CallFunction( 3, [LuaCoord( iC )] )
+              else iState.Map.putCell( iC, iTo );
+            iQueue[iTail] := iC;
+            Inc( iTail );
+            Inc( iCount );
+          end;
+        end;
+  end;
+  iState.Push( iCount );
+  Exit( 1 );
+end;
+
 // -------- Tile support ---------------------------------------------- //
 
 type
@@ -682,7 +751,7 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..9] of luaL_Reg = (
+  dungenlib_f : array[0..10] of luaL_Reg = (
     ( Name : 'tile_new'; func : @lua_dungen_tile_new ),
     ( Name : 'tile_place'; func : @lua_dungen_tile_place; ),
     ( Name : 'plot_line'; func : @lua_dungen_plot_line; ),
@@ -692,6 +761,7 @@ const
     ( Name : 'cellular_init'; func : @lua_dungen_cellular_init; ),
     ( Name : 'cellular_random'; func : @lua_dungen_cellular_random; ),
     ( Name : 'cellular_clear'; func : @lua_dungen_cellular_clear; ),
+    ( Name : 'flood_fill'; func : @lua_dungen_flood_fill; ),
     ( Name : nil; func : nil; )
     );
 

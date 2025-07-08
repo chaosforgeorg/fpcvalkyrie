@@ -28,6 +28,8 @@ const vlfExplored     = 0;
       vlfVisible      = 1;
       vlfLighted      = 2;
 
+      vlfFlood        = 15;
+
 const EF_NOBLOCK      = 0;
       EF_NOBEINGS     = 1;
       EF_NOITEMS      = 2;

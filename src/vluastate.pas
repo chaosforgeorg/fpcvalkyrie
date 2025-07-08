@@ -66,6 +66,7 @@ TLuaState = object
     function IsArea( Index : Integer ) : Boolean;
     function IsPoint( Index : Integer ) : Boolean;
     function IsRect( Index : Integer ) : Boolean;
+    function IsFunction( aIndex : Integer ) : Boolean;
 
     function GetField( Index : Integer; const Key : Variant ) : Variant;
     function GetField( Index : Integer; const Key, DValue : Variant ) : Variant;
@@ -93,6 +94,7 @@ TLuaState = object
     procedure SetPrototypeTable(Obj: ILuaReferencedObject; const FieldName : AnsiString = 'proto' );
     function  RunHook( Obj : ILuaReferencedObject; HookName : AnsiString; const Params : array of const ) : Variant;
     function  CallFunction( Name : AnsiString; const Params : array of const; idx : Integer = GLOBALSINDEX ) : Variant;
+    function  CallFunction( aIdx : Integer; const aParams : array of const ) : Variant;
     destructor Done;
     function HasSubTable( Obj : ILuaReferencedObject; const Name : AnsiString ) : Boolean;
     procedure SubTableToStream( Obj : ILuaReferencedObject; const Name : AnsiString; OSt : TStream );
@@ -360,6 +362,12 @@ begin
   Exit( vlua_isrect( FState, lua_absindex( FState, Index ) ) );
 end;
 
+function TLuaState.IsFunction( aIndex : Integer ) : Boolean;
+begin
+  Exit( lua_type( FState, aIndex ) = LUA_TFUNCTION );
+end;
+
+
 function TLuaState.GetField(Index: Integer; const Key: Variant): Variant;
 begin
   Index := lua_absindex( FState, Index );
@@ -600,6 +608,18 @@ begin
   CallFunction := vlua_tovariant( FState, -1 );
   lua_pop( FState, 1 );
 end;
+
+function TLuaState.CallFunction( aIdx : Integer; const aParams : array of const ) : Variant;
+begin
+  aIdx := lua_absindex( FState, aIdx );
+  if not lua_isfunction( FState, aIdx ) then Error( 'not a function!');
+  lua_pushvalue( FState, aIdx );
+  Push( aParams );
+  if lua_pcall( FState, High( aParams ) + 1, 1, 0 ) <> 0 then PopRaise( 1, 'Lua error : '+lua_tostring( FState, -1) );
+  CallFunction := vlua_tovariant( FState, -1 );
+  lua_pop( FState, 1 );
+end;
+
 
 procedure TLuaState.SubTableToStream(Obj: ILuaReferencedObject;
   const Name: AnsiString; OSt: TStream);
