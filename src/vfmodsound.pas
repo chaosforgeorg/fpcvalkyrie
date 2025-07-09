@@ -68,9 +68,9 @@ var GSystem      : PFMOD_SYSTEM;
     GLastError   : FMOD_RESULT;
     GGroupSounds : PFMOD_CHANNELGROUP;
     GGroupMusic  : PFMOD_CHANNELGROUP;
+    MaxConcurrentSounds : Integer;          //Max number of sounds we can play before needing to steal a channel
 
-const SoundLibMaxConcurrentSounds = 128;  // Max number of sounds playing at once by the library
-const MaxConcurrentSounds = SoundLibMaxConcurrentSounds - 1; //Our limit of sounds includes a reduction by one to reserve for music playback
+const SoundLibMaxConcurrentChannels = 128;  // Max number of channels playing at once by the library
 
 procedure FMOD_CHECK( aResult : FMOD_RESULT );
 begin
@@ -96,6 +96,8 @@ begin
 
   if GGroupSounds <> nil then FMOD_ChannelGroup_Release( GGroupSounds );
   if GGroupMusic <> nil  then FMOD_ChannelGroup_Release( GGroupMusic );
+
+  MaxConcurrentSounds := SoundLibMaxConcurrentChannels;
 
   if GSystem <> nil then
   begin
@@ -146,6 +148,7 @@ begin
 
   FMOD_CHECK( FMOD_System_CreateChannelGroup( GSystem, 'sound', @GGroupSounds ) );
   FMOD_CHECK( FMOD_System_CreateChannelGroup( GSystem, 'music', @GGroupMusic ) );
+  MaxConcurrentSounds := SoundLibMaxConcurrentChannels - 1; // Reserve one channel for music
   FMOD_CHECK( FMOD_System_set3DListenerAttributes( GSystem, 0, @CPos, @CVel, @CFwd, @CUp ) );
   Exit( True );
 end;
