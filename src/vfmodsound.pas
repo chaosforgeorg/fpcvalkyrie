@@ -42,6 +42,8 @@ TFMODSound = class(TSound)
        procedure FreeMusic( aData : Pointer; const aType : String ); override;
        // Implementation of Sound Freeing
        procedure FreeSound( aData : Pointer ); override;
+       // Implementation of Number of Channels Playing
+       function NumChannelsPlaying: Integer;
        // Implementation of get error
        function GetError( ) : AnsiString; override;
        // Implementation of play Sound 3D
@@ -67,6 +69,8 @@ var GSystem      : PFMOD_SYSTEM;
     GGroupSounds : PFMOD_CHANNELGROUP;
     GGroupMusic  : PFMOD_CHANNELGROUP;
 
+const SoundLibMaxConcurrentSounds = 128;  // Max number of sounds playing at once by the library
+const MaxConcurrentSounds = SoundLibMaxConcurrentSounds - 1; //Our limit of sounds includes a reduction by one to reserve for music playback
 
 procedure FMOD_CHECK( aResult : FMOD_RESULT );
 begin
@@ -104,6 +108,14 @@ end;
 procedure TFMODSound.Update;
 begin
   FMOD_System_Update( GSystem );
+end;
+
+function TFModSound.NumChannelsPlaying : Integer;
+var Channels, RealChannels : Integer;
+begin
+  Channels := 0; RealChannels := 0;
+  FMOD_System_GetChannelsPlaying( GSystem, Channels, RealChannels);
+  Exit(Channels);
 end;
 
 function TFMODSound.OpenDevice : Boolean;
@@ -228,6 +240,7 @@ begin
   iPosition.x := aRelative.X * 0.2;
   iPosition.y := aRelative.Y * 0.2;
   iPosition.z := 0.0;
+  if NumChannelsPlaying() = MaxConcurrentSounds then Exit;  //Do not allow more sounds than this or a channel will be stolen (e.g. music)
   FMOD_CHECK( FMOD_System_PlaySound( GSystem, PFMOD_SOUND(aData), GGroupSounds, 1, @iChannel ) );
   FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, Single( Min( SoundVolume, 128 ) / 128.0 ) ) );
   FMOD_CHECK( FMOD_Channel_set3DAttributes( iChannel, @iPosition, nil ) );
@@ -237,6 +250,7 @@ end;
 procedure TFMODSound.PlaySound(aData: Pointer; aVolume: Byte; aPan: Integer);
 var iChannel : PFMOD_CHANNEL;
 begin
+  if NumChannelsPlaying() = MaxConcurrentSounds then Exit;  //Do not allow more sounds than this or a channel will be stolen (e.g. music)
   FMOD_CHECK( FMOD_System_PlaySound( GSystem, PFMOD_SOUND(aData), GGroupSounds, 1, @iChannel ) );
   FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, ( Single(aVolume) / 255.0 ) ) );
   if aPan <> -1
