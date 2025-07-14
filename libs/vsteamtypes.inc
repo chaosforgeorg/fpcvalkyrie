@@ -19,6 +19,21 @@ const k_cchMaxSteamErrMsg = 1024;
 type  TSteamErrMsg        = array[0..k_cchMaxSteamErrMsg - 1] of AnsiChar;
       PSteamErrMsg        = ^TSteamErrMsg;
 
+type TSteamCallbackMsg = record
+  unCallback : Cardinal;
+  pubParam   : Pointer;
+  cubParam   : Cardinal;
+end;
+type PSteamCallbackMsg = ^TSteamCallbackMsg;
+
+type TSteamGamepadDismissed = record
+  bSubmitted      : ByteBool;
+  unSubmittedText : Cardinal;
+end;
+type PSteamGamepadDismissed = ^TSteamGamepadDismissed;
+const STEAM_GAMEPAD_DISMISSED_CALLBACK = STEAM_UTILS_CALLBACKS + 14;
+
+
 type Steam_ESteamAPIInitResult = (
   k_ESteamAPIInitResult_OK = 0,
   k_ESteamAPIInitResult_FailedGeneric = 1,
@@ -196,6 +211,15 @@ type Steam_EWorkshopFileType = (
     k_EWorkshopFileTypeClip             = 16
 );
 
+type Steam_EGamepadTextInputMode = (
+    k_EGamepadTextInputModeNormal = 0,
+    k_EGamepadTextInputModePassword = 1
+);
+
+type Steam_EGamepadTextInputLineMode = (
+    k_EGamepadTextInputLineModeSingleLine = 0,
+    k_EGamepadTextInputLineModeMultipleLines = 1
+);
 
 const STEAM_CREATE_ITEM_RESULT_CALLBACK = STEAM_UGC_CALLBACKS + 3;
 type TSteamCreateItemResult = record

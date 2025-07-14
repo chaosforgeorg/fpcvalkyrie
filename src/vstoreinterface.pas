@@ -35,6 +35,8 @@ type TStoreInterface = class( TVObject )
   function ModPublish( const aPath, aModID : Ansistring ) : QWord; virtual;
   function ModUpdate( const aPath : Ansistring; aModID : QWord ) : Boolean; virtual;
   function GetMods : TModArray; virtual;
+  function StartText( const aPrompt : Ansistring; aMaxLength : Integer; const aCurrent : AnsiString = '' ) : Boolean; virtual;
+  function GetText( var aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean; virtual;
   destructor Destroy; override;
 protected
   constructor Create;
@@ -138,6 +140,16 @@ end;
 function TStoreInterface.GetMods : TModArray;
 begin
   Exit( nil );
+end;
+
+function TStoreInterface.StartText( const aPrompt : Ansistring; aMaxLength : Integer; const aCurrent : AnsiString = '' ) : Boolean;
+begin
+  Exit( False );
+end;
+
+function TStoreInterface.GetText( var aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean;
+begin
+  Exit( False );
 end;
 
 destructor TStoreInterface.Destroy;

@@ -21,17 +21,21 @@ type  TSteam = class( TStoreInterface )
   function ModPublish( const aPath, aModID : Ansistring ) : QWord; override;
   function ModUpdate( const aPath : Ansistring; aModID : QWord ) : Boolean; override;
   function GetMods : TModArray; override;
-
+  function StartText( const aPrompt : Ansistring; aMaxLength : Integer; const aCurrent : AnsiString = '' ) : Boolean; override;
+  function GetText( var aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean; override;
   destructor Destroy; override;
   class function TryLoadLibrary : Boolean;
 private
   function LoadGlobalStats : Boolean;
 private
-  FUserName : Ansistring;
-  FGlobals  : Boolean;
-  FAppId    : DWord;
-  FUserId   : QWord;
-  FMods     : TModArray;
+  FUserName   : Ansistring;
+  FGlobals    : Boolean;
+  FAppId      : DWord;
+  FUserId     : QWord;
+  FMods       : TModArray;
+  FText       : AnsiString;
+  FTextReady  : Boolean;
+  FTextCancel : Boolean;
 end;
 
 
@@ -93,6 +97,11 @@ type TSteamUtils = class( TVObject )
     function IsOverlayEnabled : Boolean;
     function IsApiCallCompleted( aApiCall : TSteamAPICall ) : Boolean;
     function GetApiCallResult( aApiCall : TSteamAPICall; aData : Pointer; aDataSize, aCallbackNum : Integer; aFailed : PBoolean ) : Boolean;
+    function ShowGamepadTextInput( eInputMode : Steam_EGamepadTextInputMode; eLineInputMode : Steam_EGamepadTextInputLineMode; const pchDescription : PChar; unCharMax : DWord; const pchExistingText : PChar ) : Boolean;
+    function GetEnteredGamepadTextLength : Integer;
+    function GetEnteredGamepadTextInput( pchText : PChar; cchText : DWord ) : Boolean;
+    function DismissGamepadTextInput : Boolean;
+    function IsRunningOnSteamDeck : Boolean;
   private
     FUtils : ISteamUtils;
 end;
@@ -115,6 +124,31 @@ end;
 function TSteamUtils.GetApiCallResult( aApiCall : TSteamAPICall; aData : Pointer; aDataSize, aCallbackNum : Integer; aFailed : PBoolean ) : Boolean;
 begin
   Exit( SteamAPI_ISteamUtils_GetAPICallResult( FUtils, aApiCall, aData, aDataSize, aCallbackNum, aFailed ) );
+end;
+
+function TSteamUtils.ShowGamepadTextInput( eInputMode : Steam_EGamepadTextInputMode; eLineInputMode : Steam_EGamepadTextInputLineMode; const pchDescription : PChar; unCharMax : DWord; const pchExistingText : PChar ) : Boolean;
+begin
+  Exit( SteamAPI_ISteamUtils_ShowGamepadTextInput( FUtils, eInputMode, eLineInputMode, pchDescription, unCharMax, pchExistingText ) );
+end;
+
+function TSteamUtils.GetEnteredGamepadTextLength : Integer;
+begin
+  Exit( SteamAPI_ISteamUtils_GetEnteredGamepadTextLength( FUtils ) );
+end;
+
+function TSteamUtils.GetEnteredGamepadTextInput( pchText : PChar; cchText : DWord ) : Boolean;
+begin
+  Exit( SteamAPI_ISteamUtils_GetEnteredGamepadTextInput( FUtils, pchText, cchText ) );
+end;
+
+function TSteamUtils.DismissGamepadTextInput : Boolean;
+begin
+  Exit( SteamAPI_ISteamUtils_DismissGamepadTextInput( FUtils ) );
+end;
+
+function TSteamUtils.IsRunningOnSteamDeck : Boolean;
+begin
+  Exit( SteamAPI_ISteamUtils_IsSteamRunningOnSteamDeck( FUtils ) );
 end;
 
 constructor TSteamUtils.Create( aUtils : ISteamUtils );
@@ -275,6 +309,43 @@ begin
   Exit( SteamAPI_ISteamUGC_GetItemUpdateProgress( FUGC, aHandle, aBytesProcessed, aBytesTotal ) );
 end;
 
+type TSteamManualDispatch = class( TVObject )
+    constructor Create( aPipe : HSteamPipe );
+    procedure Update;
+    function GetNextCallback( aCallback : PSteamCallbackMsg ) : Boolean;
+    procedure FreeLastCallback;
+    function GetApiCallResult( aApiCall : TSteamAPICall; aCallback : Pointer; acCallback : Integer; aCallbackExpected : Integer; aFailed : PBoolean ) : Boolean;
+  private
+    FPipe : HSteamPipe;
+end;
+
+constructor TSteamManualDispatch.Create( aPipe : HSteamPipe );
+begin
+  inherited Create;
+  FPipe := aPipe;
+  SteamAPI_ManualDispatch_Init;
+end;
+
+procedure TSteamManualDispatch.Update;
+begin
+  SteamAPI_ManualDispatch_RunFrame( FPipe );
+end;
+
+function TSteamManualDispatch.GetNextCallback( aCallback : PSteamCallbackMsg ) : Boolean;
+begin
+  Exit( SteamAPI_ManualDispatch_GetNextCallback( FPipe, aCallback ) );
+end;
+
+procedure TSteamManualDispatch.FreeLastCallback;
+begin
+  SteamAPI_ManualDispatch_FreeLastCallback( FPipe );
+end;
+
+function TSteamManualDispatch.GetApiCallResult( aApiCall : TSteamAPICall; aCallback : Pointer; acCallback : Integer; aCallbackExpected : Integer; aFailed : PBoolean ) : Boolean;
+begin
+  Exit( SteamAPI_ManualDispatch_GetAPICallResult( FPipe, aApiCall, aCallback, acCallback, aCallbackExpected, aFailed ) );
+end;
+
 type TSteamClient = class( TVObject )
     function IsInitialized : Boolean;
     constructor Create;
@@ -286,14 +357,16 @@ type TSteamClient = class( TVObject )
     FUser       : TSteamUser;
     FUGC        : TSteamUGC;
     FUtils      : TSteamUtils;
+    FDispatch   : TSteamManualDispatch;
     FClientPipe : HSteamPipe;
     FUserPipe   : HSteamUser;
   public
-    property UserStats : TSteamUserStats read FUserStats;
-    property Friends   : TSteamFriends   read FFriends;
-    property User      : TSteamUser      read FUser;
-    property UGC       : TSteamUGC       read FUGC;
-    property Utils     : TSteamUtils     read FUtils;
+    property UserStats : TSteamUserStats      read FUserStats;
+    property Friends   : TSteamFriends        read FFriends;
+    property User      : TSteamUser           read FUser;
+    property UGC       : TSteamUGC            read FUGC;
+    property Utils     : TSteamUtils          read FUtils;
+    property Dispatch  : TSteamManualDispatch read FDispatch;
   end;
 
 type  TSteamCore = class( TVObject )
@@ -380,6 +453,8 @@ begin
     FUGC := TSteamUGC.Create( iUGC )
   else
     Log( LOGWARN, 'GetISteamUGC failed!' );
+
+  FDispatch := TSteamManualDispatch.Create( FClientPipe );
 end;
 
 destructor TSteamClient.Destroy;
@@ -558,8 +633,33 @@ begin
 end;
 
 procedure TSteam.Update;
+var iDispatch : TSteamManualDispatch;
+    iMsg      : TSteamCallbackMsg;
+    iBuf      : array[0..255] of AnsiChar;
+    iLength   : Integer;
 begin
-  // no-op (yet)
+  if ( not IsInitialized ) then Exit;
+  iDispatch := TSteamCore.GetClient.Dispatch;
+  iDispatch.Update;
+  while iDispatch.GetNextCallback(@iMsg) do
+  begin
+    case iMsg.unCallback of
+      STEAM_GAMEPAD_DISMISSED_CALLBACK :
+        begin
+          FTextReady  := True;
+          FTextCancel := not PSteamGamepadDismissed(iMsg.pubParam)^.bSubmitted;
+          FText       := '';
+          if Assigned( TSteamCore.GetClient.Utils ) then
+          begin
+            iLength := TSteamCore.GetClient.Utils.GetEnteredGamepadTextLength;
+            if iLength < Length(iBuf) then
+              if TSteamCore.GetClient.Utils.GetEnteredGamepadTextInput( @iBuf[0], iLength ) then
+                FText := UTF8ToString(iBuf);
+          end;
+        end;
+    end;
+    iDispatch.FreeLastCallback;
+  end;
 end;
 
 function TSteam.SetAchievement( const aID : Ansistring ) : Boolean;
@@ -816,6 +916,36 @@ end;
 function TSteam.GetMods : TModArray;
 begin
   Exit( FMods );
+end;
+
+function TSteam.StartText( const aPrompt : Ansistring; aMaxLength : Integer; const aCurrent : AnsiString = '' ) : Boolean;
+var iClient : TSteamClient;
+begin
+  if ( not IsInitialized ) then Exit( False );
+  iClient := TSteamCore.GetClient;
+  if not Assigned( iClient ) then Exit( False );
+  if not Assigned( iClient.Utils ) then Exit( False );
+  if not iClient.Utils.IsRunningOnSteamDeck then Exit( False );
+
+  FText       := '';
+  FTextReady  := False;
+  FTextCancel := False;
+
+  Exit( iClient.Utils.ShowGamepadTextInput( k_EGamepadTextInputModeNormal, k_EGamepadTextInputLineModeSingleLine, PChar( aPrompt ), DWord( aMaxLength ), PChar( aCurrent ) ) );
+end;
+
+function TSteam.GetText( var aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean;
+begin
+  if FTextReady then
+  begin
+    aPrompt := FText;
+    if Assigned( aCancel ) then aCancel^ := FTextCancel;
+    FText       := '';
+    FTextCancel := False;
+    FTextReady  := False;
+    Exit( True );
+  end;
+  Exit( False );
 end;
 
 class function TSteam.TryLoadLibrary : Boolean;

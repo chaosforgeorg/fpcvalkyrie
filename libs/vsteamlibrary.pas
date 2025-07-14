@@ -43,10 +43,15 @@ var
 
   SteamAPI_ISteamUser_GetSteamID            : function( aSelf : ISteamUser ) : QWord; extdecl;
 
-  SteamAPI_ISteamUtils_GetAppID             : function( aSelf : ISteamUtils ) : DWord; extdecl;
-  SteamAPI_ISteamUtils_IsOverlayEnabled     : function( aSelf : ISteamUtils ) : Boolean; extdecl;
-  SteamAPI_ISteamUtils_IsAPICallCompleted   : function( aSelf : ISteamUtils; aApiCall : TSteamAPICall; aFailed : PBoolean ) : Boolean; extdecl;
-  SteamAPI_ISteamUtils_GetAPICallResult     : function( aSelf : ISteamUtils; aApiCall : TSteamAPICall; pCallback : Pointer; cubCallback : Integer; iCallbackExpected : Integer; aFailed : PBoolean ) : Boolean; extdecl;
+  SteamAPI_ISteamUtils_GetAppID                    : function( aSelf : ISteamUtils ) : DWord; extdecl;
+  SteamAPI_ISteamUtils_IsOverlayEnabled            : function( aSelf : ISteamUtils ) : Boolean; extdecl;
+  SteamAPI_ISteamUtils_IsAPICallCompleted          : function( aSelf : ISteamUtils; aApiCall : TSteamAPICall; aFailed : PBoolean ) : Boolean; extdecl;
+  SteamAPI_ISteamUtils_GetAPICallResult            : function( aSelf : ISteamUtils; aApiCall : TSteamAPICall; pCallback : Pointer; cubCallback : Integer; iCallbackExpected : Integer; aFailed : PBoolean ) : Boolean; extdecl;
+  SteamAPI_ISteamUtils_ShowGamepadTextInput        : function( aSelf : ISteamUtils; eInputMode : Steam_EGamepadTextInputMode; eLineInputMode : Steam_EGamepadTextInputLineMode; const pchDescription : PChar; unCharMax : DWord; const pchExistingText : PChar ) : Boolean; extdecl;
+  SteamAPI_ISteamUtils_GetEnteredGamepadTextLength : function( aSelf : ISteamUtils ) : Integer; extdecl;
+  SteamAPI_ISteamUtils_GetEnteredGamepadTextInput  : function( aSelf : ISteamUtils; pchText : PChar; cchText : DWord ) : Boolean; extdecl;
+  SteamAPI_ISteamUtils_DismissGamepadTextInput     : function( aSelf : ISteamUtils ) : Boolean; extdecl;
+  SteamAPI_ISteamUtils_IsSteamRunningOnSteamDeck   : function( aSelf : ISteamUtils ) : Boolean; extdecl;
 
   SteamAPI_ISteamUserStats_GetStatInt32        : function( aSelf : ISteamUserStats; const pchName : PChar; pData : PInteger ) : Boolean; extdecl;
   SteamAPI_ISteamUserStats_GetStatFloat        : function( aSelf : ISteamUserStats; const pchName : PChar; pData : PSingle ) : Boolean; extdecl;
@@ -65,17 +70,23 @@ var
   SteamAPI_ISteamFriends_ActivateGameOverlayToWebPage : procedure( aSelf : ISteamFriends; const pchURL : PChar; eMode : Steam_EActivateGameOverlayToWebPageMode ); extdecl;
   SteamAPI_ISteamFriends_ActivateGameOverlayToStore   : procedure( aSelf : ISteamFriends; nAppID : TSteamAppId; eFlag : Steam_EOverlayToStoreFlag ); extdecl;
 
-  SteamAPI_ISteamUGC_CreateItem            : function( aSelf : ISteamUGC; aAppId : TSteamAppId; aFileType : Steam_EWorkshopFileType ) : TSteamAPICall;
-  SteamAPI_ISteamUGC_GetNumSubscribedItems : function( aSelf : ISteamUGC; aIncludeLocallyDisabled : Boolean ) : DWord;
-  SteamAPI_ISteamUGC_GetSubscribedItems    : function( aSelf : ISteamUGC; pvecPublishedFileID : PSteamItemId; cMaxEntries : DWord; aIncludeLocallyDisabled : Boolean ) : DWord;
-  SteamAPI_ISteamUGC_GetItemState          : function( aSelf : ISteamUGC; nPublishedFileID : TSteamItemId ) : DWord;
-  SteamAPI_ISteamUGC_DownloadItem          : function( aSelf : ISteamUGC; nPublishedFileID : TSteamItemId; aHighPriority : Boolean ) : Boolean;
-  SteamAPI_ISteamUGC_GetItemInstallInfo    : function( aSelf : ISteamUGC; nPublishedFileID : TSteamItemId; punSizeOnDisk : PQWord; const pchFolder : PChar; cchFolderSize : DWord; punTimeStamp : PDWord ) : Boolean;
-  SteamAPI_ISteamUGC_StartItemUpdate       : function( aSelf : ISteamUGC; aAppId : TSteamAppId; nPublishedFileID : TSteamItemId ) : TSteamUGCUpdateHandle;
-  SteamAPI_ISteamUGC_SetItemContent        : function( aSelf : ISteamUGC; aHandle : TSteamUGCUpdateHandle; const pszContentFolder : PChar ) : Boolean;
-  SteamAPI_ISteamUGC_SetItemPreview        : function( aSelf : ISteamUGC; aHandle : TSteamUGCUpdateHandle; const pszPreviewFile : PChar ) : Boolean;
-  SteamAPI_ISteamUGC_SubmitItemUpdate      : function( aSelf : ISteamUGC; aHandle : TSteamUGCUpdateHandle; const pchChangeNote : PChar ) : TSteamAPICall;
-  SteamAPI_ISteamUGC_GetItemUpdateProgress : function( aSelf : ISteamUGC; aHandle : TSteamUGCUpdateHandle; punBytesProcessed : PQWord; punBytesTotal : PQWord ) : Steam_EItemUpdateStatus;
+  SteamAPI_ISteamUGC_CreateItem            : function( aSelf : ISteamUGC; aAppId : TSteamAppId; aFileType : Steam_EWorkshopFileType ) : TSteamAPICall; extdecl;
+  SteamAPI_ISteamUGC_GetNumSubscribedItems : function( aSelf : ISteamUGC; aIncludeLocallyDisabled : Boolean ) : DWord; extdecl;
+  SteamAPI_ISteamUGC_GetSubscribedItems    : function( aSelf : ISteamUGC; pvecPublishedFileID : PSteamItemId; cMaxEntries : DWord; aIncludeLocallyDisabled : Boolean ) : DWord; extdecl;
+  SteamAPI_ISteamUGC_GetItemState          : function( aSelf : ISteamUGC; nPublishedFileID : TSteamItemId ) : DWord; extdecl;
+  SteamAPI_ISteamUGC_DownloadItem          : function( aSelf : ISteamUGC; nPublishedFileID : TSteamItemId; aHighPriority : Boolean ) : Boolean; extdecl;
+  SteamAPI_ISteamUGC_GetItemInstallInfo    : function( aSelf : ISteamUGC; nPublishedFileID : TSteamItemId; punSizeOnDisk : PQWord; const pchFolder : PChar; cchFolderSize : DWord; punTimeStamp : PDWord ) : Boolean; extdecl;
+  SteamAPI_ISteamUGC_StartItemUpdate       : function( aSelf : ISteamUGC; aAppId : TSteamAppId; nPublishedFileID : TSteamItemId ) : TSteamUGCUpdateHandle; extdecl;
+  SteamAPI_ISteamUGC_SetItemContent        : function( aSelf : ISteamUGC; aHandle : TSteamUGCUpdateHandle; const pszContentFolder : PChar ) : Boolean; extdecl;
+  SteamAPI_ISteamUGC_SetItemPreview        : function( aSelf : ISteamUGC; aHandle : TSteamUGCUpdateHandle; const pszPreviewFile : PChar ) : Boolean; extdecl;
+  SteamAPI_ISteamUGC_SubmitItemUpdate      : function( aSelf : ISteamUGC; aHandle : TSteamUGCUpdateHandle; const pchChangeNote : PChar ) : TSteamAPICall; extdecl;
+  SteamAPI_ISteamUGC_GetItemUpdateProgress : function( aSelf : ISteamUGC; aHandle : TSteamUGCUpdateHandle; punBytesProcessed : PQWord; punBytesTotal : PQWord ) : Steam_EItemUpdateStatus; extdecl;
+
+  SteamAPI_ManualDispatch_Init             : procedure; extdecl;
+  SteamAPI_ManualDispatch_RunFrame         : procedure( ahsteampipe : HSteamPipe ); extdecl;
+  SteamAPI_ManualDispatch_GetNextCallback  : function( ahsteampipe : HSteamPipe; pCallbackMsg : PSteamCallbackMsg ) : Boolean; extdecl;
+  SteamAPI_ManualDispatch_FreeLastCallback : procedure( ahsteampipe : HSteamPipe ); extdecl;
+  SteamAPI_ManualDispatch_GetAPICallResult : function( ahsteampipe : HSteamPipe; hSteamAPICall : TSteamAPICall; pCallback : Pointer; cubCallback : Integer; iCallbackExpected : Integer; pbFailed : PBoolean ) : Boolean; extdecl;
 
   SteamClient : function(): Pointer; extdecl;
 
@@ -114,10 +125,15 @@ begin
 
   Pointer(SteamAPI_ISteamUser_GetSteamID) := GetSymbol('SteamAPI_ISteamUser_GetSteamID');
 
-  Pointer(SteamAPI_ISteamUtils_GetAppID)           := GetSymbol('SteamAPI_ISteamUtils_GetAppID');
-  Pointer(SteamAPI_ISteamUtils_IsOverlayEnabled)   := GetSymbol('SteamAPI_ISteamUtils_IsOverlayEnabled');
-  Pointer(SteamAPI_ISteamUtils_IsAPICallCompleted) := GetSymbol('SteamAPI_ISteamUtils_IsAPICallCompleted');
-  Pointer(SteamAPI_ISteamUtils_GetAPICallResult)   := GetSymbol('SteamAPI_ISteamUtils_GetAPICallResult');
+  Pointer(SteamAPI_ISteamUtils_GetAppID)                    := GetSymbol('SteamAPI_ISteamUtils_GetAppID');
+  Pointer(SteamAPI_ISteamUtils_IsOverlayEnabled)            := GetSymbol('SteamAPI_ISteamUtils_IsOverlayEnabled');
+  Pointer(SteamAPI_ISteamUtils_IsAPICallCompleted)          := GetSymbol('SteamAPI_ISteamUtils_IsAPICallCompleted');
+  Pointer(SteamAPI_ISteamUtils_GetAPICallResult)            := GetSymbol('SteamAPI_ISteamUtils_GetAPICallResult');
+  Pointer(SteamAPI_ISteamUtils_ShowGamepadTextInput)        := GetSymbol('SteamAPI_ISteamUtils_ShowGamepadTextInput');
+  Pointer(SteamAPI_ISteamUtils_GetEnteredGamepadTextLength) := GetSymbol('SteamAPI_ISteamUtils_GetEnteredGamepadTextLength');
+  Pointer(SteamAPI_ISteamUtils_GetEnteredGamepadTextInput)  := GetSymbol('SteamAPI_ISteamUtils_GetEnteredGamepadTextInput');
+  Pointer(SteamAPI_ISteamUtils_DismissGamepadTextInput)     := GetSymbol('SteamAPI_ISteamUtils_DismissGamepadTextInput');
+  Pointer(SteamAPI_ISteamUtils_IsSteamRunningOnSteamDeck)   := GetSymbol('SteamAPI_ISteamUtils_IsSteamRunningOnSteamDeck');
 
   Pointer(SteamAPI_ISteamUserStats_GetStatInt32)        := GetSymbol('SteamAPI_ISteamUserStats_GetStatInt32');
   Pointer(SteamAPI_ISteamUserStats_GetStatFloat)        := GetSymbol('SteamAPI_ISteamUserStats_GetStatFloat');
@@ -147,6 +163,13 @@ begin
   Pointer(SteamAPI_ISteamUGC_SetItemPreview)        := GetSymbol('SteamAPI_ISteamUGC_SetItemPreview');
   Pointer(SteamAPI_ISteamUGC_SubmitItemUpdate)      := GetSymbol('SteamAPI_ISteamUGC_SubmitItemUpdate');
   Pointer(SteamAPI_ISteamUGC_GetItemUpdateProgress) := GetSymbol('SteamAPI_ISteamUGC_GetItemUpdateProgress');
+
+
+  Pointer(SteamAPI_ManualDispatch_Init)             := GetSymbol('SteamAPI_ManualDispatch_Init');
+  Pointer(SteamAPI_ManualDispatch_RunFrame)         := GetSymbol('SteamAPI_ManualDispatch_RunFrame');
+  Pointer(SteamAPI_ManualDispatch_GetNextCallback)  := GetSymbol('SteamAPI_ManualDispatch_GetNextCallback');
+  Pointer(SteamAPI_ManualDispatch_FreeLastCallback) := GetSymbol('SteamAPI_ManualDispatch_FreeLastCallback');
+  Pointer(SteamAPI_ManualDispatch_GetAPICallResult) := GetSymbol('SteamAPI_ManualDispatch_GetAPICallResult');
 
   Pointer(SteamClient) := GetSymbol('SteamClient');
 
