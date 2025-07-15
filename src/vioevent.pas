@@ -89,10 +89,13 @@ const IOKeyCodeKeyMask   = %0000000011111111;
 function IOModState( aShift, aCtrl, aAlt : Boolean ) : TIOModKeySet;
 function IOModState( aWord : TIOKeyCode ) : TIOModKeySet;
 function VKeyToString( aKey : Byte ) : AnsiString;
+function VKeyToStringShort( aKey : Byte ) : AnsiString;
 function VModKeyToString( aModKey : TIOModKey ) : AnsiString;
 function VModKeySetToString( const aModKeySet : TIOModKeySet ) : AnsiString;
 function IOKeyCodeToString( const aKey : TIOKeyCode ) : AnsiString;
+function IOKeyCodeToStringShort( const aKey : TIOKeyCode ) : AnsiString;
 function VKeyAndModToString( aKey : Byte; const aModKeySet : TIOModKeySet ) : AnsiString;
+function VKeyAndModToStringShort( aKey : Byte; const aModKeySet : TIOModKeySet ) : AnsiString;
 function VMBToString( aMB : TIOMouseButton ) : AnsiString;
 function VMBSetToString( aMB : TIOMouseButtonSet ) : AnsiString;
 function VPadAxisToString( aPA : TIOPadAxis ) : AnsiString;
@@ -220,6 +223,63 @@ begin
   if Length( Result ) > 0 then Result += '+';
   Result += VKeyToString( aKey );
 end;
+
+function VKeyToStringShort ( aKey : Byte ) : AnsiString;
+begin
+  case aKey of
+    VKEY_NONE    : Exit( 'none' );
+    VKEY_BACK    : Exit( 'Back' );
+    VKEY_TAB     : Exit( 'Tab' );
+    VKEY_DELETE  : Exit( 'Del' );
+    VKEY_INSERT  : Exit( 'Ins' );
+    VKEY_CENTER  : Exit( 'Center' );
+
+    VKEY_QUOTE   : Exit( '''' );
+    VKEY_COMMA   : Exit( ',' );
+    VKEY_MINUS   : Exit( '-' );
+    VKEY_PERIOD  : Exit( '.' );
+    VKEY_SLASH   : Exit( '/' );
+    VKEY_SCOLON  : Exit( ';' );
+    VKEY_EQUALS  : Exit( '=' );
+    VKEY_LBRACKET: Exit( '[' );
+    VKEY_BSLASH  : Exit( '\' );
+    VKEY_RBRACKET: Exit( ']' );
+    VKEY_BQUOTE  : Exit( '`' );
+
+    VKEY_ENTER   : Exit( 'Enter' );
+    VKEY_PGUP    : Exit( 'PgUp' );
+    VKEY_PGDOWN  : Exit( 'PgDn' );
+    VKEY_END     : Exit( 'End' );
+    VKEY_HOME    : Exit( 'Home' );
+    VKEY_LEFT    : Exit( 'Left' );
+    VKEY_UP      : Exit( 'Up' );
+    VKEY_RIGHT   : Exit( 'Right' );
+    VKEY_DOWN    : Exit( 'Down' );
+
+    VKEY_ESCAPE  : Exit( 'Esc' );
+
+    VKEY_SPACE   : Exit( 'Space' );
+
+    VKEY_0..VKEY_9   : Exit( Chr( aKey - VKEY_0  + Ord('0') ) );
+    VKEY_A..VKEY_Z   : Exit( Chr( aKey - VKEY_A  + Ord('A') ) );
+    VKEY_F1..VKEY_F12: Exit( 'F'+IntToStr( aKey - VKEY_F1 + 1 ) );
+
+  else Exit('UNKNOWN('+IntToStr(aKey)+')');
+  end;
+end;
+
+function IOKeyCodeToStringShort ( const aKey : TIOKeyCode ) : AnsiString;
+begin
+  Result := VKeyAndModToStringShort( aKey mod 256, IOModState( aKey ) );
+end;
+
+function VKeyAndModToStringShort ( aKey : Byte; const aModKeySet : TIOModKeySet ) : AnsiString;
+begin
+  Result := VModKeySetToString( aModKeySet );
+  if Length( Result ) > 0 then Result += '+';
+  Result += VKeyToStringShort( aKey );
+end;
+
 
 function VMBToString ( aMB : TIOMouseButton ) : AnsiString;
 begin
