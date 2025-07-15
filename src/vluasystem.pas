@@ -295,10 +295,8 @@ var Arg      : AnsiString;
     Path     : AnsiString;
     FileName : AnsiString;
 begin
-  Log('LuaRequire, entering...');
   if lua_gettop(L) <> 1 then LuaSystem.OnError('Require has wrong amount of parameters!');
   Arg := lua_tostring( L, 1 );
-  Log('LuaRequire("'+Arg+'")');
 
   if LuaSystem.FModuleNames.Exists(Arg) then Exit(0);
 
