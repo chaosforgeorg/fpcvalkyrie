@@ -357,6 +357,9 @@ end;
 
 function VTIG_PLength( const aText: PAnsiChar; aParameters: array of const ) : Integer;
 var i, iParamIndex : Integer;
+    iPNamePtr      : PAnsiChar;
+    iNamePos       : Integer;
+
   function ParameterLength(aParameterIndex: Integer) : Integer;
   var
     iParamStr    : PAnsiChar;
@@ -389,6 +392,23 @@ begin
           iParamIndex := Ord(aText[i]) - Ord('0');
           Result += ParameterLength( iParamIndex );
         end;
+        if aText[i] = '$' then
+        begin
+          iPNamePtr := @aText[i+1];
+          iNamePos  := 0;
+          while (iPNamePtr[iNamePos] <> '}') and (iPNamePtr[iNamePos] <> #0) do
+            Inc(iNamePos);
+
+          if iPNamePtr[iNamePos] = '}' then
+          begin
+            if Assigned( GCtx.SubCallback ) then
+              Result += VTIG_PLength( PAnsiChar( GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) ) ), aParameters );
+            Inc(i, iNamePos + 1);
+          end
+          else
+            Inc(i);
+        end;
+
         Inc(i);
       end;
     end
