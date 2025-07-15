@@ -9,6 +9,7 @@ type  TSteam = class( TStoreInterface )
   function GetUserId : QWord; override;
   function IsInitialized : Boolean; override;
   function IsOverlayEnabled : Boolean; override;
+  function IsSteamDeck : Boolean; override;
   function GetUsername : Ansistring; override;
   procedure Update; override;
   function SetAchievement( const aID : Ansistring ) : Boolean; override;
@@ -630,6 +631,16 @@ function TSteam.IsOverlayEnabled : Boolean;
 begin
   if ( not IsInitialized ) or ( TSteamCore.GetClient.Utils = nil ) then Exit( False );
   Exit( TSteamCore.GetClient.Utils.IsOverlayEnabled );
+end;
+
+function TSteam.IsSteamDeck : Boolean;
+var iClient : TSteamClient;
+begin
+  if ( not IsInitialized ) then Exit( False );
+  iClient := TSteamCore.GetClient;
+  if not Assigned( iClient ) then Exit( False );
+  if not Assigned( iClient.Utils ) then Exit( False );
+  Exit( iClient.Utils.IsRunningOnSteamDeck );
 end;
 
 function TSteam.GetUsername : Ansistring;

@@ -23,6 +23,7 @@ type TStoreInterface = class( TVObject )
   function GetUserId : QWord; virtual;
   function IsInitialized : Boolean; virtual;
   function IsOverlayEnabled : Boolean; virtual;
+  function IsSteamDeck : Boolean; virtual;
   function GetUsername : Ansistring; virtual;
   procedure Update; virtual;
   function SetAchievement( const aID : Ansistring ) : Boolean; virtual;
@@ -74,6 +75,11 @@ begin
 end;
 
 function TStoreInterface.IsInitialized : Boolean;
+begin
+  Exit( False );
+end;
+
+function TStoreInterface.IsSteamDeck : Boolean;
 begin
   Exit( False );
 end;
