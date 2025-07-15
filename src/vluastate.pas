@@ -75,6 +75,7 @@ TLuaState = object
     function RawGetField( Index : Integer; const Key, DValue : Variant ) : Variant;
     procedure RawSetField( Index : Integer; const Key, Value : Variant );
 
+    procedure PushIndex( aIndex : Integer );
     procedure Push( Value : Single ); overload;
     procedure Push( const Value : AnsiString ); overload;
     procedure Push( Value : Boolean ); overload;
@@ -426,6 +427,11 @@ begin
   vlua_pushvariant( FState, Key );
   vlua_pushvariant( FState, Value );
   lua_rawset( FState, Index );
+end;
+
+procedure TLuaState.PushIndex( aIndex : Integer );
+begin
+  lua_pushvalue( FState, aIndex );
 end;
 
 procedure TLuaState.Push(Value: Single);
