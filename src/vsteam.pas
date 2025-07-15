@@ -455,6 +455,7 @@ begin
     Log( LOGWARN, 'GetISteamUGC failed!' );
 
   FDispatch := TSteamManualDispatch.Create( FClientPipe );
+  Log( 'Initialized.' );
 end;
 
 destructor TSteamClient.Destroy;
@@ -541,7 +542,11 @@ var iClient       : TSteamClient;
 begin
   inherited Create;
   Log('initializing...');
-  FGlobals := False;
+  FGlobals    := False;
+  FText       := '';
+  FTextReady  := False;
+  FTextCancel := False;
+
   iClient := TSteamCore.GetClient;
   if not iClient.IsInitialized then Exit;
 
@@ -950,7 +955,7 @@ end;
 
 class function TSteam.TryLoadLibrary : Boolean;
 begin
-  Exit( LoadSteam and ( TSteamCore.GetClient <> nil ) );
+  Exit( LoadSteam( SteamDefaultPath, False ) and ( TSteamCore.GetClient <> nil ) );
 end;
 
 destructor TSteam.Destroy;

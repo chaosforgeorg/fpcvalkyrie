@@ -93,12 +93,12 @@ var
 var
   Steam : TLibrary = nil;
 
-function LoadSteam( const aPath : AnsiString = SteamDefaultPath ) : Boolean;
+function LoadSteam( const aPath : AnsiString = SteamDefaultPath; aErrorReport : Boolean = True ) : Boolean;
 
 implementation
 
 
-function LoadSteam( const aPath : AnsiString = SteamDefaultPath ) : Boolean;
+function LoadSteam( const aPath : AnsiString = SteamDefaultPath; aErrorReport : Boolean = True ) : Boolean;
   function GetSymbol( const aSymbol : AnsiString ) : Pointer;
   begin
     GetSymbol := Steam.Get( aSymbol );
@@ -107,7 +107,7 @@ function LoadSteam( const aPath : AnsiString = SteamDefaultPath ) : Boolean;
   end;
 begin
   if Steam <> nil then Exit( True );
-  Steam := TLibrary.Load( aPath );
+  Steam := TLibrary.Load( aPath, aErrorReport );
   if Steam = nil then Exit( False );
 
   Pointer(SteamAPI_InitFlat)       := GetSymbol('SteamAPI_InitFlat');
