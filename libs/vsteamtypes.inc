@@ -20,15 +20,17 @@ type  TSteamErrMsg        = array[0..k_cchMaxSteamErrMsg - 1] of AnsiChar;
       PSteamErrMsg        = ^TSteamErrMsg;
 
 type TSteamCallbackMsg = record
-  unCallback : Cardinal;
+  hUser      : HSteamUser;
+  unCallback : Integer;
   pubParam   : Pointer;
-  cubParam   : Cardinal;
+  cubParam   : Integer;
 end;
 type PSteamCallbackMsg = ^TSteamCallbackMsg;
 
 type TSteamGamepadDismissed = record
   bSubmitted      : ByteBool;
-  unSubmittedText : Cardinal;
+  unSubmittedText : DWord;
+  appId           : TSteamAppId;
 end;
 type PSteamGamepadDismissed = ^TSteamGamepadDismissed;
 const STEAM_GAMEPAD_DISMISSED_CALLBACK = STEAM_UTILS_CALLBACKS + 14;
