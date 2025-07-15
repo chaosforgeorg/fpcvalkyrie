@@ -94,6 +94,7 @@ type TTIGDrawData = class
   end;
 
 type TTIGSoundCallback = procedure( aEvent : TTIGSoundEvent; aParam : Pointer );
+     TTIGSubCallback   = function( const aID : Ansistring ) : Ansistring;
 
 type TTIGIOState = class
   public

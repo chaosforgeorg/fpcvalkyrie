@@ -78,6 +78,7 @@ var VTIG_ClipHack  : Boolean = False;
     VTIG_HighColor : Boolean = False;
 
 function VTIG_BoldenColor( aColor : TIOColor ) : TIOColor;
+procedure VTIG_SetSubCallback( aCallback : TTIGSubCallback );
 
 implementation
 
@@ -85,6 +86,11 @@ uses Math, vdebug, SysUtils, vtigcontext, vioeventstate, viomousestate;
 
 var GDefaultContext : TTIGContext;
     GCtx            : TTIGContext;
+
+procedure VTIG_SetSubCallback( aCallback : TTIGSubCallback );
+begin
+  GCtx.SubCallback := aCallback;
+end;
 
 function VTIG_BoldenColor( aColor : TIOColor ) : TIOColor;
 begin
@@ -150,6 +156,9 @@ var iWindow        : TTIGWindow;
     iPos, iWidth   : Integer;
     iLastSpace     : Integer;
     iSpaceLeft     : Integer;
+    iPNamePtr      : PAnsiChar;
+    iNamePos       : Integer;
+    iValue         : AnsiString;
 
   procedure Render( const aPart : PAnsiChar; aLength : Integer );
   var iCmd    : TTIGDrawCommand;
@@ -244,6 +253,26 @@ begin
             begin
               iParamIndex := Ord(aText[i]) - Ord('0');
               HandleParameter( iParamIndex );
+            end;
+
+          '$' :
+            begin
+              iPNamePtr := @aText[i+1];
+              iNamePos  := 0;
+              while (iPNamePtr[iNamePos] <> '}') and (iPNamePtr[iNamePos] <> #0) do
+                Inc(iNamePos);
+
+              if iPNamePtr[iNamePos] = '}' then
+              begin
+                if Assigned( GCtx.SubCallback ) then
+                begin
+                  iValue := GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) );
+                  VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+                end;
+                Inc(i, iNamePos + 1);
+              end
+              else
+                Inc(i);
             end;
         end;
         Inc(i);

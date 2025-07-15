@@ -84,6 +84,7 @@ type TTIGContext = class
 
   Color              : TIOColor;
   BGColor            : TIOColor;
+  SubCallback        : TTIGSubCallback;
 
   constructor Create;
   destructor Destroy; override;
@@ -205,6 +206,7 @@ begin
   MaxCharacters      := -1;
   Color              := 0;
   BGColor            := 0;
+  SubCallback        := nil;
 end;
 
 destructor TTIGContext.Destroy;
