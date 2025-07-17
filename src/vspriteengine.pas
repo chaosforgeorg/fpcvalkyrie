@@ -45,6 +45,7 @@ type TSpriteDataSetArray = specialize TGArray< TSpriteDataSet >;
 TSpriteEngine = class
   constructor Create( aTileSize : TVec2i; aScale : Byte = 1 );
   procedure SetScale( aScale : Byte );
+  procedure SetScale( aScale : Single );
   procedure Draw;
   procedure Update( aProjection : TMatrix44 );
   procedure DrawSet( const Data : TSpriteDataSet );
@@ -62,6 +63,7 @@ private
   FTileSize       : TVec2i;
   FPosition       : TVec2i;
   FLayersDirty    : Boolean;
+  FFuzzyMode      : Boolean;
   FLayers         : TSpriteDataSetArray;
   FLayersSorted   : TSpriteDataSetArray;
   FTZeroID        : DWord;
@@ -355,6 +357,7 @@ constructor TSpriteEngine.Create( aTileSize : TVec2i; aScale : Byte = 1 );
 var iZeroPixel : array[0..3] of GLubyte = (0, 0, 0, 0);
 begin
   FTileSize := aTileSize;
+  FFuzzyMode := False;
   SetScale( aScale );
   FPosition.Init(0,0);
   FCurrentTexture    := 0;
@@ -381,6 +384,12 @@ end;
 procedure TSpriteEngine.SetScale( aScale : Byte );
 begin
   FGrid.Init( FTileSize.X * aScale, FTileSize.Y * aScale );
+end;
+
+procedure TSpriteEngine.SetScale( aScale : Single );
+begin
+  FFuzzyMode := Abs( aScale - Integer( aScale ) ) > 0.1;
+  FGrid.Init( Round( FTileSize.X * aScale ), Round( FTileSize.Y * aScale ) );
 end;
 
 function TSpriteEngine.Add( aNormal, aCosplay, aEmissive, aOutline : TTexture; aOrder : Integer ) : Integer;
@@ -415,7 +424,9 @@ begin
 
   FCurrentTexture := 0;
   FProgram.Bind;
-  glUniform3f( FProgram.GetUniformLocation('uposition'), -FPosition.X, -FPosition.Y, 0 );
+  if FFuzzyMode
+    then glUniform3f( FProgram.GetUniformLocation('uposition'), -FPosition.X+0.01, -FPosition.Y+0.01, 0 )
+    else glUniform3f( FProgram.GetUniformLocation('uposition'), -FPosition.X, -FPosition.Y, 0 );
   for iSet in FLayersSorted do
     DrawSet( iSet );
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
