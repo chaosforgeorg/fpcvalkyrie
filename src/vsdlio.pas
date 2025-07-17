@@ -32,6 +32,7 @@ type TSDLIODriver = class( TIODriver )
   function SetDisplayMode( aIndex : Integer ) : Boolean;
   procedure StartTextInput; override;
   procedure StopTextInput; override;
+  function Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean; override;
 private
   FFlags     : TSDLIOFlags;
   FSizeX     : DWord;
@@ -43,6 +44,7 @@ private
   FWindow    : PSDL_Window;
   FGLContext : SDL_GLContext;
 
+  FGamePadRumble  : Boolean;
   FGamePadSupport : Boolean;
   FGamePadIndex   : Integer;
   FGamePadHandle  : Pointer;
@@ -476,6 +478,7 @@ begin
   FGamePadSupport := SDLIO_Gamepad in aFlags;
   FGamePadIndex   := -1;
   FGamePadHandle  := nil;
+  FGamePadRumble  := False;
   {$IFDEF WINDOWS}
   SetDPIAwareness;
   {$ENDIF}
@@ -859,6 +862,7 @@ begin
       SDL_GameControllerClose( FGamePadHandle );
     FGamePadIndex  := iNew;
     FGamePadHandle := iController;
+    FGamePadRumble := SDL_GameControllerHasRumble( FGamePadHandle );
 
     if iController <> nil then
     begin
@@ -866,6 +870,7 @@ begin
       Log('Controller connected.');
       Log('Index: %d  Name: %s', [FGamePadIndex,SDL_GameControllerNameForIndex(FGamePadIndex)]);
       Log('Axes: %d  Buttons: %d  Balls: %d', [SDL_JoystickNumAxes(iJoystick), SDL_JoystickNumButtons(iJoystick),SDL_JoystickNumBalls(iJoystick)]);
+      Log('Rumble: %s', [Iif( FGamePadRumble, 'supported', 'unsupported')]);
     end
     else
       Log('Controller has been removed, no fallback present.');
@@ -879,6 +884,7 @@ begin
     SDL_GameControllerClose( FGamePadHandle );
     FGamePadIndex  := -1;
     FGamePadHandle := nil;
+    FGamePadRumble := False;
 
     Log( LOGINFO, 'Attempting to reaquire another controller...');
     if aAllowLoop then ScanGamepads( False );
@@ -902,6 +908,12 @@ end;
 procedure TSDLIODriver.StopTextInput;
 begin
   SDL_StopTextInput;
+end;
+
+function TSDLIODriver.Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean;
+begin
+  if (FGamePadHandle = nil) or (not FGamePadRumble) then Exit( False );
+  Exit( SDL_GameControllerRumble( FGamePadHandle, aLow, aHigh, aDuration ) = 0 );
 end;
 
 end.

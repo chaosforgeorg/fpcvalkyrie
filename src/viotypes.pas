@@ -50,6 +50,7 @@ type TIODriver = class( TVObject )
   procedure RegisterInterrupt( aCode : TIOKeyCode; aInterrupt : TIOInterrupt );
   procedure StartTextInput; virtual;
   procedure StopTextInput; virtual;
+  function Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean; virtual;
 protected
   FOnQuit       : TIOInterrupt;
   FInterrupts   : TIOInterrupts;
@@ -201,6 +202,12 @@ end;
 procedure TIODriver.StopTextInput;
 begin
 end;
+
+function TIODriver.Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean;
+begin
+  Exit( False );
+end;
+
 
 
 end.

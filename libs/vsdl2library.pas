@@ -387,6 +387,8 @@ var
   SDL_GameControllerGetStringForButton: function(button: SDL_GameControllerButton): PChar; cdecl;
   SDL_GameControllerGetBindForButton: function(gamecontroller: PSDL_GameController; button: SDL_GameControllerButton): SDL_GameControllerButtonBind; cdecl;
   SDL_GameControllerGetButton      : function(gamecontroller: PSDL_GameController; button: SDL_GameControllerButton): Uint8; cdecl;
+  SDL_GameControllerRumble         : function(gamecontroller: PSDL_GameController; low_frequency_rumble, high_frequency_rumble : Uint16; duration_ms : Uint32 ) : Integer; cdecl;
+  SDL_GameControllerHasRumble      : function(gamecontroller: PSDL_GameController) : SDL_bool; cdecl;
   SDL_GameControllerClose          : procedure(gamecontroller: PSDL_GameController); cdecl;
 
 // SDL hints functions
@@ -925,6 +927,8 @@ begin
   Pointer(SDL_GameControllerGetStringForButton) := GetSymbol('SDL_GameControllerGetStringForButton');
   Pointer(SDL_GameControllerGetBindForButton) := GetSymbol('SDL_GameControllerGetBindForButton');
   Pointer(SDL_GameControllerGetButton) := GetSymbol('SDL_GameControllerGetButton');
+  Pointer(SDL_GameControllerHasRumble) := GetSymbol('SDL_GameControllerHasRumble');
+  Pointer(SDL_GameControllerRumble) := GetSymbol('SDL_GameControllerRumble');
   Pointer(SDL_GameControllerClose) := GetSymbol('SDL_GameControllerClose');
 
   //* SDL_hints.h functions */
