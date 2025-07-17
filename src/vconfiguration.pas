@@ -12,6 +12,7 @@ type TConfigurationEntry      = class;
      TConfigurationEntryMap   = specialize TGHashMap< TConfigurationEntry >;
      TConfigurationGroupMap   = specialize TGHashMap< TConfigurationGroup >;
      TConfigurationValueMap   = specialize TGHashMap< Variant >;
+     TStringArray             = array of Ansistring;
 
 type TConfigurationEntry = class( TVObject )
   constructor Create( aID : Ansistring );
@@ -49,6 +50,7 @@ end;
 type TIntegerConfigurationEntry = class( TConfigurationEntry )
   constructor Create( aID : Ansistring; aDefault : Integer );
   function SetRange( aMin, aMax : Integer; aStep : Integer = 1 ) : TIntegerConfigurationEntry;
+  function SetNames( const aNames : array of Ansistring ) : TIntegerConfigurationEntry;
   function Access : PInteger;
   procedure Reset; override;
 protected
@@ -60,12 +62,14 @@ protected
   FMax     : Integer;
   FStep    : Integer;
   FValue   : Integer;
+  FNames   : array of Ansistring;
 public
   property Default : Integer read FDefault;
   property Min     : Integer read FMin;
   property Max     : Integer read FMax;
   property Step    : Integer read FStep;
   property Value   : Integer read FValue write FValue;
+  property Names   : TStringArray read FNames;
 end;
 
 type TConfigurationGroup = class( TVObject )
@@ -180,6 +184,16 @@ begin
   FMin   := aMin;
   FMax   := aMax;
   FStep  := aStep;
+  FNames := nil;
+  Result := Self;
+end;
+
+function TIntegerConfigurationEntry.SetNames( const aNames : array of Ansistring ) : TIntegerConfigurationEntry;
+var i : Integer;
+begin
+  SetLength(FNames, Length(aNames));
+  for i := 0 to High(aNames) do
+    FNames[i] := aNames[i];
   Result := Self;
 end;
 
