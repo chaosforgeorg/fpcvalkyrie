@@ -1237,7 +1237,7 @@ var iRect : TIORect;
     iMax  : Integer;
     i     : Integer;
 begin
-  VTIG_InputField( aNames[ aValue^ ], [] );
+  VTIG_InputField( aNames[ Min( aValue^, Length( aNames )-1 ) ], [] );
   if aActive then
   begin
     iMax := Length( aNames ) - 1;
