@@ -23,16 +23,20 @@ type TMessages = class
   procedure AddHighlightCallback( aKey, aValue : Variant );
   destructor Destroy; override;
 protected
-  FHighlights  : TMessageHighlightArray;
-  FContent     : TMessageBuffer;
-  FActive      : DWord;
-  FOnMore      : TMessagesMoreEvent;
-  FVisible     : DWord;
-  FLength      : DWord;
+  FHighlights    : TMessageHighlightArray;
+  FContent       : TMessageBuffer;
+  FActive        : DWord;
+  FOnMore        : TMessagesMoreEvent;
+  FVisible       : DWord;
+  FLength        : DWord;
+  FGroupMultiple : Boolean;
+  FLast          : Ansistring;
+  FLastCount     : Integer;
 public
   property Active  : DWord          read FActive;
   property Content : TMessageBuffer read FContent;
   property Visible : DWord          read FVisible;
+  property GroupMultiple : Boolean  read FGroupMultiple write FGroupMultiple;
 end;
 
 implementation
@@ -41,12 +45,15 @@ uses sysutils, strutils, vtig;
 
 constructor TMessages.Create ( aVisible : DWord; aLength : DWord; aOnMore : TMessagesMoreEvent; aBufferSize : Word = 1000 ) ;
 begin
-  FOnMore     := aOnMore;
-  FActive     := 0;
-  FContent    := TMessageBuffer.Create( aBufferSize );
-  FHighlights := TMessageHighlightArray.Create;
-  FVisible    := aVisible;
-  FLength     := aLength;
+  FOnMore        := aOnMore;
+  FActive        := 0;
+  FContent       := TMessageBuffer.Create( aBufferSize );
+  FHighlights    := TMessageHighlightArray.Create;
+  FVisible       := aVisible;
+  FLength        := aLength;
+  FGroupMultiple := False;
+  FLast          := '';
+  FLastCount     := 1;
 end;
 
 procedure TMessages.Add( const aMessage : Ansistring );
@@ -85,14 +92,34 @@ var iPending : Ansistring;
     if ( FActive = FVisible ) then
     begin
       if Assigned( FOnMore ) then FOnMore;
-      FActive := 0;
+      Update;
     end;
     Inc( FActive );
     FContent.PushBack( LetterEscape( aContent ) );
   end;
 
+  function AddRepeat : Boolean;
+  begin
+    if FLastCount > 8 then Exit( False );
+    Inc( FLastCount );
+    if FLastCount <= 2 then
+    begin
+      if ( FLength - VTIG_Length(FContent[-1]) ) < 5 then Exit( False );
+      FContent[-1] := FContent[-1] + '(x{^'+ Chr(Ord('0') + FLastCount) +'})';
+    end
+    else
+    begin
+      iPending     := FContent[-1];
+      iLength      := Length(iPending);
+      if iLength > 4 then iPending[iLength-2] := Chr(Ord('0') + FLastCount);
+      FContent[-1] := iPending;
+    end;
+    Exit( True );
+  end;
+
 begin
   if aMessage = '' then Exit;
+  if FGroupMultiple and ( aMessage = FLast ) and AddRepeat then Exit;
   iLetter  := ' ';
   if FHighlights.Size > 0 then
   for iBreak := 0 to FHighlights.Size-1 do
@@ -100,6 +127,8 @@ begin
       if IsWild(aMessage,FHighlights[iBreak].Wildcard,False) then
         iLetter := FHighlights[iBreak].Letter;
 
+  FLast      := aMessage;
+  FLastCount := 1;
   iPending := aMessage;
   iLength  := 0;
   while iPending <> '' do
@@ -138,18 +167,22 @@ end;
 
 procedure TMessages.Update;
 begin
-  FActive := 0;
+  FActive    := 0;
+  FLastCount := 1;
+  FLast      := '';
 end;
 
 procedure TMessages.Clear;
 begin
   FContent.Clear;
-  FActive := 0;
+  Update;
 end;
 
 procedure TMessages.Reset;
 var iCount : Integer;
 begin
+  FLastCount := 1;
+  FLast      := '';
   for iCount := 1 to FVisible do
     FContent.PushBack( '' );
 end;
