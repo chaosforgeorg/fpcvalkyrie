@@ -60,6 +60,8 @@ type TDiceRoll = object
   bonus  : Integer;
   procedure Init( namount, nsides : Word; nbonus : Integer = 0);
   procedure Init(const diecode : string);
+  procedure Reset;
+  function IsZero : Boolean;
   function Roll : LongInt;
   function toString : string;
   procedure fromString(diecode : string);
@@ -942,6 +944,16 @@ procedure TDiceRoll.Init(const diecode: string);
 begin
   Init(0,0,0);
   fromString(diecode);
+end;
+
+procedure TDiceRoll.Reset;
+begin
+  Init(0,0,0);
+end;
+
+function TDiceRoll.IsZero : Boolean;
+begin
+  Exit( ( amount = 0 ) and ( sides = 0 ) and ( bonus = 0 ) );
 end;
 
 function TDiceRoll.Roll: LongInt;
