@@ -679,11 +679,19 @@ begin
 end;
 
 function TSteam.SetAchievement( const aID : Ansistring ) : Boolean;
+var iUserStats : TSteamUserStats;
 begin
-  if ( not IsInitialized ) or ( TSteamCore.GetClient.UserStats = nil ) then Exit( False );
-  if not TSteamCore.GetClient.UserStats.SetAchievement( aID ) then
+  if ( not IsInitialized ) then Exit( False );
+  iUserStats := TSteamCore.GetClient.UserStats;
+  if iUserStats = nil then Exit( False );
+  if not iUserStats.SetAchievement( aID ) then
   begin
     Log( LOGWARN, 'SetAchievement('+aID+') failed!' );
+    Exit( False );
+  end;
+  if not iUserStats.StoreStats then
+  begin
+    Log( LOGWARN, 'StoreStats failed!' );
     Exit( False );
   end;
   Exit( True );
