@@ -2,7 +2,8 @@
 unit vluastate;
 interface
 
-uses vlualibrary, typinfo, Variants, Classes, SysUtils, vrltools, vluatools, vluatype, vvector, vutil;
+uses typinfo, Variants, Classes, SysUtils, vlualibrary, vrltools, vluatools,
+     vluatype, vluatable, vvector, vutil;
 
 type
   ELuaStateException = class(EException);
@@ -38,6 +39,7 @@ TLuaState = object
     function ToArea( Index : Integer ) : TArea;
     function ToPoint( Index : Integer ) : TPoint;
     function ToRect( Index : Integer ) : TRectangle;
+    function ToTable( Index : Integer ) : TLuaTable;
 
     function ToVec2f( Index : Integer ) : TVec2f;
     function ToVec3f( Index : Integer ) : TVec3f;
@@ -237,6 +239,11 @@ end;
 function TLuaState.ToRect(Index: Integer): TRectangle;
 begin
   Exit( vlua_torect( FState, lua_absindex( FState, Index ) ) );
+end;
+
+function TLuaState.ToTable( Index : Integer ) : TLuaTable;
+begin
+  Exit( TLuaTable.Create( FState, Index ) );
 end;
 
 function TLuaState.ToVec2f ( Index : Integer ) : TVec2f;
