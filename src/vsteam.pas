@@ -949,7 +949,6 @@ begin
   iClient := TSteamCore.GetClient;
   if not Assigned( iClient ) then Exit( False );
   if not Assigned( iClient.Utils ) then Exit( False );
-  if not iClient.Utils.IsRunningOnSteamDeck then Exit( False );
 
   FText       := '';
   FTextReady  := False;
