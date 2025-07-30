@@ -53,6 +53,7 @@ end;
 
 TLuaIndexValueEnumerator = object( specialize TGLuaEnumerator<TLuaIndexVariant> )
 public
+  constructor Create( aState : PLua_State; aIndex : Integer );
   function MoveNext : Boolean;
   function GetEnumerator : TLuaIndexValueEnumerator;
 end;
@@ -77,6 +78,7 @@ end;
 
 TLuaValueIndexValueEnumerator = object( specialize TGLuaEnumerator<TLuaIndexValue> )
 public
+  constructor Create( aState : PLua_State; aIndex : Integer );
   function MoveNext : Boolean;
   function GetEnumerator : TLuaValueIndexValueEnumerator;
 end;
@@ -451,15 +453,24 @@ end;
 
 { TLuaIndexValueEnumerator }
 
+constructor TLuaIndexValueEnumerator.Create( aState : PLua_State; aIndex : Integer );
+begin
+  FState := aState;
+  FIndex := lua_absindex( FState, aIndex );
+  FCurrent.Index := 0;
+end;
+
 function TLuaIndexValueEnumerator.MoveNext : Boolean;
 begin
-  MoveNext := lua_next( FState, FIndex ) <> 0;
-  if MoveNext then
+  Inc( FCurrent.Index );
+  lua_rawgeti( FState, -1, FCurrent.Index );
+  Result := False;
+  if not lua_isnil( FState, -1 ) then
   begin
-    FCurrent.Index := lua_tointeger( FState, -2 );
+    Result := True;
     FCurrent.Value := vlua_tovariant( FState, -1 );
-    lua_pop( FState, 1 );
   end;
+  lua_pop( FState, 1 );
 end;
 
 function TLuaIndexValueEnumerator.GetEnumerator : TLuaIndexValueEnumerator;
@@ -505,15 +516,24 @@ end;
 
 { TLuaValueIndexValueEnumerator }
 
+constructor TLuaValueIndexValueEnumerator.Create( aState : PLua_State; aIndex : Integer );
+begin
+  inherited Create( aState, aIndex );
+  FCurrent.Index := 0;
+end;
+
 function TLuaValueIndexValueEnumerator.MoveNext : Boolean;
 begin
-  if not lua_isnil( FState, -1 ) then lua_pop( FState, 1 );
-  MoveNext := lua_next( FState, FIndex ) <> 0;
-  if MoveNext then
+  lua_pop( FState, 1 );
+  Inc( FCurrent.Index );
+  lua_rawgeti( FState, -1, FCurrent.Index );
+  if lua_isnil( FState, -1 ) then
   begin
-    FCurrent.Index := lua_tointeger( FState, -2 );
-    FCurrent.Value.Create( FState, -1 );
+    lua_pop( FState, 1 );
+    Exit( False );
   end;
+  FCurrent.Value.Create( FState, -1 );
+  Exit( True );
 end;
 
 function TLuaValueIndexValueEnumerator.GetEnumerator : TLuaValueIndexValueEnumerator;
