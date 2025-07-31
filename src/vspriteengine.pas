@@ -62,6 +62,7 @@ private
   FGrid           : TVec2i;
   FTileSize       : TVec2i;
   FPosition       : TVec2i;
+  FScale          : Single;
   FLayersDirty    : Boolean;
   FFuzzyMode      : Boolean;
   FLayers         : TSpriteDataSetArray;
@@ -383,12 +384,14 @@ end;
 
 procedure TSpriteEngine.SetScale( aScale : Byte );
 begin
+  FScale := aScale;
   FGrid.Init( FTileSize.X * aScale, FTileSize.Y * aScale );
 end;
 
 procedure TSpriteEngine.SetScale( aScale : Single );
 begin
   FFuzzyMode := Abs( aScale - Integer( aScale ) ) > 0.1;
+  FScale := aScale;
   FGrid.Init( Round( FTileSize.X * aScale ), Round( FTileSize.Y * aScale ) );
 end;
 

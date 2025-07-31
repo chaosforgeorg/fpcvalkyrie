@@ -79,6 +79,7 @@ TLuaState = object
 
     procedure PushIndex( aIndex : Integer );
     procedure Push( Value : Single ); overload;
+    procedure Push( Value : Double ); overload;
     procedure Push( const Value : AnsiString ); overload;
     procedure Push( Value : Boolean ); overload;
     procedure Push( Value : LongInt ); overload;
@@ -442,6 +443,11 @@ begin
 end;
 
 procedure TLuaState.Push(Value: Single);
+begin
+  lua_pushnumber( FState, Value );
+end;
+
+procedure TLuaState.Push(Value: Double);
 begin
   lua_pushnumber( FState, Value );
 end;
