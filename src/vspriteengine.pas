@@ -69,6 +69,7 @@ private
   FLayersSorted   : TSpriteDataSetArray;
   FTZeroID        : DWord;
 public
+  property Scale    : Single read FScale;
   property Grid     : TVec2i read FGrid;
   property TileSize : TVec2i read FTileSize;
   property Position : TVec2i read FPosition write FPosition;
