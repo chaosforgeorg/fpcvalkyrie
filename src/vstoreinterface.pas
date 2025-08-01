@@ -24,6 +24,7 @@ type TStoreInterface = class( TVObject )
   function IsInitialized : Boolean; virtual;
   function IsOverlayEnabled : Boolean; virtual;
   function IsSteamDeck : Boolean; virtual;
+  function IsSteam : Boolean; virtual;
   function GetUsername : Ansistring; virtual;
   procedure Update; virtual;
   function SetAchievement( const aID : Ansistring ) : Boolean; virtual;
@@ -80,6 +81,11 @@ begin
 end;
 
 function TStoreInterface.IsSteamDeck : Boolean;
+begin
+  Exit( False );
+end;
+
+function TStoreInterface.IsSteam : Boolean;
 begin
   Exit( False );
 end;

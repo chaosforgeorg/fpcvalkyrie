@@ -10,6 +10,7 @@ type  TSteam = class( TStoreInterface )
   function IsInitialized : Boolean; override;
   function IsOverlayEnabled : Boolean; override;
   function IsSteamDeck : Boolean; override;
+  function IsSteam : Boolean; override;
   function GetUsername : Ansistring; override;
   procedure Update; override;
   function SetAchievement( const aID : Ansistring ) : Boolean; override;
@@ -641,6 +642,11 @@ begin
   if not Assigned( iClient ) then Exit( False );
   if not Assigned( iClient.Utils ) then Exit( False );
   Exit( iClient.Utils.IsRunningOnSteamDeck );
+end;
+
+function TSteam.IsSteam : Boolean;
+begin
+  Exit( True );
 end;
 
 function TSteam.GetUsername : Ansistring;
