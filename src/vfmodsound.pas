@@ -56,6 +56,10 @@ TFMODSound = class(TSound)
        procedure StopSound(); override;	   
        // Implementation of VolumeMusic
        procedure VolumeMusic( aData : Pointer; const aType : string; aVolume : Byte ); override;
+     protected
+       function CalculateMusicVolume( aVolume : Byte ) : Single;
+     protected
+       FInternalMusicVolume : Single;
      end;
 
 implementation
@@ -229,7 +233,7 @@ begin
   iPosition.y := aRelative.Y * 0.2;
   iPosition.z := 0.0;
   FMOD_CHECK( FMOD_System_PlaySound( GSystem, PFMOD_SOUND(aData), GGroupSounds, 1, @iChannel ) );
-  FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, Single( Min( SoundVolume, 128 ) / 128.0 ) ) );
+  FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, Single( Min( SoundVolume, 128 ) / 100.0 ) ) );
   FMOD_CHECK( FMOD_Channel_set3DAttributes( iChannel, @iPosition, nil ) );
   FMOD_CHECK( FMOD_Channel_SetPaused( iChannel, 0 ) );
 end;
@@ -238,7 +242,7 @@ procedure TFMODSound.PlaySound(aData: Pointer; aVolume: Byte; aPan: Integer);
 var iChannel : PFMOD_CHANNEL;
 begin
   FMOD_CHECK( FMOD_System_PlaySound( GSystem, PFMOD_SOUND(aData), GGroupSounds, 1, @iChannel ) );
-  FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, ( Single(aVolume) / 255.0 ) ) );
+  FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, ( Single(aVolume) / 100.0 ) ) );
   if aPan <> -1
     then FMOD_CHECK( FMOD_Channel_SetPan( iChannel, ( Single(aPan-128) / 128.0 ) ) )
     else FMOD_CHECK( FMOD_Channel_SetPan( iChannel, 0 ) );
@@ -247,7 +251,7 @@ end;
 
 procedure TFMODSound.PlayMusic(aData: Pointer; const aType : string; aRepeat: Boolean);
 begin
-  FMOD_ChannelGroup_SetVolume( GGroupMusic, Single( Min( MusicVolume, 128 ) / 128.0 ) );
+  FMOD_ChannelGroup_SetVolume( GGroupMusic, CalculateMusicVolume( MusicVolume ) );
   if aRepeat
     then FMOD_Sound_SetLoopCount( PFMOD_SOUND(aData), -1 )
     else FMOD_Sound_SetLoopCount( PFMOD_SOUND(aData), 0 );
@@ -266,7 +270,14 @@ end;
 
 procedure TFMODSound.VolumeMusic(aData: Pointer; const aType : string; aVolume: Byte );
 begin
-  FMOD_ChannelGroup_SetVolume( GGroupMusic, Single( Min( aVolume, 128 ) / 128.0 ) );
+  FMOD_ChannelGroup_SetVolume( GGroupMusic, CalculateMusicVolume( aVolume ) );
+end;
+
+function TFMODSound.CalculateMusicVolume( aVolume : Byte ) : Single;
+var iValue : Single;
+begin
+  iValue := aVolume / 100.0;
+  Result := iValue * iValue;
 end;
 
 initialization

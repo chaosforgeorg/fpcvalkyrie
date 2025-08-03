@@ -41,6 +41,7 @@ type TTextureManager = class( TVObject )
   procedure LoadTextureCallback( aStream : TStream; aName : Ansistring; aSize : DWord );
   procedure Upload;
 
+  function Exists( const aTextureName : AnsiString ) : Boolean;
   function GetTextureID( const aTextureName : AnsiString ) : TTextureID;
   function GetTexture( const aTextureID : TTextureID ) : TTexture;
   function GetTexture( const aTextureName : AnsiString ) : TTexture;
@@ -187,6 +188,11 @@ begin
   for iIndex := 0 to FTextures.Size-1 do
     if FTextures[ iIndex ].GLTexture = 0 then
       FTextures[ iIndex ].Upload;
+end;
+
+function TTextureManager.Exists( const aTextureName : AnsiString ) : Boolean;
+begin
+  Exit( FTextureIDs.Exists(aTextureName) );
 end;
 
 function TTextureManager.GetTextureID ( const aTextureName : AnsiString ) : TTextureID;
