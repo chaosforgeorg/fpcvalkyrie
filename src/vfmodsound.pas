@@ -42,6 +42,8 @@ TFMODSound = class(TSound)
        procedure FreeMusic( aData : Pointer; const aType : String ); override;
        // Implementation of Sound Freeing
        procedure FreeSound( aData : Pointer ); override;
+       // Implementation of Number of Channels Playing
+       function NumChannelsPlaying: Integer;
        // Implementation of get error
        function GetError( ) : AnsiString; override;
        // Implementation of play Sound 3D
@@ -70,7 +72,9 @@ var GSystem      : PFMOD_SYSTEM;
     GLastError   : FMOD_RESULT;
     GGroupSounds : PFMOD_CHANNELGROUP;
     GGroupMusic  : PFMOD_CHANNELGROUP;
+    MaxConcurrentSounds : Integer;          //Max number of sounds we can play before needing to steal a channel
 
+const SoundLibMaxConcurrentChannels = 128;  // Max number of channels playing at once by the library
 
 procedure FMOD_CHECK( aResult : FMOD_RESULT );
 begin
@@ -97,6 +101,8 @@ begin
   if GGroupSounds <> nil then FMOD_ChannelGroup_Release( GGroupSounds );
   if GGroupMusic <> nil  then FMOD_ChannelGroup_Release( GGroupMusic );
 
+  MaxConcurrentSounds := SoundLibMaxConcurrentChannels;
+
   if GSystem <> nil then
   begin
     FMOD_System_Close(GSystem);
@@ -108,6 +114,14 @@ end;
 procedure TFMODSound.Update;
 begin
   FMOD_System_Update( GSystem );
+end;
+
+function TFModSound.NumChannelsPlaying : Integer;
+var Channels, RealChannels : Integer;
+begin
+  Channels := 0; RealChannels := 0;
+  FMOD_System_GetChannelsPlaying( GSystem, Channels, RealChannels);
+  Exit(Channels);
 end;
 
 function TFMODSound.OpenDevice : Boolean;
@@ -138,6 +152,7 @@ begin
 
   FMOD_CHECK( FMOD_System_CreateChannelGroup( GSystem, 'sound', @GGroupSounds ) );
   FMOD_CHECK( FMOD_System_CreateChannelGroup( GSystem, 'music', @GGroupMusic ) );
+  MaxConcurrentSounds := SoundLibMaxConcurrentChannels - 1; // Reserve one channel for music
   FMOD_CHECK( FMOD_System_set3DListenerAttributes( GSystem, 0, @CPos, @CVel, @CFwd, @CUp ) );
   Exit( True );
 end;
@@ -232,6 +247,7 @@ begin
   iPosition.x := aRelative.X * 0.2;
   iPosition.y := aRelative.Y * 0.2;
   iPosition.z := 0.0;
+  if NumChannelsPlaying() = MaxConcurrentSounds then Exit;  //Do not allow more sounds than this or a channel will be stolen (e.g. music)
   FMOD_CHECK( FMOD_System_PlaySound( GSystem, PFMOD_SOUND(aData), GGroupSounds, 1, @iChannel ) );
   FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, Single( Min( SoundVolume, 128 ) / 100.0 ) ) );
   FMOD_CHECK( FMOD_Channel_set3DAttributes( iChannel, @iPosition, nil ) );
@@ -241,6 +257,7 @@ end;
 procedure TFMODSound.PlaySound(aData: Pointer; aVolume: Byte; aPan: Integer);
 var iChannel : PFMOD_CHANNEL;
 begin
+  if NumChannelsPlaying() = MaxConcurrentSounds then Exit;  //Do not allow more sounds than this or a channel will be stolen (e.g. music)
   FMOD_CHECK( FMOD_System_PlaySound( GSystem, PFMOD_SOUND(aData), GGroupSounds, 1, @iChannel ) );
   FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, ( Single(aVolume) / 100.0 ) ) );
   if aPan <> -1
