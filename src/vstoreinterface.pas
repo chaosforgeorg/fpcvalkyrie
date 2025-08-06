@@ -29,6 +29,7 @@ type TStoreInterface = class( TVObject )
   procedure Update; virtual;
   function SetAchievement( const aID : Ansistring ) : Boolean; virtual;
   function IncStat( const aID : Ansistring ) : Boolean; virtual;
+  function MarkStat( const aID : Ansistring ) : Boolean; virtual;
   function GetGlobalStat( const aID : Ansistring ) : Int64; virtual;
   function FlushStatistics : Boolean; virtual;
   function OpenDLCPage( aAppID : DWord ) : Boolean; virtual;
@@ -110,6 +111,11 @@ begin
 end;
 
 function TStoreInterface.IncStat( const aID : Ansistring ) : Boolean;
+begin
+  Exit( False );
+end;
+
+function TStoreInterface.MarkStat( const aID : Ansistring ) : Boolean;
 begin
   Exit( False );
 end;

@@ -15,6 +15,7 @@ type  TSteam = class( TStoreInterface )
   procedure Update; override;
   function SetAchievement( const aID : Ansistring ) : Boolean; override;
   function IncStat( const aID : Ansistring ) : Boolean; override;
+  function MarkStat( const aID : Ansistring ) : Boolean; override;
   function GetGlobalStat( const aID : Ansistring ) : Int64; override;
   function FlushStatistics : Boolean; override;
   function OpenDLCPage( aAppID : DWord ) : Boolean; override;
@@ -718,6 +719,27 @@ begin
     Exit( False );
   end;
   Exit( True );
+end;
+
+function TSteam.MarkStat( const aID : Ansistring ) : Boolean;
+var iValue : LongInt;
+begin
+  if ( not IsInitialized ) or ( TSteamCore.GetClient.UserStats = nil ) then Exit( False );
+  if not TSteamCore.GetClient.UserStats.GetStat( aID, iValue ) then
+  begin
+    Log( LOGWARN, 'MarkStat('+aID+') failed!' );
+    Exit( False );
+  end;
+  if iValue = 0 then
+  begin
+    if not TSteamCore.GetClient.UserStats.SetStat( aID, 1 ) then
+    begin
+      Log( LOGWARN, 'MarkStat('+aID+') failed!' );
+      Exit( False );
+    end;
+    Exit( True );
+  end;
+  Exit( False );
 end;
 
 function TSteam.GetGlobalStat( const aID : Ansistring ) : Int64;
