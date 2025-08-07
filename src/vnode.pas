@@ -518,7 +518,7 @@ begin
       for iCount in HookSet do
         if isFunction( Hooks[ iCount ] ) then
           Include( FHooks, iCount );
-    FFlags := getFlags( 'flags' );
+    FFlags := getFlags( 'flags', [] );
   finally
     Free;
   end;

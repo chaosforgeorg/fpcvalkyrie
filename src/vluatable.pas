@@ -1380,7 +1380,7 @@ end;
 procedure TLuaTable.RunGetField ( const aKey : AnsiString; ReqType : Byte ) ;
 begin
   lua_getfield( FState, -1, PChar( aKey ) );
-  if lua_type( FState, -1 ) <> ReqType then ELuaException.Create( 'Field '+aKey+' not found, or wrong type!' );
+  if lua_type( FState, -1 ) <> ReqType then raise ELuaException.Create( 'Field '+aKey+' not found, or wrong type!' );
 end;
 
 function TLuaTable.TryGetField ( const aKey : AnsiString; ReqType : Byte ) : Boolean;
