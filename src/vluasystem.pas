@@ -1337,6 +1337,7 @@ begin
   FreeAndNil( FRawModules );
   FreeAndNil( FClassMap );
   FreeAndNil( FDefines );
+  FreeAndNil( FLua );
   inherited Destroy;
   LuaSystem := nil;
 end;
