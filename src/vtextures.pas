@@ -32,6 +32,7 @@ type TTextureManager = class( TVObject )
   constructor Create( aDefaultBlend : Boolean = False );
   class function Get : TTextureManager;
   class function Initialized : Boolean;
+  procedure Clear;
   destructor Destroy; override;
 
   function AddImage( const aID : AnsiString; aImage : TImage; aBlend : Boolean ) : TTextureID;
@@ -58,7 +59,7 @@ end;
 
 implementation
 
-uses vgl3library, vglimage;
+uses vgl3library, vglimage, vutil;
 
 var TextureManager : TTextureManager = nil;
 
@@ -107,7 +108,8 @@ end;
 
 destructor TTexture.Destroy;
 begin
-  glDeleteTextures( 1, @FGLID );
+  if FGLID <> 0 then
+    glDeleteTextures( 1, @FGLID );
   inherited Destroy;
 end;
 
@@ -132,6 +134,13 @@ end;
 class function TTextureManager.Initialized : Boolean;
 begin
   Exit( TextureManager <> nil );
+end;
+
+procedure TTextureManager.Clear;
+var i : Integer;
+begin
+  FTextureIDs.Clear;
+  FTextures.Clear;
 end;
 
 destructor TTextureManager.Destroy;

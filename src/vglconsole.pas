@@ -487,6 +487,7 @@ end;
 
 destructor TGLConsoleRenderer.Destroy;
 begin
+  glDeleteTextures(1, @FDataTexture );
   glDeleteBuffers(1, @FDataVBO);
   glDeleteVertexArrays(1, @FDataVAO);
   glDeleteVertexArrays(1, @FTriangleVAO);

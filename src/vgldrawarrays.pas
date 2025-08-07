@@ -174,12 +174,15 @@ procedure TGLTexturedArrays.Draw;
 var i : Integer;
 begin
   if FDrawArrays.Size > 0 then
+  begin
     for i := 0 to FDrawArrays.Size - 1 do
     begin
       glActiveTexture( GL_TEXTURE0 );
       glBindTexture( GL_TEXTURE_2D, FTextureIDs[i]  );
       FDrawArrays[i].Draw;
     end;
+    glBindTexture( GL_TEXTURE_2D, 0 );
+  end;
 end;
 
 procedure TGLTexturedArrays.Clear;
