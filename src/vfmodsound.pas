@@ -12,19 +12,22 @@ unit vfmodsound;
 
 interface
 
-uses Classes, SysUtils, vsound, vrltools;
+uses Classes, SysUtils, vsound, vrltools, vgenerics;
 
-// The basic sound class, published as the singleton @link(Sound).
-// Should be initialized and disposed via TSystems.
-type
+type TFMODSoundData = record
+    Struct : Pointer;
+    Data   : Pointer;
+    Size   : Integer;
+  end;
+type TFMODSoundDataArray = specialize TGArray< TFMODSoundData >;
 
-{ TFMODSound }
-
-TFMODSound = class(TSound)
+type TFMODSound = class(TSound)
        // Initializes the Sound system.
        constructor Create; override;
        // Update the sound system
        procedure Update; override;
+       // Reset the sound system
+       procedure Reset; override;
        // Deinitializes the Sound system.
        destructor Destroy; override;
      protected
@@ -58,7 +61,10 @@ TFMODSound = class(TSound)
        procedure VolumeMusic( aData : Pointer; const aType : string; aVolume : Byte ); override;
      protected
        function CalculateMusicVolume( aVolume : Byte ) : Single;
+       function PushSimpleData( aPointer : Pointer ) : Pointer;
+       function DataToSound( aData : Pointer ) : Pointer; inline;
      protected
+       FInternalDataArray   : TFMODSoundDataArray;
        FInternalMusicVolume : Single;
      end;
 
@@ -70,7 +76,6 @@ var GSystem      : PFMOD_SYSTEM;
     GLastError   : FMOD_RESULT;
     GGroupSounds : PFMOD_CHANNELGROUP;
     GGroupMusic  : PFMOD_CHANNELGROUP;
-
 
 procedure FMOD_CHECK( aResult : FMOD_RESULT );
 begin
@@ -85,14 +90,19 @@ constructor TFMODSound.Create;
 begin
   inherited Create;
   LoadFMOD;
+  FInternalDataArray := nil;
 
   if not OpenDevice then
     raise Exception.Create('FMODInit Failed -- '+GetError());
+
+  FInternalDataArray := TFMODSoundDataArray.Create;
 end;
 
 destructor TFMODSound.Destroy;
 begin
   inherited Destroy;
+
+  FreeAndNil( FInternalDataArray );
 
   if GGroupSounds <> nil then FMOD_ChannelGroup_Release( GGroupSounds );
   if GGroupMusic <> nil  then FMOD_ChannelGroup_Release( GGroupMusic );
@@ -108,6 +118,13 @@ end;
 procedure TFMODSound.Update;
 begin
   FMOD_System_Update( GSystem );
+end;
+
+// Reset the sound system
+procedure TFMODSound.Reset;
+begin
+  inherited Reset;
+  FInternalDataArray.Clear;
 end;
 
 function TFMODSound.OpenDevice : Boolean;
@@ -150,7 +167,7 @@ begin
   FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
   FMOD_CHECK( FMOD_System_CreateStream( GSystem, PChar(aFileName), FMOD_2D or FMOD_CREATESTREAM or FMOD_LOOP_NORMAL, @iInfo, @iStream) );
-  Exit( iStream );
+  Exit( PushSimpleData( iStream ) );
 end;
 
 function TFMODSound.LoadSound(const aFileName: AnsiString): Pointer;
@@ -166,13 +183,14 @@ begin
   FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
   FMOD_CHECK( FMOD_System_CreateSound( GSystem, PChar(aFileName), iMode, @iInfo, @iSound ) );
-  Exit( iSound );
+  Exit( PushSimpleData( iSound ) );
 end;
 
 function TFMODSound.LoadMusicStream(Stream: TStream; Size : DWord; Streamed : Boolean ): Pointer;
 var iStream : PFMOD_SOUND;
     iInfo  : FMOD_CREATESOUNDEXINFO;
     iData  : Pointer;
+    iStore : TFMODSoundData;
 begin
   iData := GetMem( Size );
   Stream.Read( iData^, Size );
@@ -181,9 +199,11 @@ begin
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
   iInfo.length := Size;
   FMOD_CHECK( FMOD_System_CreateStream( GSystem, PChar(iData), FMOD_2D or FMOD_CREATESTREAM or FMOD_LOOP_NORMAL or FMOD_OPENMEMORY, @iInfo, @iStream) );
-  // TODO: this memory is never freed, but needs to be freed with the MusicStream!
-  //FreeMem( iData, Size );
-  Exit( iStream );
+  iStore.Size   := Size;
+  iStore.Data   := iData;
+  iStore.Struct := iStream;
+  FInternalDataArray.Push( iStore );
+  Exit( Pointer( FInternalDataArray.Size ) );
 end;
 
 function TFMODSound.LoadSoundStream(Stream: TStream; Size : DWord ): Pointer;
@@ -205,17 +225,27 @@ begin
   iInfo.length := Size;
   FMOD_CHECK( FMOD_System_CreateSound( GSystem, PChar( iData ), iMode, @iInfo, @iSound ) );
   FreeMem( iData, Size );
-  Exit( iSound );
+  Exit( PushSimpleData( iSound ) );
 end;
 
 procedure TFMODSound.FreeMusic( aData: Pointer; const aType : String );
 begin
-  FMOD_CHECK( FMOD_Sound_Release(PFMOD_SOUND(aData)) );
+  FreeSound( aData );
 end;
 
 procedure TFMODSound.FreeSound(aData: Pointer);
+var iIndex : Integer;
 begin
-  FMOD_CHECK( FMOD_Sound_Release(PFMOD_SOUND(aData)) );
+  iIndex := PtrInt( aData );
+  if ( iIndex <= 0 ) or ( iIndex > FInternalDataArray.Size ) then
+    raise Exception.Create('Internal Data Array corrupted on FreeSound!');
+  Dec( iIndex );
+  with FInternalDataArray[ iIndex ] do
+  begin
+    FMOD_CHECK( FMOD_Sound_Release(PFMOD_SOUND(Struct)) );
+    if Data <> nil then
+      FreeMem( Data, Size );
+  end;
 end;
 
 function TFMODSound.GetError(): AnsiString;
@@ -228,11 +258,13 @@ end;
 procedure TFMODSound.PlaySound3D(aData: Pointer; aRelative: TCoord2D);
 var iChannel   : PFMOD_CHANNEL;
     iPosition  : FMOD_VECTOR;
+    iSound     : PFMOD_SOUND;
 begin
+  iSound      := PFMOD_SOUND(DataToSound( aData ));
   iPosition.x := aRelative.X * 0.2;
   iPosition.y := aRelative.Y * 0.2;
   iPosition.z := 0.0;
-  FMOD_CHECK( FMOD_System_PlaySound( GSystem, PFMOD_SOUND(aData), GGroupSounds, 1, @iChannel ) );
+  FMOD_CHECK( FMOD_System_PlaySound( GSystem, iSound, GGroupSounds, 1, @iChannel ) );
   FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, Single( Min( SoundVolume, 128 ) / 100.0 ) ) );
   FMOD_CHECK( FMOD_Channel_set3DAttributes( iChannel, @iPosition, nil ) );
   FMOD_CHECK( FMOD_Channel_SetPaused( iChannel, 0 ) );
@@ -240,8 +272,10 @@ end;
 
 procedure TFMODSound.PlaySound(aData: Pointer; aVolume: Byte; aPan: Integer);
 var iChannel : PFMOD_CHANNEL;
+    iSound   : PFMOD_SOUND;
 begin
-  FMOD_CHECK( FMOD_System_PlaySound( GSystem, PFMOD_SOUND(aData), GGroupSounds, 1, @iChannel ) );
+  iSound      := PFMOD_SOUND(DataToSound( aData ));
+  FMOD_CHECK( FMOD_System_PlaySound( GSystem, iSound, GGroupSounds, 1, @iChannel ) );
   FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, ( Single(aVolume) / 100.0 ) ) );
   if aPan <> -1
     then FMOD_CHECK( FMOD_Channel_SetPan( iChannel, ( Single(aPan-128) / 128.0 ) ) )
@@ -250,12 +284,14 @@ begin
 end;
 
 procedure TFMODSound.PlayMusic(aData: Pointer; const aType : string; aRepeat: Boolean);
+var iSound : PFMOD_SOUND;
 begin
+  iSound   := PFMOD_SOUND(DataToSound( aData ));
   FMOD_ChannelGroup_SetVolume( GGroupMusic, CalculateMusicVolume( MusicVolume ) );
   if aRepeat
-    then FMOD_Sound_SetLoopCount( PFMOD_SOUND(aData), -1 )
-    else FMOD_Sound_SetLoopCount( PFMOD_SOUND(aData), 0 );
-  FMOD_CHECK( FMOD_System_PlaySound( GSystem, PFMOD_SOUND(aData), GGroupMusic, 0, nil ) );
+    then FMOD_Sound_SetLoopCount( iSound, -1 )
+    else FMOD_Sound_SetLoopCount( iSound, 0 );
+  FMOD_CHECK( FMOD_System_PlaySound( GSystem, iSound, GGroupMusic, 0, nil ) );
 end;
 
 procedure TFMODSound.StopMusic(aData: Pointer; const aType : string );
@@ -278,6 +314,25 @@ var iValue : Single;
 begin
   iValue := aVolume / 100.0;
   Result := iValue * iValue;
+end;
+
+function TFMODSound.PushSimpleData( aPointer : Pointer ) : Pointer;
+var iData : TFMODSoundData;
+begin
+  iData.Struct   := aPointer;
+  iData.Data     := nil;
+  iData.Size     := 0;
+  FInternalDataArray.Push( iData );
+  Exit( Pointer( FInternalDataArray.Size ) );
+end;
+
+function TFMODSound.DataToSound( aData : Pointer ) : Pointer; inline;
+var iIndex : Integer;
+begin
+  iIndex := PtrInt( aData );
+  if ( iIndex <= 0 ) or ( iIndex > FInternalDataArray.Size ) then
+    raise Exception.Create('Internal Data Array corrupted!');
+  Exit( FInternalDataArray[ iIndex - 1 ].struct );
 end;
 
 initialization
