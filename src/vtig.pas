@@ -4,6 +4,7 @@ interface
 uses vutil, viotypes, vtigstyle, vioconsole, vtigio;
 
 procedure VTIG_Initialize( aRenderer : TIOConsoleRenderer; aDriver : TIODriver; aClearOnRender : Boolean = True );
+procedure VTIG_Shutdown;
 procedure VTIG_NewFrame;
 procedure VTIG_EndFrame;
 procedure VTIG_Render;
@@ -505,6 +506,11 @@ begin
   GCtx.WindowStack.Push( iCanvas );
   GCtx.WindowOrder.Push( iCanvas );
   GCtx.Time := GCtx.Io.Driver.GetMs;
+end;
+
+procedure VTIG_Shutdown;
+begin
+  GCtx.Reset;
 end;
 
 procedure VTIG_NewFrame;

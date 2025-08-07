@@ -87,6 +87,7 @@ type TTIGContext = class
   SubCallback        : TTIGSubCallback;
 
   constructor Create;
+  procedure Reset;
   destructor Destroy; override;
 end;
 
@@ -193,6 +194,22 @@ begin
   WindowStore := TTIGWindowTable.Create;
   DrawData    := TTIGDrawData.Create;
   StyleStack  := TTIGStyleArray.Create;
+  Reset;
+end;
+
+procedure TTIGContext.Reset;
+var iWindow : TTIGWindow;
+begin
+  for iWindow in Windows do
+    iWindow.Free;
+  Windows.Clear;
+  WindowStack.Clear;
+  WindowOrder.Clear;
+  WindowStore.Clear;
+  DrawData.Reset;
+  StyleStack.Clear;
+  Io.MouseState.Clear;
+  Io.EventState.Clear;
 
   Style              := @VTIGDefaultStyle;
   Size               := Point(0,0);
@@ -212,8 +229,7 @@ end;
 destructor TTIGContext.Destroy;
 var iWindow : TTIGWindow;
 begin
-  for iWindow in Windows do
-    iWindow.Free;
+  Reset;
   FreeAndNil( Windows );
   FreeAndNil( WindowStack );
   FreeAndNil( WindowOrder );

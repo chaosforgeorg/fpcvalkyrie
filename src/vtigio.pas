@@ -82,6 +82,7 @@ type TTIGDrawListArray = specialize TGArray< TTIGDrawList >;
 type TTIGDrawData = class
   public
     constructor Create;
+    procedure Reset;
     destructor Destroy; override;
   private
     FLists          : TTIGDrawListArray;
@@ -173,9 +174,15 @@ end;
 
 constructor TTIGDrawData.Create;
 begin
+  FLists          := TTIGDrawListArray.Create;
+  Reset;
+end;
+
+procedure TTIGDrawData.Reset;
+begin
+  FLists.Clear;
   FCursorType     := VTIG_CTNONE;
   FCursorPosition := Point(0,0);
-  FLists          := TTIGDrawListArray.Create;
 end;
 
 destructor TTIGDrawData.Destroy;
