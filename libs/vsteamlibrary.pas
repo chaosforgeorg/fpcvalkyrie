@@ -176,5 +176,9 @@ begin
   Exit( True );
 end;
 
+
+finalization
+  if Steam <> nil then FreeAndNil( Steam );
+
 end.
 

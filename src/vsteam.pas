@@ -463,6 +463,13 @@ end;
 
 destructor TSteamClient.Destroy;
 begin
+  FreeAndNil( FUserStats );
+  FreeAndNil( FFriends );
+  FreeAndNil( FUser );
+  FreeAndNil( FUGC );
+  FreeAndNil( FUtils );
+  FreeAndNil( FDispatch );
+
   inherited Destroy;
 end;
 

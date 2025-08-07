@@ -108,6 +108,7 @@ end;
 
 destructor TTexture.Destroy;
 begin
+  FreeAndNil( FImage );
   if FGLID <> 0 then
     glDeleteTextures( 1, @FGLID );
   inherited Destroy;

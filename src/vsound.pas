@@ -72,7 +72,7 @@ TSound = class(TSystem)
        // Gets the volume of the sound effects.
        function GetSoundVolume : Byte;
        //
-       procedure Reset;
+       procedure Reset; virtual;
        // Utility Alias for VDF
        procedure MusicStreamLoader(Stream : TStream; Name : Ansistring; Size : DWord);
        // Utility Alias for VDF
@@ -350,6 +350,8 @@ begin
   FreeAndNil( MusicNames );
   FreeAndNil( SampleNames );
   FreeAndNil( MusicType );
+  FreeAndNil( CacheData );
+  FreeAndNil( CacheSize );
   inherited Destroy;
 end;
 

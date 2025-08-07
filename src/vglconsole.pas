@@ -492,6 +492,7 @@ begin
   glDeleteVertexArrays(1, @FDataVAO);
   glDeleteVertexArrays(1, @FTriangleVAO);
   FreeAndNil( FFont );
+  FreeAndNil( FProgram );
   if FOwnTextures then TTextureManager.Get().Free;
   inherited Destroy;
 end;

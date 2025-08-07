@@ -813,5 +813,9 @@ begin
   Exit( nil );
 end;
 
+finalization
+
+if Lua <> nil then FreeAndNil( Lua );
+
 end.
 

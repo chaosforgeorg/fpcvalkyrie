@@ -65,7 +65,7 @@ type
     property HookMax : Byte       read FHookMax;
   end;
 
-type TLuaClassMap       = specialize TGHashMap<TLuaClassInfo>;
+type TLuaClassMap       = specialize TGObjectHashMap<TLuaClassInfo>;
      TStringBoolMap     = specialize TGHashMap<Boolean>;
      TStringDataFileMap = specialize TGHashMap<TVDataFile>;
      TStringStringMap   = specialize TGHashMap<AnsiString>;

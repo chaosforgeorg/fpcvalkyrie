@@ -704,6 +704,7 @@ destructor TSDLIODriver.Destroy;
 begin
   if FOpenGL then SDL_GL_DeleteContext( FGLContext );
   SDL_DestroyWindow( FWindow );
+  FreeAndNil( FDisplayModes );
   inherited Destroy;
 end;
 
