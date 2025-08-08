@@ -17,6 +17,7 @@ type TGLQuadList = class
   procedure PushTexturedQuad( aUR, aLL : TGLVec2i; aTUR, aTLL : TGLVec2f; aTexture : DWord; aZ : Integer = 0 );
   procedure PushTexturedQuad( aUR, aLL : TGLVec2i; aColor : TGLVec4f; aTUR, aTLL : TGLVec2f; aTexture : DWord; aZ : Integer = 0 );
   procedure Append( aList : TGLTexturedColoredQuads; aTexture : DWord );
+  procedure Reset;
   destructor Destroy; override;
 private
   FColored   : TGLColoredQuads;
@@ -121,6 +122,12 @@ procedure TGLQuadList.Append ( aList : TGLTexturedColoredQuads; aTexture : DWord
 begin
   if not Assigned( FTextured ) then FTextured := TGLTexturedColoredQuadLayer.Create;
   FTextured[aTexture].Append( aList );
+end;
+
+procedure TGLQuadList.Reset;
+begin
+  if Assigned( FColored )  then FColored.Clear;
+  if Assigned( FTextured ) then FTextured.Reset;
 end;
 
 destructor TGLQuadList.Destroy;

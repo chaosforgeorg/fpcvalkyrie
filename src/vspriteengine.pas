@@ -44,6 +44,7 @@ type TSpriteDataSetArray = specialize TGArray< TSpriteDataSet >;
 
 TSpriteEngine = class
   constructor Create( aTileSize : TVec2i; aScale : Byte = 1 );
+  procedure Reset;
   procedure SetScale( aScale : Byte );
   procedure SetScale( aScale : Single );
   procedure Draw;
@@ -332,6 +333,14 @@ begin
     Data.FData.Draw;
     Data.FData.Clear;
     FProgram.UnBind;
+    glActiveTexture( GL_TEXTURE0 );
+    glBindTexture( GL_TEXTURE_2D, 0 );
+    glActiveTexture( GL_TEXTURE1 );
+    glBindTexture( GL_TEXTURE_2D, 0 );
+    glActiveTexture( GL_TEXTURE2 );
+    glBindTexture( GL_TEXTURE_2D, 0 );
+    glActiveTexture( GL_TEXTURE3 );
+    glBindTexture( GL_TEXTURE_2D, 0 );
   end;
 
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
@@ -381,6 +390,17 @@ begin
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
   glBindTexture( GL_TEXTURE_2D, 0 );
 
+end;
+
+procedure TSpriteEngine.Reset;
+var iSet : TSpriteDataSet;
+begin
+  FCurrentTexture    := 0;
+  FLayersDirty       := True;
+  for iSet in FLayers do
+    iSet.Free;
+  FLayers.Clear;
+  FLayersSorted.Clear;
 end;
 
 procedure TSpriteEngine.SetScale( aScale : Byte );
@@ -433,6 +453,7 @@ begin
     else glUniform3f( FProgram.GetUniformLocation('uposition'), -FPosition.X, -FPosition.Y, 0 );
   for iSet in FLayersSorted do
     DrawSet( iSet );
+
   glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 end;
 

@@ -38,6 +38,7 @@ type TGLTexturedArrays = class
   procedure Draw;
   procedure Update;
   procedure Clear;
+  procedure Reset;
   function AddDrawArray( aDrawArray : TGLDrawArrays; aTexture : Cardinal ) : TGLDrawArrays;
   function GetDrawArray( aTexture : Cardinal ) : TGLDrawArrays;
   function Empty : Boolean;
@@ -191,6 +192,12 @@ begin
   if FDrawArrays.Size > 0 then
     for i := 0 to FDrawArrays.Size - 1 do
       FDrawArrays[i].Clear;
+end;
+
+procedure TGLTexturedArrays.Reset;
+begin
+  FDrawArrays.Clear;
+  FTextureIDs.Clear;
 end;
 
 function TGLTexturedArrays.Empty : Boolean;

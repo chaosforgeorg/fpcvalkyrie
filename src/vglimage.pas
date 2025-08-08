@@ -106,6 +106,7 @@ begin
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GLBlend );
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
     Image.SizeX, Image.SizeY, 0, GL_RGBA, GL_UNSIGNED_BYTE, Image.Data );
+  glBindTexture(GL_TEXTURE_2D, 0);
 end;
 
 procedure UnUploadImage( GLTexture : DWord );

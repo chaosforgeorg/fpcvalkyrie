@@ -147,6 +147,7 @@ begin
   FHeight := aNewHeight;
 
   glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+  glBindRenderbuffer( GL_RENDERBUFFER, 0 );
 end;
 
 destructor TGLFramebuffer.Destroy;
