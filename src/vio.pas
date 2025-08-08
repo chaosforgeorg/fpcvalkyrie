@@ -62,6 +62,7 @@ begin
   FreeAndNil( FUIRoot );
   if FConsole <> aConsole then FreeAndNil( FConsole );
   FConsole    := aConsole;
+  if FConsole = nil then Exit;
   FUIRoot     := TConUIRoot.Create( FConsole, aStyle );
   FUIRoot.Fullscreen := True;
 end;

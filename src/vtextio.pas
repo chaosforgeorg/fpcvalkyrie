@@ -117,6 +117,7 @@ begin
   Result.Key.ASCII    := #0;
   Result.Key.ModState := ShiftStateToModKeySet( GetKeyEventShiftState(KeyEvent) );
   Result.Key.Code     := KeyEventToCode( KeyEvent );
+  Result.Key.Pressed  := True;
 end;
 
 function MouseButtonToVMB( buttons : Word ) : TIOMouseButton;
