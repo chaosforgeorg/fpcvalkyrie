@@ -164,7 +164,6 @@ var iWindow        : TTIGWindow;
   procedure Render( const aPart : PAnsiChar; aLength : Integer );
   var iCmd    : TTIGDrawCommand;
       iLength : Integer;
-      iCount  : Integer;
   begin
     iLength := aLength;
     if GCtx.MaxCharacters >= 0 then
@@ -179,7 +178,7 @@ var iWindow        : TTIGWindow;
 
     if iLength > 0 then
     begin
-      FillChar( iCmd, Sizeof( iCmd ), 0 );
+      Initialize( iCmd );
       iCmd.CType := VTIG_CMD_TEXT;
       iCmd.Clip  := aClip;
       iCmd.FG    := aStyleStack.Current;
@@ -470,7 +469,7 @@ var iCmd    : TTIGDrawCommand;
 begin
   iWindow := GCtx.Current;
   iClip   := iWindow.FClipContent;
-  FillChar( iCmd, Sizeof( iCmd ), 0 );
+  Initialize( iCmd );
   iCmd.CType := VTIG_CMD_TEXT;
   iCmd.Clip  := iClip;
   iCmd.Area  := Rectangle( aPosition, iClip.Dim - aPosition );
@@ -670,7 +669,7 @@ begin
 
   if ( aSize.X > -1 ) and ( aSize.Y > -1 ) then
   begin
-    FillChar( iCmd, Sizeof( iCmd ), 0 );
+    Initialize( iCmd );
     iCmd.CType := VTIG_CMD_CLEAR;
     iCmd.Clip  := iFClip;
     iCmd.Area  := iFClip;
@@ -763,7 +762,7 @@ begin
   iWindow := GCtx.Current;
   if aPosition > -1 then iWindow.DC.FCursor.Y := aPosition - 1;
 
-  FillChar( iCmd, Sizeof( iCmd ), 0 );
+  Initialize( iCmd );
   iCmd.CType := VTIG_CMD_RULER;
   iCmd.Area  := Rectangle(
     Point( iWindow.DC.FContent.Pos.X, iWindow.DC.FCursor.Y + 1 ),
@@ -868,7 +867,7 @@ begin
 
   if iClear.Pos in iWindow.DC.FClip then
   begin
-    FillChar( iCmd, Sizeof( iCmd ), 0 );
+    Initialize( iCmd );
     iCmd.CType := VTIG_CMD_CLEAR;
     iCmd.Area  := iClear;
     iCmd.FG    := GCtx.Color;
@@ -917,7 +916,6 @@ end;
 
 function VTIG_Scrollbar( aScrollMax : Boolean = False ) : Boolean;
 var iWindow    : TTIGWindow;
-    iOldScroll : Integer;
     iLines     : Integer;
     iHeight    : Integer;
     iMaxScroll : Integer;
@@ -928,7 +926,6 @@ var iWindow    : TTIGWindow;
     iYpos      : Integer;
 begin
   iWindow    := GCtx.Current;
-  iOldScroll := iWindow.FScroll;
   iLines     := iWindow.DC.FContent.Dim.Y;
   iHeight    := iWindow.FClipContent.Dim.Y;
 
@@ -952,7 +949,7 @@ begin
     if (GCtx.Io.MouseState.Wheel.Y < 0) and (iWindow.FScroll < iMaxScroll) then iWindow.FScroll := Min( iWindow.FScroll + 3, iMaxScroll );
   end;
 
-  FillChar( iCmd, Sizeof( iCmd ), 0 );
+  Initialize( iCmd );
 
   iCmd.CType := VTIG_CMD_BAR;
   iCmd.Clip  := iWindow.DC.FClip.Expanded(1);
@@ -1188,7 +1185,7 @@ begin
   GCtx.Color   := GCtx.Style^.Color[ VTIG_INPUT_TEXT_COLOR ];
   GCtx.BGColor := GCtx.Style^.Color[ VTIG_INPUT_BACKGROUND_COLOR ];
 
-  FillChar( iCmd, Sizeof( iCmd ), 0 );
+  Initialize( iCmd );
   iCmd.CType := VTIG_CMD_CLEAR;
   iCmd.Area  := Rectangle( GCtx.Current.DC.FCursor, GCtx.Current.DC.FContent.x2 - GCtx.Current.DC.FCursor.X, 1 );
   iCmd.FG    := GCtx.Color;
@@ -1282,7 +1279,7 @@ begin
   GCtx.Color   := GCtx.Style^.Color[ VTIG_INPUT_TEXT_COLOR ];
   GCtx.BGColor := GCtx.Style^.Color[ VTIG_INPUT_BACKGROUND_COLOR ];
 
-  FillChar( iCmd, Sizeof( iCmd ), 0 );
+  Initialize( iCmd );
   iCmd.CType := VTIG_CMD_CLEAR;
   iCmd.Area  := Rectangle( GCtx.Current.DC.FCursor, GCtx.Current.DC.FContent.x2 - GCtx.Current.DC.FCursor.X, 1 );
   iCmd.FG    := GCtx.Color;
