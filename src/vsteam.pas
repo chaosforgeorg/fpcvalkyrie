@@ -21,7 +21,7 @@ type  TSteam = class( TStoreInterface )
   function OpenDLCPage( aAppID : DWord ) : Boolean; override;
   function OpenStorePage( aAppID : DWord ) : Boolean; override;
   function GetStoreType : TStoreType; override;
-  function ModPublish( const aPath, aModID : Ansistring ) : QWord; override;
+  function CreateModID : QWord; override;
   function ModUpdate( const aPath : Ansistring; aModID : QWord ) : Boolean; override;
   function GetMods : TModArray; override;
   function StartText( const aPrompt : Ansistring; aMaxLength : Integer; const aCurrent : AnsiString = '' ) : Boolean; override;
@@ -797,15 +797,13 @@ begin
   Exit( StoreSteam );
 end;
 
-function TSteam.ModPublish( const aPath, aModID : Ansistring ) : QWord;
+function TSteam.CreateModID : QWord;
 var iUtils     : TSteamUtils;
     iUGC       : TSteamUGC;
     iCall      : TSteamAPICall;
     iFail      : Boolean;
     iResult    : TSteamCreateItemResult;
     iItemID    : TSteamItemId;
-    iPath      : Ansistring;
-    iText      : Text;
 begin
   if ( not IsInitialized ) then Exit( 0 );
   iUGC   := TSteamCore.GetClient.UGC;
@@ -846,25 +844,6 @@ begin
 
   iItemID := iResult.PublishedFileId;
   Log( 'CreateItem - assigned workshop id %d!', [iItemID] );
-  iPath := aPath + '/meta.lua';
-  Assign( iText, iPath );
-  {$I-}
-  Rewrite( iText );
-  {$I+}
-  if IOResult <> 0 then
-  begin
-    Log( LOGERROR, 'can''t create file : '+iPath+'!');
-    Exit( 0 );
-  end;
-
-  Writeln( iText, 'meta = {' );
-  Writeln( iText, '  id            = "' + aModID + '",');
-  Writeln( iText, '  save_version  = 100,' );
-  Writeln( iText, '  save_agnostic = false,' );
-  Writeln( iText, '  workshop_id   = '+IntToStr( iItemID )+ ',' );
-  Writeln( iText, '}' );
-  Close( iText );
-  Log('mod published successfully : '+ iPath );
   Exit( iItemID );
 end;
 
@@ -885,16 +864,16 @@ begin
   iUtils := TSteamCore.GetClient.Utils;
   if ( iUGC = nil ) or ( iUtils = nil ) then Exit( False );
 
-  iAbsPath := GetCurrentDir + '/' + aPath;
+  iAbsPath := aPath;
   Log( 'Absolute path : '+ iAbsPath );
 
   iHandle := iUGC.StartItemUpdate( FAppId, aModID );
   iUGC.SetItemContent( iHandle, iAbsPath );
 
-  if FileExists( iAbsPath + '.png' ) then
+  if FileExists( iAbsPath + 'thumbnail.png' ) then
   begin
-    Log( 'Thumbnail found : ' + iAbsPath + '.png' );
-    iUGC.SetItemPreview( iHandle, iAbsPath + '.png' );
+    Log( 'Thumbnail found : ' + iAbsPath + 'thumbnail.png' );
+    iUGC.SetItemPreview( iHandle, iAbsPath + 'thumbnail.png' );
   end;
 
   iCall := iUGC.SubmitItemUpdate( iHandle, 'update' );

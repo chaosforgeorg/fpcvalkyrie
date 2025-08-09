@@ -35,7 +35,7 @@ type TStoreInterface = class( TVObject )
   function OpenDLCPage( aAppID : DWord ) : Boolean; virtual;
   function OpenStorePage( aAppID : DWord ) : Boolean; virtual;
   function GetStoreType : TStoreType; virtual;
-  function ModPublish( const aPath, aModID : Ansistring ) : QWord; virtual;
+  function CreateModID : QWord; virtual;
   function ModUpdate( const aPath : Ansistring; aModID : QWord ) : Boolean; virtual;
   function GetMods : TModArray; virtual;
   function StartText( const aPrompt : Ansistring; aMaxLength : Integer; const aCurrent : AnsiString = '' ) : Boolean; virtual;
@@ -145,7 +145,7 @@ begin
   Exit( StoreNone );
 end;
 
-function TStoreInterface.ModPublish( const aPath, aModID : Ansistring ) : QWord;
+function TStoreInterface.CreateModID : QWord;
 begin
   Exit( 0 );
 end;

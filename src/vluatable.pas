@@ -903,7 +903,7 @@ function TLuaTable.GetQWord ( const aKey : AnsiString; aDefault : QWord ) : QWor
 begin
   Push;
   if TryGetField( aKey, LUA_TNUMBER )
-    then Result := QWord( lua_tointeger( FState, -1 ) )
+    then Result := QWord( lua_tonumber( FState, -1 ) )
     else Result := aDefault;
   Reset;
 end;
