@@ -14,7 +14,7 @@ type  TSteam = class( TStoreInterface )
   function GetUsername : Ansistring; override;
   procedure Update; override;
   function SetAchievement( const aID : Ansistring ) : Boolean; override;
-  function IncStat( const aID : Ansistring ) : Boolean; override;
+  function IncStat( const aID : Ansistring; aAmount : Integer = 1 ) : Boolean; override;
   function MarkStat( const aID : Ansistring ) : Boolean; override;
   function GetGlobalStat( const aID : Ansistring ) : Int64; override;
   function FlushStatistics : Boolean; override;
@@ -25,7 +25,7 @@ type  TSteam = class( TStoreInterface )
   function ModUpdate( const aPath : Ansistring; aModID : QWord ) : Boolean; override;
   function GetMods : TModArray; override;
   function StartText( const aPrompt : Ansistring; aMaxLength : Integer; const aCurrent : AnsiString = '' ) : Boolean; override;
-  function GetText( var aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean; override;
+  function GetText( out aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean; override;
   destructor Destroy; override;
   class function TryLoadLibrary : Boolean;
 private
@@ -711,7 +711,7 @@ begin
   Exit( True );
 end;
 
-function TSteam.IncStat( const aID : Ansistring ) : Boolean;
+function TSteam.IncStat( const aID : Ansistring; aAmount : Integer = 1 ) : Boolean;
 var iValue : LongInt;
 begin
   if ( not IsInitialized ) or ( TSteamCore.GetClient.UserStats = nil ) then Exit( False );
@@ -720,7 +720,7 @@ begin
     Log( LOGWARN, 'GetStat('+aID+') failed!' );
     Exit( False );
   end;
-  if not TSteamCore.GetClient.UserStats.SetStat( aID, LongInt( iValue + 1 ) ) then
+  if not TSteamCore.GetClient.UserStats.SetStat( aID, LongInt( iValue + aAmount ) ) then
   begin
     Log( LOGWARN, 'SetStat('+aID+') failed!' );
     Exit( False );
@@ -992,7 +992,7 @@ begin
   Exit( iClient.Utils.ShowGamepadTextInput( k_EGamepadTextInputModeNormal, k_EGamepadTextInputLineModeSingleLine, PChar( aPrompt ), DWord( aMaxLength ), PChar( aCurrent ) ) );
 end;
 
-function TSteam.GetText( var aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean;
+function TSteam.GetText( out aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean;
 begin
   if FTextReady then
   begin

@@ -28,7 +28,7 @@ type TStoreInterface = class( TVObject )
   function GetUsername : Ansistring; virtual;
   procedure Update; virtual;
   function SetAchievement( const aID : Ansistring ) : Boolean; virtual;
-  function IncStat( const aID : Ansistring ) : Boolean; virtual;
+  function IncStat( const aID : Ansistring; aAmount : Integer = 1 ) : Boolean; virtual;
   function MarkStat( const aID : Ansistring ) : Boolean; virtual;
   function GetGlobalStat( const aID : Ansistring ) : Int64; virtual;
   function FlushStatistics : Boolean; virtual;
@@ -39,7 +39,7 @@ type TStoreInterface = class( TVObject )
   function ModUpdate( const aPath : Ansistring; aModID : QWord ) : Boolean; virtual;
   function GetMods : TModArray; virtual;
   function StartText( const aPrompt : Ansistring; aMaxLength : Integer; const aCurrent : AnsiString = '' ) : Boolean; virtual;
-  function GetText( var aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean; virtual;
+  function GetText( out aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean; virtual;
   destructor Destroy; override;
 protected
   constructor Create;
@@ -110,7 +110,7 @@ begin
   Exit( False );
 end;
 
-function TStoreInterface.IncStat( const aID : Ansistring ) : Boolean;
+function TStoreInterface.IncStat( const aID : Ansistring; aAmount : Integer = 1 ) : Boolean;
 begin
   Exit( False );
 end;
@@ -165,7 +165,7 @@ begin
   Exit( False );
 end;
 
-function TStoreInterface.GetText( var aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean;
+function TStoreInterface.GetText( out aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean;
 begin
   Exit( False );
 end;
