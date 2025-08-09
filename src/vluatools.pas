@@ -9,7 +9,7 @@
 
 unit vluatools;
 interface
-uses Classes, SysUtils, vlualibrary, vutil, vrltools, vluatype, vvector;
+uses Classes, SysUtils, vlualibrary, vutil, vrltools, vluatype;
 
 procedure RegisterTableAuxFunctions( L: Plua_State );
 procedure RegisterMathAuxFunctions( L: Plua_State );

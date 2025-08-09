@@ -413,8 +413,7 @@ begin
 end;
 
 function TConfigurationManager.Read( aFileName : Ansistring ) : Boolean;
-var iText  : Text;
-    iState : PLua_State;
+var iState : PLua_State;
     iKey   : Ansistring;
     iEntry : TConfigurationEntry;
 begin

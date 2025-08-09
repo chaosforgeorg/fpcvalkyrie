@@ -288,6 +288,7 @@ var
   i: Integer;
   Ch: Char;
 begin
+  Initialize( Tmp );
   SetLength(Tmp, Min(Count, MaxLogSize));
   Move(Buffer, PChar(Tmp)^, Length(Tmp));
 

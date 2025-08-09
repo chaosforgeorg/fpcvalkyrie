@@ -227,7 +227,6 @@ begin
 end;
 
 destructor TTIGContext.Destroy;
-var iWindow : TTIGWindow;
 begin
   Reset;
   FreeAndNil( Windows );

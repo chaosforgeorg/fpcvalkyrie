@@ -312,6 +312,7 @@ begin
   if not iArea.Contains( iStart )           then Exit( 0 );
 
   iState.Map.ClearLightMapBits( [vlfFlood] );
+  Initialize( iQueue );
   SetLength( iQueue, ( iArea.Width + 1 ) * ( iArea.Height + 1 ) + 1 );
   iHead  := 0;
   iTail  := 0;

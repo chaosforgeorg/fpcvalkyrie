@@ -795,9 +795,10 @@ begin
     then FDisplayModes.Clear
     else FDisplayModes := TIODisplayModeArray.Create;
   iCount := SDL_GetNumDisplayModes( 0 );
+  iLast  := -1;
   for i := 0 to iCount - 1 do
   begin
-    FillChar( iMode, SizeOf( iMode ), 0 );
+    Initialize( iMode );
     if SDL_GetDisplayMode( 0, i, @iMode ) = 0 then
     begin
       iIdn := iMode.h * 100000 + iMode.w;
@@ -819,7 +820,7 @@ end;
 function TSDLIODriver.SetDisplayMode( aIndex : Integer ) : Boolean;
 var iMode : TSDL_DisplayMode;
 begin
-  FillChar( iMode, SizeOf( iMode ), 0 );
+  Initialize( iMode );
   if SDL_GetDisplayMode( 0, aIndex, @iMode ) = 0 then
   begin
     SDL_SetWindowDisplayMode( FWindow, @iMode );

@@ -307,6 +307,7 @@ end;
 function TTextIODriver.PollEvent ( out aEvent : TIOEvent ) : Boolean;
 var iMouseEvent : TMouseEvent;
 begin
+  Initialize( iMouseEvent );
   if PollKey = 0 then
   begin
     if (not FMouse) or (not PollMouseEvent( iMouseEvent )) then Exit( False );
@@ -321,6 +322,7 @@ end;
 function TTextIODriver.PeekEvent ( out aEvent : TIOEvent ) : Boolean;
 var iMouseEvent : TMouseEvent;
 begin
+  Initialize( iMouseEvent );
   if PollKey = 0 then
   begin
     if (not FMouse) or (not PollMouseEvent( iMouseEvent )) then Exit( False );
@@ -334,6 +336,7 @@ end;
 function TTextIODriver.EventPending : Boolean;
 var iMouseEvent : TMouseEvent;
 begin
+  Initialize( iMouseEvent );
   Result := (PollKey <> 0) or ( FMouse and PollMouseEvent( iMouseEvent ) );
 end;
 

@@ -138,7 +138,6 @@ begin
 end;
 
 procedure TTextureManager.Clear;
-var i : Integer;
 begin
   FTextureIDs.Clear;
   FTextures.Clear;
