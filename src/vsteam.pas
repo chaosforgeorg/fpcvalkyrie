@@ -879,7 +879,7 @@ begin
   iCall := iUGC.SubmitItemUpdate( iHandle, 'update' );
   if iCall = 0 then
   begin
-    Log( LOGERROR, 'SubmitItemiTTUpdate failed!' );
+    Log( LOGERROR, 'SubmitItemUpdate failed!' );
     Exit( False );
   end;
 

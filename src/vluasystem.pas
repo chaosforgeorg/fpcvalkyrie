@@ -80,6 +80,8 @@ type
     constructor Create( coverState : Plua_State = nil ); reintroduce;
     // Closes system execution.
     destructor Destroy; override;
+    // Returns if value is defined without invoking metamethods
+    function RawDefined( const aValue : AnsiString ) : Boolean;
     // Returns a value by table path
     function Defined( const Path : AnsiString ) : Boolean;
     // Returns a value by array of const
@@ -1340,6 +1342,14 @@ begin
   FreeAndNil( FLua );
   inherited Destroy;
   LuaSystem := nil;
+end;
+
+function TLuaSystem.RawDefined( const aValue : AnsiString ) : Boolean;
+begin
+  lua_pushstring( FState, PChar(aValue) );
+  lua_rawget_global( FState );
+  Result := not lua_isnil( FState, -1 );
+  lua_pop( FState, 1 );
 end;
 
 function TLuaSystem.Defined(const Path: AnsiString): Boolean;
