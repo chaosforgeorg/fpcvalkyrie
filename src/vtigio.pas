@@ -51,6 +51,7 @@ const
   VTIG_IE_7         = 157;
   VTIG_IE_8         = 158;
   VTIG_IE_9         = 159;
+  VTIG_IE_SHIFT     = 160;
 
 type TTIGDrawCommand = record
     CType : TTIGDrawCommandType;
@@ -81,6 +82,7 @@ type TTIGDrawListArray = specialize TGArray< TTIGDrawList >;
 type TTIGDrawData = class
   public
     constructor Create;
+    procedure Reset;
     destructor Destroy; override;
   private
     FLists          : TTIGDrawListArray;
@@ -93,6 +95,7 @@ type TTIGDrawData = class
   end;
 
 type TTIGSoundCallback = procedure( aEvent : TTIGSoundEvent; aParam : Pointer );
+     TTIGSubCallback   = function( const aID : Ansistring ) : Ansistring;
 
 type TTIGIOState = class
   public
@@ -171,9 +174,15 @@ end;
 
 constructor TTIGDrawData.Create;
 begin
+  FLists          := TTIGDrawListArray.Create;
+  Reset;
+end;
+
+procedure TTIGDrawData.Reset;
+begin
+  FLists.Clear;
   FCursorType     := VTIG_CTNONE;
   FCursorPosition := Point(0,0);
-  FLists          := TTIGDrawListArray.Create;
 end;
 
 destructor TTIGDrawData.Destroy;
@@ -205,7 +214,6 @@ procedure TTIGIOState.Clear;
 begin
   if not Assigned( FRenderer ) then Exit;
   FRenderer.Clear;
-  FRenderer.Update;
 end;
 
 procedure TTIGIOState.Render( aData : TTIGDrawData );

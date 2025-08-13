@@ -22,6 +22,7 @@ end;
 type TIOMouseState = class
   public
     constructor Create;
+    procedure Clear;
     procedure Update( aElapsed: Single );
     procedure EndFrame;
     function HandleEvent( const aEvent: TIOEvent ): Boolean;
@@ -48,8 +49,6 @@ type TIOMouseState = class
     FDClickDist    : Single;
     FDragThreshold : Single;
     FMoved         : Boolean;
-  private
-    procedure Clear;
   public
     property DClickTime : Single    read FDClickTime    write FDClickTime;
     property DClickDist : Single    read FDClickDist    write FDClickDist;

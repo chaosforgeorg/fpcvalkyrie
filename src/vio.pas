@@ -6,6 +6,7 @@ uses Classes, SysUtils, vsystem, vuitypes,
 
 type TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
+  procedure Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
   procedure FullUpdate; virtual;
   procedure Update( aMSec : DWord ); virtual;
   procedure Delay( aTime : Integer );
@@ -48,11 +49,22 @@ begin
   inherited Create;
   IO := Self;
   FIODriver   := aIODriver;
-  FConsole    := aConsole;
-  FUIRoot     := TConUIRoot.Create( FConsole, aStyle );
-  FUIRoot.Fullscreen := True;
+  FConsole    := nil;
+  FUIRoot     := nil;
   FLastUpdate := FIODriver.GetMs;
   FConsoleWindow := nil;
+  if aConsole <> nil then
+    Initialize( aConsole, aStyle );
+end;
+
+procedure TIO.Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
+begin
+  FreeAndNil( FUIRoot );
+  if FConsole <> aConsole then FreeAndNil( FConsole );
+  FConsole    := aConsole;
+  if FConsole = nil then Exit;
+  FUIRoot     := TConUIRoot.Create( FConsole, aStyle );
+  FUIRoot.Fullscreen := True;
 end;
 
 destructor TIO.Destroy;

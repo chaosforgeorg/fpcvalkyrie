@@ -55,6 +55,7 @@ procedure vlua_register( L: Plua_State; const libname, funcname : AnsiString; fu
 procedure vlua_register( L: Plua_State; const libname : AnsiString; const lr : PluaL_Reg );
 
 function vlua_loadstream( L: Plua_State; Stream : TStream; Size : DWord = 0; StreamName : AnsiString = '' ) : Integer;
+function vlua_dostream( L: Plua_State; Stream : TStream; Size : DWord = 0; StreamName : AnsiString = '' ) : Integer;
 procedure vlua_registerenumvalues( L : Plua_State; idx : Integer; enuminfo : PTypeInfo; UpperCase : Boolean = false );
 
 procedure vlua_table_toset(L: Plua_State; idx: Integer);
@@ -698,6 +699,12 @@ begin
   Stream.ReadBuffer(Data^,Size);
   vlua_loadstream := luaL_loadbuffer( L, PChar(Data), Size, PChar(StreamName) );
   FreeMem(Data);
+end;
+
+function vlua_dostream( L: Plua_State; Stream : TStream; Size : DWord = 0; StreamName : AnsiString = '' ) : Integer;
+begin
+  Result := vlua_loadstream( L, Stream, Size, StreamName );
+  if Result = 0 then Result := lua_pcall(L, 0, 0, 0);
 end;
 
 procedure vlua_registerenumvalues ( L : Plua_State; idx : Integer; enuminfo : PTypeInfo; UpperCase : Boolean ) ;

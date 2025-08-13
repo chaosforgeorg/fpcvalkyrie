@@ -12,6 +12,7 @@ function LoadImage( Stream : TStream; Size : DWord ) : TImage;
 function UploadImage( Image : TImage; aBlend : Boolean ) : DWord;
 procedure ReUploadImage( GLTexture : DWord; Image: TImage; aBlend : Boolean );
 function LoadImage( SDLSurface : PSDL_Surface ) : TImage;
+procedure UnUploadImage( GLTexture : DWord );
 
 implementation
 
@@ -105,8 +106,14 @@ begin
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GLBlend );
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
     Image.SizeX, Image.SizeY, 0, GL_RGBA, GL_UNSIGNED_BYTE, Image.Data );
+  glBindTexture(GL_TEXTURE_2D, 0);
 end;
 
+procedure UnUploadImage( GLTexture : DWord );
+begin
+  if GLTexture <> 0 then
+    glDeleteTextures(1, @GLTexture);
+end;
 
 end.
 

@@ -791,8 +791,7 @@ begin
   lua_pushvalue( L, LUA_GLOBALSINDEX );
   lua_insert( L ,-2 );
   lua_rawget( L, -2 );
-  lua_insert( L ,-2 );
-  lua_pop( L, 1 );
+  lua_remove( L ,-2 );
 end;
 
 function luaL_testudata(L : Plua_State; ud : Integer; const tname : PChar) : Pointer;
@@ -812,6 +811,10 @@ begin
     end;
   Exit( nil );
 end;
+
+finalization
+
+if Lua <> nil then FreeAndNil( Lua );
 
 end.
 

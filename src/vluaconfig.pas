@@ -2,7 +2,7 @@ unit vluaconfig;
 {$mode objfpc}
 interface
 
-uses vnode, vluastate, vioevent, viotypes;
+uses classes, vnode, vluastate, vioevent, viotypes;
 
 type TEntryCallback = procedure ( key, value : Variant ) of object;
 
@@ -21,6 +21,7 @@ TLuaConfig = class(TVObject)
     function RunKey( const aKeyID : AnsiString ) : Variant;
     function RunKey( aKeyCode : TIOKeyCode ) : Variant;
     procedure Load( const aFileName : Ansistring );
+    procedure Load( aStream : TStream; aSize : DWord; aStreamName : AnsiString = 'config_stream' );
     procedure LoadMain( const aFileName : Ansistring );
     function TableExists( const Table : AnsiString ) : Boolean;
     procedure EntryFeed( const Table : AnsiString; const Callback : TEntryCallback );
@@ -138,6 +139,12 @@ end;
 procedure TLuaConfig.Load( const aFileName : Ansistring );
 begin
   if luaL_dofile(FState, PChar(aFileName)) <> 0 then
+    raise ELuaException.Create(lua_tostring(FState,-1));
+end;
+
+procedure TLuaConfig.Load( aStream : TStream; aSize : DWord; aStreamName : AnsiString = 'config_stream' );
+begin
+  if vlua_dostream(FState, aStream, aSize, aStreamName ) <> 0 then
     raise ELuaException.Create(lua_tostring(FState,-1));
 end;
 

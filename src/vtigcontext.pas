@@ -41,6 +41,7 @@ type TTIGWindow = class
 
   FReset        : Boolean;
   FMaxSize      : TIOPoint;
+  FRenderable   : Boolean;
 
   constructor Create;
   procedure Advance( aSize : TIOPoint );
@@ -54,12 +55,14 @@ public
 
 end;
 
-type TTIGWindowArray = specialize TGArray<TTIGWindow>;
+type TTIGStyleArray  = specialize TGArray<PTIGStyle>;
+     TTIGWindowArray = specialize TGArray<TTIGWindow>;
      TTIGWindowTable = specialize TGHashMap<TTIGWindow>;
 
 type TTIGContext = class
   Io                 : TTIGIOState;
   Style              : PTIGStyle;
+  StyleStack         : TTIGStyleArray;
   Size               : TIOPoint;
 
   Current            : TTIGWindow;
@@ -75,13 +78,16 @@ type TTIGContext = class
 
   DTime              : DWord;
   Time               : DWord;
+  MaxCharacters      : Integer;
 
   WindowTransparency : Boolean;
 
   Color              : TIOColor;
   BGColor            : TIOColor;
+  SubCallback        : TTIGSubCallback;
 
   constructor Create;
+  procedure Reset;
   destructor Destroy; override;
 end;
 
@@ -153,6 +159,7 @@ begin
   FillChar( FClipContent, SizeOf( FClipContent ), 0 );
   FBackground   := 0;
   FColor        := 0;
+  FRenderable   := True;
 
   FillChar( FFocusInfo, SizeOf( FFocusInfo ), 0 );
   FScroll       := 0;
@@ -186,6 +193,23 @@ begin
   WindowOrder := TTIGWindowArray.Create;
   WindowStore := TTIGWindowTable.Create;
   DrawData    := TTIGDrawData.Create;
+  StyleStack  := TTIGStyleArray.Create;
+  Reset;
+end;
+
+procedure TTIGContext.Reset;
+var iWindow : TTIGWindow;
+begin
+  for iWindow in Windows do
+    iWindow.Free;
+  Windows.Clear;
+  WindowStack.Clear;
+  WindowOrder.Clear;
+  WindowStore.Clear;
+  DrawData.Reset;
+  StyleStack.Clear;
+  Io.MouseState.Clear;
+  Io.EventState.Clear;
 
   Style              := @VTIGDefaultStyle;
   Size               := Point(0,0);
@@ -196,20 +220,21 @@ begin
   DTime              := 0;
   Time               := 0;
   WindowTransparency := True;
+  MaxCharacters      := -1;
   Color              := 0;
   BGColor            := 0;
+  SubCallback        := nil;
 end;
 
 destructor TTIGContext.Destroy;
-var iWindow : TTIGWindow;
 begin
-  for iWindow in Windows do
-    iWindow.Free;
+  Reset;
   FreeAndNil( Windows );
   FreeAndNil( WindowStack );
   FreeAndNil( WindowOrder );
   FreeAndNil( WindowStore );
   FreeAndNil( DrawData );
+  FreeAndNil( StyleStack );
   FreeAndNil( Io );
   inherited Destroy;
 end;

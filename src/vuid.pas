@@ -118,6 +118,7 @@ end;
 
 destructor TUIDStore.Destroy;
 begin
+  vuid.UIDs := nil;
   SetLength( FData, 0 );
   inherited Destroy;
 end;

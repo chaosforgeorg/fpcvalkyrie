@@ -53,6 +53,7 @@ end;
 
 TLuaIndexValueEnumerator = object( specialize TGLuaEnumerator<TLuaIndexVariant> )
 public
+  constructor Create( aState : PLua_State; aIndex : Integer );
   function MoveNext : Boolean;
   function GetEnumerator : TLuaIndexValueEnumerator;
 end;
@@ -77,6 +78,7 @@ end;
 
 TLuaValueIndexValueEnumerator = object( specialize TGLuaEnumerator<TLuaIndexValue> )
 public
+  constructor Create( aState : PLua_State; aIndex : Integer );
   function MoveNext : Boolean;
   function GetEnumerator : TLuaValueIndexValueEnumerator;
 end;
@@ -136,7 +138,7 @@ end;
 { TLuaTable }
 
 TLuaTable = class(TVObject)
-  constructor Create( L : PLua_State );
+  constructor Create( L : PLua_State; aIndex : Integer = -1 );
   constructor Create( L : PLua_State; const aPath : array of const; aIndex : Integer = 0 );
   constructor Create( L : PLua_State; const aPath : AnsiString; aIndex : Integer = 0 );
 
@@ -172,6 +174,7 @@ TLuaTable = class(TVObject)
   procedure SetField( const aKey : AnsiString; const aValue : Variant );
 
   function GetInteger( const aKey : AnsiString ) : LongInt; overload;
+  function GetQWord( const aKey : AnsiString ) : QWord; overload;
   function GetFloat( const aKey : AnsiString ) : Double; overload;
   function GetString( const aKey : AnsiString ) : AnsiString; overload;
   function GetChar( const aKey : AnsiString ) : Char; overload;
@@ -179,6 +182,7 @@ TLuaTable = class(TVObject)
   function GetFlags( const aKey : AnsiString ) : TFlags; overload;
 
   function GetInteger( const aKey : AnsiString; aDefault : LongInt ) : LongInt; overload;
+  function GetQWord( const aKey : AnsiString; aDefault : QWord ) : QWord; overload;
   function GetFloat( const aKey : AnsiString; aDefault : Double ) : Double; overload;
   function GetString( const aKey : AnsiString; const aDefault : AnsiString ) : AnsiString; overload;
   function GetChar( const aKey : AnsiString; aDefault : Char ) : Char; overload;
@@ -449,15 +453,24 @@ end;
 
 { TLuaIndexValueEnumerator }
 
+constructor TLuaIndexValueEnumerator.Create( aState : PLua_State; aIndex : Integer );
+begin
+  FState := aState;
+  FIndex := lua_absindex( FState, aIndex );
+  FCurrent.Index := 0;
+end;
+
 function TLuaIndexValueEnumerator.MoveNext : Boolean;
 begin
-  MoveNext := lua_next( FState, FIndex ) <> 0;
-  if MoveNext then
+  Inc( FCurrent.Index );
+  lua_rawgeti( FState, -1, FCurrent.Index );
+  Result := False;
+  if not lua_isnil( FState, -1 ) then
   begin
-    FCurrent.Index := lua_tointeger( FState, -2 );
+    Result := True;
     FCurrent.Value := vlua_tovariant( FState, -1 );
-    lua_pop( FState, 1 );
   end;
+  lua_pop( FState, 1 );
 end;
 
 function TLuaIndexValueEnumerator.GetEnumerator : TLuaIndexValueEnumerator;
@@ -503,15 +516,24 @@ end;
 
 { TLuaValueIndexValueEnumerator }
 
+constructor TLuaValueIndexValueEnumerator.Create( aState : PLua_State; aIndex : Integer );
+begin
+  inherited Create( aState, aIndex );
+  FCurrent.Index := 0;
+end;
+
 function TLuaValueIndexValueEnumerator.MoveNext : Boolean;
 begin
-  if not lua_isnil( FState, -1 ) then lua_pop( FState, 1 );
-  MoveNext := lua_next( FState, FIndex ) <> 0;
-  if MoveNext then
+  lua_pop( FState, 1 );
+  Inc( FCurrent.Index );
+  lua_rawgeti( FState, -1, FCurrent.Index );
+  if lua_isnil( FState, -1 ) then
   begin
-    FCurrent.Index := lua_tointeger( FState, -2 );
-    FCurrent.Value.Create( FState, -1 );
+    lua_pop( FState, 1 );
+    Exit( False );
   end;
+  FCurrent.Value.Create( FState, -1 );
+  Exit( True );
 end;
 
 function TLuaValueIndexValueEnumerator.GetEnumerator : TLuaValueIndexValueEnumerator;
@@ -551,12 +573,17 @@ end;
 
 { TLuaTable }
 
-constructor TLuaTable.Create( L : PLua_State ) ;
+constructor TLuaTable.Create( L : PLua_State; aIndex : Integer = -1 ) ;
 begin
   inherited Create;
   FClear := lua_gettop( L );
   FState := L;
-  if not lua_istable( L, -1 ) then raise ELuaException.Create( 'Object passed to TLuaTable is not a table!' );
+  if aIndex <> -1 then lua_pushvalue( L, aIndex );
+  if not lua_istable( L, -1 ) then
+  begin
+    if aIndex <> -1 then lua_pop( L, 1 );
+    raise ELuaException.Create( 'Object passed to TLuaTable is not a table!' );
+  end;
   FRef   := luaL_ref( FState, LUA_REGISTRYINDEX );
 end;
 
@@ -815,6 +842,14 @@ begin
   Reset;
 end;
 
+function TLuaTable.GetQWord ( const aKey : AnsiString ) : QWord;
+begin
+  Push;
+  RunGetField( aKey );
+  Result := QWord( lua_tointeger( FState, -1 ) );
+  Reset;
+end;
+
 function TLuaTable.GetFloat ( const aKey : AnsiString ) : Double;
 begin
   Push;
@@ -860,6 +895,15 @@ begin
   Push;
   if TryGetField( aKey, LUA_TNUMBER )
     then Result := lua_tointeger( FState, -1 )
+    else Result := aDefault;
+  Reset;
+end;
+
+function TLuaTable.GetQWord ( const aKey : AnsiString; aDefault : QWord ) : QWord;
+begin
+  Push;
+  if TryGetField( aKey, LUA_TNUMBER )
+    then Result := QWord( lua_tonumber( FState, -1 ) )
     else Result := aDefault;
   Reset;
 end;
@@ -1336,7 +1380,7 @@ end;
 procedure TLuaTable.RunGetField ( const aKey : AnsiString; ReqType : Byte ) ;
 begin
   lua_getfield( FState, -1, PChar( aKey ) );
-  if lua_type( FState, -1 ) <> ReqType then ELuaException.Create( 'Field '+aKey+' not found, or wrong type!' );
+  if lua_type( FState, -1 ) <> ReqType then raise ELuaException.Create( 'Field '+aKey+' not found, or wrong type!' );
 end;
 
 function TLuaTable.TryGetField ( const aKey : AnsiString; ReqType : Byte ) : Boolean;

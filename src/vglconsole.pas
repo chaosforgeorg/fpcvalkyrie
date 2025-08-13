@@ -40,6 +40,7 @@ private
   FFont         : TBitmapFont;
   FCurVisible   : Boolean;
   FLineSpace    : DWord;
+  FGlyphStretch : Boolean;
   FStartTime    : TDateTime;
   FBSupport     : Boolean;
   FColorMask    : DWord;
@@ -61,6 +62,7 @@ private
   FCGlyph       : Integer;
 public
   property Font : TBitmapFont read FFont;
+  property GlyphStretch : Boolean read FGlyphStretch write FGlyphStretch;
 end;
 
 implementation
@@ -107,6 +109,7 @@ GLConsoleFragmentShader : AnsiString =
 'uniform sampler2D udiffuse;' + #10 +
 'uniform usamplerBuffer udata;' + #10 +
 'uniform ivec3 ucursor;' + #10 +
+'uniform int ustretch;' + #10 +
 '' + #10 +
 'void main(void)' + #10 +
 '{' + #10 +
@@ -118,6 +121,7 @@ GLConsoleFragmentShader : AnsiString =
 '    int lines = ts.y / usheet_size.y;' + #10 +
 '    float lfac = float( uline_space ) / float( lines );' + #10 +
 '    vec2 tc = fract( coord ) * vec2( 1.0, 1.0 + lfac ) - vec2( 0.0, lfac * 0.5 );' + #10 +
+'    if ( ustretch > 0 ) tc.y = clamp(tc.y, 0.0, 0.99); ' + #10 +
 '' + #10 +
 '    int index = int( coord.x ) + int( uterm_size.x ) * int( coord.y );' + #10 +
 '    uvec4 data_sample = texelFetch( udata, index ).rgba;' + #10 +
@@ -218,6 +222,7 @@ begin
   inherited Create( aSizeX, aSizeY, aReqCapabilities );
   Initialize( aFont, aLineSpace );
   FOwnTextures  := False;
+  FGlyphStretch := False;
 end;
 
 constructor TGLConsoleRenderer.Create ( aFont : AnsiString; aFontGridX, aFontCount, aFontShift, aSizeX, aSizeY : DWord; aLineSpace : DWord; aReqCapabilities : TIOConsoleCapSet ) ;
@@ -225,6 +230,7 @@ var iTextureID : TTextureID;
 begin
   inherited Create( aSizeX, aSizeY, aReqCapabilities );
   FOwnTextures  := False;
+  FGlyphStretch := False;
   if not TTextureManager.Initialized then
   begin
     FOwnTextures  := True;
@@ -437,6 +443,9 @@ begin
     iPLoc := FProgram.GetUniformLocation('uline_space');
     glUniform1i( iPLoc, FLineSpace );
 
+    iPLoc := FProgram.GetUniformLocation('ustretch');
+    glUniform1i( iPLoc, Iif( FGlyphStretch, 1, 0 ) );
+
     FPCursor := FProgram.GetUniformLocation('ucursor');
   FProgram.Unbind;
 
@@ -478,10 +487,12 @@ end;
 
 destructor TGLConsoleRenderer.Destroy;
 begin
+  glDeleteTextures(1, @FDataTexture );
   glDeleteBuffers(1, @FDataVBO);
   glDeleteVertexArrays(1, @FDataVAO);
   glDeleteVertexArrays(1, @FTriangleVAO);
   FreeAndNil( FFont );
+  FreeAndNil( FProgram );
   if FOwnTextures then TTextureManager.Get().Free;
   inherited Destroy;
 end;

@@ -9,8 +9,8 @@ type
   lua_Alloc     = function (ud, ptr : Pointer; osize, nsize : LongWord) : Pointer; cdecl;
 
 type
-  lua_Number = Double;
-  lua_Integer = Integer;
+  lua_Number  = Double;
+  lua_Integer = int64;
 
 type
   lua_Chuckreader = type lua_Reader;

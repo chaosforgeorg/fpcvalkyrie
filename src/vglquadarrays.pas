@@ -35,7 +35,6 @@ type TGLTexturedColoredQuads = class( TGLTexturedQuads )
   procedure Append( aList : TGLTexturedColoredQuads );
 end;
 
-
 implementation
 
 uses vgl3library;

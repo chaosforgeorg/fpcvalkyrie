@@ -21,34 +21,59 @@
 unit vluagamestate;
 interface
 
-uses Classes, SysUtils, vluastate, vrltools;
+uses Classes, SysUtils, vluastate, vrltools, vutil;
 
 type TLuaGameState = object( TLuaState )
-  function ToPosition( Index : Integer ) : TCoord2D;
-  function ToID( Index : Integer ) : DWord;
+  function ToPosition( aIndex : Integer ) : TCoord2D;
+  function ToID( aIndex : Integer ) : DWord;
+  function ToCellSet( aIndex : Integer ) : TFlags;
 end;
 
 implementation
 
-uses vluasystem, vluaentitynode;
+uses vlualibrary, vluasystem, vluaentitynode;
 
 { TLuaGameState }
 
-function TLuaGameState.ToPosition ( Index : Integer ) : TCoord2D;
+function TLuaGameState.ToPosition ( aIndex : Integer ) : TCoord2D;
+var iObject : TObject;
 begin
-  if IsObject( Index ) then
-    with ToObject( Index ) as TLuaEntityNode do
-      Exit( Position );
-  if IsCoord( Index ) then Exit( ToCoord( Index ) );
-  Error('Position expected!');
+  if IsCoord( aIndex ) then Exit( ToCoord( aIndex ) );
+  iObject := ToObject( aIndex );
+  if iObject is TLuaEntityNode then Exit( TLuaEntityNode(iObject).Position );
+  Error( 'Position expected at index '+IntToStr(aIndex)+'!' );
 end;
 
-function TLuaGameState.ToID ( Index : Integer ) : DWord;
+function TLuaGameState.ToID ( aIndex : Integer ) : DWord;
+var iValue : Integer;
 begin
-  if isNumber( Index ) then Exit( ToInteger( Index ) );
-  if isString( Index ) then Exit( LuaSystem.Defines[ ToString( Index ) ] );
-  Error('ID expected!');
+  if isNumber( aIndex ) then Exit( ToInteger( aIndex ) );
+  if isString( aIndex ) then
+  begin
+    iValue := LuaSystem.Defines.Get( ToString( aIndex ), -1 );
+    if iValue >= 0 then Exit( DWord( iValue ) );
+    Error('Unknown ID ("'+ToString( aIndex )+'") at index '+ToString( aIndex ) +'!');
+  end;
+  Error('ID expected at index '+IntToStr( aIndex ) +'!');
 end;
 
+function TLuaGameState.ToCellSet ( aIndex : Integer ) : TFlags;
+begin
+  ToCellSet := [];
+
+  case lua_type( FState, aIndex ) of
+    LUA_TTABLE :
+    begin
+      lua_pushnil( FState );
+      while lua_next( FState, aIndex ) <> 0 do
+      begin
+        Include( ToCellSet, ToID( -1 ) );
+        lua_pop( FState, 1 );
+      end;
+    end;
+    LUA_TSTRING : Include( ToCellSet, ToID( aIndex ) );
+    LUA_TNUMBER : Include( ToCellSet, lua_tointeger( FState, aIndex ) );
+  end;
+end;
 end.
 

@@ -667,6 +667,7 @@ end;
 destructor TRawPointerArray.Destroy;
 begin
   Clear;
+  FreeMem( FData );
   inherited Destroy;
 end;
 
@@ -1552,7 +1553,7 @@ end;
 destructor TRawRingBuffer.Destroy;
 begin
   Clear;
-  ReallocMem( FData, 0 );
+  FreeMem( FData );
   inherited Destroy;
 end;
 

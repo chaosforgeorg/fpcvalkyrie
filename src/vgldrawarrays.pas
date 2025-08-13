@@ -38,6 +38,7 @@ type TGLTexturedArrays = class
   procedure Draw;
   procedure Update;
   procedure Clear;
+  procedure Reset;
   function AddDrawArray( aDrawArray : TGLDrawArrays; aTexture : Cardinal ) : TGLDrawArrays;
   function GetDrawArray( aTexture : Cardinal ) : TGLDrawArrays;
   function Empty : Boolean;
@@ -174,12 +175,15 @@ procedure TGLTexturedArrays.Draw;
 var i : Integer;
 begin
   if FDrawArrays.Size > 0 then
+  begin
     for i := 0 to FDrawArrays.Size - 1 do
     begin
       glActiveTexture( GL_TEXTURE0 );
       glBindTexture( GL_TEXTURE_2D, FTextureIDs[i]  );
       FDrawArrays[i].Draw;
     end;
+    glBindTexture( GL_TEXTURE_2D, 0 );
+  end;
 end;
 
 procedure TGLTexturedArrays.Clear;
@@ -188,6 +192,12 @@ begin
   if FDrawArrays.Size > 0 then
     for i := 0 to FDrawArrays.Size - 1 do
       FDrawArrays[i].Clear;
+end;
+
+procedure TGLTexturedArrays.Reset;
+begin
+  FDrawArrays.Clear;
+  FTextureIDs.Clear;
 end;
 
 function TGLTexturedArrays.Empty : Boolean;

@@ -60,6 +60,7 @@ begin
   FWriterSet := [];
   SetLength(FData,FSize);
 
+  RegisterWriter( FILETYPE_RAW,   @AddRawFile );
   RegisterWriter( FILETYPE_LUA,   @AddLuaFile );
   RegisterWriter( FILETYPE_HELP,  @AddTextFile );
   RegisterWriter( FILETYPE_ASCII, @AddTextFile );
@@ -192,6 +193,7 @@ procedure TVDataCreator.Add( const aDir,aMask: AnsiString; aFileType: DWord; aFl
   const aPackageName: AnsiString);
 var iSearchRec : TSearchRec;
     iDirectory : AnsiString;
+    iMask      : AnsiString;
     iWriter    : TVDataWriter;
 begin
   iDirectory := aDir;
@@ -199,8 +201,20 @@ begin
     raise EFOpenError.Create('Filetype #'+IntToStr(aFileType)+' not registered!');
   iWriter    := FWriters[aFileType];
   if iDirectory <> '' then iDirectory += PathDelim;
-  Log('Adding "'+ iDirectory + aMask+'"...');
-  if FindFirst(iDirectory + aMask,faAnyFile,iSearchRec) = 0 then
+  iMask := aMask;
+  Log('Adding "'+ iDirectory + iMask+'"...');
+  if iMask.StartsWith('**') then
+  begin
+    Delete( iMask, 1, 1 );
+    if FindFirst(iDirectory + '*',faAnyFile,iSearchRec) = 0 then
+    repeat
+      if iSearchRec.Name[1] = '.' then Continue;
+      if (iSearchRec.Attr and faDirectory) <> 0 then
+          Add( iDirectory + iSearchRec.Name, aMask, aFileType, aFlags, aPackageName + '/'+ iSearchRec.Name );
+    until (FindNext(iSearchRec) <> 0);
+    FindClose(iSearchRec);
+  end;
+  if FindFirst(iDirectory + iMask,faAnyFile,iSearchRec) = 0 then
   repeat
     if iSearchRec.Name[1] = '.' then Continue;
     iWriter(iDirectory + iSearchRec.Name, aFileType, aFlags, aPackageName );

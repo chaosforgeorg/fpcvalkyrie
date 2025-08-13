@@ -2,13 +2,13 @@
 unit vglprogram;
 interface
 
-uses Classes, SysUtils;
+uses Classes, SysUtils, vnode;
 
 type
 
 { TGLProgram }
 
- TGLProgram = class
+ TGLProgram = class( TVObject )
   constructor Create( const aVSSource, aFSSource : Ansistring );
   procedure Bind;
   function GetAttribLocation( const aName : AnsiString ) : Integer;
@@ -125,7 +125,6 @@ var iCompileOK : LongInt;
     iLength    : LongInt;
     iBuffer    : AnsiString;
 begin
-  Log( 'Compiling program...' );
   iCompileOK := GL_FALSE;
   FVShaderID := CompileShader( GL_VERTEX_SHADER, aVSSource );
   FFShaderID := CompileShader( GL_FRAGMENT_SHADER, aFSSource );
@@ -144,7 +143,6 @@ begin
     SetLength( iBuffer, iLength );
     Log( 'glLinkProgram failure : '+ iBuffer );
   end;
-  Log( 'Program compiled successfuly.' );
 end;
 
 function TGLProgram.CompileShader( aType: Cardinal; const aSource: Ansistring ): Cardinal;
@@ -155,7 +153,6 @@ var iCompileOK : LongInt;
     iPPSource  : PPChar;
     iBuffer    : AnsiString;
 begin
-  Log( 'Compiling shader...' );
   iCompileOK := GL_FALSE;
   iShaderID  := glCreateShader( aType );
   iPSource   := PChar(aSource);
@@ -174,7 +171,6 @@ begin
     Readln;
     Exit( 0 );
   end;
-  Log( 'Shader compiled successfuly.' );
   Exit( iShaderID );
 end;
 

@@ -32,6 +32,7 @@ type TTextureManager = class( TVObject )
   constructor Create( aDefaultBlend : Boolean = False );
   class function Get : TTextureManager;
   class function Initialized : Boolean;
+  procedure Clear;
   destructor Destroy; override;
 
   function AddImage( const aID : AnsiString; aImage : TImage; aBlend : Boolean ) : TTextureID;
@@ -41,6 +42,7 @@ type TTextureManager = class( TVObject )
   procedure LoadTextureCallback( aStream : TStream; aName : Ansistring; aSize : DWord );
   procedure Upload;
 
+  function Exists( const aTextureName : AnsiString ) : Boolean;
   function GetTextureID( const aTextureName : AnsiString ) : TTextureID;
   function GetTexture( const aTextureID : TTextureID ) : TTexture;
   function GetTexture( const aTextureName : AnsiString ) : TTexture;
@@ -57,7 +59,7 @@ end;
 
 implementation
 
-uses vgl3library, vglimage;
+uses vgl3library, vglimage, vutil;
 
 var TextureManager : TTextureManager = nil;
 
@@ -88,7 +90,7 @@ begin
     glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT );
     glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT );
     glTexParameteri( GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_MIRRORED_REPEAT );
-    glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA,
+    glTexImage3D( GL_TEXTURE_3D, 0, GL_RGBA8,
       FImage.SizeX div FImage.SizeY, FImage.SizeY, FImage.SizeY, 0,
       GL_RGBA, GL_UNSIGNED_BYTE, FImage.Data );
     glBindTexture( GL_TEXTURE_3D, 0 );
@@ -98,7 +100,7 @@ begin
     glBindTexture( GL_TEXTURE_2D, FGLID );
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, iGLBlend );
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, iGLBlend );
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
       FImage.SizeX, FImage.SizeY, 0, GL_RGBA, GL_UNSIGNED_BYTE, FImage.Data );
     glBindTexture( GL_TEXTURE_2D, 0 );
   end;
@@ -106,7 +108,9 @@ end;
 
 destructor TTexture.Destroy;
 begin
-  glDeleteTextures( 1, @FGLID );
+  FreeAndNil( FImage );
+  if FGLID <> 0 then
+    glDeleteTextures( 1, @FGLID );
   inherited Destroy;
 end;
 
@@ -131,6 +135,12 @@ end;
 class function TTextureManager.Initialized : Boolean;
 begin
   Exit( TextureManager <> nil );
+end;
+
+procedure TTextureManager.Clear;
+begin
+  FTextureIDs.Clear;
+  FTextures.Clear;
 end;
 
 destructor TTextureManager.Destroy;
@@ -185,7 +195,13 @@ var iIndex : DWord;
 begin
   if FTextures.Size = 0 then Exit;
   for iIndex := 0 to FTextures.Size-1 do
-    FTextures[ iIndex ].Upload;
+    if FTextures[ iIndex ].GLTexture = 0 then
+      FTextures[ iIndex ].Upload;
+end;
+
+function TTextureManager.Exists( const aTextureName : AnsiString ) : Boolean;
+begin
+  Exit( FTextureIDs.Exists(aTextureName) );
 end;
 
 function TTextureManager.GetTextureID ( const aTextureName : AnsiString ) : TTextureID;

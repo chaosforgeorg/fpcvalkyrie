@@ -310,6 +310,7 @@ destructor TVXMLDataFile.Destroy;
 begin
   if FHandle = 0 then
     Save;
+  FreeAndNil( FXML );
   inherited Destroy;
 end;
 

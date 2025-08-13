@@ -12,6 +12,7 @@ type TConfigurationEntry      = class;
      TConfigurationEntryMap   = specialize TGHashMap< TConfigurationEntry >;
      TConfigurationGroupMap   = specialize TGHashMap< TConfigurationGroup >;
      TConfigurationValueMap   = specialize TGHashMap< Variant >;
+     TStringArray             = array of Ansistring;
 
 type TConfigurationEntry = class( TVObject )
   constructor Create( aID : Ansistring );
@@ -49,6 +50,7 @@ end;
 type TIntegerConfigurationEntry = class( TConfigurationEntry )
   constructor Create( aID : Ansistring; aDefault : Integer );
   function SetRange( aMin, aMax : Integer; aStep : Integer = 1 ) : TIntegerConfigurationEntry;
+  function SetNames( const aNames : array of Ansistring ) : TIntegerConfigurationEntry;
   function Access : PInteger;
   procedure Reset; override;
 protected
@@ -60,18 +62,36 @@ protected
   FMax     : Integer;
   FStep    : Integer;
   FValue   : Integer;
+  FNames   : array of Ansistring;
 public
   property Default : Integer read FDefault;
   property Min     : Integer read FMin;
   property Max     : Integer read FMax;
   property Step    : Integer read FStep;
   property Value   : Integer read FValue write FValue;
+  property Names   : TStringArray read FNames;
+end;
+
+type TStringConfigurationEntry = class( TConfigurationEntry )
+  constructor Create( aID : Ansistring; aDefault : Ansistring );
+  function Access : PAnsistring;
+  procedure Reset; override;
+protected
+  function ToLuaString : Ansistring; override;
+  function ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean; override;
+protected
+  FDefault : Ansistring;
+  FValue   : Ansistring;
+public
+  property Default : Ansistring read FDefault;
+  property Value   : Ansistring read FValue write FValue;
 end;
 
 type TConfigurationGroup = class( TVObject )
   constructor Create( aConfigurationManager : TConfigurationManager );
   function AddInteger( aEntryID : Ansistring; aDefault : Integer ) : TIntegerConfigurationEntry;
   function AddToggle( aEntryID : Ansistring; aDefault : Boolean ) : TToggleConfigurationEntry;
+  function AddString( aEntryID : Ansistring; aDefault : Ansistring ) : TStringConfigurationEntry;
   destructor Destroy; override;
 protected
   procedure AddEntry( aEntryID : Ansistring; aEntry : TConfigurationEntry );
@@ -87,10 +107,13 @@ type TConfigurationManager = class( TVObject )
   constructor Create;
   function GetInteger( aEntryID : Ansistring ) : Integer;
   function GetBoolean( aEntryID : Ansistring ) : Boolean;
+  function GetString( aEntryID : Ansistring ) : Ansistring;
   function AccessInteger( aEntryID : Ansistring ) : PInteger;
   function AccessBoolean( aEntryID : Ansistring ) : PBoolean;
+  function AccessString( aEntryID : Ansistring ) : PAnsistring;
   function CastInteger( aEntryID : Ansistring ) : TIntegerConfigurationEntry;
   function CastBoolean( aEntryID : Ansistring ) : TToggleConfigurationEntry;
+  function CastString( aEntryID : Ansistring ) : TStringConfigurationEntry;
   function Read( aFileName : Ansistring ) : Boolean;
   function Write( aFileName : Ansistring ) : Boolean;
   destructor Destroy; override;
@@ -138,6 +161,7 @@ constructor TToggleConfigurationEntry.Create( aID: Ansistring; aDefault: Boolean
 begin
   inherited Create( aID );
   FDefault := aDefault;
+  FValue   := aDefault;
 end;
 
 function TToggleConfigurationEntry.Access : PBoolean;
@@ -179,6 +203,16 @@ begin
   FMin   := aMin;
   FMax   := aMax;
   FStep  := aStep;
+  FNames := nil;
+  Result := Self;
+end;
+
+function TIntegerConfigurationEntry.SetNames( const aNames : array of Ansistring ) : TIntegerConfigurationEntry;
+var i : Integer;
+begin
+  SetLength(FNames, Length(aNames));
+  for i := 0 to High(aNames) do
+    FNames[i] := aNames[i];
   Result := Self;
 end;
 
@@ -203,6 +237,39 @@ begin
   if lua_type( aState, aIndex ) = LUA_TNUMBER
     then FValue := lua_tointeger( aState, aIndex )
     else begin Log( LOGWARN, 'Malformed entry "'+FID+'", integer expected!' ); Result := False; end;
+end;
+
+{ TToggleConfigurationEntry }
+
+constructor TStringConfigurationEntry.Create( aID: Ansistring; aDefault: Ansistring );
+begin
+  inherited Create( aID );
+  FDefault := aDefault;
+  FValue   := aDefault;
+end;
+
+function TStringConfigurationEntry.Access : PAnsistring;
+begin
+  Result := @FValue;
+end;
+
+procedure TStringConfigurationEntry.Reset;
+begin
+  FValue := FDefault;
+end;
+
+function TStringConfigurationEntry.ToLuaString : Ansistring;
+begin
+  // TODO: Escape sequences!
+  Result := '"'+FValue+'"';
+end;
+
+function TStringConfigurationEntry.ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean;
+begin
+  Result := True;
+  if lua_type( aState, aIndex ) = LUA_TSTRING
+    then FValue := lua_tostring( aState, aIndex )
+    else begin Log( LOGWARN, 'Malformed entry "'+FID+'", string expected!' ); Result := False; end;
 end;
 
 { TConfigurationGroup }
@@ -233,6 +300,12 @@ end;
 function TConfigurationGroup.AddToggle( aEntryID: Ansistring; aDefault: Boolean ): TToggleConfigurationEntry;
 begin
   Result := TToggleConfigurationEntry.Create( aEntryID, aDefault );
+  AddEntry( aEntryID, Result );
+end;
+
+function TConfigurationGroup.AddString( aEntryID : Ansistring; aDefault : Ansistring ) : TStringConfigurationEntry;
+begin
+  Result := TStringConfigurationEntry.Create( aEntryID, aDefault );
   AddEntry( aEntryID, Result );
 end;
 
@@ -278,6 +351,11 @@ begin
   Result := CastBoolean( aEntryID ).Value;
 end;
 
+function TConfigurationManager.GetString(aEntryID: Ansistring): Ansistring;
+begin
+  Result := CastString( aEntryID ).Value;
+end;
+
 function TConfigurationManager.AccessInteger(aEntryID: Ansistring): PInteger;
 begin
   Result := CastInteger( aEntryID ).Access;
@@ -286,6 +364,11 @@ end;
 function TConfigurationManager.AccessBoolean(aEntryID: Ansistring): PBoolean;
 begin
   Result := CastBoolean( aEntryID ).Access;
+end;
+
+function TConfigurationManager.AccessString(aEntryID: Ansistring): PAnsistring;
+begin
+  Result := CastString( aEntryID ).Access;
 end;
 
 function TConfigurationManager.CastInteger( aEntryID : Ansistring ) : TIntegerConfigurationEntry;
@@ -308,6 +391,16 @@ begin
   Result := TToggleConfigurationEntry( iLookup );
 end;
 
+function TConfigurationManager.CastString( aEntryID : Ansistring ) : TStringConfigurationEntry;
+var iLookup : TConfigurationEntry;
+begin
+  iLookup := FLookup[ aEntryID ];
+  if iLookup = nil then raise Exception.Create( 'TConfigurationManager - Entry '+aEntryID+' is not defined!' );
+  if not ( iLookup is TStringConfigurationEntry ) then
+    raise Exception.Create( 'TConfigurationManager - Entry '+aEntryID+' is not a TStringConfigurationEntry!' );
+  Result := TStringConfigurationEntry( iLookup );
+end;
+
 destructor TConfigurationManager.Destroy;
 var iEntry : TConfigurationGroup;
 begin
@@ -320,8 +413,7 @@ begin
 end;
 
 function TConfigurationManager.Read( aFileName : Ansistring ) : Boolean;
-var iText  : Text;
-    iState : PLua_State;
+var iState : PLua_State;
     iKey   : Ansistring;
     iEntry : TConfigurationEntry;
 begin

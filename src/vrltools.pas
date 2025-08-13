@@ -39,6 +39,9 @@ const DIR_NONE      = 0;
       DIR_UP        = 8;
       DIR_UPRIGHT   = 9;
 
+type EPlacementException = class(EException);
+type TCellSet            = set of Byte;
+
 type TByteRange = object
   Min : Byte;
   Max : Byte;
@@ -57,6 +60,8 @@ type TDiceRoll = object
   bonus  : Integer;
   procedure Init( namount, nsides : Word; nbonus : Integer = 0);
   procedure Init(const diecode : string);
+  procedure Reset;
+  function IsZero : Boolean;
   function Roll : LongInt;
   function toString : string;
   procedure fromString(diecode : string);
@@ -94,7 +99,8 @@ TCoord2D = object
   function ToString : AnsiString;
   function Horiz( Horizontal : Boolean ) : Integer; overload;
   procedure Horiz( Horizontal : Boolean; Value : Integer ); overload;
-
+  function Zero : Boolean;
+  function NotZero : Boolean;
 end;
 
 TCoord2DArray = array of TCoord2D;
@@ -235,6 +241,8 @@ function NewArea( const x1,y1,x2,y2 : Integer ) : TArea; inline; overload;
 function NewArea( const TopLeft,BottomRight : TCoord2D ) : TArea; inline; overload;
 function NewArea( const Center : TCoord2D; Radius : Word ) : TArea; inline; overload;
 
+operator = (a,b : TArea) r : boolean;
+
 operator = (a,b : TCoord2D) r : boolean; inline;
 operator + (a,b : TCoord2D) r : TCoord2D; inline;
 operator - (a,b : TCoord2D) r : TCoord2D; inline;
@@ -281,6 +289,8 @@ TAutoTarget = class(TVObject)
   procedure PriorityTarget( target : TCoord2D );
   // Resets the system -- GetNext after that will provide the closest target
   procedure Reset;
+  // Clears the system -- all memory is freed and the object can be reused
+  procedure Clear( newSource : TCoord2D );
   // Returns the pointer to the first target.
   function First : TCoord2D;
   // Returns the pointer to current target.
@@ -668,6 +678,20 @@ begin
   if Horizontal then X := Value else Y := Value;
 end;
 
+function TCoord2D.Zero : Boolean;
+begin
+  Exit( ( X = 0 ) and ( Y = 0 ) );
+end;
+
+function TCoord2D.NotZero : Boolean;
+begin
+  Exit( ( X <> 0 ) or ( Y <> 0 ) );
+end;
+
+operator = (a,b : TArea) r : boolean;
+begin
+  r := (a.a = b.a) and (a.b = b.b);
+end;
 
 operator = (a,b : TCoord2D) r : boolean; inline;
 begin
@@ -804,6 +828,15 @@ begin
   CurrentEntry := FirstEntry;
 end;
 
+procedure TAutoTarget.Clear( newSource : TCoord2D );
+begin
+  while FirstEntry <> nil do
+    RemoveEntry( FirstEntry );
+  FirstEntry   := nil;
+  CurrentEntry := nil;
+  Source       := newSource;
+end;
+
 function TAutoTarget.First: TCoord2D;
 begin
   if CurrentEntry = nil then Exit();
@@ -911,6 +944,16 @@ procedure TDiceRoll.Init(const diecode: string);
 begin
   Init(0,0,0);
   fromString(diecode);
+end;
+
+procedure TDiceRoll.Reset;
+begin
+  Init(0,0,0);
+end;
+
+function TDiceRoll.IsZero : Boolean;
+begin
+  Exit( ( amount = 0 ) and ( sides = 0 ) and ( bonus = 0 ) );
 end;
 
 function TDiceRoll.Roll: LongInt;

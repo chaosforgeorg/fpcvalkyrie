@@ -48,6 +48,9 @@ type TIODriver = class( TVObject )
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString = '' ); virtual; abstract;
   procedure ClearInterrupts;
   procedure RegisterInterrupt( aCode : TIOKeyCode; aInterrupt : TIOInterrupt );
+  procedure StartTextInput; virtual;
+  procedure StopTextInput; virtual;
+  function Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean; virtual;
 protected
   FOnQuit       : TIOInterrupt;
   FInterrupts   : TIOInterrupts;
@@ -191,6 +194,21 @@ procedure TIODriver.RegisterInterrupt ( aCode : TIOKeyCode; aInterrupt : TIOInte
 begin
   FInterrupts[aCode] := aInterrupt;
 end;
+
+procedure TIODriver.StartTextInput;
+begin
+end;
+
+procedure TIODriver.StopTextInput;
+begin
+end;
+
+function TIODriver.Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean;
+begin
+  Exit( False );
+end;
+
+
 
 end.
 

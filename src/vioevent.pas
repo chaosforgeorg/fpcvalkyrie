@@ -22,16 +22,26 @@ const VKEY_UPRIGHT   = VKEY_PGUP;
       VKEY_UPLEFT    = VKEY_HOME;
       VKEY_DOWNLEFT  = VKEY_END;
 
-type TIOEventType      = ( VEVENT_SYSTEM, VEVENT_KEYDOWN, VEVENT_KEYUP, VEVENT_MOUSEMOVE, VEVENT_MOUSEDOWN, VEVENT_MOUSEUP );
+type TIOEventType      = ( VEVENT_SYSTEM, VEVENT_KEYDOWN, VEVENT_KEYUP, VEVENT_MOUSEMOVE, VEVENT_MOUSEDOWN, VEVENT_MOUSEUP, VEVENT_PADAXIS, VEVENT_PADDOWN, VEVENT_PADUP, VEVENT_PADDEVICE, VEVENT_TEXT );
      TIOEventTypeSet   = set of TIOEventType;
      TIOModKey         = ( VKMOD_UNKNOWN, VKMOD_CTRL, VKMOD_SHIFT, VKMOD_ALT );
      TIOModKeySet      = set of TIOModKey;
      TIOMouseButton    = ( VMB_UNKNOWN, VMB_BUTTON_LEFT, VMB_BUTTON_MIDDLE, VMB_BUTTON_RIGHT, VMB_WHEEL_UP, VMB_WHEEL_DOWN );
      TIOMouseButtonSet = set of TIOMouseButton;
-     TIOKeyEvent       = record Code : Byte; ASCII : Char; ModState : TIOModKeySet; Pressed : Boolean; end;
+     TIOPadAxis        = ( VPAD_AXIS_INVALID := -1, VPAD_AXIS_LEFT_X := 0, VPAD_AXIS_LEFT_Y, VPAD_AXIS_RIGHT_X, VPAD_AXIS_RIGHT_Y, VPAD_AXIS_TRIGGERLEFT, VPAD_AXIS_TRIGGERRIGHT );
+     TIOPadButton      = ( VPAD_BUTTON_INVALID := -1, VPAD_BUTTON_A := 0, VPAD_BUTTON_B, VPAD_BUTTON_X, VPAD_BUTTON_Y, VPAD_BUTTON_BACK, VPAD_BUTTON_GUIDE, VPAD_BUTTON_START, VPAD_BUTTON_LEFTSTICK, VPAD_BUTTON_RIGHTSTICK, VPAD_BUTTON_LEFTSHOULDER, VPAD_BUTTON_RIGHTSHOULDER, VPAD_BUTTON_DPAD_UP, VPAD_BUTTON_DPAD_DOWN, VPAD_BUTTON_DPAD_LEFT, VPAD_BUTTON_DPAD_RIGHT );
+     TIOPadDevice      = ( VPAD_ADDED, VPAD_REMOVED, VPAD_REMAPPED );
+     TIOKeyEvent       = record Code : Byte; ASCII : Char; ModState : TIOModKeySet; Pressed : Boolean; Repeated : Boolean; end;
      TIOMouseEvent     = record Button : TIOMouseButton; Pos : TPoint; Pressed : Boolean; end;
      TIOMouseMoveEvent = record ButtonState : TIOMouseButtonSet; Pos : TPoint; RelPos : TPoint; end;
+     TIOPadAxisEvent   = record Axis : TIOPadAxis; Value : Int16; Which : int32; end;
+     TIOPadButtonEvent = record Button : TIOPadButton; Pressed : Boolean; Which : int32; end;
+     TIOPadDeviceEvent = record Event : TIOPadDevice; Which : int32; end;
      TIOSystemEvent    = record Code : DWord; Param1 : DWord; Param2 : DWord; end;
+     TIOTextEvent      = record Text : array[0..31] of Char; end;
+
+const VPAD_AXIS_MIN = -32768;
+      VPAD_AXIS_MAX = 32767;
 
 const VIO_SYSEVENT_NONE    = 0;
       VIO_SYSEVENT_UNKNOWN = 1;
@@ -40,6 +50,15 @@ const VIO_SYSEVENT_NONE    = 0;
       VIO_SYSEVENT_EXPOSE  = 4;
       VIO_SYSEVENT_WM      = 5;
       VIO_SYSEVENT_COUNT   = 5;
+
+const IOPadAxisNames : array[TIOPadAxis] of AnsiString =
+  ( 'INVALID', 'LEFT_X', 'LEFT_Y', 'RIGHT_X', 'RIGHT_Y', 'TRIGGERLEFT', 'TRIGGERRIGHT' );
+
+const IOPadButtonNames : array[TIOPadButton] of AnsiString =
+  ( 'INVALID', 'A', 'B', 'X', 'Y', 'BACK', 'GUIDE', 'START', 'LEFTSTICK', 'RIGHTSTICK', 'LEFTSHOULDER', 'RIGHTSHOULDER', 'DPAD_UP', 'DPAD_DOWN', 'DPAD_LEFT', 'DPAD_RIGHT' );
+
+const IOPadDeviceNames : array[TIOPadDevice] of AnsiString =
+  ( 'ADDED', 'REMOVED', 'REMAPPED' );
 
 const IOSystemEventNames : array[0..VIO_SYSEVENT_COUNT] of AnsiString =
   ( 'NONE', 'UNKNOWN', 'QUIT', 'RESIZE', 'EXPOSE', 'WM' );
@@ -52,6 +71,11 @@ type TIOEvent = record
     VEVENT_MOUSEMOVE  : ( MouseMove : TIOMouseMoveEvent; );
     VEVENT_MOUSEDOWN,
     VEVENT_MOUSEUP    : ( Mouse : TIOMouseEvent; );
+    VEVENT_PADAXIS    : ( PadAxis : TIOPadAxisEvent );
+    VEVENT_PADDOWN,
+    VEVENT_PADUP      : ( Pad : TIOPadButtonEvent );
+    VEVENT_PADDEVICE  : ( PadDevice : TIOPadDeviceEvent );
+    VEVENT_TEXT       : ( Text : TIOTextEvent; );
   end;
 
 type  TIOKeyCode = Word;
@@ -65,12 +89,18 @@ const IOKeyCodeKeyMask   = %0000000011111111;
 function IOModState( aShift, aCtrl, aAlt : Boolean ) : TIOModKeySet;
 function IOModState( aWord : TIOKeyCode ) : TIOModKeySet;
 function VKeyToString( aKey : Byte ) : AnsiString;
+function VKeyToStringShort( aKey : Byte ) : AnsiString;
 function VModKeyToString( aModKey : TIOModKey ) : AnsiString;
 function VModKeySetToString( const aModKeySet : TIOModKeySet ) : AnsiString;
 function IOKeyCodeToString( const aKey : TIOKeyCode ) : AnsiString;
+function IOKeyCodeToStringShort( const aKey : TIOKeyCode ) : AnsiString;
 function VKeyAndModToString( aKey : Byte; const aModKeySet : TIOModKeySet ) : AnsiString;
+function VKeyAndModToStringShort( aKey : Byte; const aModKeySet : TIOModKeySet ) : AnsiString;
 function VMBToString( aMB : TIOMouseButton ) : AnsiString;
 function VMBSetToString( aMB : TIOMouseButtonSet ) : AnsiString;
+function VPadAxisToString( aPA : TIOPadAxis ) : AnsiString;
+function VPadButtonToString( aPB : TIOPadButton ) : AnsiString;
+function VPadDeviceToString( aPD : TIOPadDevice ) : AnsiString;
 
 function StringToVKey( const aCode : AnsiString ) : Byte;
 function StringToVModKey( const aCode : AnsiString ) : TIOModKey;
@@ -78,10 +108,15 @@ function StringToVModKeySet( const aCode : AnsiString ) : TIOModKeySet;
 function StringToIOKeyCode( const aCode : AnsiString ) : TIOKeyCode;
 function StringToVMB( const aCode : AnsiString ) : TIOMouseButton;
 function StringToVMBSet( const aCode : AnsiString ) : TIOMouseButtonSet;
+function StringToPadAxis( const aCode : AnsiString ) : TIOPadAxis;
+function StringToPadButton( const aCode : AnsiString ) : TIOPadButton;
 
 function IOKeyEventToString( const aKeyEvent : TIOKeyEvent ) : AnsiString;
 function IOMouseEventToString( const aMouseEvent : TIOMouseEvent ) : AnsiString;
 function IOMouseMoveEventToString ( const aMouseMoveEvent : TIOMouseMoveEvent ) : AnsiString;
+function IOPadAxisEventToString( const aPadAxisEvent : TIOPadAxisEvent ) : AnsiString;
+function IOPadButtonEventToString( const aPadButtonEvent : TIOPadButtonEvent ) : AnsiString;
+function IOPadDeviceEventToString( const aPadDeviceEvent : TIOPadDeviceEvent ) : AnsiString;
 function IOSystemEventToString( const aSystemEvent : TIOSystemEvent ) : AnsiString;
 function IOEventToString( const aEvent : TIOEvent ) : AnsiString;
 
@@ -189,6 +224,63 @@ begin
   Result += VKeyToString( aKey );
 end;
 
+function VKeyToStringShort ( aKey : Byte ) : AnsiString;
+begin
+  case aKey of
+    VKEY_NONE    : Exit( 'none' );
+    VKEY_BACK    : Exit( 'Back' );
+    VKEY_TAB     : Exit( 'Tab' );
+    VKEY_DELETE  : Exit( 'Del' );
+    VKEY_INSERT  : Exit( 'Ins' );
+    VKEY_CENTER  : Exit( 'Center' );
+
+    VKEY_QUOTE   : Exit( '''' );
+    VKEY_COMMA   : Exit( ',' );
+    VKEY_MINUS   : Exit( '-' );
+    VKEY_PERIOD  : Exit( '.' );
+    VKEY_SLASH   : Exit( '/' );
+    VKEY_SCOLON  : Exit( ';' );
+    VKEY_EQUALS  : Exit( '=' );
+    VKEY_LBRACKET: Exit( '[' );
+    VKEY_BSLASH  : Exit( '\' );
+    VKEY_RBRACKET: Exit( ']' );
+    VKEY_BQUOTE  : Exit( '`' );
+
+    VKEY_ENTER   : Exit( 'Enter' );
+    VKEY_PGUP    : Exit( 'PgUp' );
+    VKEY_PGDOWN  : Exit( 'PgDn' );
+    VKEY_END     : Exit( 'End' );
+    VKEY_HOME    : Exit( 'Home' );
+    VKEY_LEFT    : Exit( 'Left' );
+    VKEY_UP      : Exit( 'Up' );
+    VKEY_RIGHT   : Exit( 'Right' );
+    VKEY_DOWN    : Exit( 'Down' );
+
+    VKEY_ESCAPE  : Exit( 'Esc' );
+
+    VKEY_SPACE   : Exit( 'Space' );
+
+    VKEY_0..VKEY_9   : Exit( Chr( aKey - VKEY_0  + Ord('0') ) );
+    VKEY_A..VKEY_Z   : Exit( Chr( aKey - VKEY_A  + Ord('A') ) );
+    VKEY_F1..VKEY_F12: Exit( 'F'+IntToStr( aKey - VKEY_F1 + 1 ) );
+
+  else Exit('UNKNOWN('+IntToStr(aKey)+')');
+  end;
+end;
+
+function IOKeyCodeToStringShort ( const aKey : TIOKeyCode ) : AnsiString;
+begin
+  Result := VKeyAndModToStringShort( aKey mod 256, IOModState( aKey ) );
+end;
+
+function VKeyAndModToStringShort ( aKey : Byte; const aModKeySet : TIOModKeySet ) : AnsiString;
+begin
+  Result := VModKeySetToString( aModKeySet );
+  if Length( Result ) > 0 then Result += '+';
+  Result += VKeyToStringShort( aKey );
+end;
+
+
 function VMBToString ( aMB : TIOMouseButton ) : AnsiString;
 begin
   case aMB of
@@ -209,6 +301,27 @@ begin
     Result += VMBToString( MB ) + '+';
   if Length( Result ) > 0 then
     Delete( Result, Length( Result ), 1 );
+end;
+
+function VPadAxisToString( aPA : TIOPadAxis ) : AnsiString;
+begin
+  if ( Ord(aPA) >= Ord(Low(IOPadAxisNames)) ) and ( Ord(aPA) <= Ord(High(IOPadAxisNames)) ) then
+    Exit( IOPadAxisNames[ aPa ] );
+  Exit('ERROR!');
+end;
+
+function VPadButtonToString( aPB : TIOPadButton ) : AnsiString;
+begin
+  if ( Ord(aPB) >= Ord(Low(IOPadButtonNames)) ) and ( Ord(aPB) <= Ord(High(IOPadButtonNames)) ) then
+    Exit( IOPadButtonNames[ aPB ] );
+  Exit('ERROR!');
+end;
+
+function VPadDeviceToString( aPD : TIOPadDevice ) : AnsiString;
+begin
+  if ( Ord(aPD) >= Ord(Low(IOPadDeviceNames)) ) and ( Ord(aPD) <= Ord(High(IOPadDeviceNames)) ) then
+    Exit( IOPadDeviceNames[ aPD ] );
+  Exit('ERROR!');
 end;
 
 function StringToVKey ( const aCode : AnsiString ) : Byte;
@@ -328,6 +441,22 @@ begin
   until Count = 255;
 end;
 
+function StringToPadAxis( const aCode : AnsiString ) : TIOPadAxis;
+var i : TIOPadAxis;
+begin
+  for i := Low( TIOPadAxis ) to High( TIOPadAxis ) do
+    if IOPadAxisNames[i] = aCode then Exit( i );
+  Exit( VPAD_AXIS_INVALID );
+end;
+
+function StringToPadButton( const aCode : AnsiString ) : TIOPadButton;
+var i : TIOPadButton;
+begin
+  for i := Low( TIOPadButton ) to High( TIOPadButton ) do
+    if IOPadButtonNames[i] = aCode then Exit( i );
+  Exit( VPAD_BUTTON_INVALID );
+end;
+
 function IOKeyEventToString ( const aKeyEvent : TIOKeyEvent ) : AnsiString;
 begin
   Exit( VKeyAndModToString( aKeyEvent.Code, aKeyEvent.ModState )+'/'+aKeyEvent.ASCII );
@@ -341,6 +470,21 @@ end;
 function IOMouseMoveEventToString ( const aMouseMoveEvent : TIOMouseMoveEvent ) : AnsiString;
 begin
   Exit( aMouseMoveEvent.Pos.ToString+'/'+aMouseMoveEvent.RelPos.ToString+'/'+VMBSetToString( aMouseMoveEvent.ButtonState ) );
+end;
+
+function IOPadAxisEventToString( const aPadAxisEvent : TIOPadAxisEvent ) : AnsiString;
+begin
+  Exit( VPadAxisToString( aPadAxisEvent.Axis ) + '/' + IntToStr( aPadAxisEvent.Value ) + '/' + IntToStr( aPadAxisEvent.Which ) );
+end;
+
+function IOPadButtonEventToString( const aPadButtonEvent : TIOPadButtonEvent ) : AnsiString;
+begin
+  Exit( VPadButtonToString( aPadButtonEvent.Button ) + '/' + IntToStr( aPadButtonEvent.Which ) );
+end;
+
+function IOPadDeviceEventToString( const aPadDeviceEvent : TIOPadDeviceEvent ) : AnsiString;
+begin
+  Exit( VPadDeviceToString( aPadDeviceEvent.Event ) + '/' + IntToStr( aPadDeviceEvent.Which ) );
 end;
 
 function IOSystemEventToString ( const aSystemEvent : TIOSystemEvent ) : AnsiString;
@@ -361,6 +505,11 @@ begin
     VEVENT_MOUSEMOVE  : Result += '['+IOMouseMoveEventToString( aEvent.MouseMove )+']';
     VEVENT_MOUSEDOWN,
     VEVENT_MOUSEUP    : Result += '['+IOMouseEventToString( aEvent.Mouse )+']';
+    VEVENT_PADAXIS    : Result += '['+IOPadAxisEventToString( aEvent.PadAxis )+']';
+    VEVENT_PADDOWN,
+    VEVENT_PADUP      : Result += '['+IOPadButtonEventToString( aEvent.Pad )+']';
+    VEVENT_PADDEVICE  : Result += '['+IOPadDeviceEventToString( aEvent.PadDevice )+']';
+    VEVENT_TEXT       : Result += '['+UTF8String(aEvent.Text.Text)+']';
   end;
 end;
 
@@ -373,6 +522,11 @@ begin
     VEVENT_MOUSEMOVE  : Exit('MouseMove');
     VEVENT_MOUSEDOWN  : Exit('MouseDown');
     VEVENT_MOUSEUP    : Exit('MouseUp');
+    VEVENT_PADAXIS    : Exit('PadAxis');
+    VEVENT_PADDOWN    : Exit('PadDown');
+    VEVENT_PADUP      : Exit('PadUp');
+    VEVENT_PADDEVICE  : Exit('PadDevice');
+    VEVENT_TEXT       : Exit('Text');
   end;
 end;
 

@@ -518,7 +518,7 @@ begin
       for iCount in HookSet do
         if isFunction( Hooks[ iCount ] ) then
           Include( FHooks, iCount );
-    FFlags := getFlags( 'flags' );
+    FFlags := getFlags( 'flags', [] );
   finally
     Free;
   end;
@@ -1381,33 +1381,37 @@ begin
 end;
 
 function lua_node_property_get(L: Plua_State): Integer; cdecl;
-var State   : TLuaState;
-    Node    : TNode;
-    Prop    : AnsiString;
-    Res     : Variant;
-    PInfo   : ^TPropInfo;
+var iState   : TLuaState;
+    iNode    : TNode;
+    iProp    : AnsiString;
+    iRes     : Variant;
+    iPInfo   : ^TPropInfo;
 begin
-  State.Init(L);
-  lua_settop( L, 2 );
+  iState.Init(L);
+  lua_settop( L, 3 );
 
   // check __props
   lua_getfield( L, 1, '__props' );
   lua_pushvalue( L, 2 ); // key
   lua_rawget( L, -2 );
   if not lua_isnil( L, -1 ) then Exit(1);
-  lua_settop( L, 2 );
+  lua_settop( L, 3 );
 
   // check game object TODO - unwrap ToObject and ToString for efficiency
-  Node := State.ToObject(1) as TNode;
-  Prop := State.ToString(2);
-  Result := Node.GetProperty( L, Prop );
+  iNode := iState.ToObject(1) as TNode;
+  iProp := iState.ToString(2);
+  Result := iNode.GetProperty( L, iProp );
   if Result > 0 then Exit;
-  PInfo := GetPropInfo(Node, Prop);
-  if PInfo = nil then
-    State.Error('Unknown property "'+Prop+'" requested on object of type '+Node.ClassName+'!');
-  Res := GetPropValue(Node as Node.ClassType, Prop, False );
-  if PInfo^.PropType^.Kind = tkBool then VarCast( Res, Res, varBoolean );
-  State.PushVariant( Res );
+  iPInfo := GetPropInfo(iNode, iProp);
+  if iPInfo = nil then
+  begin
+    if lua_isnoneornil( L, 3 ) then iState.Error('Unknown property "'+iProp+'" requested on object of type '+iNode.ClassName+'!');
+    lua_settop( L, 3 );
+    Exit( 1 );
+  end;
+  iRes := GetPropValue(iNode as iNode.ClassType, iProp, False );
+  if iPInfo^.PropType^.Kind = tkBool then VarCast( iRes, iRes, varBoolean );
+  iState.PushVariant( iRes );
   Result := 1;
 end;
 

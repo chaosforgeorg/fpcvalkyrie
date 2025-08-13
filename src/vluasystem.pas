@@ -65,7 +65,7 @@ type
     property HookMax : Byte       read FHookMax;
   end;
 
-type TLuaClassMap       = specialize TGHashMap<TLuaClassInfo>;
+type TLuaClassMap       = specialize TGObjectHashMap<TLuaClassInfo>;
      TStringBoolMap     = specialize TGHashMap<Boolean>;
      TStringDataFileMap = specialize TGHashMap<TVDataFile>;
      TStringStringMap   = specialize TGHashMap<AnsiString>;
@@ -80,6 +80,8 @@ type
     constructor Create( coverState : Plua_State = nil ); reintroduce;
     // Closes system execution.
     destructor Destroy; override;
+    // Returns if value is defined without invoking metamethods
+    function RawDefined( const aValue : AnsiString ) : Boolean;
     // Returns a value by table path
     function Defined( const Path : AnsiString ) : Boolean;
     // Returns a value by array of const
@@ -295,10 +297,8 @@ var Arg      : AnsiString;
     Path     : AnsiString;
     FileName : AnsiString;
 begin
-  Log('LuaRequire, entering...');
   if lua_gettop(L) <> 1 then LuaSystem.OnError('Require has wrong amount of parameters!');
   Arg := lua_tostring( L, 1 );
-  Log('LuaRequire("'+Arg+'")');
 
   if LuaSystem.FModuleNames.Exists(Arg) then Exit(0);
 
@@ -341,6 +341,14 @@ var State : TLuaState;
 begin
   State.Init( L );
   Log( State.ToString(1) );
+  Result := 0;
+end;
+
+function lua_core_warning(L: Plua_State): Integer; cdecl;
+var State : TLuaState;
+begin
+  State.Init( L );
+  Log( LOGWARN, State.ToString(1) );
   Result := 0;
 end;
 
@@ -1222,7 +1230,7 @@ begin
   Result := 1;
 end;
 
-const lua_core_lib : array[0..28] of luaL_Reg = (
+const lua_core_lib : array[0..29] of luaL_Reg = (
     ( name : 'TID';                      func : @lua_core_type_id),
     ( name : 'TNID';                     func : @lua_core_type_nid),
     ( name : 'TFLAGS';                   func : @lua_core_type_flags),
@@ -1231,6 +1239,7 @@ const lua_core_lib : array[0..28] of luaL_Reg = (
     ( name : 'TMAP';                     func : @lua_core_type_map),
     ( name : 'TIDIN';                    func : @lua_core_type_idin),
     ( name : 'log';                      func : @lua_core_log),
+    ( name : 'warning';                  func : @lua_core_warning),
     ( name : 'iif';                      func : @lua_core_iif),
     ( name : 'register_blueprint';       func : @lua_core_register_blueprint),
     ( name : 'register_storage';         func : @lua_core_register_storage),
@@ -1267,7 +1276,7 @@ end;
 
 procedure TLuaClassInfo.RegisterHook ( aHookID : Byte; const aHookName : AnsiString ) ;
 begin
-  if aHookID > High(FHooks) then SetLength( FHooks, Max(Max( 2*Length( FHooks ), 16 ),aHookID ) );
+  if aHookID >= High(FHooks) then SetLength( FHooks, Max(Max( 2*Length( FHooks ), 16 ),aHookID+1 ) );
   FHooks[ aHookID ] := aHookName;
   Include( FHookSet, aHookID );
   FHookMax := Max( FHookMax, aHookID );
@@ -1330,8 +1339,17 @@ begin
   FreeAndNil( FRawModules );
   FreeAndNil( FClassMap );
   FreeAndNil( FDefines );
+  FreeAndNil( FLua );
   inherited Destroy;
   LuaSystem := nil;
+end;
+
+function TLuaSystem.RawDefined( const aValue : AnsiString ) : Boolean;
+begin
+  lua_pushstring( FState, PChar(aValue) );
+  lua_rawget_global( FState );
+  Result := not lua_isnil( FState, -1 );
+  lua_pop( FState, 1 );
 end;
 
 function TLuaSystem.Defined(const Path: AnsiString): Boolean;
@@ -1827,7 +1845,8 @@ except on e : Exception do
 end;
 end;
 
-procedure TLuaSystem.DeepPointerCopy(Index: Integer; Obj : Pointer );
+procedure TLuaSystem.DeepPointerCopy(Index: Integer; Obj
+: Pointer );
 var HasFunctions : Boolean;
     HasMetatable : Boolean;
 begin

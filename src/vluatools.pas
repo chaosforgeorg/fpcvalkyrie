@@ -9,7 +9,7 @@
 
 unit vluatools;
 interface
-uses Classes, SysUtils, vlualibrary, vutil, vrltools, vluatype, vvector;
+uses Classes, SysUtils, vlualibrary, vutil, vrltools, vluatype;
 
 procedure RegisterTableAuxFunctions( L: Plua_State );
 procedure RegisterMathAuxFunctions( L: Plua_State );
@@ -23,7 +23,6 @@ procedure RegisterAreaClass( L: Plua_State );
 procedure RegisterAreaFull( L: Plua_State; Area : TArea );
 procedure RegisterPointClass( L: Plua_State );
 procedure RegisterRectClass( L: Plua_State );
-procedure RegisterVec2dClass( L: Plua_State );
 
 // WARNING - use absolute indices!
 function vlua_iscoord( L: Plua_State; Index : Integer ) : Boolean;
@@ -42,16 +41,11 @@ function vlua_isrect( L: Plua_State; Index : Integer ) : Boolean;
 function vlua_torect( L: Plua_State; Index : Integer ) : TRectangle;
 function vlua_toprect( L: Plua_State; Index : Integer ) : PRectangle;
 procedure vlua_pushrect( L: Plua_State; const Rect : TRectangle );
-function vlua_isvec2d( L: Plua_State; Index : Integer ) : Boolean;
-function vlua_tovec2d( L: Plua_State; Index : Integer ) : TVec2d;
-function vlua_topvec2d( L: Plua_State; Index : Integer ) : PVec2d;
-procedure vlua_pushvec2d( L: Plua_State; const Vec2d : TVec2d );
 
 function vlua_toflags( L : Plua_State; Index : Integer ): TFlags;
-function vlua_toflags_array( L : Plua_State; Index : Integer ): TFlags;
-function vlua_toflags_set( L : Plua_State; Index : Integer ): TFlags;
 procedure vlua_pushflags_array( L : Plua_State; const Flags : TFlags );
 procedure vlua_pushflags_set( L : Plua_State; const Flags : TFlags );
+function vlua_toflags32( L : Plua_State; Index : Integer ): TFlags32;
 
 function vlua_tochar( L : Plua_State; Index : Integer ) : Char;
 function vlua_ischar( L : Plua_State; Index : Integer ) : Boolean;
@@ -62,12 +56,6 @@ procedure vlua_push( L : Plua_State; const Args: array of const );
 function LuaCoord( const aCoord : TCoord2D ) : TLuaType;
 function LuaCoord( aX,aY : Integer ) : TLuaType;
 function LuaArea( const aArea : TArea ) : TLuaType;
-function LuaPoint( const aPoint : TPoint ) : TLuaType;
-function LuaPoint( aX,aY : Integer ) : TLuaType;
-function LuaRect( const aRect : TRectangle ) : TLuaType;
-function LuaVec2d( aX,aY : Single ) : TLuaType;
-function LuaVec2d( const aCoord : TCoord2D ) : TLuaType;
-function LuaVec2d( const aVec2d : TVec2d ) : TLuaType;
 
 implementation
 
@@ -86,36 +74,6 @@ begin
         then Include( vlua_toflags, lua_tointeger( L ,-2 ) )
         else Include( vlua_toflags, lua_tointeger( L ,-1 ) );
       lua_pop( L, 1 );
-    end;
-  end;
-end;
-
-function vlua_toflags_array( L : Plua_State; Index : Integer ): TFlags;
-begin
-  Index := lua_absindex( L, Index );
-  vlua_toflags_array := [];
-  if lua_istable( L, Index ) then
-  begin
-    lua_pushnil( L );
-    while (lua_next( L, Index ) <> 0) do
-    begin
-       Include( vlua_toflags_array, lua_tointeger( L ,-1 ) );
-       lua_pop( L, 1 );
-    end;
-  end;
-end;
-
-function vlua_toflags_set( L : Plua_State; Index : Integer ): TFlags;
-begin
-  Index := lua_absindex( L, Index );
-  vlua_toflags_set := [];
-  if lua_istable( L, Index ) then
-  begin
-    lua_pushnil( L );
-    while (lua_next( L, Index ) <> 0) do
-    begin
-       Include( vlua_toflags_set, lua_tointeger( L ,-2 ) );
-       lua_pop( L, 1 );
     end;
   end;
 end;
@@ -151,11 +109,27 @@ begin
   end;
 end;
 
+function vlua_toflags32( L : Plua_State; Index : Integer ): TFlags32;
+begin
+  Index := lua_absindex( L, Index );
+  vlua_toflags32 := [];
+  if lua_istable( L, Index ) then
+  begin
+    lua_pushnil( L );
+    while (lua_next( L, Index ) <> 0) do
+    begin
+      if lua_type( L, -1 ) = LUA_TBOOLEAN
+        then Include( vlua_toflags32, lua_tointeger( L ,-2 ) )
+        else Include( vlua_toflags32, lua_tointeger( L ,-1 ) );
+      lua_pop( L, 1 );
+    end;
+  end;
+end;
+
 const VALKYRIE_COORD = 'valkyrie.coord';
       VALKYRIE_AREA  = 'valkyrie.area';
       VALKYRIE_POINT = 'valkyrie.point';
       VALKYRIE_RECT  = 'valkyrie.rect';
-      VALKYRIE_VEC2D = 'valkyrie.vec2d';
 
 type TLuaCoord = class( TLuaType )
   constructor Create( const aCoord : TCoord2D );
@@ -200,81 +174,6 @@ begin
   Free;
 end;
 
-type TLuaPoint = class( TLuaType )
-  constructor Create( const aPoint : TPoint );
-  constructor Create( aX,aY : Integer );
-  procedure Push( L : PLua_state ); override;
-private
-  FPoint : TPoint;
-end;
-
-constructor TLuaPoint.Create( const aPoint : TPoint );
-begin
-  FPoint := aPoint
-end;
-
-constructor TLuaPoint.Create( aX,aY : Integer );
-begin
-  FPoint.x := aX;
-  FPoint.y := aY;
-end;
-
-procedure TLuaPoint.Push( L : PLua_state );
-begin
-  vlua_pushpoint( L, FPoint );
-  Free;
-end;
-
-type TLuaRect = class( TLuaType )
-  constructor Create( const aRect : TRectangle );
-  procedure Push( L : PLua_state ); override;
-private
-  FRect : TRectangle;
-end;
-
-constructor TLuaRect.Create( const aRect : TRectangle );
-begin
-  FRect := aRect;
-end;
-
-procedure TLuaRect.Push( L : PLua_state );
-begin
-  vlua_pushrect( L, FRect );
-  Free;
-end;
-
-type TLuaVec2d = class( TLuaType )
-  constructor Create( const aVec2d : TVec2d );
-  constructor Create( const aCoord : TCoord2D );
-  constructor Create( aX,aY : Single );
-  procedure Push( L : PLua_state ); override;
-private
-  FVec2d : TVec2d;
-end;
-
-constructor TLuaVec2d.Create( const aVec2d : TVec2d );
-begin
-  FVec2d := aVec2d;
-end;
-
-constructor TLuaVec2d.Create( const aCoord : TCoord2D );
-begin
-  FVec2d.x := aCoord.x;
-  FVec2d.y := aCoord.y;
-end;
-
-constructor TLuaVec2d.Create( aX,aY : Single );
-begin
-  FVec2d.x := aX;
-  FVec2d.y := aY;
-end;
-
-procedure TLuaVec2d.Push( L : PLua_state );
-begin
-  vlua_pushvec2d( L, FVec2d );
-  Free;
-end;
-
 function vlua_tochar ( L : Plua_State; Index : Integer ) : Char;
 begin
   if (lua_type( L, Index ) <> LUA_TSTRING) or
@@ -316,36 +215,6 @@ end;
 function LuaArea( const aArea : TArea ) : TLuaType;
 begin
   Exit( TLuaArea.Create( aArea ) );
-end;
-
-function LuaPoint( const aPoint : TPoint ) : TLuaType;
-begin
-  Exit( TLuaPoint.Create( aPoint ) );
-end;
-
-function LuaPoint( aX,aY : Integer ) : TLuaType;
-begin
-  Exit( TLuaPoint.Create( aX,aY ) );
-end;
-
-function LuaRect( const aRect : TRectangle ) : TLuaType;
-begin
-  Exit( TLuaRect.Create( aRect ) );
-end;
-
-function LuaVec2d( aX,aY : Single ) : TLuaType;
-begin
-  Exit( TLuaVec2d.Create( aX, aY ) );
-end;
-
-function LuaVec2d( const aCoord : TCoord2D ) : TLuaType;
-begin
-  Exit( TLuaVec2d.Create( aCoord ) );
-end;
-
-function LuaVec2d( const aVec2d : TVec2d ) : TLuaType;
-begin
-  Exit( TLuaVec2d.Create( aVec2d ) );
 end;
 
 // -------- Helper functions ------------------------------------------ //
@@ -480,36 +349,6 @@ begin
   lua_setmetatable( L, -2 );
 end;
 
-function vlua_isvec2d(L: Plua_State; Index: Integer): Boolean;
-begin
-  Exit( luaL_testudata( L, Index, VALKYRIE_VEC2D ) <> nil );
-end;
-
-function vlua_tovec2d(L: Plua_State; Index: Integer): TVec2d;
-var VecPtr : PVec2d;
-begin
-  VecPtr := luaL_checkudata( L, Index, VALKYRIE_VEC2D );
-  Exit( VecPtr^ );
-end;
-
-function vlua_topvec2d(L: Plua_State; Index: Integer): PVec2d;
-var VecPtr : PVec2d;
-begin
-  VecPtr := luaL_checkudata( L, Index, VALKYRIE_VEC2D );
-  Exit( VecPtr );
-end;
-
-procedure vlua_pushvec2d(L: Plua_State; const Vec2d: TVec2d);
-var VecPtr : PVec2d;
-begin
-  VecPtr  := PVec2d(lua_newuserdata(L, SizeOf(TVec2d)));
-  VecPtr^ := Vec2d;
-
-  luaL_getmetatable( L, VALKYRIE_VEC2D );
-  lua_setmetatable( L, -2 );
-end;
-
-
 // -------- Coord functions ------------------------------------------- //
 
 function lua_coord_new( L: Plua_State): Integer; cdecl;
@@ -519,6 +358,15 @@ begin
   vlua_pushcoord( L, Coord );
   Exit(1);
 end;
+
+function lua_coord_call( L: Plua_State): Integer; cdecl;
+var Coord : TCoord2D;
+begin
+  Coord.Create( lua_tointeger_def(L,2,0), lua_tointeger_def(L,3,0) );
+  vlua_pushcoord( L, Coord );
+  Exit(1);
+end;
+
 
 function lua_coord_unm( L: Plua_State): Integer; cdecl;
 var Coord : TCoord2D;
@@ -729,22 +577,32 @@ end;
 
 // -------- Area functions -------------------------------------------- //
 
-function lua_area_new( L: Plua_State): Integer; cdecl;
-var Area : TArea;
+function lua_area_constructor( L: Plua_State; aIndex : Integer ) : Integer; inline;
+var iArea : TArea;
 begin
-  if vlua_iscoord( L, 1 ) then
-    if vlua_iscoord( L, 2 ) then
+  if vlua_iscoord( L, aIndex ) then
+    if vlua_iscoord( L, aIndex+1 ) then
       begin
-        Area.Create( vlua_tocoord(L,1), vlua_tocoord(L,2) );
-        vlua_pusharea( L, Area );
+        iArea.Create( vlua_tocoord(L,aIndex), vlua_tocoord(L,aIndex+1) );
+        vlua_pusharea( L, iArea );
         Exit(1);
       end;
-  Area.Create(
-    NewCoord2D( lua_tointeger_def(L,1,0), lua_tointeger_def(L,2,0) ),
-    NewCoord2D( lua_tointeger_def(L,3,0), lua_tointeger_def(L,4,0) )
+  iArea.Create(
+    NewCoord2D( lua_tointeger_def(L,aIndex,0),   lua_tointeger_def(L,aIndex+1,0) ),
+    NewCoord2D( lua_tointeger_def(L,aIndex+2,0), lua_tointeger_def(L,aIndex+3,0) )
   );
-  vlua_pusharea( L, Area );
+  vlua_pusharea( L, iArea );
   Exit(1);
+end;
+
+function lua_area_new( L: Plua_State): Integer; cdecl;
+begin
+  Exit( lua_area_constructor( L, 1 ) );
+end;
+
+function lua_area_call( L: Plua_State): Integer; cdecl;
+begin
+  Exit( lua_area_constructor( L, 2 ) );
 end;
 
 function lua_area_eq( L: Plua_State): Integer; cdecl;
@@ -896,42 +754,42 @@ begin
 end;
 
 function lua_area_shrink( L: Plua_State): Integer; cdecl;
-var Area   : PArea;
-    Amount : Integer;
+var iArea   : PArea;
 begin
-  Area   := vlua_toparea( L, 1 );
-  Amount := lua_tointeger_def( L, 2, 1 );
-  Area^.Shrink( Amount );
+  iArea   := vlua_toparea( L, 1 );
+  if lua_isnumber( L, 3 )
+    then iArea^.Shrink( lua_tointeger_def( L, 2, 1 ), lua_tointeger( L, 3 ) )
+    else iArea^.Shrink( lua_tointeger_def( L, 2, 1 ) );
   Exit(0);
 end;
 
 function lua_area_shrinked( L: Plua_State): Integer; cdecl;
-var Area : PArea;
-    Amount : Integer;
+var iArea   : PArea;
 begin
-  Area   := vlua_toparea( L, 1 );
-  Amount := lua_tointeger_def( L, 2, 1 );
-  vlua_pusharea( L, Area^.Shrinked( Amount ) );
+  iArea   := vlua_toparea( L, 1 );
+  if lua_isnumber( L, 3 )
+    then vlua_pusharea( L, iArea^.Shrinked( lua_tointeger_def( L, 2, 1 ), lua_tointeger( L, 3 ) ) )
+    else vlua_pusharea( L, iArea^.Shrinked( lua_tointeger_def( L, 2, 1 ) ) );
   Exit(1);
 end;
 
 function lua_area_expand( L: Plua_State): Integer; cdecl;
-var Area   : PArea;
-    Amount : Integer;
+var iArea   : PArea;
 begin
-  Area   := vlua_toparea( L, 1 );
-  Amount := lua_tointeger_def( L, 2, 1 );
-  Area^.Expand( Amount );
+  iArea   := vlua_toparea( L, 1 );
+  if lua_isnumber( L, 3 )
+    then iArea^.Expand( lua_tointeger_def( L, 2, 1 ), lua_tointeger( L, 3 ) )
+    else iArea^.Expand( lua_tointeger_def( L, 2, 1 ) );
   Exit(0);
 end;
 
 function lua_area_expanded( L: Plua_State): Integer; cdecl;
-var Area : PArea;
-    Amount : Integer;
+var iArea : PArea;
 begin
-  Area   := vlua_toparea( L, 1 );
-  Amount := lua_tointeger_def( L, 2, 1 );
-  vlua_pusharea( L, Area^.Expanded( Amount ) );
+  iArea   := vlua_toparea( L, 1 );
+  if lua_isnumber( L, 3 )
+    then vlua_pusharea( L, iArea^.Expanded( lua_tointeger_def( L, 2, 1 ), lua_tointeger( L, 3 ) ) )
+    else vlua_pusharea( L, iArea^.Expanded( lua_tointeger_def( L, 2, 1 ) ) );
   Exit(1);
 end;
 
@@ -1318,138 +1176,6 @@ function lua_rect_sub( L: Plua_State): Integer; cdecl;
 begin
   vlua_pushrect( L, vlua_torect( L, 1 ) - vlua_topoint( L, 2 ) );
   Exit(1);
-end;
-
-// -------- Vec2d functions ------------------------------------------- //
-
-function NewVec2d( x, y : Double ): TVec2d;
-begin
-  Result.Init(x,y);
-end;
-
-function lua_vec2d_new( L: Plua_State): Integer; cdecl;
-var Vec2d : TVec2d;
-    Coord : TCoord2d;
-    Point : TPoint;
-begin
-  if vlua_iscoord( L, 1 ) then
-  begin
-    Coord := vlua_tocoord(L,1);
-    Vec2d.Init(Coord.x, Coord.y);
-  end
-  else if vlua_ispoint( L, 1 ) then
-  begin
-    Point := vlua_topoint(L, 1);
-    Vec2d.Init(Point.x, Point.y);
-  end
-  else
-    Vec2d.Init( lua_tonumber_def(L,1,0), lua_tonumber_def(L,2,0) );
-  vlua_pushvec2d( L, Vec2d );
-  Exit(1);
-end;
-
-function lua_vec2d_unm( L: Plua_State): Integer; cdecl;
-var Vec2d : TVec2d;
-begin
-  Vec2d := vlua_tovec2d( L, 1 );
-  vlua_pushvec2d( L, NewVec2D( -Vec2d.x, -Vec2d.y ) );
-  Exit(1);
-end;
-
-function lua_vec2d_add( L: Plua_State): Integer; cdecl;
-begin
-  vlua_pushvec2d( L, vlua_tovec2d( L, 1 ) + vlua_tovec2d( L, 2 ) );
-  Exit(1);
-end;
-
-function lua_vec2d_sub( L: Plua_State): Integer; cdecl;
-begin
-  vlua_pushvec2d( L, vlua_tovec2d( L, 1 ) - vlua_tovec2d( L, 2 ) );
-  Exit(1);
-end;
-
-function lua_vec2d_mul( L: Plua_State): Integer; cdecl;
-begin
-  if vlua_isvec2d( L, 1 ) then
-    if vlua_isvec2d( L, 2 ) then
-      vlua_pushvec2d( L, vlua_tovec2d( L, 1 ) * vlua_tovec2d( L, 2 ) )
-    else
-      vlua_pushvec2d( L, vlua_tovec2d( L, 1 ).Scaled( lua_tonumber( L, 2 ) ) )
-  else
-    vlua_pushvec2d( L, vlua_tovec2d( L, 2 ).Scaled( lua_tonumber( L, 1 ) ) );
-  Exit(1);
-end;
-
-function lua_vec2d_eq( L: Plua_State): Integer; cdecl;
-var a, b : TVec2d;
-begin
-  a := vlua_tovec2d( L, 1 );
-  b := vlua_tovec2d( L, 2 );
-  lua_pushboolean( L, (a.x = b.x) and (a.y = b.y) );
-  Exit(1);
-end;
-
-function lua_vec2d_normalize( L: Plua_State): Integer; cdecl;
-var Vec2d : PVec2d;
-    len : Single;
-begin
-  Vec2d := vlua_topvec2d( L, 1 );
-  len := Vec2d^.Length();
-  Vec2d^.X := Vec2d^.X / len;
-  Vec2d^.Y := Vec2d^.Y / len;
-  Exit(0);
-end;
-
-function lua_vec2d_normalized( L: Plua_State): Integer; cdecl;
-var Vec2d : TVec2d;
-    len : Single;
-begin
-  Vec2d := vlua_tovec2d( L, 1 );
-  len := Vec2d.Length();
-  Vec2d.X := Vec2d.X / len;
-  Vec2d.Y := Vec2d.Y / len;
-  vlua_pushvec2d( L, Vec2d );
-  Exit(1);
-end;
-
-function lua_vec2d_tostring( L: Plua_State): Integer; cdecl;
-var Vec2d : TVec2d;
-begin
-  Vec2d := vlua_tovec2d( L, 1 );
-  lua_pushansistring( L, FloatToStr(Vec2d.x) + ',' + FloatToStr(Vec2d.y) );
-  Exit(1);
-end;
-
-function lua_vec2d_index( L: Plua_State ): Integer; cdecl;
-var VecPtr : PVec2d;
-    Index  : AnsiString;
-begin
-  VecPtr := vlua_topvec2d( L, 1 );
-  Index  := lua_tostring( L, 2 );
-       if Index = 'x' then lua_pushnumber( L, VecPtr^.x )
-  else if Index = 'y' then lua_pushnumber( L, VecPtr^.y )
-  else if Index = 'length' then lua_pushnumber( L, VecPtr^.Length() )
-  else if Index = 'length_squared' then lua_pushnumber( L, VecPtr^.LengthSq() )
-  else
-    begin
-      lua_getglobal( L, 'vec2d' );
-      lua_pushvalue( L, -2 );
-      lua_rawget( L, -2 );
-    end;
-  Exit(1);
-end;
-
-function lua_vec2d_newindex( L: Plua_State ): Integer; cdecl;
-var VecPtr : PVec2d;
-    Index  : AnsiString;
-    Value  : Single;
-begin
-  VecPtr := vlua_topvec2d( L, 1 );
-  Index  := lua_tostring( L, 2 );
-  Value  := lua_tonumber_def( L, 3, 0 );
-       if Index = 'x' then VecPtr^.x := Value
-  else if Index = 'y' then VecPtr^.y := Value;
-  Exit(0);
 end;
 
 // -------- Table functions ------------------------------------------- //
@@ -1957,6 +1683,11 @@ const coordlib_m : array[0..8] of luaL_Reg = (
   ( name : nil;          func : nil; )
   );
 
+const coordlib_sm : array[0..1] of luaL_Reg = (
+  ( name : '__call';     func : @lua_coord_call; ),
+  ( name : nil;          func : nil; )
+  );
+
 const arealib_f : array[0..25] of luaL_Reg = (
   ( name : 'new';            func : @lua_area_new; ),
   ( name : 'get';            func : @lua_area_get; ),
@@ -1995,6 +1726,11 @@ const arealib_m : array[0..5] of luaL_Reg = (
   ( name : '__newindex'; func : @lua_area_newindex; ),
   ( name : '__tostring'; func : @lua_area_tostring; ),
   ( name : '__call';     func : @lua_area_coords; ),
+  ( name : nil;          func : nil; )
+  );
+
+const arealib_sm : array[0..1] of luaL_Reg = (
+  ( name : '__call';     func : @lua_area_call; ),
   ( name : nil;          func : nil; )
   );
 
@@ -2040,26 +1776,6 @@ const rectlib_m : array[0..7] of luaL_Reg = (
   ( name : '__add';      func : @lua_rect_add; ),
   ( name : '__call';     func : @lua_rect_new; ),
   ( name : '__sub';      func : @lua_rect_sub; ),
-  ( name : nil;          func : nil; )
-  );
-
-const vec2dlib_f : array[0..4] of luaL_Reg = (
-  ( name : 'new';            func : @lua_vec2d_new; ),
-  ( name : 'normalize';      func : @lua_vec2d_normalize; ),
-  ( name : 'normalized';     func : @lua_vec2d_normalized; ),
-  ( name : 'tostring';       func : @lua_vec2d_tostring; ),
-  ( name : nil;              func : nil; )
-  );
-
-const vec2dlib_m : array[0..8] of luaL_Reg = (
-  ( name : '__add';      func : @lua_vec2d_add; ),
-  ( name : '__sub';      func : @lua_vec2d_sub; ),
-  ( name : '__unm';      func : @lua_vec2d_unm; ),
-  ( name : '__mul';      func : @lua_vec2d_mul; ),
-  ( name : '__eq';       func : @lua_vec2d_eq; ),
-  ( name : '__index';    func : @lua_vec2d_index; ),
-  ( name : '__newindex'; func : @lua_vec2d_newindex; ),
-  ( name : '__tostring'; func : @lua_vec2d_tostring; ),
   ( name : nil;          func : nil; )
   );
 
@@ -2167,6 +1883,9 @@ begin
 
   vlua_pushcoord( L, UnitCoord2D );
   lua_setfield( L, -2, 'UNIT' );
+  lua_createtable( L, 0, 0 );
+  luaL_register( L, nil, coordlib_sm );
+  lua_setmetatable( L, -2 );
   lua_pop( L, 2 );
 end;
 
@@ -2175,6 +1894,10 @@ begin
   vlua_newmetatable( L, VALKYRIE_AREA );
   luaL_register( L, nil, arealib_m );
   luaL_register( L, 'area', arealib_f );
+
+  lua_createtable( L, 0, 0 );
+  luaL_register( L, nil, arealib_sm );
+  lua_setmetatable( L, -2 );
   lua_pop( L, 2 );
 end;
 
@@ -2207,22 +1930,6 @@ begin
   vlua_newmetatable( L, VALKYRIE_RECT );
   luaL_register( L, nil, rectlib_m );
   luaL_register( L, 'rect', rectlib_f );
-  lua_pop( L, 2 );
-end;
-
-procedure RegisterVec2dClass( L: Plua_State );
-begin
-  vlua_newmetatable( L, VALKYRIE_VEC2D );
-  luaL_register( L, nil, vec2dlib_m );
-  luaL_register( L, 'vec2d', vec2dlib_f );
-
-  vlua_pushvec2d( L, TVec2d.Create() );
-  lua_setfield( L, -2, 'ZERO' );
-  vlua_pushvec2d( L, TVec2d.Create(1) );
-  lua_setfield( L, -2, 'X_AXIS' );
-  vlua_pushvec2d( L, TVec2d.Create(0,1) );
-  lua_setfield( L, -2, 'Y_AXIS' );
-
   lua_pop( L, 2 );
 end;
 

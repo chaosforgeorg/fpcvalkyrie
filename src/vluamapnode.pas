@@ -22,11 +22,13 @@
 unit vluamapnode;
 interface
 uses SysUtils, Classes,
-     vnode, vutil, vmaparea, vdungen, vvision, vrltools, vluaentitynode;
+     vnode, vutil, vvision, vrltools, vluaext, vluagamestate, vluaentitynode, vluastate;
 
 const vlfExplored     = 0;
       vlfVisible      = 1;
       vlfLighted      = 2;
+
+      vlfFlood        = 15;
 
 const EF_NOBLOCK      = 0;
       EF_NOBEINGS     = 1;
@@ -45,7 +47,7 @@ end;
 
 type PMapCell = ^TMapCell;
 
-type TLuaMapNode = class( TNode, IMapArea, ICellIDSource, IVisionQuery )
+type TLuaMapNode = class( TNode, IVisionQuery )
   // Create and setup
   constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte );
   // Removes given bits from lightMap
@@ -102,6 +104,12 @@ type TLuaMapNode = class( TNode, IMapArea, ICellIDSource, IVisionQuery )
   function GetItem( const aCoord : TCoord2D ) : TLuaEntityNode; virtual;
   // Drop something onto the map
   function Drop( aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 = [] ) : TLuaEntityNode;
+  // Find a suitable drop coord
+  function DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32 ) : TCoord2D;
+  // Returns the number of cells in aCells around cell (excluding self)
+  function CellsAround( const aWhere : TCoord2D; const aCells : TCellSet; aRange : Byte = 1 ) : Byte;
+  // Returns the number of cells in aCells around cell in cardinal dirs (excluding self );
+  function CellsCrossAround( const aWhere : TCoord2D; const aCells : TCellSet) : Byte;
   // Change position of given thing, no error checking
   procedure Displace( aWhat : TLuaEntityNode; const aWhere : TCoord2D ); reintroduce;
   // Override of remove - automatic map clear
@@ -125,10 +133,6 @@ protected
 protected
   // Area holding the level boundaries.
   FArea      : TArea;
-  // Level generator.
-  FGenerator : TDungeonBuilder;
-  // MapArea class
-  FMapArea   : TMapArea;
   // MapArea class
   FVision    : TVision;
   // Max vision distance
@@ -140,10 +144,6 @@ protected
 public
   // Property for Area
   property Area      : TArea           read FArea;
-  // Property for Map Area
-  property MapArea   : TMapArea        read FMapArea;
-  // Property for Generator
-  property Generator : TDungeonBuilder read FGenerator;
   // Property for Vison
   property Vision    : TVision         read FVision;
   // Property for Cell ID access.
@@ -154,9 +154,26 @@ public
   property LightFlag[ const aCoord : TCoord2D; aFlag : Byte ] : Boolean read GetLightFlag write SetLightFlag;
 end;
 
+TLuaMapState = object(TLuaGameState)
+  constructor Init( aState : Pointer );
+  function ToCell( aIndex : Integer ) : Byte;
+  function ToCellSet( aIndex : Integer ) : TFlags;
+  function ToCellArray( aIndex : Integer ) : TOpenByteArray;
+  function ToOptionalArea( aIndex : Integer ) : TArea;
+protected
+  FMap : TLuaMapNode;
+public
+  property Map : TLuaMapNode read FMap;
+end;
+
 implementation
 
-uses vluasystem, vmath, vluastate, vluagamestate, vluatools, vluatype, vlualibrary, math;
+uses vluasystem, vgenerics, vmath,
+     vluatools, vluatype, vlualibrary, math;
+
+type TMinCoordChoice = specialize TGMinimalChoice<TCoord2D>;
+     TCoordArray     = specialize TGArray<TCoord2D>;
+
 
 { TLuaMapNode }
 
@@ -164,8 +181,6 @@ constructor TLuaMapNode.Create ( const aID : AnsiString; aMaxX, aMaxY : DWord; a
 begin
   inherited Create( aID, True );
   FArea.Create( NewCoord2D( 1, 1 ), NewCoord2D( aMaxX, aMaxY ) );
-  FMapArea   := TMapArea.Create( FArea, Self );
-  FGenerator := TDungeonBuilder.Create( aMaxX, aMaxY, Self, Self );
   FVision    := TIsaacVision.Create( Self, aMaxVision );
   FMaxVision := aMaxVision;
   FCellMap   := GetMem( aMaxX * aMaxY * SizeOf( TMapCell ) );
@@ -370,7 +385,7 @@ begin
   end;
 
   try
-    aPosition := FMapArea.Drop( aPosition, aEmptyFlags );
+    aPosition := DropCoord( aPosition, aEmptyFlags );
     if aWhat.Parent <> Self then Add( aWhat );
     aWhat.Displace( aPosition );
     case aWhat.EntityID of
@@ -383,6 +398,50 @@ begin
   Result := aWhat;
 end;
 
+function TLuaMapNode.DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32 ): TCoord2D;
+var iC    : TCoord2D;
+    iList : TMinCoordChoice;
+begin
+  if isEmpty( aCoord, aEmptyFlags ) then
+    Exit( aCoord );
+
+  iList := TMinCoordChoice.Create;
+
+  for iC in NewArea( aCoord, 1 ) do
+    if FArea.Contains( iC ) then
+      if isEmpty( iC, aEmptyFlags ) then
+        iList.Add( iC, Distance( aCoord, iC ) );
+
+  if iList.IsEmpty then
+    for iC in NewArea( aCoord, 5 ) do
+      if FArea.Contains( iC ) then
+        if isEmpty( iC, aEmptyFlags ) then
+          iList.Add( iC, Distance( aCoord, iC ) );
+
+  if iList.IsEmpty then raise EPlacementException.CreateFmt('TLuaMapNode.DropCoord(%d,%d) failed!',[aCoord.x, aCoord.y]);
+
+  Result := iList.Return;
+  FreeAndNil( iList );
+end;
+
+function TLuaMapNode.CellsAround( const aWhere : TCoord2D; const aCells : TCellSet; aRange : Byte = 1 ) : Byte;
+var iCoord : TCoord2D;
+begin
+  Result := 0;
+  for iCoord in NewArea( aWhere, aRange ).Clamped( FArea ) do
+    if iCoord <> aWhere then
+      if GetCell( iCoord ) in aCells then
+        Inc( Result );
+end;
+
+function TLuaMapNode.CellsCrossAround( const aWhere : TCoord2D; const aCells : TCellSet ) : Byte;
+begin
+  Result := 0;
+  if ( aWhere.x < FArea.B.X ) and ( GetCell( aWhere.ifIncX( 1) ) in aCells ) then Inc( Result );
+  if ( aWhere.y < FArea.B.Y ) and ( GetCell( aWhere.ifIncY( 1) ) in aCells ) then Inc( Result );
+  if ( aWhere.x > FArea.A.X ) and ( GetCell( aWhere.ifIncX(-1) ) in aCells ) then Inc( Result );
+  if ( aWhere.y > FArea.A.Y ) and ( GetCell( aWhere.ifIncY(-1) ) in aCells ) then Inc( Result );
+end;
 
 procedure TLuaMapNode.Displace ( aWhat : TLuaEntityNode; const aWhere : TCoord2D ) ;
 begin
@@ -417,7 +476,6 @@ end;
 destructor TLuaMapNode.Destroy;
 begin
   FreeAndNil( FVision );
-  FreeAndNil( FGenerator );
   inherited Destroy;
   FreeMem( FCellMap, FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );
 end;
@@ -431,8 +489,6 @@ begin
   Stream.Read( FArea, SizeOf( FArea ) );
   FMaxVision := Stream.ReadByte;
   FCellsName := Stream.ReadAnsiString;
-  FMapArea   := TMapArea.Create( FArea, Self );
-  FGenerator := TDungeonBuilder.Create( FArea.B.X, FArea.B.Y, Self, Self );
   FVision    := TIsaacVision.Create( Self, FMaxVision );
 
   FCellMap := GetMem( FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );
@@ -473,127 +529,198 @@ begin
   Stream.WriteByte( 0 );
 end;
 
-function lua_map_node_set_cell (L: Plua_State): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
+constructor TLuaMapState.Init( aState : Pointer );
+var iObject : TObject;
 begin
-  iState.Init(L);
-  iNode := iState.ToObject( 1 ) as TLuaMapNode;
-  iNode.PutCell( iState.ToPosition( 2 ), iState.ToID( 3 ) );
+  inherited Init( aState );
+  iObject := vlua_toobject( FState, 1 );
+  if not ( iObject is TLuaMapNode ) then Error( 'TLuaMapNode expected at index 1!');
+  FMap := TLuaMapNode( iObject );
+end;
+
+function TLuaMapState.ToCell( aIndex : Integer ) : Byte;
+var iType, iValue : Integer;
+begin
+  iType := lua_type( FState, aIndex );
+  if iType = LUA_TSTRING then
+  begin
+    iValue := LuaSystem.Defines.Get( ToString( aIndex ), -1 );
+    if iValue >= 0 then Exit( DWord( iValue ) );
+    Error('Unknown CellID ("'+ToString( aIndex )+'") at index '+ToString( aIndex ) +'!');
+  end
+  else if iType = LUA_TNUMBER then
+    Exit( lua_tointeger( FState, aIndex ) );
+  Error( 'Cell ID/NID expected at index '+ToString( aIndex ) +'!' );
+end;
+
+function TLuaMapState.ToCellSet( aIndex : Integer ) : TFlags;
+begin
+  Result := [];
+  case lua_type( FState, aIndex ) of
+    LUA_TTABLE :
+    begin
+      lua_pushnil( FState );
+      while lua_next( FState, aIndex ) <> 0 do
+      begin
+        Include( Result, ToCell( -1 ) );
+        lua_pop( FState, 1 );
+      end;
+    end;
+    LUA_TSTRING : Include( Result, ToCell( aIndex ) );
+    LUA_TNUMBER : Include( Result, lua_tointeger( FState, aIndex ) );
+  end;
+end;
+
+function TLuaMapState.ToCellArray( aIndex : Integer ) : TOpenByteArray;
+var iCount : Word;
+begin
+  aIndex := lua_absindex( FState, aIndex );
+  lua_pushnil( FState );
+  iCount := 0;
+  Result := nil;
+  while lua_next( FState, aIndex ) <> 0 do
+  begin
+    SetLength( Result, iCount + 1 );
+    Result[ iCount ] := ToCell( -1 );
+    lua_pop( FState, 1 );
+    Inc( iCount );
+  end;
+end;
+
+function TLuaMapState.ToOptionalArea( aIndex : Integer ) : TArea;
+begin
+  if vlua_isarea( FState, aIndex ) then Exit( vlua_toarea( FState, aIndex ) );
+  Exit( FMap.Area );
+end;
+
+function lua_map_node_set_cell (L: Plua_State): Integer; cdecl;
+var iState : TLuaMapState;
+begin
+  iState.Init( L );
+  if lua_isnumber( L, 2 )
+    then iState.Map.PutCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ), iState.ToID( 4 ) )
+    else iState.Map.PutCell( iState.ToPosition( 2 ), iState.ToID( 3 ) );
   Result := 0;
 end;
 
 function lua_map_node_get_cell (L: Plua_State): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
+var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iNode := iState.ToObject( 1 ) as TLuaMapNode;
-  iState.Push( iNode.CellToID( iNode.GetCell( iState.ToPosition( 2 ) ) ) );
+  if lua_isnumber( L, 2 )
+    then iState.Push( iState.Map.GetCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ) ) )
+    else iState.Push( iState.Map.GetCell( iState.ToPosition( 2 ) ) );
   Result := 1;
 end;
 
-function lua_map_node_set_hp (L: Plua_State): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
+function lua_map_node_get_cell_id (L: Plua_State): Integer; cdecl;
+var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iNode := iState.ToObject( 1 ) as TLuaMapNode;
-  iNode.SetHitpoints( iState.ToPosition( 2 ), iState.ToInteger( 3 ) );
+  if lua_isnumber( L, 2 )
+    then iState.Push( iState.Map.CellToID( iState.Map.GetCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ) ) ) )
+    else iState.Push( iState.Map.CellToID( iState.Map.GetCell( iState.ToPosition( 2 ) ) ) );
+  Result := 1;
+end;
+
+function lua_map_node_around( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iRange : Integer;
+begin
+  iState.Init(L);
+  iRange := 1;
+  if lua_isnumber( L, 2 ) then
+  begin
+    if lua_type( L, 5 ) = LUA_TNUMBER then iRange := iState.ToInteger( 5 );
+    lua_pushinteger( L, iState.Map.CellsAround( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ), iState.ToCellset( 4 ), iRange ) );
+  end
+  else
+  begin
+    if lua_type( L, 4 ) = LUA_TNUMBER then iRange := iState.ToInteger( 4 );
+    lua_pushinteger( L, iState.Map.CellsAround( iState.ToPosition( 2 ), iState.ToCellset( 3 ), iRange ) );
+  end;
+  Exit( 1 );
+end;
+
+function lua_map_node_cross_around( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+begin
+  iState.Init(L);
+  lua_pushinteger( L, iState.Map.CellsCrossAround( iState.ToPosition( 2 ), iState.ToCellset( 3 ) ) );
+  Exit( 1 );
+end;
+
+function lua_map_node_set_hp (L: Plua_State): Integer; cdecl;
+var iState : TLuaMapState;
+begin
+  iState.Init(L);
+  if lua_isnumber( L, 2 )
+    then iState.Map.SetHitpoints( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ), iState.ToInteger( 4 ) )
+    else iState.Map.SetHitpoints( iState.ToPosition( 2 ), iState.ToInteger( 3 ) );
   Result := 0;
 end;
 
 function lua_map_node_get_hp (L: Plua_State): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
+var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iNode := iState.ToObject( 1 ) as TLuaMapNode;
-  iState.Push( iNode.GetHitpoints( iState.ToPosition( 2 ) ) );
-  Result := 1;
-end;
-
-function lua_map_node_raw_set_cell (L: Plua_State): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
-begin
-  iState.Init(L);
-  iNode := iState.ToObject( 1 ) as TLuaMapNode;
-  if iState.IsNumber( 2 )
-    then iNode.PutCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ), iState.ToInteger( 4 ) )
-    else iNode.PutCell( iState.ToCoord( 2 ), iState.ToInteger( 3 ) );
-  Result := 0;
-end;
-
-function lua_map_node_raw_get_cell (L: Plua_State): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
-begin
-  iState.Init(L);
-  iNode := iState.ToObject( 1 ) as TLuaMapNode;
-  if iState.IsNumber( 2 )
-    then iState.Push( iNode.GetCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ) ) )
-    else iState.Push( iNode.GetCell( iState.ToCoord( 2 ) ) );
+  if lua_isnumber( L, 2 )
+    then iState.Push( iState.Map.GetHitpoints(  NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ) ) )
+    else iState.Push( iState.Map.GetHitpoints( iState.ToPosition( 2 ) ) );
   Result := 1;
 end;
 
 function lua_map_node_eye_contact(L: Plua_State): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
+var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iNode := iState.ToObject( 1 ) as TLuaMapNode;
-  iState.Push( iNode.isEyeContact( iState.ToPosition( 2 ), iState.ToPosition( 3 ) ) );
+  iState.Push( iState.Map.isEyeContact( iState.ToPosition( 2 ), iState.ToPosition( 3 ) ) );
   Result := 1;
 end;
 
 function lua_map_node_get_area(L: Plua_State): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
+var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iNode := iState.ToObject( 1 ) as TLuaMapNode;
-  iState.PushArea( iNode.FArea );
+  iState.PushArea( iState.Map.Area );
   Result := 1;
 end;
 
 function lua_map_node_is_empty( L: Plua_State ): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
-    iCoord : TCoord2D;
+var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iNode  := iState.ToObject( 1 ) as TLuaMapNode;
-  iCoord := iState.ToCoord( 2 );
-  iState.Push( iNode.isEmpty( iCoord, iState.ToFlags( 2 ) ) );
+  iState.Push( iState.Map.isEmpty( iState.ToPosition( 2 ), iState.ToFlags32( 3 ) ) );
   Exit( 1 );
 end;
 
 function lua_map_node_is_visible( L: Plua_State ): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
-    iCoord : TCoord2D;
+var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iNode  := iState.ToObject( 1 ) as TLuaMapNode;
-  iCoord := iState.ToCoord( 2 );
-  iState.Push( iNode.isVisible( iCoord ) );
+  iState.Push( iState.Map.isVisible( iState.ToPosition( 2 ) ) );
+  Exit( 1 );
+end;
+
+function lua_map_node_is_passable( L: Plua_State ): Integer; cdecl;
+var iState : TLuaMapState;
+begin
+  iState.Init(L);
+  iState.Push( iState.Map.isPassable( iState.ToPosition( 2 ) ) );
   Exit( 1 );
 end;
 
 function lua_map_node_is_empty_area( L: Plua_State ): Integer; cdecl;
-var iState : TLuaGameState;
-    iNode  : TLuaMapNode;
+var iState : TLuaMapState;
     iArea  : TArea;
     iFlags : TFlags32;
     iCoord : TCoord2D;
 begin
   iState.Init(L);
-  iNode  := iState.ToObject( 1 ) as TLuaMapNode;
   iArea  := iState.ToArea( 2 );
-  iFlags := iState.ToFlags( 3 );
+  iFlags := iState.ToFlags32( 3 );
   for iCoord in iArea do
-    if not iNode.isEmpty( iCoord, iFlags ) then
+    if not iState.Map.isEmpty( iCoord, iFlags ) then
     begin
       iState.Push( False );
       Exit(1);
@@ -604,12 +731,12 @@ end;
 
 // iterator
 function lua_map_node_children_in_range(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
-    Node  : TNode;
+var iState : TLuaState;
+    iNode  : TNode;
 begin
-  State.Init(L);
-  Node := State.ToObject(1) as TNode;
-  lua_pushlightuserdata( L, Node );
+  iState.Init(L);
+  iNode := iState.ToObject(1) as TNode;
+  lua_pushlightuserdata( L, iNode );
   lua_pushlightuserdata( L, nil );
   if vlua_iscoord( L, 2 )
     then lua_pushvalue( L, 2 )
@@ -618,37 +745,33 @@ begin
   if (lua_type( L, 4 ) = LUA_TSTRING) or (lua_type( L, 4 ) = LUA_TNUMBER)
     then lua_pushvalue( L, 4 )
     else lua_pushinteger( L, 0 );
-  lua_pushlightuserdata( L, Node.Child );
+  lua_pushlightuserdata( L, iNode.Child );
   lua_pushcclosure( L, @lua_entity_node_in_range_closure, 6 );
   Exit( 1 );
 end;
 
 function lua_map_node_get_light_flag(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
-    iLevel : TLuaMapNode;
+var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iLevel := iState.ToObject(1) as TLuaMapNode;
   if iState.IsNil(3) then
   begin
     lua_pushstring( L, '__coord' );
     lua_rawget( L, 1 );
-    iState.Push( iLevel.LightFlag[ iState.ToCoord(-1), iState.ToInteger(2) ] )
+    iState.Push( iState.Map.LightFlag[ iState.ToPosition(-1), iState.ToInteger(2) ] )
   end
-  else iState.Push( iLevel.LightFlag[ iState.ToCoord(2), iState.ToInteger(3) ] );
+  else iState.Push( iState.Map.LightFlag[ iState.ToPosition(2), iState.ToInteger(3) ] );
   Result := 1;
 end;
 
 function lua_map_node_set_light_flag(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
+var iState : TLuaMapState;
     iCoord : TCoord2D;
     iArea  : TArea;
-    iLevel : TLuaMapNode;
     iFlag  : Integer;
     iValue : Boolean;
 begin
   iState.Init(L);
-  iLevel := iState.ToObject(1) as TLuaMapNode;
   if iState.IsNil(4) then
   begin
     lua_pushstring( L, '__coord' );
@@ -661,36 +784,35 @@ begin
       iFlag  := iState.ToInteger(2);
       iValue := iState.ToBoolean(3);
       for iCoord in iArea do
-        iLevel.LightFlag[ iCoord, iFlag ] := iValue;
+        iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
       Exit(0);
     end;
-    iLevel.LightFlag[ iState.ToCoord(-1), iState.ToInteger(2) ] := iState.ToBoolean(3)
+    iState.Map.LightFlag[ iState.ToCoord(-1), iState.ToInteger(2) ] := iState.ToBoolean(3)
   end
   else
   begin
     if iState.IsCoord(2) then
-      iLevel.LightFlag[ iState.ToCoord(2), iState.ToInteger(3) ] := iState.ToBoolean(4)
+      iState.Map.LightFlag[ iState.ToCoord(2), iState.ToInteger(3) ] := iState.ToBoolean(4)
     else
     begin
+      iArea  := iState.ToArea(2);
       iFlag  := iState.ToInteger(3);
       iValue := iState.ToBoolean(4);
       for iCoord in iArea do
-        iLevel.LightFlag[ iCoord, iFlag ] := iValue;
+        iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
     end;
   end;
   Result := 0;
 end;
 
 function lua_map_node_light_index(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
-    iLevel : TLuaMapNode;
+var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iLevel := iState.ToObject(1) as TLuaMapNode;
   lua_settop( L, 2 );
   lua_createtable( L, 0, 2 );
     lua_pushstring( L, '__ptr');
-    lua_pushlightuserdata( L, iLevel );
+    lua_pushlightuserdata( L, iState.Map );
     lua_rawset( L, -3 );
 
     if vlua_iscoord( L, 2 ) then
@@ -712,71 +834,541 @@ begin
 end;
 
 function lua_map_node_light_newindex(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
-    iLevel : TLuaMapNode;
+var iState : TLuaMapState;
     iCoord : TCoord2D;
     iFlag  : Byte;
     iValue : Boolean;
 begin
   iState.Init(L);
-  iLevel := iState.ToObject(1) as TLuaMapNode;
   iFlag  := iState.ToInteger(2);
   iValue := iState.ToBoolean(3);
-  for iCoord in iLevel.Area do
-    iLevel.LightFlag[ iCoord, iFlag ] := iValue;
+  for iCoord in iState.Map.Area do
+    iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
   Result := 0;
 end;
 
 function lua_map_node_get_being(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
-    iLevel : TLuaMapNode;
+var iState : TLuaMapState;
 begin
   iState.Init( L );
-  iLevel := iState.ToObject(1) as TLuaMapNode;
-  iState.Push( iLevel.getBeing( iState.ToCoord(2) ) );
+  iState.Push( iState.Map.getBeing( iState.ToCoord(2) ) );
   Result := 1;
 end;
 
 function lua_map_node_get_item(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
-    iLevel : TLuaMapNode;
+var iState : TLuaMapState;
 begin
   iState.Init( L );
-  iLevel := iState.ToObject(1) as TLuaMapNode;
-  iState.Push( iLevel.getItem( iState.ToCoord(2) ) );
+  iState.Push( iState.Map.getItem( iState.ToCoord(2) ) );
   Result := 1;
 end;
 
 function lua_map_node_drop(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
-    iLevel : TLuaMapNode;
+var iState : TLuaMapState;
 begin
   iState.Init( L );
-  iLevel := iState.ToObject(1) as TLuaMapNode;
-  iState.Push( iLevel.Drop( iState.ToObject(2) as TLuaEntityNode, iState.ToCoord(3), iState.ToFlags(4) ) );
+  iState.Push( iState.Map.Drop( iState.ToObject(2) as TLuaEntityNode, iState.ToPosition(3), iState.ToFlags(4) ) );
   Result := 1;
 end;
 
+function lua_map_node_fill( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iFill  : Byte;
+    iArea  : TArea;
+    iCoord : TCoord2D;
+begin
+  iState.Init( L );
+  iFill := iState.ToCell( 2 );
+  iArea := iState.ToOptionalArea( 3 );
+  for iCoord in iArea do
+    iState.Map.PutCell( iCoord, iFill );
+  Exit( 0 );
+end;
 
-const lua_map_node_lib : array[0..17] of luaL_Reg = (
-  ( name : 'get_area';          func : @lua_map_node_get_area),
-  ( name : 'set_hp';            func : @lua_map_node_set_hp),
-  ( name : 'get_hp';            func : @lua_map_node_get_hp),
-  ( name : 'set_cell';          func : @lua_map_node_set_cell),
-  ( name : 'get_cell';          func : @lua_map_node_get_cell),
-  ( name : 'raw_set_cell';      func : @lua_map_node_raw_set_cell),
-  ( name : 'raw_get_cell';      func : @lua_map_node_raw_get_cell),
-  ( name : 'eye_contact';       func : @lua_map_node_eye_contact),
-  ( name : 'is_visible';        func : @lua_map_node_is_visible),
-  ( name : 'is_empty';          func : @lua_map_node_is_empty),
-  ( name : 'is_empty_area';     func : @lua_map_node_is_empty_area),
-  ( name : 'children_in_range'; func : @lua_map_node_children_in_range),
-  ( name : 'get_light_flag'  ;  func : @lua_map_node_get_light_flag),
-  ( name : 'set_light_flag'  ;  func : @lua_map_node_set_light_flag),
-  ( name : 'drop';              func : @lua_map_node_drop),
-  ( name : 'get_being';         func : @lua_map_node_get_being),
-  ( name : 'get_item';          func : @lua_map_node_get_item),
-  ( name : nil;                 func : nil; )
+function lua_map_node_fill_pattern( L : Plua_State ) : Integer; cdecl;
+var iState    : TLuaMapState;
+    iArea     : TArea;
+    iHoriz    : Boolean;
+    iPattern  : TOpenByteArray;
+    iPatternB : TOpenByteArray;
+    iCount    : Integer;
+    iSizeA    : Integer;
+    iSizeB    : Integer;
+    iCoord    : TCoord2D;
+    iFlip     : Boolean;
+
+  function NextCell : Byte;
+  begin
+    if iCoord.Horiz(iHoriz) = iArea.A.Horiz(iHoriz) then iCount := 0;
+    NextCell := iPattern[ iCount mod (iSizeA+1) ];
+    Inc(iCount);
+  end;
+
+  function NextCell2 : Byte;
+  begin
+    if iCoord.Horiz(iHoriz) = iArea.A.Horiz(iHoriz) then
+    begin
+      iCount := 0;
+      iFlip  := not iFlip;
+    end;
+    if iFlip
+      then NextCell2 := iPatternB[ iCount mod (iSizeB+1) ]
+      else NextCell2 := iPattern [ iCount mod (iSizeA+1) ];
+    Inc(iCount);
+  end;
+
+begin
+  iState.Init( L );
+  iArea    := iState.ToArea( 2 );
+  iHoriz   := iState.ToBoolean( 3 );
+  iPattern := iState.ToCellArray( 4 );
+
+  iCoord.Create(0,0);
+  iCount := 0;
+  iFlip  := True;
+  iSizeA := High( iPattern );
+
+  if iState.IsTable( 5 ) then
+  begin
+    iPatternB := iState.ToCellArray( 5 );
+    iSizeB    := High( iPatternB );
+    while iArea.NextCoord( iCoord, iHoriz ) do iState.Map.PutCell( iCoord, NextCell2 );
+  end
+  else
+    while iArea.NextCoord( iCoord, iHoriz ) do iState.Map.PutCell( iCoord, NextCell );
+  Exit( 0 );
+end;
+
+
+function lua_map_node_fill_edges( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iX,iY  : Word;
+    iCell  : Byte;
+    iArea  : TArea;
+begin
+  iState.Init( L );
+  iCell := iState.ToCell( 2 );
+  iArea := iState.Map.Area;
+  for iX := iArea.A.X to iArea.B.X do
+  begin
+    iState.Map.PutCell( NewCoord2D( iX, iArea.A.Y ), iCell );
+    iState.Map.PutCell( NewCoord2D( iX, iArea.B.Y ), iCell );
+  end;
+  for iY := iArea.A.Y to iArea.B.Y do
+  begin
+    iState.Map.PutCell( NewCoord2D( iArea.A.X, iY ), iCell );
+    iState.Map.PutCell( NewCoord2D( iArea.B.X, iY ), iCell );
+  end;
+  Exit( 0 );
+end;
+
+function lua_map_node_scan( L : Plua_State ) : Integer; cdecl;
+var iState  : TLuaMapState;
+    iArea   : TArea;
+    iIgnore : TCellSet;
+    iCount  : Boolean;
+    iResult : Integer;
+    iCoord  : TCoord2D;
+begin
+  iState.Init( L );
+  iArea   := iState.ToArea( 2 );
+  iIgnore := iState.ToCellSet( 3 );
+  iCount  := iState.ToBoolean( 4, False );
+
+  if ( not iState.Map.Area.Contains( iArea.A ) ) or ( not iState.Map.Area.Contains( iArea.B ) ) then
+  begin
+    if iCount
+      then lua_pushinteger( L, -1 )
+      else lua_pushboolean( L, False );
+    Exit(1);
+  end;
+
+  iResult := 0;
+  for iCoord in iArea do
+    if not ( iState.Map.GetCell(iCoord) in iIgnore ) then
+    begin
+      if not iCount then
+      begin
+        lua_pushboolean( L, False );
+        Exit( 1 );
+      end;
+      Inc(iResult);
+    end;
+
+  if iCount
+    then lua_pushinteger( L, iResult )
+    else lua_pushboolean( L, True );
+  Exit( 1 );
+end;
+
+function lua_map_node_each_closure( L : Plua_State ) : Integer; cdecl;
+var iMap   : TLuaMapNode;
+    iArea  : PArea;
+    iCoord : PCoord2D;
+    iCell  : Byte;
+begin
+  iArea  := vlua_toparea( L, lua_upvalueindex( 1 ) );
+  iCoord := vlua_topcoord( L, lua_upvalueindex( 2 ) );
+  iCell  := lua_tointeger( L, lua_upvalueindex( 3 ) );
+  iMap   := TObject( lua_touserdata( L, lua_upvalueindex( 4 ) ) ) as TLuaMapNode;
+
+  repeat
+    iCoord^.x := iCoord^.x + 1;
+    if iCoord^.x > iArea^.b.x then
+    begin
+      iCoord^.x := iArea^.a.x;
+      iCoord^.y := iCoord^.y + 1;
+      if iCoord^.y > iArea^.b.y then
+      begin
+        lua_pushnil( L );
+        Exit( 1 );
+      end;
+    end;
+  until iMap.GetCell( iCoord^ ) = iCell;
+  vlua_pushcoord( L, iCoord^ );
+  Exit( 1 );
+end;
+
+function lua_map_node_each( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iCell  : Byte;
+begin
+  iState.Init( L );
+  iCell := iState.ToCell( 2 );
+  if vlua_isarea( L, 3 )
+    then iCoord := vlua_toparea( L, 3 )^.A
+    else
+    begin
+      lua_settop( L, 2 );
+      vlua_pusharea( L, iState.Map.Area );
+      iCoord := iState.Map.Area.A;
+    end;
+  iCoord.X := iCoord.X - 1;
+  vlua_pushcoord( L, iCoord );
+  lua_pushinteger( L, iCell );
+  lua_pushlightuserdata( L, iState.Map );
+  lua_pushcclosure( L, @lua_map_node_each_closure, 4 );
+  Exit( 1 );
+end;
+
+function lua_map_node_transmute( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iFrom  : TFlags;
+    iTo    : Byte;
+    iArea  : TArea;
+    iCoord : TCoord2D;
+begin
+  iState.Init( L );
+  iFrom := iState.ToCellSet( 2 );
+  iTo   := iState.ToCell( 3 );
+  iArea := iState.ToOptionalArea( 4 );
+  for iCoord in iArea do
+    if iState.Map.getCell( iCoord ) in iFrom then
+      iState.Map.putCell( iCoord, iTo );
+  Exit( 0 );
+end;
+
+function lua_map_node_transmute_by_flag( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iFrom  : TFlags;
+    iTo    : Byte;
+    iLightFlag : Byte;
+    iArea  : TArea;
+    iCoord : TCoord2D;
+begin
+
+  iState.Init( L );
+  iFrom := iState.ToCellSet( 2 );
+  iTo   := iState.ToCell( 3 );
+  iLightFlag := iState.ToInteger( 4 );
+  iArea := iState.ToOptionalArea( 5 );
+  for iCoord in iArea do
+    if iState.Map.getCell( iCoord ) in iFrom then
+      if iState.Map.getLightFlag( iCoord, iLightFlag) then
+        iState.Map.putCell( iCoord, iTo );
+  Exit( 0 );
+end;
+
+function lua_map_node_random_square( L : Plua_State ) : Integer; cdecl;
+const kLimit    = 40000;
+var iState      : TLuaMapState;
+    iLimitCount : DWord;
+    iCoord      : TCoord2D;
+    iCellSet    : TCellSet;
+    iArea       : TArea;
+begin
+  iState.Init( L );
+  iLimitCount := 0;
+  iCellSet    := iState.ToCellSet( 2 );
+  iArea       := iState.ToOptionalArea( 3 ).Shrinked(1);
+  repeat
+    iCoord := iArea.RandomCoord;
+    if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.CellsAround( iCoord, iCellSet ) = 8 ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+    Inc(iLimitCount);
+  until iLimitCount > kLimit;
+
+  for iCoord in iArea do
+    if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.CellsAround( iCoord, iCellSet ) = 8 ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+  Exit( 0 );
+end;
+
+function lua_map_node_random_coord( L : Plua_State ) : Integer; cdecl;
+const kLimit = 5000;
+var iState   : TLuaMapState;
+    iType2   : Integer;
+    iCellSet : TFlags;
+    iArea    : TArea;
+    iCount   : Integer;
+    iCoord   : TCoord2D;
+begin
+  iState.Init( L );
+  iType2 := lua_type( L, 2 );
+  if iType2 <= LUA_TNIL then
+  begin
+    vlua_pushcoord( L, iState.Map.Area.RandomCoord );
+    Exit( 1 );
+  end;
+  if iType2 = LUA_TUSERDATA then
+  begin
+    vlua_pushcoord( L, vlua_toparea( L, 2 )^.RandomCoord );
+    Exit( 1 );
+  end;
+  iCellSet := iState.ToCellSet( 2 );
+  iArea    := iState.ToOptionalArea( 3 );
+
+  iCount := 0;
+  repeat
+    iCoord := iArea.RandomCoord;
+    if iState.Map.GetCell( iCoord ) in iCellSet then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+    Inc( iCount );
+  until iCount > kLimit;
+
+  for iCoord in iArea do
+    if iState.Map.GetCell( iCoord ) in iCellSet then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+
+  Exit( 0 );
+end;
+
+function lua_map_node_random_empty_coord( L : Plua_State ) : Integer; cdecl;
+const kLimit = 10000;
+var iState   : TLuaMapState;
+    iType3   : Integer;
+    iCellSet : TFlags;
+    iArea    : TArea;
+    iCount   : Integer;
+    iCoord   : TCoord2D;
+    iFlags   : TFlags32;
+begin
+  iState.Init( L );
+  iFlags := iState.ToFlags32( 2 );
+  iType3 := lua_type( L, 3 );
+  if ( iType3 <= LUA_TNIL ) or (iType3 = LUA_TUSERDATA) then
+  begin
+    iArea := iState.ToOptionalArea( 3 );
+    iCount := 0;
+    repeat
+      iCoord := iArea.RandomCoord;
+      if iState.Map.isEmpty( iCoord, iFlags ) then
+      begin
+        vlua_pushcoord( L, iCoord );
+        Exit( 1 );
+      end;
+      Inc( iCount );
+    until iCount > kLimit;
+
+    for iCoord in iArea do
+      if iState.Map.isEmpty( iCoord, iFlags ) then
+      begin
+        vlua_pushcoord( L, iCoord );
+        Exit( 1 );
+      end;
+    Exit( 0 );
+  end;
+
+  iCellSet := iState.ToCellSet( 3 );
+  iArea    := iState.ToOptionalArea( 4 );
+  iCount   := 0;
+  repeat
+    iCoord := iArea.RandomCoord;
+    if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.isEmpty( iCoord, iFlags ) ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+    Inc( iCount );
+  until iCount > kLimit;
+
+  for iCoord in iArea do
+    if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.isEmpty( iCoord, iFlags ) ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+
+  Exit( 0 );
+end;
+
+function lua_map_node_drop_coord( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+begin
+  iState.Init( L );
+  iCoord := iState.ToPosition( 2 );
+  try
+    vlua_pushcoord( L, iState.Map.DropCoord( iCoord, iState.ToFlags32( 3 ) ) );
+    Exit( 1 );
+  except
+    on EPlacementException do
+  end;
+  Exit( 0 );
+end;
+
+function lua_map_node_find_coord( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iCells : TCellSet;
+    iArea  : TArea;
+begin
+  iState.Init( L );
+  iCells := iState.ToCellSet( 2 );
+  iArea  := iState.ToOptionalArea( 3 );
+
+  for iCoord in iArea do
+    if iState.Map.GetCell( iCoord ) in iCells then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+  Exit( 0 );
+end;
+
+function lua_map_node_find_empty_coord( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iCells : TCellSet;
+    iEmpty : TFlags32;
+    iArea  : TArea;
+begin
+  iState.Init( L );
+  iCells := iState.ToCellSet( 2 );
+  iEmpty := iState.ToFlags32( 3 );
+  iArea  := iState.ToOptionalArea( 4 );
+
+  for iCoord in iArea do
+    if ( iState.Map.GetCell( iCoord ) in iCells ) and iState.Map.isEmpty( iCoord, iEmpty ) then
+    begin
+      vlua_pushcoord( L, iCoord );
+      Exit( 1 );
+    end;
+  Exit( 0 );
+end;
+
+function lua_map_node_find_random_coord( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iCells : TCellSet;
+    iArea  : TArea;
+begin
+  iState.Init( L );
+  iCells := iState.ToCellSet( 2 );
+  iArea  := iState.ToOptionalArea( 3 );
+
+  with TCoordArray.Create do
+  try
+    for iCoord in iArea do
+      if iState.Map.GetCell( iCoord ) in iCells then
+        Push( iCoord );
+    if IsEmpty then Exit( 0 );
+    iCoord := Items[ Random( Size ) ];
+  finally
+    Free
+  end;
+
+  vlua_pushcoord( L, iCoord );
+  Exit( 1 );
+end;
+
+function lua_map_node_find_random_empty_coord( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iCells : TCellSet;
+    iFlags : TFlags32;
+    iArea  : TArea;
+begin
+  iState.Init( L );
+  iCells := iState.ToCellSet( 2 );
+  iFlags := iState.ToFlags32( 3 );
+  iArea  := iState.ToOptionalArea( 4 );
+
+  with TCoordArray.Create do
+  try
+    for iCoord in iArea do
+      if (iState.Map.GetCell( iCoord ) in iCells) and iState.Map.isEmpty( iCoord, iFlags ) then
+        Push( iCoord );
+    if IsEmpty then Exit( 0 );
+    iCoord := Items[ Random( Size ) ];
+  finally
+    Free
+  end;
+
+  vlua_pushcoord( L, iCoord );
+  Exit( 1 );
+end;
+
+
+const lua_map_node_lib : array[0..34] of luaL_Reg = (
+  ( name : 'get_area';                func : @lua_map_node_get_area ),
+  ( name : 'set_hp';                  func : @lua_map_node_set_hp ),
+  ( name : 'get_hp';                  func : @lua_map_node_get_hp ),
+  ( name : 'set_cell';                func : @lua_map_node_set_cell ),
+  ( name : 'get_cell';                func : @lua_map_node_get_cell ),
+  ( name : 'get_cell_id';             func : @lua_map_node_get_cell_id ),
+  ( name : 'around';                  func : @lua_map_node_around ),
+  ( name : 'cross_around';            func : @lua_map_node_cross_around ),
+  ( name : 'eye_contact';             func : @lua_map_node_eye_contact ),
+  ( name : 'is_visible';              func : @lua_map_node_is_visible ),
+  ( name : 'is_passable';             func : @lua_map_node_is_passable ),
+  ( name : 'is_empty';                func : @lua_map_node_is_empty ),
+  ( name : 'is_empty_area';           func : @lua_map_node_is_empty_area ),
+  ( name : 'children_in_range';       func : @lua_map_node_children_in_range ),
+  ( name : 'get_light_flag'  ;        func : @lua_map_node_get_light_flag ),
+  ( name : 'set_light_flag'  ;        func : @lua_map_node_set_light_flag ),
+  ( name : 'drop';                    func : @lua_map_node_drop ),
+  ( name : 'get_being';               func : @lua_map_node_get_being ),
+  ( name : 'get_item';                func : @lua_map_node_get_item ),
+  ( name : 'fill';                    func : @lua_map_node_fill ),
+  ( name : 'fill_pattern';            func : @lua_map_node_fill_pattern ),
+  ( name : 'fill_edges';              func : @lua_map_node_fill_edges ),
+  ( name : 'scan';                    func : @lua_map_node_scan ),
+  ( name : 'each';                    func : @lua_map_node_each ),
+  ( name : 'transmute';               func : @lua_map_node_transmute ),
+  ( name : 'transmute_by_flag';       func : @lua_map_node_transmute_by_flag ),
+  ( name : 'random_square';           func : @lua_map_node_random_square ),
+  ( name : 'random_coord';            func : @lua_map_node_random_coord ),
+  ( name : 'random_empty_coord';      func : @lua_map_node_random_empty_coord ),
+  ( name : 'drop_coord';              func : @lua_map_node_drop_coord ),
+  ( name : 'find_coord';              func : @lua_map_node_find_coord ),
+  ( name : 'find_empty_coord';        func : @lua_map_node_find_empty_coord ),
+  ( name : 'find_random_coord';       func : @lua_map_node_find_random_coord ),
+  ( name : 'find_random_empty_coord'; func : @lua_map_node_find_random_empty_coord ),
+  ( name : nil;                       func : nil; )
 );
 
 class procedure TLuaMapNode.RegisterLuaAPI ( const aTableName : AnsiString ) ;

@@ -36,7 +36,8 @@ begin
     tkAString : WriteAnsiString( AnsiString(aPointer^) );
     tkClass : WriteObject( TObject(aPointer^) );
     tkVariant : WriteVariant( Variant(aPointer^) );
-    tkMethod, tkInterface, tkArray, tkRecord,tkLString,tkWString,
+    tkRecord  : Write( aPointer^, aSize );
+    tkMethod, tkInterface, tkArray, tkLString,tkWString,
     tkDynArray, tkInterfaceRaw,tkProcVar,tkUString,tkUChar,
     tkHelper,tkUnknown : raise Exception.Create('TStreamHelper.WriteType - don''t know how to stream type "'+aTypeInfo^.Name+'/'+IntToStr( QWord(aTypeInfo^.Kind) )+'"!');
   end;
@@ -51,7 +52,8 @@ begin
     tkAString : AnsiString(aPointer^) := ReadAnsiString();
     tkClass : TObject(aPointer^) := ReadObject( GetTypeData( aTypeInfo )^.ClassType );
     tkVariant : Variant(aPointer^) := ReadVariant;
-    tkMethod, tkInterface, tkArray, tkRecord,tkLString,tkWString,
+    tkRecord : Read( aPointer^, aSize );
+    tkMethod, tkInterface, tkArray, tkLString,tkWString,
     tkDynArray, tkInterfaceRaw,tkProcVar,tkUString,tkUChar,
     tkHelper,tkUnknown : raise Exception.Create('TStreamHelper.ReadType - don''t know how to stream type "'+aTypeInfo^.Name+'"!');
   end;

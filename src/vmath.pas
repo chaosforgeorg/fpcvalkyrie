@@ -32,14 +32,15 @@ function TriDistance(x1,y1,x2,y2 : Integer): DWord;  {$IFDEF VINLINE} inline; {$
 function RealDistance(x1,y1,x2,y2 : Double): Double; overload;
 
 function Minf(x,y : Single) : Single;  {$IFDEF VINLINE} inline; {$ENDIF}
+function Maxf(x,y : Single) : Single;  {$IFDEF VINLINE} inline; {$ENDIF}
 function Min(x,y : LongInt) : LongInt;  {$IFDEF VINLINE} inline; {$ENDIF}
 function Min(x,y,z : LongInt) : LongInt;  {$IFDEF VINLINE} inline; {$ENDIF}
 function Max(x,y : LongInt) : LongInt;  {$IFDEF VINLINE} inline; {$ENDIF}
 function Max(x,y,z : LongInt) : LongInt;  {$IFDEF VINLINE} inline; {$ENDIF}
 function Sgn(x : LongInt) : ShortInt;  {$IFDEF VINLINE} inline; {$ENDIF}
 
-function Clampf(x,min,max : Single) : Single;  {$IFDEF VINLINE} inline; {$ENDIF}
-function Clamp(x,min,max : LongInt) : LongInt;  {$IFDEF VINLINE} inline; {$ENDIF}
+function Clampf(x,min,max : Single) : Single;  {$IFDEF VINLINE} inline; {$ENDIF} overload;
+function Clamp(x,min,max : LongInt) : LongInt;  {$IFDEF VINLINE} inline; {$ENDIF} overload;
 function Lerp(min,max : LongInt; Value : Real) : LongInt; overload; {$IFDEF VINLINE} inline; {$ENDIF}
 function S3Interpolate(min,max : LongInt; Value : Real) : LongInt;  {$IFDEF VINLINE} inline; {$ENDIF}
 function S5Interpolate(min,max : LongInt; Value : Real) : LongInt;  {$IFDEF VINLINE} inline; {$ENDIF}
@@ -52,6 +53,11 @@ implementation
 function Minf ( x, y : Single ) : Single; {$IFDEF VINLINE} inline; {$ENDIF}
 begin
   if x > y then exit(y) else exit(x);
+end;
+
+function Maxf( x,y : Single ) : Single; {$IFDEF VINLINE} inline; {$ENDIF}
+begin
+  if x > y then exit(x) else exit(y);
 end;
 
 function Min(x,y : LongInt) : LongInt; {$IFDEF VINLINE} inline; {$ENDIF}

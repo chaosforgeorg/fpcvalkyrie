@@ -1,213 +1,190 @@
 type
-  PSingle = ^Single;
-  THandle = Cardinal;
+  FMOD_BOOL = LongInt;
+
+  PFMOD_SYSTEM = ^FMOD_SYSTEM;
+  FMOD_SYSTEM = record
+  end;
+  PPFMOD_SYSTEM = ^PFMOD_SYSTEM;
+
+  PFMOD_SOUND = ^FMOD_SOUND;
+  FMOD_SOUND = record
+  end;
+  PPFMOD_SOUND = ^PFMOD_SOUND;
+
+  PFMOD_CHANNELCONTROL = ^FMOD_CHANNELCONTROL;
+  FMOD_CHANNELCONTROL = record
+  end;
+
+  PFMOD_CHANNEL = ^FMOD_CHANNEL;
+  FMOD_CHANNEL = record
+  end;
+  PPFMOD_CHANNEL = ^PFMOD_CHANNEL;
+
+  PFMOD_CHANNELGROUP = ^FMOD_CHANNELGROUP;
+  FMOD_CHANNELGROUP = record
+  end;
+  PPFMOD_CHANNELGROUP = ^PFMOD_CHANNELGROUP;
+
+  PFMOD_SOUNDGROUP = ^FMOD_SOUNDGROUP;
+  FMOD_SOUNDGROUP = record
+  end;
+  PPFMOD_SOUNDGROUP = ^PFMOD_SOUNDGROUP;
+
+  PFMOD_REVERB3D = ^FMOD_REVERB3D;
+  FMOD_REVERB3D = record
+  end;
+
+  PFMOD_DSP = ^FMOD_DSP;
+  FMOD_DSP = record
+  end;
+
+  PFMOD_DSPCONNECTION = ^FMOD_DSPCONNECTION;
+  FMOD_DSPCONNECTION = record
+  end;
+
+  PFMOD_POLYGON = ^FMOD_POLYGON;
+  FMOD_POLYGON = record
+  end;
+
+  PFMOD_GEOMETRY = ^FMOD_GEOMETRY;
+  FMOD_GEOMETRY = record
+  end;
+
+  PFMOD_SYNCPOINT = ^FMOD_SYNCPOINT;
+  FMOD_SYNCPOINT = record
+  end;
+
+  PFMOD_ASYNCREADINFO = ^FMOD_ASYNCREADINFO;
+  FMOD_ASYNCREADINFO = record
+  end;
 
 type
-  PFSoundSample = Pointer;
-  PFSoundStream = Pointer;
-  PFSoundDSPUnit = Pointer;
-  PFMusicModule = Pointer;
-  PFSyncPoint = Pointer;
+  FMOD_GUID = record
+    Data1: LongWord;
+    Data2: Word;
+    Data3: Word;
+    Data4: array[0..7] of Byte;
+  end;
+  PFMOD_GUID = ^FMOD_GUID;
 
-  PFSoundVector = ^TFSoundVector;
-  TFSoundVector = record
+type
+  FMOD_VECTOR = record
     x: Single;
     y: Single;
     z: Single;
   end;
+  PFMOD_VECTOR = ^FMOD_VECTOR;
 
-  TFSoundStreamCallback   = function (Stream: PFSoundStream; Buff: Pointer; Length, Param: Integer): ByteBool; stdcall;
-  TFSoundDSPCallback      = function (OriginalBuffer: Pointer; NewBuffer: Pointer; Length, Param: Integer): Pointer; stdcall;
-  TFMusicCallback         = procedure (Module: PFMusicModule; Param: Byte); stdcall;
-  TFSoundOpenCallback     = function (Name: PChar): Cardinal; stdcall;
-  TFSoundCloseCallback    = procedure (Handle: Cardinal); stdcall;
-  TFSoundReadCallback     = function (Buffer: Pointer; Size: Cardinal; Handle: Cardinal): Cardinal; stdcall;
-  TFSoundSeekCallback     = procedure (Handle: Cardinal; Pos: Cardinal; Mode: Byte); stdcall;
-  TFSoundTellCallback     = function (Handle: Cardinal): Cardinal; stdcall;
-  TFSoundAllocCallback    = function(Size: Cardinal): Pointer; stdcall;
-  TFSoundReallocCallback  = function(Ptr: Pointer; Size: Cardinal): Pointer; stdcall;
-  TFSoundFreeCallback     = procedure(Ptr: Pointer); stdcall;
-  TFMetaDataCallback      = function(Name: PChar; Value: PChar; userdata: Integer): ByteBool; stdcall;
+  FMOD_DEBUG_CALLBACK = function(flags: FMOD_DEBUG_FLAGS; const file_: PChar; line: Integer; const func: PChar; const message: PChar): FMOD_RESULT; cdecl;
+  FMOD_SYSTEM_CALLBACK = function(system: PFMOD_SYSTEM; type_: FMOD_SYSTEM_CALLBACK_TYPE; commanddata1: Pointer; commanddata2: Pointer; userdata: Pointer): FMOD_RESULT; cdecl;
+  FMOD_CHANNELCONTROL_CALLBACK = function(channelcontrol: PFMOD_CHANNELCONTROL; controltype: FMOD_CHANNELCONTROL_TYPE; callbacktype: FMOD_CHANNELCONTROL_CALLBACK_TYPE; commanddata1: Pointer; commanddata2: Pointer): FMOD_RESULT; cdecl;
+  FMOD_DSP_CALLBACK = function(dsp: PFMOD_DSP; type_: FMOD_DSP_CALLBACK_TYPE; data: Pointer): FMOD_RESULT; cdecl;
+  FMOD_SOUND_NONBLOCK_CALLBACK = function(sound: PFMOD_SOUND; result: FMOD_RESULT): FMOD_RESULT; cdecl;
+  FMOD_SOUND_PCMREAD_CALLBACK = function(sound: PFMOD_SOUND; data: Pointer; datalen: Cardinal): FMOD_RESULT; cdecl;
+  FMOD_SOUND_PCMSETPOS_CALLBACK = function(sound: PFMOD_SOUND; subsound: Integer; position: Cardinal; postype: FMOD_TIMEUNIT): FMOD_RESULT; cdecl;
+  FMOD_FILE_OPEN_CALLBACK = function(const name: PChar; filesize: PCardinal; handle: PPointer; userdata: Pointer): FMOD_RESULT; cdecl;
+  FMOD_FILE_CLOSE_CALLBACK = function(handle: Pointer; userdata: Pointer): FMOD_RESULT; cdecl;
+  FMOD_FILE_READ_CALLBACK = function(handle: Pointer; buffer: Pointer; sizebytes: Cardinal; bytesread: PCardinal; userdata: Pointer): FMOD_RESULT; cdecl;
+  FMOD_FILE_SEEK_CALLBACK = function(handle: Pointer; pos: Cardinal; userdata: Pointer): FMOD_RESULT; cdecl;
+  FMOD_FILE_ASYNCREAD_CALLBACK = function(info: PFMOD_ASYNCREADINFO; userdata: Pointer): FMOD_RESULT; cdecl;
+  FMOD_FILE_ASYNCCANCEL_CALLBACK = function(info: PFMOD_ASYNCREADINFO; userdata: Pointer): FMOD_RESULT; cdecl;
+  FMOD_FILE_ASYNCDONE_FUNC = procedure(info: PFMOD_ASYNCREADINFO; result: FMOD_RESULT); cdecl;
+  FMOD_MEMORY_ALLOC_CALLBACK = function(size: Cardinal; type_: FMOD_MEMORY_TYPE; const sourcestr: PChar): Pointer; cdecl;
+  FMOD_MEMORY_REALLOC_CALLBACK = function(ptr: Pointer; size: Cardinal; type_: FMOD_MEMORY_TYPE; const sourcestr: PChar): Pointer; cdecl;
+  FMOD_MEMORY_FREE_CALLBACK = procedure(ptr: Pointer; type_: FMOD_MEMORY_TYPE; const sourcestr: PChar); cdecl;
+  FMOD_3D_ROLLOFF_CALLBACK = function(channelcontrol: PFMOD_CHANNELCONTROL; distance: Single): Single; cdecl;
 
-type
-  TFModErrors = (
-    FMOD_ERR_NONE,
-    FMOD_ERR_BUSY,
-    FMOD_ERR_UNINITIALIZED,
-    FMOD_ERR_INIT,
-    FMOD_ERR_ALLOCATED,
-    FMOD_ERR_PLAY,
-    FMOD_ERR_OUTPUT_FORMAT,
-    FMOD_ERR_COOPERATIVELEVEL,
-    FMOD_ERR_CREATEBUFFER,
-    FMOD_ERR_FILE_NOTFOUND,
-    FMOD_ERR_FILE_FORMAT,
-    FMOD_ERR_FILE_BAD,
-    FMOD_ERR_MEMORY,
-    FMOD_ERR_VERSION,
-    FMOD_ERR_INVALID_PARAM,
-    FMOD_ERR_NO_EAX,
-    FMOD_ERR_CHANNEL_ALLOC,
-    FMOD_ERR_RECORD,
-    FMOD_ERR_MEDIAPLAYER,
-    FMOD_ERR_CDDEVICE
-  );
-
-type
-  TFSoundOutputTypes = (
-    FSOUND_OUTPUT_NOSOUND,
-    FSOUND_OUTPUT_WINMM,
-    FSOUND_OUTPUT_DSOUND,
-    FSOUND_OUTPUT_A3D,
-
-    FSOUND_OUTPUT_OSS,
-    FSOUND_OUTPUT_ESD,
-    FSOUND_OUTPUT_ALSA,
-
-    FSOUND_OUTPUT_ASIO,
-    FSOUND_OUTPUT_XBOX,
-    FSOUND_OUTPUT_PS2,
-    FSOUND_OUTPUT_MAC,
-    FSOUND_OUTPUT_GC,
-
-    FSOUND_OUTPUT_NOSOUND_NONREALTIME
-  );
-
-type
-  TFSoundMixerTypes = (
-    FSOUND_MIXER_AUTODETECT,
-    FSOUND_MIXER_BLENDMODE,
-    FSOUND_MIXER_MMXP5,
-    FSOUND_MIXER_MMXP6,
-
-    FSOUND_MIXER_QUALITY_AUTODETECT,
-    FSOUND_MIXER_QUALITY_FPU,
-    FSOUND_MIXER_QUALITY_MMXP5,
-    FSOUND_MIXER_QUALITY_MMXP6,
-
-    FSOUND_MIXER_MONO,
-    FSOUND_MIXER_QUALITY_MONO,
-
-    FSOUND_MIXER_MAX
-  );
+  FMOD_CREATESOUNDEXINFO = record
+    cbsize: Integer;
+    length: Cardinal;
+    fileoffset: Cardinal;
+    numchannels: Integer;
+    defaultfrequency: Integer;
+    format: FMOD_SOUND_FORMAT;
+    decodebuffersize: Cardinal;
+    initialsubsound: Integer;
+    numsubsounds: Integer;
+    inclusionlist: PInteger;
+    inclusionlistnum: Integer;
+    pcmreadcallback: FMOD_SOUND_PCMREAD_CALLBACK;
+    pcmsetposcallback: FMOD_SOUND_PCMSETPOS_CALLBACK;
+    nonblockcallback: FMOD_SOUND_NONBLOCK_CALLBACK;
+    dlsname: PChar;
+    encryptionkey: PChar;
+    maxpolyphony: Integer;
+    userdata: Pointer;
+    suggestedsoundtype: FMOD_SOUND_TYPE;
+    fileuseropen: FMOD_FILE_OPEN_CALLBACK;
+    fileusercFMOD_CREATESOUNDEXINFOlose: FMOD_FILE_CLOSE_CALLBACK;
+    fileuserread: FMOD_FILE_READ_CALLBACK;
+    fileuserseek: FMOD_FILE_SEEK_CALLBACK;
+    fileuserasyncread: FMOD_FILE_ASYNCREAD_CALLBACK;
+    fileuserasynccancel: FMOD_FILE_ASYNCCANCEL_CALLBACK;
+    fileuserdata: Pointer;
+    filebuffersize: Integer;
+    channelorder: FMOD_CHANNELORDER;
+    initialsoundgroup: PFMOD_SOUNDGROUP;
+    initialseekposition: Cardinal;
+    initialseekpostype: FMOD_TIMEUNIT;
+    ignoresetfilesystem: Integer;
+    audioqueuepolicy: Cardinal;
+    minmidigranularity: Cardinal;
+    nonblockthreadid: Integer;
+    fsbguid: PFMOD_GUID;
+  end;
+  PFMOD_CREATESOUNDEXINFO = ^FMOD_CREATESOUNDEXINFO;
 
 type
-  TFMusicTypes = (
-    FMUSIC_TYPE_NONE,
-    FMUSIC_TYPE_MOD,
-    FMUSIC_TYPE_S3M,
-    FMUSIC_TYPE_XM,
-    FMUSIC_TYPE_IT,
-    FMUSIC_TYPE_MIDI,
-    FMUSIC_TYPE_FSB
-  );
-
-type
-  TFSoundReverbProperties = record
-    Environment: Cardinal;
-    EnvSize: Single;
-    EnvDiffusion: Single;
-    Room: Integer;
-    RoomHF: Integer;
-    RoomLF: Integer;
-    DecayTime: Single;
-    DecayHFRatio: Single;
-    DecayLFRatio: Single;
-    Reflections: Integer;
-    ReflectionsDelay: Single;
-    ReflectionsPan: array [0..2] of Single;
-    Reverb: Integer;
-    ReverbDelay: Single;
-    ReverbPan: array [0..2] of Single;
-    EchoTime: Single;
-    EchoDepth: Single;
-    ModulationTime: Single;
-    ModulationDepth: Single;
-    AirAbsorptionHF: Single;
-    HFReference: Single;
-    LFReference: Single;
-    RoomRolloffFactor: Single;
-    Diffusion: Single;
-    Density: Single;
-    Flags: Cardinal;
+  PFMOD_SPEAKER        = ^FMOD_SPEAKER;
+  PFMOD_ADVANCEDSETTINGS = ^FMOD_ADVANCEDSETTINGS;
+  FMOD_ADVANCEDSETTINGS = record
+    cbSize: Integer;
+    maxMPEGCodecs: Integer;
+    maxADPCMCodecs: Integer;
+    maxXMACodecs: Integer;
+    maxVorbisCodecs: Integer;
+    maxAT9Codecs: Integer;
+    maxFADPCMCodecs: Integer;
+    maxPCMCodecs: Integer;
+    ASIONumChannels: Integer;
+    ASIOChannelList: ^PChar;
+    ASIOSpeakerList: PFMOD_SPEAKER;
+    vol0virtualvol: Single;
+    defaultDecodeBufferSize: LongWord;
+    profilePort: Word;
+    geometryMaxFadeTime: LongWord;
+    distanceFilterCenterFreq: Single;
+    reverb3Dinstance: Integer;
+    DSPBufferPoolSize: Integer;
+    resamplerMethod: FMOD_DSP_RESAMPLER;
+    randomSeed: LongWord;
+    maxConvolutionThreads: Integer;
+    maxOpusCodecs: Integer;
+    maxSpatialObjects: Integer;
   end;
 
+  PFMOD_SPEAKERMODE      = ^FMOD_SPEAKERMODE;
+
 type
-  TFSoundReverbChannelProperties = record
-    Direct: Integer;
-    DirectHF: Integer;
-    Room: Integer;
-    RoomHF: Integer;
-    Obstruction: Integer;
-    ObstructionLFRatio: Single;
-    Occlusion: Integer;
-    OcclusionLFRatio: Single;
-    OcclusionRoomRatio: Single;
-    OcclusionDirectRatio: Single;
-    Exclusion: Integer;
-    ExclusionLFRatio: Single;
-    OutsideVolumeHF: Integer;
-    DopplerFactor: Single;
-    RolloffFactor: Single;
-    RoomRolloffFactor: Single;
-    AirAbsorptionFactor: Single;
-    Flags: Integer;
+  PFMOD_CPU_USAGE = ^FMOD_CPU_USAGE;
+  FMOD_CPU_USAGE = record
+    dsp: Single;
+    stream: Single;
+    geometry: Single;
+    update: Single;
+    convolution1: Single;
+    convolution2: Single;
   end;
 
-type
-  TFSoundFXModes = (
-    FSOUND_FX_CHORUS,
-    FSOUND_FX_COMPRESSOR,
-    FSOUND_FX_DISTORTION,
-    FSOUND_FX_ECHO,
-    FSOUND_FX_FLANGER,
-    FSOUND_FX_GARGLE,
-    FSOUND_FX_I3DL2REVERB,
-    FSOUND_FX_PARAMEQ,
-    FSOUND_FX_WAVES_REVERB,
-    FSOUND_FX_MAX
-  );
-
-type
-  TFSoundSpeakerModes =
-  (
-    FSOUND_SPEAKERMODE_DOLBYDIGITAL,
-    FSOUND_SPEAKERMODE_HEADPHONES,
-    FSOUND_SPEAKERMODE_MONO,
-    FSOUND_SPEAKERMODE_QUAD,
-    FSOUND_SPEAKERMODE_STEREO,
-    FSOUND_SPEAKERMODE_SURROUND,
-    FSOUND_SPEAKERMODE_DTS
-  );
-  FSOUND_SPEAKERMODES = TFSoundSpeakerModes;
-
-type
-  TFSoundStreamNetStatus =
-  (
-    FSOUND_STREAM_NET_NOTCONNECTED,
-    FSOUND_STREAM_NET_CONNECTING,
-    FSOUND_STREAM_NET_BUFFERING,
-    FSOUND_STREAM_NET_READY,
-    FSOUND_STREAM_NET_ERROR
-  );
-
-type
-  TFSoundTagFieldType =
-  (
-    FSOUND_TAGFIELD_VORBISCOMMENT,
-    FSOUND_TAGFIELD_ID3V1,
-    FSOUND_TAGFIELD_ID3V2,
-    FSOUND_TAGFIELD_SHOUTCAST,
-    FSOUND_TAGFIELD_ICECAST,
-    FSOUND_TAGFIELD_ASF
-  );
-
-type
-  TFSoundTOCTag = record
-    Name: array [0..3] of Char;
-    NumTracks: Integer;
-    Min: array [0..99] of Integer;
-    Sec: array [0..99] of Integer;
-    Frame: array [0..99] of Integer;
+ type
+  PFMOD_TAG = ^FMOD_TAG;
+  FMOD_TAG = record
+    type_: FMOD_TAGTYPE;
+    datatype: FMOD_TAGDATATYPE;
+    name: PChar;
+    data: Pointer;
+    datalen: LongWord;
+    updated: FMOD_BOOL;
   end;
+
 

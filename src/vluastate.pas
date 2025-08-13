@@ -2,7 +2,8 @@
 unit vluastate;
 interface
 
-uses vlualibrary, typinfo, Variants, Classes, SysUtils, vrltools, vluatools, vluatype, vvector, vutil;
+uses typinfo, Variants, Classes, SysUtils, vlualibrary, vrltools, vluatools,
+     vluatype, vluatable, vvector, vutil;
 
 type
   ELuaStateException = class(EException);
@@ -29,6 +30,7 @@ TLuaState = object
     function ToBoolean( Index : Integer ) : Boolean; overload;
     function ToChar( Index : Integer ) : Char;
     function ToFlags( Index : Integer ) : TFlags;
+    function ToFlags32( Index : Integer ) : TFlags32;
     function ToVariant( Index : Integer ) : Variant;
     function ToObject( Index : Integer ) : TObject;
     function ToObjectOrNil( Index : Integer ) : TObject;
@@ -37,6 +39,7 @@ TLuaState = object
     function ToArea( Index : Integer ) : TArea;
     function ToPoint( Index : Integer ) : TPoint;
     function ToRect( Index : Integer ) : TRectangle;
+    function ToTable( Index : Integer ) : TLuaTable;
 
     function ToVec2f( Index : Integer ) : TVec2f;
     function ToVec3f( Index : Integer ) : TVec3f;
@@ -65,6 +68,7 @@ TLuaState = object
     function IsArea( Index : Integer ) : Boolean;
     function IsPoint( Index : Integer ) : Boolean;
     function IsRect( Index : Integer ) : Boolean;
+    function IsFunction( aIndex : Integer ) : Boolean;
 
     function GetField( Index : Integer; const Key : Variant ) : Variant;
     function GetField( Index : Integer; const Key, DValue : Variant ) : Variant;
@@ -73,7 +77,9 @@ TLuaState = object
     function RawGetField( Index : Integer; const Key, DValue : Variant ) : Variant;
     procedure RawSetField( Index : Integer; const Key, Value : Variant );
 
+    procedure PushIndex( aIndex : Integer );
     procedure Push( Value : Single ); overload;
+    procedure Push( Value : Double ); overload;
     procedure Push( const Value : AnsiString ); overload;
     procedure Push( Value : Boolean ); overload;
     procedure Push( Value : LongInt ); overload;
@@ -92,11 +98,13 @@ TLuaState = object
     procedure SetPrototypeTable(Obj: ILuaReferencedObject; const FieldName : AnsiString = 'proto' );
     function  RunHook( Obj : ILuaReferencedObject; HookName : AnsiString; const Params : array of const ) : Variant;
     function  CallFunction( Name : AnsiString; const Params : array of const; idx : Integer = GLOBALSINDEX ) : Variant;
+    function  CallFunction( aIdx : Integer; const aParams : array of const ) : Variant;
     destructor Done;
     function HasSubTable( Obj : ILuaReferencedObject; const Name : AnsiString ) : Boolean;
     procedure SubTableToStream( Obj : ILuaReferencedObject; const Name : AnsiString; OSt : TStream );
     procedure SubTableFromStream( Obj : ILuaReferencedObject; const Name : AnsiString; ISt : TStream );
     procedure NewSubTableFromStream( Obj : ILuaReferencedObject; const Name : AnsiString; ISt : TStream );
+    procedure ClearLuaProperties( Obj : ILuaReferencedObject );
     function GetLuaProperty( Obj : ILuaReferencedObject; const aPropertyName : AnsiString ) : Variant;
     procedure SetLuaProperty( Obj : ILuaReferencedObject; const aPropertyName : AnsiString; aValue : Variant );
     function GetLuaProperty( Obj : ILuaReferencedObject; const aPropertyPath : array of Const; aDefValue : Variant ) : Variant;
@@ -193,6 +201,11 @@ begin
   Exit( vlua_toflags( FState, Index ) );
 end;
 
+function TLuaState.ToFlags32( Index: Integer ): TFlags32;
+begin
+  Exit( vlua_toflags32( FState, Index ) );
+end;
+
 function TLuaState.ToObject(Index: Integer): TObject;
 begin
   ToObject := vlua_toobject( FState, Index );
@@ -227,6 +240,11 @@ end;
 function TLuaState.ToRect(Index: Integer): TRectangle;
 begin
   Exit( vlua_torect( FState, lua_absindex( FState, Index ) ) );
+end;
+
+function TLuaState.ToTable( Index : Integer ) : TLuaTable;
+begin
+  Exit( TLuaTable.Create( FState, Index ) );
 end;
 
 function TLuaState.ToVec2f ( Index : Integer ) : TVec2f;
@@ -353,6 +371,12 @@ begin
   Exit( vlua_isrect( FState, lua_absindex( FState, Index ) ) );
 end;
 
+function TLuaState.IsFunction( aIndex : Integer ) : Boolean;
+begin
+  Exit( lua_type( FState, aIndex ) = LUA_TFUNCTION );
+end;
+
+
 function TLuaState.GetField(Index: Integer; const Key: Variant): Variant;
 begin
   Index := lua_absindex( FState, Index );
@@ -413,7 +437,17 @@ begin
   lua_rawset( FState, Index );
 end;
 
+procedure TLuaState.PushIndex( aIndex : Integer );
+begin
+  lua_pushvalue( FState, aIndex );
+end;
+
 procedure TLuaState.Push(Value: Single);
+begin
+  lua_pushnumber( FState, Value );
+end;
+
+procedure TLuaState.Push(Value: Double);
 begin
   lua_pushnumber( FState, Value );
 end;
@@ -594,6 +628,18 @@ begin
   lua_pop( FState, 1 );
 end;
 
+function TLuaState.CallFunction( aIdx : Integer; const aParams : array of const ) : Variant;
+begin
+  aIdx := lua_absindex( FState, aIdx );
+  if not lua_isfunction( FState, aIdx ) then Error( 'not a function!');
+  lua_pushvalue( FState, aIdx );
+  Push( aParams );
+  if lua_pcall( FState, High( aParams ) + 1, 1, 0 ) <> 0 then PopRaise( 1, 'Lua error : '+lua_tostring( FState, -1) );
+  CallFunction := vlua_tovariant( FState, -1 );
+  lua_pop( FState, 1 );
+end;
+
+
 procedure TLuaState.SubTableToStream(Obj: ILuaReferencedObject;
   const Name: AnsiString; OSt: TStream);
 begin
@@ -620,6 +666,15 @@ begin
   lua_pushansistring( FState, Name );
   lua_createtable( FState, 0, 0 );
   vlua_tablefromstream( FState, -1, Ist );
+  lua_rawset( FState, -3 );
+  lua_pop( FState, 1 );
+end;
+
+procedure TLuaState.ClearLuaProperties( Obj : ILuaReferencedObject );
+begin
+  Push( Obj );
+  lua_pushansistring( FState, '__props' );
+  lua_createtable( FState, 0, 0 );
   lua_rawset( FState, -3 );
   lua_pop( FState, 1 );
 end;

@@ -12,22 +12,25 @@ unit vfmodsound;
 
 interface
 
-uses Classes, SysUtils, vsound, vrltools, vluaconfig;
+uses Classes, SysUtils, vsound, vrltools, vgenerics;
 
-// The basic sound class, published as the singleton @link(Sound).
-// Should be initialized and disposed via TSystems.
-type
+type TFMODSoundData = record
+    Struct : Pointer;
+    Data   : Pointer;
+    Size   : Integer;
+  end;
+type TFMODSoundDataArray = specialize TGArray< TFMODSoundData >;
 
-{ TFMODSound }
-
-TFMODSound = class(TSound)
+type TFMODSound = class(TSound)
        // Initializes the Sound system.
        constructor Create; override;
+       // Update the sound system
+       procedure Update; override;
+       // Reset the sound system
+       procedure Reset; override;
        // Deinitializes the Sound system.
        destructor Destroy; override;
      protected
-       //Last used channel stored for StopSound
-       FLastChannel: integer;
        // Open audio device with given parameters
        function OpenDevice : Boolean;
        // Implementation of Music Loading
@@ -56,11 +59,30 @@ TFMODSound = class(TSound)
        procedure StopSound(); override;	   
        // Implementation of VolumeMusic
        procedure VolumeMusic( aData : Pointer; const aType : string; aVolume : Byte ); override;
+     protected
+       function CalculateMusicVolume( aVolume : Byte ) : Single;
+       function PushSimpleData( aPointer : Pointer ) : Pointer;
+       function DataToSound( aData : Pointer ) : Pointer; inline;
+     protected
+       FInternalDataArray   : TFMODSoundDataArray;
+       FInternalMusicVolume : Single;
      end;
 
 implementation
 
-uses vutil, vfmodlibrary;
+uses math, vutil, vdebug, vfmodlibrary;
+
+var GSystem      : PFMOD_SYSTEM;
+    GLastError   : FMOD_RESULT;
+    GGroupSounds : PFMOD_CHANNELGROUP;
+    GGroupMusic  : PFMOD_CHANNELGROUP;
+
+procedure FMOD_CHECK( aResult : FMOD_RESULT );
+begin
+  GLastError := aResult;
+  if aResult <> FMOD_OK then
+    Log( LOGERROR, 'FMOD error : '+FMOD_ErrorString(aResult));
+end;
 
 { TFMODSound }
 
@@ -68,160 +90,253 @@ constructor TFMODSound.Create;
 begin
   inherited Create;
   LoadFMOD;
+  FInternalDataArray := nil;
 
   if not OpenDevice then
-  begin
     raise Exception.Create('FMODInit Failed -- '+GetError());
-    FSOUND_Close();
-  end;
+
+  FInternalDataArray := TFMODSoundDataArray.Create;
 end;
 
 destructor TFMODSound.Destroy;
 begin
   inherited Destroy;
-  if FMOD <> nil then
-    FSOUND_Close();
+
+  FreeAndNil( FInternalDataArray );
+
+  if GGroupSounds <> nil then FMOD_ChannelGroup_Release( GGroupSounds );
+  if GGroupMusic <> nil  then FMOD_ChannelGroup_Release( GGroupMusic );
+
+  if GSystem <> nil then
+  begin
+    FMOD_System_Close(GSystem);
+    FMOD_System_Release(GSystem);
+  end;
+end;
+
+// Update the sound system
+procedure TFMODSound.Update;
+begin
+  FMOD_System_Update( GSystem );
+end;
+
+// Reset the sound system
+procedure TFMODSound.Reset;
+begin
+  inherited Reset;
+  FInternalDataArray.Clear;
 end;
 
 function TFMODSound.OpenDevice : Boolean;
+const CPos : FMOD_VECTOR = ( x : 0.0; y : 0.0; z : 0.0 );
+      CVel : FMOD_VECTOR = ( x : 0.0; y : 0.0; z : 0.0 );
+      CFWd : FMOD_VECTOR = ( x : 0.0; y : 0.0; z : 1.0 );
+      CUp  : FMOD_VECTOR = ( x : 0.0; y : 1.0; z : 0.0 );
 begin
-  Log( LOGINFO, 'Opening FMOD...);
-  if not FSOUND_Init(44100, 32, FSOUND_INIT_USEDEFAULTMIDISYNTH) then
+  GGroupSounds := nil;
+  GGroupMusic  := nil;
+  Log( LOGINFO, 'Opening FMOD... ' );
+  GLastError := FMOD_System_Create( @GSystem, FMOD_VERSION);
+  if GLastError <> FMOD_OK then
   begin
-    Log( LOGERROR, 'FSOUND_Init failed, error : ' + GetError() );
+    Log( LOGERROR, 'FMOD_System_Create failed, error : ' + GetError() );
+    if GSystem <> nil then FMOD_System_Release(GSystem);
     Exit( False );
   end;
-  Log( LOGINFO, 'FMOD Initialized ( %s ).', [ FSOUND_GetDriverName( FSOUND_GetDriver() ) ] );
+  GLastError := FMOD_System_Init( GSystem, 128, FMOD_INIT_NORMAL, nil);
+  if GLastError <> FMOD_OK then
+  begin
+    Log( LOGERROR, 'FMOD_System_Init failed, error : ' + GetError() );
+    FMOD_System_Close(GSystem);
+    FMOD_System_Release(GSystem);
+    Exit( False );
+  end;
+  Log( LOGINFO, 'FMOD Initialized.' );
+
+  FMOD_CHECK( FMOD_System_CreateChannelGroup( GSystem, 'sound', @GGroupSounds ) );
+  FMOD_CHECK( FMOD_System_CreateChannelGroup( GSystem, 'music', @GGroupMusic ) );
+  FMOD_CHECK( FMOD_System_set3DListenerAttributes( GSystem, 0, @CPos, @CVel, @CFwd, @CUp ) );
   Exit( True );
 end;
 
 function TFMODSound.LoadMusic(const aFileName: AnsiString; Streamed : Boolean): Pointer;
+var iStream : PFMOD_SOUND;
+    iInfo   : FMOD_CREATESOUNDEXINFO;
 begin
-  if Streamed then
-    Exit( FSOUND_Stream_Open( PChar( aFileName ),FSOUND_LOOP_NORMAL or FSOUND_NORMAL,0,0) )
-  else
-    Exit( FMUSIC_LoadSong( PChar( aFileName ) ) );
+  iStream := nil;
+  FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
+  iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
+  FMOD_CHECK( FMOD_System_CreateStream( GSystem, PChar(aFileName), FMOD_2D or FMOD_CREATESTREAM or FMOD_LOOP_NORMAL, @iInfo, @iStream) );
+  Exit( PushSimpleData( iStream ) );
 end;
 
 function TFMODSound.LoadSound(const aFileName: AnsiString): Pointer;
+var iSound : PFMOD_SOUND;
+    iInfo  : FMOD_CREATESOUNDEXINFO;
+    iMode  : FMOD_MODE;
 begin
-  if FSurroundEnabled
-    then Exit( FSOUND_Sample_Load( FSOUND_UNMANAGED, PChar(aFileName), FSOUND_HW3D or FSOUND_FORCEMONO, 0, 0) )
-    else Exit( FSOUND_Sample_Load( FSOUND_UNMANAGED, PChar(aFileName), 0, 0, 0) );
+  iMode := FMOD_DEFAULT;
+  if FSurroundEnabled then
+    iMode := FMOD_3D or FMOD_3D_WORLDRELATIVE or FMOD_3D_INVERSEROLLOFF;
+
+  iSound := nil;
+  FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
+  iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
+  FMOD_CHECK( FMOD_System_CreateSound( GSystem, PChar(aFileName), iMode, @iInfo, @iSound ) );
+  Exit( PushSimpleData( iSound ) );
 end;
 
 function TFMODSound.LoadMusicStream(Stream: TStream; Size : DWord; Streamed : Boolean ): Pointer;
-var Data   : Pointer;
-    Unused : Integer;
+var iStream : PFMOD_SOUND;
+    iInfo  : FMOD_CREATESOUNDEXINFO;
+    iData  : Pointer;
+    iStore : TFMODSoundData;
 begin
-  if Streamed then
-  begin
-    Data := GetCacheMem( Size );
-    Stream.Read( Data^, Size );
-    Exit( FSOUND_Stream_Open( PChar( Data ), FSOUND_LOADMEMORY or FSOUND_LOOP_NORMAL or FSOUND_NORMAL,0,Size) )
-  end
-  else
-  begin
-    Data := GetMem( Size );
-    Stream.Read( Data^, Size );
-    Unused := 0;
-    LoadMusicStream := FMUSIC_LoadSongEx( PChar( Data ), 0, Size, FSOUND_2D or FSOUND_LOADMEMORY, Unused, 0 );
-    FreeMem( Data, Size );
-  end;
+  iData := GetMem( Size );
+  Stream.Read( iData^, Size );
+  iStream := nil;
+  FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
+  iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
+  iInfo.length := Size;
+  FMOD_CHECK( FMOD_System_CreateStream( GSystem, PChar(iData), FMOD_2D or FMOD_CREATESTREAM or FMOD_LOOP_NORMAL or FMOD_OPENMEMORY, @iInfo, @iStream) );
+  iStore.Size   := Size;
+  iStore.Data   := iData;
+  iStore.Struct := iStream;
+  FInternalDataArray.Push( iStore );
+  Exit( Pointer( FInternalDataArray.Size ) );
 end;
 
 function TFMODSound.LoadSoundStream(Stream: TStream; Size : DWord ): Pointer;
-var Data : Pointer;
+var iSound : PFMOD_SOUND;
+    iInfo  : FMOD_CREATESOUNDEXINFO;
+    iMode  : FMOD_MODE;
+    iData  : Pointer;
 begin
-  Data := GetMem( Size );
-  Stream.Read( Data^, Size );
-  LoadSoundStream := FSOUND_Sample_Load( FSOUND_UNMANAGED, PChar( Data ), FSOUND_2D or FSOUND_LOADMEMORY, 0, Size);
-  FreeMem( Data, Size );
+  iData := GetMem( Size );
+  Stream.Read( iData^, Size );
+
+  iMode := FMOD_DEFAULT or FMOD_OPENMEMORY;
+  if FSurroundEnabled then
+    iMode := FMOD_3D or FMOD_3D_WORLDRELATIVE or FMOD_3D_INVERSEROLLOFF or FMOD_OPENMEMORY;
+
+  iSound := nil;
+  FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
+  iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
+  iInfo.length := Size;
+  FMOD_CHECK( FMOD_System_CreateSound( GSystem, PChar( iData ), iMode, @iInfo, @iSound ) );
+  FreeMem( iData, Size );
+  Exit( PushSimpleData( iSound ) );
 end;
 
 procedure TFMODSound.FreeMusic( aData: Pointer; const aType : String );
 begin
-  if ( aType = '.mp3' ) or ( aType = '.ogg' ) or ( aType = '.wav' ) then
-    FSOUND_Stream_Close(PFSoundStream(aData))
-  else
-    FMUSIC_FreeSong(PFMusicModule(aData));
+  FreeSound( aData );
 end;
 
 procedure TFMODSound.FreeSound(aData: Pointer);
+var iIndex : Integer;
 begin
-  FSOUND_Sample_Free(PFSoundSample(aData));
+  iIndex := PtrInt( aData );
+  if ( iIndex <= 0 ) or ( iIndex > FInternalDataArray.Size ) then
+    raise Exception.Create('Internal Data Array corrupted on FreeSound!');
+  Dec( iIndex );
+  with FInternalDataArray[ iIndex ] do
+  begin
+    FMOD_CHECK( FMOD_Sound_Release(PFMOD_SOUND(Struct)) );
+    if Data <> nil then
+      FreeMem( Data, Size );
+  end;
 end;
 
 function TFMODSound.GetError(): AnsiString;
 var iError : AnsiString;
 begin
-  iError := FMOD_ErrorString(FSOUND_GetError());
+  iError := FMOD_ErrorString(GLastError);
   Exit( iError );
 end;
 
 procedure TFMODSound.PlaySound3D(aData: Pointer; aRelative: TCoord2D);
-var iChannel   : Integer;
-    iPos, iVel : TFSoundVector;
+var iChannel   : PFMOD_CHANNEL;
+    iPosition  : FMOD_VECTOR;
+    iSound     : PFMOD_SOUND;
 begin
-  iVel.x := 0;           iVel.y := 0;           iVel.z := 0;
-  FSOUND_3D_Listener_SetAttributes( @iVel, nil, -1, 0, 0, 0, 0, 1 );
-  iChannel := FSOUND_PlaySoundEx( FSOUND_FREE, PFSoundSample(aData), nil, True );
-  FLastChannel := iChannel;
-  iPos.x := aRelative.X*0.1; iPos.y := aRelative.Y*0.1; iPos.z := 0;
-  FSOUND_3D_SetMinMaxDistance( iChannel, 1, 100000 );
-  FSOUND_SetVolume( iChannel, SoundVolume );
-  FSOUND_3D_SetAttributes( iChannel, @iPos, nil );
-  FSOUND_Update();
-  FSOUND_SetPaused( iChannel, False );
+  iSound      := PFMOD_SOUND(DataToSound( aData ));
+  iPosition.x := aRelative.X * 0.2;
+  iPosition.y := aRelative.Y * 0.2;
+  iPosition.z := 0.0;
+  FMOD_CHECK( FMOD_System_PlaySound( GSystem, iSound, GGroupSounds, 1, @iChannel ) );
+  FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, Single( Min( SoundVolume, 128 ) / 100.0 ) ) );
+  FMOD_CHECK( FMOD_Channel_set3DAttributes( iChannel, @iPosition, nil ) );
+  FMOD_CHECK( FMOD_Channel_SetPaused( iChannel, 0 ) );
 end;
 
 procedure TFMODSound.PlaySound(aData: Pointer; aVolume: Byte; aPan: Integer);
-var iChannel : Integer;
+var iChannel : PFMOD_CHANNEL;
+    iSound   : PFMOD_SOUND;
 begin
-  iChannel := FSOUND_PlaySound( FSOUND_FREE, PFSoundSample(aData) );
-  fLastChannel := iChannel;
-  FSOUND_SetVolume( iChannel, aVolume );
-  if aPan = -1 then
-    FSOUND_SetPan(iChannel,127)
-  else
-    FSOUND_SetPan(iChannel,aPan);
+  iSound      := PFMOD_SOUND(DataToSound( aData ));
+  FMOD_CHECK( FMOD_System_PlaySound( GSystem, iSound, GGroupSounds, 1, @iChannel ) );
+  FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, ( Single(aVolume) / 100.0 ) ) );
+  if aPan <> -1
+    then FMOD_CHECK( FMOD_Channel_SetPan( iChannel, ( Single(aPan-128) / 128.0 ) ) )
+    else FMOD_CHECK( FMOD_Channel_SetPan( iChannel, 0 ) );
+  FMOD_CHECK( FMOD_Channel_SetPaused( iChannel, 0 ) );
 end;
 
 procedure TFMODSound.PlayMusic(aData: Pointer; const aType : string; aRepeat: Boolean);
+var iSound : PFMOD_SOUND;
 begin
-  if ( aType = '.mp3' ) or ( aType = '.ogg' ) or ( aType = '.wav' ) then
-  begin
-    FSOUND_Stream_Play( 31, PFSoundStream(aData) );
-    if not aRepeat then FSOUND_Stream_SetLoopCount(PFSoundStream(aData),0);
-    FSOUND_SetVolume(31, MusicVolume);
-  end
-  else
-  begin
-    FMUSIC_SetLooping(PFMusicModule(aData),aRepeat);
-    FMUSIC_PlaySong(PFMusicModule(aData));
-    FMUSIC_SetMasterVolume(aData,MusicVolume);
-  end;
+  iSound   := PFMOD_SOUND(DataToSound( aData ));
+  FMOD_ChannelGroup_SetVolume( GGroupMusic, CalculateMusicVolume( MusicVolume ) );
+  if aRepeat
+    then FMOD_Sound_SetLoopCount( iSound, -1 )
+    else FMOD_Sound_SetLoopCount( iSound, 0 );
+  FMOD_CHECK( FMOD_System_PlaySound( GSystem, iSound, GGroupMusic, 0, nil ) );
 end;
 
 procedure TFMODSound.StopMusic(aData: Pointer; const aType : string );
 begin
-  if ( aType = '.mp3' ) or ( aType = '.ogg' ) or ( aType = '.wav' ) then
-    FSOUND_Stream_Stop(PFSoundStream(aData))
-  else
-    FMUSIC_StopSong(PFMusicModule(aData));
+  FMOD_CHECK( FMOD_ChannelGroup_Stop( GGroupMusic ) );
 end;
 
 procedure TFMODSound.StopSound();
 begin
-  FSOUND_StopSound(fLastChannel);
- end;
+  FMOD_CHECK( FMOD_ChannelGroup_Stop( GGroupSounds ) );
+end;
 
 procedure TFMODSound.VolumeMusic(aData: Pointer; const aType : string; aVolume: Byte );
 begin
-  if ( aType = '.mp3' ) or ( aType = '.ogg' ) or ( aType = '.wav' ) then
-    FSOUND_SetVolume(31, aVolume)
-  else
-    FMUSIC_SetMasterVolume(aData, aVolume);
+  FMOD_ChannelGroup_SetVolume( GGroupMusic, CalculateMusicVolume( aVolume ) );
 end;
+
+function TFMODSound.CalculateMusicVolume( aVolume : Byte ) : Single;
+var iValue : Single;
+begin
+  iValue := aVolume / 100.0;
+  Result := iValue * iValue;
+end;
+
+function TFMODSound.PushSimpleData( aPointer : Pointer ) : Pointer;
+var iData : TFMODSoundData;
+begin
+  iData.Struct   := aPointer;
+  iData.Data     := nil;
+  iData.Size     := 0;
+  FInternalDataArray.Push( iData );
+  Exit( Pointer( FInternalDataArray.Size ) );
+end;
+
+function TFMODSound.DataToSound( aData : Pointer ) : Pointer; inline;
+var iIndex : Integer;
+begin
+  iIndex := PtrInt( aData );
+  if ( iIndex <= 0 ) or ( iIndex > FInternalDataArray.Size ) then
+    raise Exception.Create('Internal Data Array corrupted!');
+  Exit( FInternalDataArray[ iIndex - 1 ].struct );
+end;
+
+initialization
+
+GSystem := nil;
 
 end.
