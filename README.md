@@ -1,12 +1,12 @@
 # fpcvalkyrie
 FPC Valkyrie library
-Version 0.9.0
+Version 0.10.0
 
-Copyright (c) 2002-2024 Kornel Kisielewicz
+Copyright (c) 2002-2025 Kornel Kisielewicz
 
 For usage/compilation, see one of the projects that uses FPC Valkyrie:
 
-https://github.com/chaosforgeorg/doomrl
+https://github.com/chaosforgeorg/drl
 https://github.com/chaosforgeorg/diablorl
 https://github.com/chaosforgeorg/berserkrl
 
