@@ -667,6 +667,31 @@ var iDispatch : TSteamManualDispatch;
     iMsg      : TSteamCallbackMsg;
     iBuf      : array[0..255] of AnsiChar;
     iLength   : Integer;
+
+  function GamepadBufToASCII( const aP: PAnsiChar; aBufCap : SizeInt ): AnsiString;
+  type ASCIIString = type AnsiString(20127); // US-ASCII
+  var iu8  : UTF8String;
+      iUni : UnicodeString;
+      i, j : SizeInt;
+      iA   : ASCIIString;
+  begin
+    i := 0;
+    while (i < aBufCap) and (aP[i] <> #0) do
+      Inc(i);
+
+    SetString(iu8, aP, i);
+    iUni := UTF8Decode(iu8);
+    iA   := iUni;
+    Result := AnsiString(iA);
+    j := 0;
+    for i := 1 to Length(Result) do
+      if (Result[i] >= #32) and (Result[i] <= #126) then
+      begin
+        Inc(j);
+        Result[j] := Result[i];
+      end;
+    SetLength(Result, j);
+  end;
 begin
   if ( not IsInitialized ) then Exit;
   iDispatch := TSteamCore.GetClient.Dispatch;
@@ -684,7 +709,7 @@ begin
             iLength := TSteamCore.GetClient.Utils.GetEnteredGamepadTextLength;
             if iLength < Length(iBuf) then
               if TSteamCore.GetClient.Utils.GetEnteredGamepadTextInput( @iBuf[0], iLength ) then
-                FText := UTF8ToString(iBuf);
+                FText := GamepadBufToASCII(iBuf, iLength);
           end;
         end;
     end;
@@ -973,6 +998,7 @@ end;
 
 function TSteam.GetText( out aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean;
 begin
+  Initialize( aPrompt );
   if FTextReady then
   begin
     aPrompt := FText;
