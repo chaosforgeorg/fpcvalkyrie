@@ -413,14 +413,8 @@ begin
   glBindVertexArray(0);
 
   FProgram.Bind;
-    if FLineSpace <> 0 then
-    begin
-      iPart.Init( SDLIO.GetSizeX / iRect.Dim.X, SDLIO.GetSizeY / iRect.Dim.Y );
-      iMatrix := GLCreateOrtho(-iPart.X, iPart.X, 1 - 2*iPart.Y, 1, -1, 1 );
-    end
-    else
-      iMatrix := GLCreateOrtho(-1, 1, -1, 1, -1, 1 );
-
+    iPart.Init( SDLIO.GetSizeX / iRect.Dim.X, SDLIO.GetSizeY / iRect.Dim.Y );
+    iMatrix := GLCreateOrtho(-iPart.X, iPart.X, 1 - 2*iPart.Y, 1, -1, 1 );
 
     iPLoc := FProgram.GetUniformLocation('projection');
     glUniformMatrix4fv(iPLoc, 1, GL_FALSE, @iMatrix[0]);
