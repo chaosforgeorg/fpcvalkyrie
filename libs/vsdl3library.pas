@@ -403,6 +403,9 @@ var
   SDL_SaveFile          : function(const file_: PAnsiChar; const data: Pointer; datasize: SizeT): SDL_bool; cdecl;
 
   SDL_GetBooleanProperty: function( props : SDL_PropertiesID; const name : PAnsiChar; default : Boolean ) : Boolean;
+  SDL_SetNumberProperty : function( props : SDL_PropertiesID; const name : PAnsiChar; value : Sint32 ) : Boolean;
+  SDL_CreateProperties  : function : SDL_PropertiesID;
+  SDL_DestroyProperties : procedure( props : SDL_PropertiesID );
   SDL_free              : procedure(data: Pointer); cdecl;
 
 var
@@ -774,6 +777,10 @@ begin
   Pointer(SDL_SaveFile)          := GetSymbol('SDL_SaveFile');
 
   Pointer(SDL_GetBooleanProperty):= GetSymbol('SDL_GetBooleanProperty');
+  Pointer(SDL_SetNumberProperty) := GetSymbol('SDL_SetNumberProperty');
+  Pointer(SDL_CreateProperties)  := GetSymbol('SDL_CreateProperties');
+  Pointer(SDL_DestroyProperties) := GetSymbol('SDL_DestroyProperties');
+
   Pointer(SDL_free)              := GetSymbol('SDL_free');
 
   Exit( True );
