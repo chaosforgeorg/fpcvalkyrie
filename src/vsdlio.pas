@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vsdlio;
 interface
-uses Classes, SysUtils, vutil, viotypes, vsdl2library, vioevent;
+uses Classes, SysUtils, vutil, viotypes, vsdl3library, vioevent;
 
 type TSDLIOFlag  = ( SDLIO_OpenGL, SDLIO_FullScreen, SDLIO_Resizable, SDLIO_Gamepad );
      TSDLIOFlags = set of TSDLIOFlag;
@@ -44,6 +44,8 @@ private
   FWindow    : PSDL_Window;
   FGLContext : SDL_GLContext;
 
+
+  FGamePadID      : DWord;
   FGamePadRumble  : Boolean;
   FGamePadSupport : Boolean;
   FGamePadIndex   : Integer;
@@ -66,15 +68,10 @@ end;
 
 var SDLIO : TSDLIODriver = nil;
 
-function SDLIOEventFilter( userdata : Pointer; event: PSDL_Event) : Integer; cdecl;
-
 implementation
 
-uses vgl3library,
-     {Screenshot support}
-     vdebug,
-     FPImage, FPCanvas,
-     FPWritePNG{$IFDEF WINDOWS}, Windows{$ENDIF};
+uses vdebug, vgl3library,
+     vsdl3imagelibrary{$IFDEF WINDOWS}, Windows{$ENDIF};
 
 var HackLastMouseX : Integer;
     HackLastMouseY : Integer;
@@ -130,32 +127,34 @@ end;
 function SDLKeyEventToKeyCode( event : PSDL_Event ) : TIOKeyCode;
 var smod : SDL_Keymod;
 begin
-  Result := SDLSymToCode( event^.key.keysym.sym );
-  smod := event^.key.keysym.mod_;
-  if (smod and KMOD_CTRL)  <> 0 then Result += IOKeyCodeCtrlMask;
-  if (smod and KMOD_SHIFT) <> 0 then Result += IOKeyCodeShiftMask;
-  if (smod and KMOD_ALT)   <> 0 then Result += IOKeyCodeAltMask;
+  Result := SDLSymToCode( event^.key.key );
+  smod := SDL_GetModState();
+  if (smod and SDL_KMOD_CTRL)  <> 0 then Result += IOKeyCodeCtrlMask;
+  if (smod and SDL_KMOD_SHIFT) <> 0 then Result += IOKeyCodeShiftMask;
+  if (smod and SDL_KMOD_ALT)   <> 0 then Result += IOKeyCodeAltMask;
 end;
 
 function SDLModToModKeySet( smod : SDL_Keymod ) : TIOModKeySet;
 begin
   Result := [];
-  if smod = KMOD_NONE then Exit;
-  if (smod and KMOD_CTRL)  <> 0 then Include( Result, VKMOD_CTRL );
-  if (smod and KMOD_SHIFT) <> 0 then Include( Result, VKMOD_SHIFT );
-  if (smod and KMOD_ALT)   <> 0 then Include( Result, VKMOD_ALT );
+  if smod = SDL_KMOD_NONE then Exit;
+  if (smod and SDL_KMOD_CTRL)  <> 0 then Include( Result, VKMOD_CTRL );
+  if (smod and SDL_KMOD_SHIFT) <> 0 then Include( Result, VKMOD_SHIFT );
+  if (smod and SDL_KMOD_ALT)   <> 0 then Include( Result, VKMOD_ALT );
 end;
 
 function SDLKeyEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 const KNumerics : array[0..9] of Char = (')','!','@','#','$','%','^','&','*','(');
-var iCode    : Integer;
-    iShift   : Boolean;
+var iCode  : Integer;
+    iShift : Boolean;
+    iMod   : SDL_Keymod;
 begin
-  iCode  := event^.key.keysym.sym;
-  iShift := ( (event^.key.keysym.mod_ and KMOD_SHIFT) <> 0 ) or
-            ( (event^.key.keysym.mod_ and KMOD_CAPS) <> 0 );
-  Result.Key.Repeated := ( event^.type_ = SDL_KEYDOWN ) and (event^.key.repeat_ > 0);
-  Result.Key.Pressed  := event^.type_ = SDL_KEYDOWN;
+  iCode  := event^.key.key;
+  iMod   := SDL_GetModState();
+  iShift := ( (iMod and SDL_KMOD_SHIFT) <> 0 ) or
+            ( (iMod and SDL_KMOD_CAPS) <> 0 );
+  Result.Key.Repeated := ( event^._type = SDL_EVENT_KEY_DOWN ) and ( event^.key.repeat_ );
+  Result.Key.Pressed  := event^._type = SDL_EVENT_KEY_DOWN;
   if ( iCode >= 32 )
     and ( iCode < 127 )
     and ( iCode <> SDLK_PAGEDOWN )
@@ -167,7 +166,7 @@ begin
     if iShift then
     begin
         case iCode of
-          Ord('a')..Ord('z') : iCode := SDL_toupper( iCode );
+          Ord('a')..Ord('z') : iCode := Ord(iCode) - 32;
           Ord('0')..Ord('9') : iCode := Ord(KNumerics[ iCode - Ord('0') ] );
           Ord('`')           : iCode := Ord('~');
           Ord('-')           : iCode := Ord('_');
@@ -183,16 +182,16 @@ begin
         end
     end;
     Result := PrintableToIOEvent( Char( iCode ) );
-    Result.Key.Pressed := event^.type_ = SDL_KEYDOWN;
-    if event^.type_ = SDL_KEYUP then Result.EType := VEVENT_KEYUP;
+    Result.Key.Pressed := event^._type = SDL_EVENT_KEY_DOWN;
+    if event^._type = SDL_EVENT_KEY_UP then Result.EType := VEVENT_KEYUP;
     Exit;
   end;
-  if event^.type_ = SDL_KEYDOWN
+  if event^._type = SDL_EVENT_KEY_DOWN
     then Result.EType := VEVENT_KEYDOWN
     else Result.EType := VEVENT_KEYUP;
   Result.Key.ASCII    := #0;
-  Result.Key.ModState := SDLModToModKeySet( event^.key.keysym.mod_ );
-  Result.Key.Code     := SDLSymToCode( event^.key.keysym.sym );
+  Result.Key.ModState := SDLModToModKeySet( iMod );
+  Result.Key.Code     := SDLSymToCode( event^.key.key );
 end;
 
 function SDLSystemEventToIOEvent( event : PSDL_Event ) : TIOEvent;
@@ -201,27 +200,19 @@ begin
   Result.System.Param1 := 0;
   Result.System.Param2 := 0;
 
-  case event^.type_ of
-    SDL_QUIT_       : Result.System.Code := VIO_SYSEVENT_QUIT;
-    SDL_WINDOWEVENT_:
-    case event^.window.event of
-      SDL_WINDOWEVENT_EXPOSED : Result.System.Code := VIO_SYSEVENT_EXPOSE;
-      SDL_WINDOWEVENT_RESIZED :
+  case event^._type of
+    SDL_EVENT_QUIT           : Result.System.Code := VIO_SYSEVENT_QUIT;
+    SDL_EVENT_WINDOW_EXPOSED : Result.System.Code := VIO_SYSEVENT_EXPOSE;
+    SDL_EVENT_WINDOW_RESIZED :
       begin
         Result.System.Code := VIO_SYSEVENT_RESIZE;
         Result.System.Param1 := event^.window.data1;
         Result.System.Param2 := event^.window.data2;
       end;
-    end;
-    SDL_SYSWMEVENT_ :
-    begin
-      Result.System.Code := VIO_SYSEVENT_WM;
-      // TODO : Windows messages?
-    end
     else
       begin
         Result.System.Code := VIO_SYSEVENT_UNKNOWN;
-        Result.System.Param1 := event^.type_;
+        Result.System.Param1 := event^._type;
       end;
   end;
 end;
@@ -241,18 +232,16 @@ end;
 function SDLMouseButtonSetToVMB( ButtonMask : Byte ) : TIOMouseButtonSet;
 begin
   Result := [];
-  if (ButtonMask and SDL_BUTTON( 1 )) <> 0 then Include( Result, VMB_BUTTON_LEFT );
-  if (ButtonMask and SDL_BUTTON( 2 )) <> 0 then Include( Result, VMB_BUTTON_MIDDLE );
-  if (ButtonMask and SDL_BUTTON( 3 )) <> 0 then Include( Result, VMB_BUTTON_RIGHT );
-  if (ButtonMask and SDL_BUTTON( 4 )) <> 0 then Include( Result, VMB_WHEEL_UP );
-  if (ButtonMask and SDL_BUTTON( 5 )) <> 0 then Include( Result, VMB_WHEEL_DOWN );
-  if (ButtonMask and SDL_BUTTON( 6 )) <> 0 then Include( Result, VMB_UNKNOWN );
-  if (ButtonMask and SDL_BUTTON( 7 )) <> 0 then Include( Result, VMB_UNKNOWN );
+  if (ButtonMask and SDL_BUTTON_MASK( SDL_BUTTON_LEFT ))   <> 0 then Include( Result, VMB_BUTTON_LEFT );
+  if (ButtonMask and SDL_BUTTON_MASK( SDL_BUTTON_MIDDLE )) <> 0 then Include( Result, VMB_BUTTON_MIDDLE );
+  if (ButtonMask and SDL_BUTTON_MASK( SDL_BUTTON_RIGHT ))  <> 0 then Include( Result, VMB_BUTTON_RIGHT );
+  if (ButtonMask and SDL_BUTTON_MASK( SDL_BUTTON_X1 ))     <> 0 then Include( Result, VMB_UNKNOWN );
+  if (ButtonMask and SDL_BUTTON_MASK( SDL_BUTTON_X2 ))     <> 0 then Include( Result, VMB_UNKNOWN );
 end;
 
 function SDLMouseEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 begin
-  if event^.type_ = SDL_MOUSEWHEEL then
+  if event^._type = SDL_EVENT_MOUSE_WHEEL then
   begin
       Result.EType         := VEVENT_MOUSEDOWN;
       if event^.wheel.y > 0 then
@@ -264,153 +253,144 @@ begin
       Result.Mouse.Pressed := True;
       Exit;
   end;
-  case event^.type_ of
-    SDL_MOUSEBUTTONDOWN : Result.EType := VEVENT_MOUSEDOWN;
-    SDL_MOUSEBUTTONUP   : Result.EType := VEVENT_MOUSEUP;
+  case event^._type of
+    SDL_EVENT_MOUSE_BUTTON_DOWN : Result.EType := VEVENT_MOUSEDOWN;
+    SDL_EVENT_MOUSE_BUTTON_UP   : Result.EType := VEVENT_MOUSEUP;
   end;
   Result.Mouse.Button  := SDLMouseButtonToVMB( event^.button.button );
-  Result.Mouse.Pos.X   := event^.button.x;
-  Result.Mouse.Pos.Y   := event^.button.y;
-  Result.Mouse.Pressed := event^.button.state = SDL_PRESSED;
+  Result.Mouse.Pos.X   := Trunc( event^.button.x );
+  Result.Mouse.Pos.Y   := Trunc( event^.button.y );
+  Result.Mouse.Pressed := event^.button.down;
 end;
 
 function SDLPadDeviceEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 begin
   Result.EType := VEVENT_PADDEVICE;
   Result.PadDevice.Which := event^.cdevice.which;
-  case event^.type_ of
-    SDL_CONTROLLERDEVICEADDED    : Result.PadDevice.Event := VPAD_ADDED;
-    SDL_CONTROLLERDEVICEREMOVED  : Result.PadDevice.Event := VPAD_REMOVED;
-    SDL_CONTROLLERDEVICEREMAPPED : Result.PadDevice.Event := VPAD_REMAPPED;
+  case event^._type of
+    SDL_EVENT_GAMEPAD_ADDED    : Result.PadDevice.Event := VPAD_ADDED;
+    SDL_EVENT_GAMEPAD_REMOVED  : Result.PadDevice.Event := VPAD_REMOVED;
+    SDL_EVENT_GAMEPAD_REMAPPED : Result.PadDevice.Event := VPAD_REMAPPED;
   end;
 end;
 
 function SDLPadAxisEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 begin
   Result.EType         := VEVENT_PADAXIS;
-  Result.PadAxis.Axis  := TIOPadAxis( event^.caxis.axis );
-  Result.PadAxis.Value := event^.caxis.value;
-  Result.PadAxis.Which := event^.caxis.which;
+  Result.PadAxis.Axis  := TIOPadAxis( event^.gaxis.axis );
+  Result.PadAxis.Value := event^.gaxis.value;
+  Result.PadAxis.Which := event^.gaxis.which;
 end;
 
 function SDLPadEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 begin
-  case event^.type_ of
-    SDL_CONTROLLERBUTTONDOWN    : Result.EType := VEVENT_PADDOWN;
-    SDL_CONTROLLERBUTTONUP      : Result.EType := VEVENT_PADUP;
+  case event^._type of
+    SDL_EVENT_GAMEPAD_BUTTON_DOWN    : Result.EType := VEVENT_PADDOWN;
+    SDL_EVENT_GAMEPAD_BUTTON_UP      : Result.EType := VEVENT_PADUP;
   end;
-  Result.Pad.Button  := TIOPadButton( event^.cbutton.button );
-  Result.Pad.Which   := event^.cbutton.which;
-  Result.Pad.Pressed := event^.cbutton.state = SDL_PRESSED;
+  Result.Pad.Button  := TIOPadButton( event^.gbutton.button );
+  Result.Pad.Which   := event^.gbutton.which;
+  Result.Pad.Pressed := event^.gbutton.down;
 end;
 
 function SDLTextEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 begin
   Result.EType := VEVENT_TEXT;
-  Move( event^.text.text[0], Result.Text.Text[0], SDL_TEXTINPUTEVENT_TEXT_SIZE );
+  StrLCopy( @Result.Text.Text[0], event^.text.text, Length(Result.Text.Text));
 end;
 
 function SDLMouseMoveEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 begin
   Result.EType := VEVENT_MOUSEMOVE;
   Result.MouseMove.ButtonState := SDLMouseButtonSetToVMB( event^.motion.state );
-  Result.MouseMove.Pos.X       := event^.motion.x;
-  Result.MouseMove.Pos.Y       := event^.motion.y;
-  Result.MouseMove.RelPos.X    := event^.motion.xrel;
-  Result.MouseMove.RelPos.Y    := event^.motion.yrel;
-  HackLastMouseX := event^.motion.x;
-  HackLastMouseY := event^.motion.y;
+  Result.MouseMove.Pos.X       := Trunc( event^.motion.x );
+  Result.MouseMove.Pos.Y       := Trunc( event^.motion.y );
+  Result.MouseMove.RelPos.X    := Trunc( event^.motion.xrel );
+  Result.MouseMove.RelPos.Y    := Trunc( event^.motion.yrel );
+  HackLastMouseX := Trunc( event^.motion.x );
+  HackLastMouseY := Trunc( event^.motion.y );
 end;
 
 function SDLEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 begin
-  case event^.type_ of
-    SDL_KEYDOWN : Exit( SDLKeyEventToIOEvent( event ) );
-    SDL_KEYUP   : Exit( SDLKeyEventToIOEvent( event ) );
-    SDL_TEXTINPUT : Exit( SDLTextEventToIOEvent( event ) );
+  case event^._type of
+    SDL_EVENT_KEY_DOWN : Exit( SDLKeyEventToIOEvent( event ) );
+    SDL_EVENT_KEY_UP   : Exit( SDLKeyEventToIOEvent( event ) );
+    SDL_EVENT_TEXT_INPUT : Exit( SDLTextEventToIOEvent( event ) );
 
-    SDL_MOUSEMOTION     : Exit( SDLMouseMoveEventToIOEvent( event ) );
-    SDL_MOUSEBUTTONDOWN : Exit( SDLMouseEventToIOEvent( event ) );
-    SDL_MOUSEBUTTONUP   : Exit( SDLMouseEventToIOEvent( event ) );
-    SDL_MOUSEWHEEL      : Exit( SDLMouseEventToIOEvent( event ) );
+    SDL_EVENT_MOUSE_MOTION     : Exit( SDLMouseMoveEventToIOEvent( event ) );
+    SDL_EVENT_MOUSE_BUTTON_DOWN : Exit( SDLMouseEventToIOEvent( event ) );
+    SDL_EVENT_MOUSE_BUTTON_UP   : Exit( SDLMouseEventToIOEvent( event ) );
+    SDL_EVENT_MOUSE_WHEEL      : Exit( SDLMouseEventToIOEvent( event ) );
 
-    SDL_CONTROLLERAXISMOTION : Exit( SDLPadAxisEventToIOEvent( event ) );
-    SDL_CONTROLLERBUTTONDOWN,
-    SDL_CONTROLLERBUTTONUP : Exit( SDLPadEventToIOEvent( event ) );
+    SDL_EVENT_GAMEPAD_AXIS_MOTION : Exit( SDLPadAxisEventToIOEvent( event ) );
+    SDL_EVENT_GAMEPAD_BUTTON_DOWN,
+    SDL_EVENT_GAMEPAD_BUTTON_UP : Exit( SDLPadEventToIOEvent( event ) );
 
-    SDL_CONTROLLERDEVICEADDED,
-    SDL_CONTROLLERDEVICEREMOVED,
-    SDL_CONTROLLERDEVICEREMAPPED :
+    SDL_EVENT_GAMEPAD_ADDED,
+    SDL_EVENT_GAMEPAD_REMOVED,
+    SDL_EVENT_GAMEPAD_REMAPPED :
     begin
       SDLIO.ScanGamepads;
       Exit( SDLPadDeviceEventToIOEvent( event ) );
     end;
-
-    SDL_JOYAXISMOTION : ;
-    SDL_JOYBALLMOTION : ;
-    SDL_JOYHATMOTION  : ;
-    SDL_JOYBUTTONDOWN,
-    SDL_JOYBUTTONUP   : ;
-    else
-      Exit( SDLSystemEventToIOEvent( event ) );
   end;
   Result.EType := VEVENT_SYSTEM;
   Result.System.Code := VIO_SYSEVENT_NONE;
 end;
 
-function SDLIOEventFilter( userdata : Pointer; event: PSDL_Event) : Integer; cdecl;
+function SDLIOEventFilter( userdata : Pointer; event: PSDL_Event) : Boolean; cdecl;
 var iCode : TIOKeyCode;
 begin
-  if event^.type_ = SDL_QUIT_ then
+  if event^._type = SDL_EVENT_QUIT then
     if Assigned( SDLIO.FOnQuit ) then
       if SDLIO.FOnQuit( SDLEventToIOEvent( event ) ) then
-        Exit(0);
-  if event^.type_ = SDL_WINDOWEVENT_ then
-    if event^.window.event = SDL_WINDOWEVENT_RESIZED then
-      if Assigned( SDLIO.FOnResize ) then
-        if SDLIO.FOnResize( SDLEventToIOEvent( event ) ) then
-          Exit(0);
-  if event^.type_ = SDL_KEYDOWN then
+        Exit(False);
+  if event^._type = SDL_EVENT_WINDOW_RESIZED then
+    if Assigned( SDLIO.FOnResize ) then
+      if SDLIO.FOnResize( SDLEventToIOEvent( event ) ) then
+        Exit(False);
+  if event^._type = SDL_EVENT_KEY_DOWN then
   begin
     iCode := SDLKeyEventToKeyCode( event );
     if SDLIO.FInterrupts[iCode] <> nil then
       if SDLIO.FInterrupts[iCode]( SDLKeyEventToIOEvent( event ) ) then
-        Exit(0);
+        Exit(False);
   end;
-  case event^.type_ of
-  SDL_QUIT_,
-//  SDL_APP_TERMINATING,
-//  SDL_APP_LOWMEMORY,
-//  SDL_APP_WILLENTERBACKGROUND,
-//  SDL_APP_DIDENTERBACKGROUND,
-//  SDL_APP_WILLENTERFOREGROUND,
-//  SDL_APP_DIDENTERFOREGROUND,
-  SDL_WINDOWEVENT_,
-  SDL_SYSWMEVENT_,
-  SDL_KEYDOWN,
-  SDL_KEYUP,
-  SDL_TEXTINPUT,
-//  SDL_TEXTEDITING,
-//  SDL_TEXTINPUT,
-  SDL_MOUSEMOTION,
-  SDL_MOUSEBUTTONDOWN,
-  SDL_MOUSEBUTTONUP,
-  SDL_MOUSEWHEEL : Exit(1);
-  SDL_JOYAXISMOTION,
-  SDL_JOYBALLMOTION,
-  SDL_JOYHATMOTION,
-  SDL_JOYBUTTONDOWN,
-  SDL_JOYBUTTONUP,
-  SDL_JOYDEVICEADDED,
-  SDL_JOYDEVICEREMOVED,
-  SDL_CONTROLLERAXISMOTION,
-  SDL_CONTROLLERBUTTONDOWN,
-  SDL_CONTROLLERBUTTONUP,
-  SDL_CONTROLLERDEVICEADDED,
-  SDL_CONTROLLERDEVICEREMOVED,
-  SDL_CONTROLLERDEVICEREMAPPED : if SDLIO.GamePadSupport then Exit(1);
+  case event^._type of
+  SDL_EVENT_QUIT,
+  SDL_EVENT_WINDOW_SHOWN,
+  SDL_EVENT_WINDOW_HIDDEN,
+  SDL_EVENT_WINDOW_EXPOSED,
+  SDL_EVENT_WINDOW_MOVED,
+  SDL_EVENT_WINDOW_RESIZED,
+  SDL_EVENT_WINDOW_RESTORED,
+  SDL_EVENT_KEY_DOWN,
+  SDL_EVENT_KEY_UP,
+  SDL_EVENT_TEXT_INPUT,
+  SDL_EVENT_MOUSE_MOTION,
+  SDL_EVENT_MOUSE_BUTTON_DOWN,
+  SDL_EVENT_MOUSE_WHEEL : Exit(True);
+  SDL_EVENT_JOYSTICK_AXIS_MOTION,
+  SDL_EVENT_JOYSTICK_BALL_MOTION,
+  SDL_EVENT_JOYSTICK_HAT_MOTION,
+  SDL_EVENT_JOYSTICK_BUTTON_DOWN,
+  SDL_EVENT_JOYSTICK_BUTTON_UP,
+  SDL_EVENT_JOYSTICK_ADDED,
+  SDL_EVENT_JOYSTICK_REMOVED,
+  SDL_EVENT_JOYSTICK_BATTERY_UPDATED,
+  SDL_EVENT_JOYSTICK_UPDATE_COMPLETE,
+  SDL_EVENT_GAMEPAD_AXIS_MOTION,
+  SDL_EVENT_GAMEPAD_BUTTON_DOWN,
+  SDL_EVENT_GAMEPAD_BUTTON_UP,
+  SDL_EVENT_GAMEPAD_ADDED,
+  SDL_EVENT_GAMEPAD_REMOVED,
+  SDL_EVENT_GAMEPAD_REMAPPED,
+  SDL_EVENT_GAMEPAD_SENSOR_UPDATE,
+  SDL_EVENT_GAMEPAD_UPDATE_COMPLETE,
+  SDL_EVENT_GAMEPAD_STEAM_HANDLE_UPDATED : if SDLIO.GamePadSupport then Exit(True);
   end;
-  Exit(0);
+  Exit(True);
 end;
 
 {$IFDEF WINDOWS}
@@ -448,23 +428,26 @@ end;
 { TSDLIODriver }
 
 class function TSDLIODriver.GetCurrentResolution ( out aResult : TIOPoint ) : Boolean;
-var iCurrent      : TSDL_DisplayMode;
-    iDisplayIndex : Integer;
+var iCurrent      : PSDL_DisplayMode;
+    iDisplayIndex : SDL_DisplayID;
 begin
 {$IFDEF WINDOWS}
   SetDPIAwareness;
 {$ENDIF}
-  LoadSDL2;
-  if ( SDL_Init(SDL_INIT_VIDEO) < 0 ) then
+  LoadSDL3;
+  if not SDL_Init(SDL_INIT_VIDEO) then
   begin
     SDL_Quit();
     SDLIO := nil;
     raise EIOException.Create('Couldn''t initialize SDL : '+SDL_GetError());
   end;
-  iDisplayIndex := 0;
-  if SDL_GetCurrentDisplayMode( iDisplayIndex, @iCurrent ) <> 0 then
+  iDisplayIndex := SDL_GetPrimaryDisplay();
+  if iDisplayIndex = 0 then
+    Exit( False );
+  iCurrent := SDL_GetCurrentDisplayMode( iDisplayIndex );
+  if iCurrent = nil then
      Exit( False );
-  aResult.Init( iCurrent.w, iCurrent.h );
+  aResult.Init( iCurrent^.w, iCurrent^.h );
   Exit( True );
 end;
 
@@ -476,17 +459,18 @@ begin
   FWindow    := nil;
   FGLContext := nil;
   FGamePadSupport := SDLIO_Gamepad in aFlags;
+  FGamePadID      := 0;
   FGamePadIndex   := -1;
   FGamePadHandle  := nil;
   FGamePadRumble  := False;
   {$IFDEF WINDOWS}
   SetDPIAwareness;
   {$ENDIF}
-  LoadSDL2;
+  LoadSDL3;
 
   Log('Initializing SDL...');
 
-  if ( SDL_Init( SDL_INIT_VIDEO or SDL_INIT_TIMER or SDL_INIT_JOYSTICK or SDL_INIT_GAMECONTROLLER  ) < 0 ) then
+  if not SDL_Init( SDL_INIT_VIDEO or SDL_INIT_GAMEPAD ) then
   begin
     SDL_Quit();
     SDLIO := nil;
@@ -521,19 +505,28 @@ end;
 
 function TSDLIODriver.ResetVideoMode ( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags ) : Boolean;
 var iSDLFlags : DWord;
-    iDM       : TSDL_DisplayMode;
+    iDM       : PSDL_DisplayMode;
 
 // Resize/Toggle
 var iFScreen : Boolean;
-    iTarget  : TSDL_DisplayMode;
-    iClosest : TSDL_DisplayMode;
+    iClosest : SDL_DisplayMode;
+    iCurrent : SDL_DisplayID;
 begin
+  iCurrent := 0;
+//  if FWindow <> nil then
+//    iCurrent := SDL_GetWindowDisplay(FWindow);
+  if iCurrent = 0 then
+    iCurrent := SDL_GetPrimaryDisplay();
+  if iCurrent = 0 then
+    raise EIOException.Create('No primary display: ' + SDL_GetError());
+
   if ( aWidth * aHeight = 0 ) then
   begin
-    if SDL_GetCurrentDisplayMode( 0, @iDM ) <> 0 then
+    iDM := SDL_GetCurrentDisplayMode( iCurrent );
+    if iDM = nil then
       raise EIOException.Create(' SDL_GetCurrentDisplayMode returned 0 : '+SDL_GetError());
-    aWidth  := iDM.w;
-    aHeight := iDM.h;
+    aWidth  := iDM^.w;
+    aHeight := iDM^.h;
   end;
 
 
@@ -546,24 +539,23 @@ begin
           then Exit( True );
     if iFScreen then
     begin
-      iTarget.w := aWidth;
-      iTarget.h := aHeight;
-      iTarget.format       := 0;
-      iTarget.refresh_rate := 60;
-      iTarget.driverdata   := nil;
-      if ( SDL_GetClosestDisplayMode( 0, @iTarget, @iClosest ) = nil ) then
+      if not SDL_GetClosestFullscreenDisplayMode( iCurrent, aWidth, aHeight, 60.0, True, @iClosest) then
       begin
-        Log('Failed to set fullscreen video mode %dx%d/%dbit!', [aWidth,aHeight,aBPP]);
-        Exit( False );
+        Log('Failed to find fullscreen mode %dx%d/%dbit', [aWidth, aHeight, aBPP]);
+        Exit(False);
       end;
 
-      if FFScreen then SDL_SetWindowFullscreen( FWindow, 0 );
-      SDL_SetWindowDisplayMode( FWindow, @iClosest );
-      SDL_SetWindowFullscreen( FWindow, SDL_WINDOW_FULLSCREEN );
+      // If we were fullscreen already, drop out first to avoid mode churn
+      if FFScreen then SDL_SetWindowFullscreen(FWindow, False);
+
+      if not SDL_SetWindowFullscreenMode( FWindow, @iClosest ) then
+        Exit(False);
+      if not SDL_SetWindowFullscreen( FWindow, True ) then
+        Exit(False);
     end
     else
     begin
-      if FFScreen then SDL_SetWindowFullscreen( FWindow, 0 );
+      if FFScreen then SDL_SetWindowFullscreen( FWindow, False );
       SDL_SetWindowSize( FWindow, aWidth, aHeight );
     end;
   end;
@@ -581,7 +573,7 @@ begin
     Exit( True );
   end;
 
-  iSDLFlags := SDL_WINDOW_SHOWN or SDL_WINDOW_ALLOW_HIGHDPI;
+  iSDLFlags := SDL_WINDOW_HIGH_PIXEL_DENSITY;
   if FOpenGL  then iSDLFlags := iSDLFlags or SDL_WINDOW_OPENGL;
   if FFScreen then iSDLFlags := iSDLFlags or SDL_WINDOW_FULLSCREEN;
 
@@ -605,11 +597,10 @@ begin
     SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE );
   end;
 
-  FWindow := SDL_CreateWindow( 'Valkyrie SDL Application',
-          SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-          aWidth, aHeight, iSDLFlags );
-
+  FWindow := SDL_CreateWindow( 'Valkyrie SDL Application', aWidth, aHeight, iSDLFlags or SDL_WINDOW_HIDDEN );
   if FWindow = nil then Exit( False );
+  SDL_SetWindowPosition( FWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED );
+  SDL_ShowWindow( FWindow );
 
   if FOpenGL then
     if not SetupOpenGL then
@@ -651,7 +642,7 @@ end;
 function TSDLIODriver.PollEvent ( out aEvent : TIOEvent ) : Boolean;
 var event : SDL_Event;
 begin
-  Result := SDL_PollEvent( @event ) > 0;
+  Result := SDL_PollEvent( @event );
   if Result then
     aEvent := SDLEventToIOEvent( @event );
 end;
@@ -660,7 +651,7 @@ function TSDLIODriver.PeekEvent ( out aEvent : TIOEvent ) : Boolean;
 var event : SDL_Event;
 begin
   SDL_PumpEvents();
-  Result := (SDL_PeepEvents( @event, 1, SDL_PEEKEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT ) > 0 );
+  Result := (SDL_PeepEvents( @event, 1, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST ) > 0 );
   if Result then
     aEvent := SDLEventToIOEvent( @event );
 end;
@@ -669,7 +660,7 @@ function TSDLIODriver.EventPending : Boolean;
 var event : SDL_Event;
 begin
   SDL_PumpEvents();
-  Result := (SDL_PeepEvents( @event, 1, SDL_PEEKEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT ) > 0 );
+  Result := (SDL_PeepEvents( @event, 1, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST  ) > 0 );
 end;
 
 procedure TSDLIODriver.SetEventMask ( aMask : TIOEventType ) ;
@@ -702,7 +693,7 @@ end;
 
 destructor TSDLIODriver.Destroy;
 begin
-  if FOpenGL then SDL_GL_DeleteContext( FGLContext );
+  if FOpenGL then SDL_GL_DestroyContext( FGLContext );
   SDL_DestroyWindow( FWindow );
   FreeAndNil( FDisplayModes );
   inherited Destroy;
@@ -719,12 +710,12 @@ begin
 end;
 
 function TSDLIODriver.GetMousePos ( out aResult : TIOPoint ) : Boolean;
-var x,y : Integer;
+var x,y : Single;
 begin
   //if SDL_GetAppState() and SDL_APPMOUSEFOCUS = 0 then Exit( False );
   x := 0; y := 0;
   SDL_GetMouseState(@x,@y);
-  aResult := vutil.Point( x, y );
+  aResult := vutil.Point( Trunc(x), Trunc(y) );
   Exit( True );
 end;
 
@@ -752,127 +743,177 @@ end;
 procedure TSDLIODriver.ShowMouse ( aShow : Boolean ) ;
 begin
   if aShow
-    then SDL_ShowCursor(1)
-    else SDL_ShowCursor(0);
+    then SDL_ShowCursor
+    else SDL_HideCursor;
 end;
 
-procedure TSDLIODriver.ScreenShot ( const aFileName : AnsiString ) ;
-var image  : TFPCustomImage;
-    writer : TFPWriterPNG;
-    data   : PByte;
-    sx,sy  : Word;
-    x,y    : Word;
+procedure TSDLIODriver.ScreenShot( const aFileName: AnsiString );
+var iSx, iSy : Integer;
+    iPitch   : Int64;
+    iBuf     : PByte;
+    iFlipBuf : PByte;
+    iY       : Integer;
+    iSrcRow  : PByte;
+    iDstRow  : PByte;
+    iSurface : PSDL_Surface;
+    iRGB     : PSDL_Surface;
 begin
-try
+  iSx := GetSizeX;
+  iSy := GetSizeY;
+  if (iSx <= 0) or (iSy <= 0) then Exit;
+
+  iPitch := iSx * 4;
+
+  GetMem(iBuf,     QWord(iPitch) * QWord(iSy));
+  GetMem(iFlipBuf, QWord(iPitch) * QWord(iSy));
   try
-    sx := GetSizeX;
-    sy := GetSizeY;
-    Image  := TFPMemoryImage.Create(sx,sy);
-    Data   := GetMem( sx*sy*4 );
-    glReadPixels(0, 0, sx, sy, GL_RGBA, GL_UNSIGNED_BYTE, Data);
-    for x := 0 to sx-1 do
-      for y := 0 to sy-1 do
-        Image.Colors[x,sy-y-1] := FPColor( Data[ 4*(sx*y+x) ] shl 8, Data[ 4*(sx*y+x)+1 ] shl 8, Data[ 4*(sx*y+x)+2 ] shl 8);
-    Writer := TFPWriterPNG.Create;
-    Writer.Indexed := False;
-    Image.SaveToFile( aFileName, writer );
+    glPixelStorei( GL_PACK_ALIGNMENT, 1 );
+    glReadPixels( 0, 0, iSx, iSy, GL_RGBA, GL_UNSIGNED_BYTE, iBuf );
+
+    for iY := 0 to iSy - 1 do
+    begin
+      iSrcRow := iBuf     + (QWord(iY)           * QWord(iPitch));
+      iDstRow := iFlipBuf + (QWord(iSy - 1 - iY) * QWord(iPitch));
+      Move( iSrcRow^, iDstRow^, iPitch );
+    end;
+
+    iSurface := SDL_CreateSurfaceFrom(iSx, iSy, SDL_PIXELFORMAT_RGBA32, iFlipBuf, iPitch);
+    if iSurface = nil then
+      raise Exception.Create(SDL_GetError());
+    try
+      iRGB := SDL_ConvertSurface(iSurface, SDL_PIXELFORMAT_RGB24);
+      if iRGB = nil then raise Exception.Create(SDL_GetError());
+      try
+        if not IMG_SavePNG( iRGB, PAnsiChar(aFileName) ) then
+          raise Exception.Create(SDL_GetError());
+      finally
+        SDL_DestroySurface(iRGB);
+      end;
+    finally
+      SDL_DestroySurface(iSurface);
+    end;
+
   finally
-    FreeMem( Data );
-    FreeAndNil( image );
-    FreeAndNil( writer );
+    FreeMem(iFlipBuf);
+    FreeMem(iBuf);
   end;
-except on e : Exception do
-end;
 end;
 
 procedure TSDLIODriver.ScanDisplayModes;
 var i, iCount   : Integer;
-    iMode       : TSDL_DisplayMode;
+    iMode       : PSDL_DisplayMode;
+    iModes      : PPSDL_DisplayMode;
     iEntry      : TIODisplayMode;
     iIdn, iLast : Integer;
+    iCD         : SDL_DisplayID;
 begin
   if Assigned( FDisplayModes )
     then FDisplayModes.Clear
     else FDisplayModes := TIODisplayModeArray.Create;
-  iCount := SDL_GetNumDisplayModes( 0 );
+
+  iCD := SDL_GetPrimaryDisplay();
+  if iCD = 0 then
+    raise EIOException.Create('No primary display: ' + SDL_GetError());
+
+  iModes := SDL_GetFullscreenDisplayModes( iCD, @iCount );
+  if iModes = nil then
+    raise EIOException.Create('SDL_GetFullscreenDisplayModes failed: ' + SDL_GetError());
+
   iLast  := -1;
-  for i := 0 to iCount - 1 do
+  i      := 0;
+  while iModes[i] <> nil do
   begin
-    Initialize( iMode );
-    if SDL_GetDisplayMode( 0, i, @iMode ) = 0 then
+    iMode := iModes[i];
+    iIdn  := Int64(iMode^.h) * 100000 + iMode^.w;
+
+    if (iMode^.w >= 1280) and (iIdn <> iLast) then
     begin
-      iIdn := iMode.h * 100000 + iMode.w;
-      if (iMode.w < 1280) or (iIdn = iLast) then
-        Continue;
       iLast := iIdn;
-      iEntry.Name    := Format( '%dx%d (%dr)', [iMode.w, iMode.h, iMode.refresh_rate] );
-      iEntry.Width   := iMode.w;
-      iEntry.Height  := iMode.h;
-      iEntry.Refresh := iMode.refresh_rate;
-      iEntry.Index   := i;
-      FDisplayModes.Push( iEntry );
-    end
-    else
-      Log( LOGERROR, 'Failed to get display mode %d : %s', [i, SDL_GetError()]);
+      iEntry.Name    := Format('%dx%d (%dr)', [iMode^.w, iMode^.h, Round(iMode^.refresh_rate)]);
+      iEntry.Width   := iMode^.w;
+      iEntry.Height  := iMode^.h;
+      iEntry.Refresh := Round(iMode^.refresh_rate);
+      iEntry.Index   := FDisplayModes.Size;
+      FDisplayModes.Push(iEntry);
+    end;
+    Inc( i );
   end;
+
+  SDL_free( iModes );
 end;
 
 function TSDLIODriver.SetDisplayMode( aIndex : Integer ) : Boolean;
-var iMode : TSDL_DisplayMode;
 begin
-  Initialize( iMode );
-  if SDL_GetDisplayMode( 0, aIndex, @iMode ) = 0 then
-  begin
-    SDL_SetWindowDisplayMode( FWindow, @iMode );
-    SDL_SetWindowSize( FWindow, iMode.w, iMode.h );
-    Exit( True );
-  end;
-  Exit( False );
+  if ( aIndex < 0 ) or ( aIndex >= FDisplayModes.Size ) then Exit( False );
+  with FDisplayModes[ aIndex ] do
+    Exit( ResetVideoMode( Width, Height, 32, FFlags ) );
 end;
 
 function TSDLIODriver.ScanGamepads( aAllowLoop : Boolean ) : Boolean;
-var iController : PSDL_GameController = nil;
-    iJoystick   : PSDL_Joystick;
-    i, iNew     : Integer;
+var iIDs       : PSDL_JoystickID;
+    iCount     : Integer;
+    iIndex     : Integer;
+    iID        : Uint32;
+    iNewID     : Uint32;
+    iGamepad   : PSDL_Gamepad;
 begin
-  Result      := False;
-  iNew        := -1;
-  iController := nil;
-  iJoystick   := nil;
-  for i := 0 to SDL_NumJoysticks() - 1 do
-    if SDL_IsGameController(i) then
+  Result    := False;
+  iGamepad  := nil;
+  iNewID    := 0;
+
+  iIDs := SDL_GetGamepads(@iCount);
+  if iIDs = nil then
+  begin
+    Log(LOGERROR, 'SDL_GetGamepads failed: %s', [SDL_GetError()]);
+    Exit;
+  end;
+
+  for iIndex := 0 to iCount - 1 do
+  begin
+    iID := iIDs[iIndex];
+
+    if iID <> FGamePadID then
     begin
-      if i <> FGamePadIndex then
+      iGamepad := SDL_OpenGamepad(iID);
+      if iGamepad <> nil then
       begin
-        iController := SDL_GameControllerOpen(i);
-        iNew := i;
-        if iController <> nil then
-          Break
-        else
-          Log(LOGERROR, 'Could not open gamecontroller %d: %s', [i, SDL_GetError()]);
+        iNewID := iID;
+        Break;
       end
       else
-      begin
-        iNew := FGamePadIndex;
-        Break;
-      end;
+        Log(LOGERROR, 'Could not open gamepad %u: %s', [iID, SDL_GetError()]);
+    end
+    else
+    begin
+      // Keep current one
+      iNewID   := FGamePadID;
+      iGamepad := FGamePadHandle;
+      Break;
     end;
+  end;
 
-  if iNew <> FGamePadIndex then
+  SDL_free(iIDs);
+
+  if iNewID <> FGamePadID then
   begin
     if FGamePadHandle <> nil then
-      SDL_GameControllerClose( FGamePadHandle );
-    FGamePadIndex  := iNew;
-    FGamePadHandle := iController;
-    FGamePadRumble := SDL_GameControllerHasRumble( FGamePadHandle );
+      SDL_CloseGamepad(FGamePadHandle);
 
-    if iController <> nil then
+    FGamePadID     := iNewID;
+    FGamePadHandle := iGamepad;
+    FGamePadRumble := False;
+    if iGamepad <> nil then
     begin
-      iJoystick      := SDL_GameControllerGetJoystick(iController);
+      FGamePadRumble := SDL_GetBooleanProperty(SDL_GetGamepadProperties(iGamepad),
+                               SDL_PROP_GAMEPAD_CAP_RUMBLE_BOOLEAN,
+                               False);
+    end;
+
+    if iGamepad <> nil then
+    begin
       Log('Controller connected.');
-      Log('Index: %d  Name: %s', [FGamePadIndex,SDL_GameControllerNameForIndex(FGamePadIndex)]);
-      Log('Axes: %d  Buttons: %d  Balls: %d', [SDL_JoystickNumAxes(iJoystick), SDL_JoystickNumButtons(iJoystick),SDL_JoystickNumBalls(iJoystick)]);
-      Log('Rumble: %s', [Iif( FGamePadRumble, 'supported', 'unsupported')]);
+      Log('ID: %u  Name: %s', [FGamePadID, SDL_GetGamepadName(iGamepad)]);
+      Log('Rumble: %s', [Iif(FGamePadRumble, 'supported', 'unsupported')]);
     end
     else
       Log('Controller has been removed, no fallback present.');
@@ -880,16 +921,18 @@ begin
     Result := True;
   end;
 
-  if (FGamePadHandle <> nil) and (not SDL_GameControllerGetAttached(FGamePadHandle) ) then
+  // Check if still attached
+  if (FGamePadHandle <> nil) and (not SDL_GamepadConnected(FGamePadHandle)) then
   begin
-    Log( LOGERROR, 'Controller %d is not attached anymore, disabling!', [FGamePadIndex]);
-    SDL_GameControllerClose( FGamePadHandle );
-    FGamePadIndex  := -1;
+    Log(LOGERROR, 'Controller %u is not attached anymore, disabling!', [FGamePadID]);
+    SDL_CloseGamepad(FGamePadHandle);
+    FGamePadID     := 0;        // 0 = "none"
     FGamePadHandle := nil;
     FGamePadRumble := False;
 
-    Log( LOGINFO, 'Attempting to reaquire another controller...');
-    if aAllowLoop then ScanGamepads( False );
+    Log(LOGINFO, 'Attempting to reacquire another controller...');
+    if aAllowLoop then
+      Exit(ScanGamepads(False));
   end;
 end;
 
@@ -904,18 +947,18 @@ end;
 
 procedure TSDLIODriver.StartTextInput;
 begin
-  SDL_StartTextInput;
+  SDL_StartTextInput( FWindow );
 end;
 
 procedure TSDLIODriver.StopTextInput;
 begin
-  SDL_StopTextInput;
+  SDL_StopTextInput( FWindow );
 end;
 
 function TSDLIODriver.Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean;
 begin
   if (FGamePadHandle = nil) or (not FGamePadRumble) then Exit( False );
-  Exit( SDL_GameControllerRumble( FGamePadHandle, aLow, aHigh, aDuration ) = 0 );
+  Exit( SDL_RumbleGamepad( FGamePadHandle, aLow, aHigh, aDuration ) );
 end;
 
 end.

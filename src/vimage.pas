@@ -9,7 +9,8 @@ type
 
 TImage = class
     constructor Create( aSizeX, aSizeY : DWord );
-    constructor Create( ImageData : PByte; aSizeX, aSizeY : DWord );
+    constructor Create( aImageData : PByte; aSizeX, aSizeY : DWord );
+    constructor CreateAssign( aImageData : PByte; aSizeX, aSizeY : DWord );
     procedure Fill( Color : TColor );
     function Clone : TImage;
     function getColor( Index : DWord ) : TColor;
@@ -79,12 +80,20 @@ begin
   Resize( aSizeX, aSizeY );
 end;
 
-constructor TImage.Create( ImageData: PByte; aSizeX, aSizeY: DWord );
+constructor TImage.Create( aImageData: PByte; aSizeX, aSizeY: DWord );
 begin
-  Assert( ImageData <> nil );
+  Assert( aImageData <> nil );
   FData := nil;
   Resize( aSizeX, aSizeY );
-  Move( ImageData^, FData^, FSize * 4 );
+  Move( aImageData^, FData^, FSize * 4 );
+end;
+
+constructor TImage.CreateAssign( aImageData : PByte; aSizeX, aSizeY : DWord );
+begin
+  FData  := aImageData;
+  FSizeX := aSizeX;
+  FSizeY := aSizeY;
+  FSize  := aSizeX * aSizeY;
 end;
 
 procedure TImage.Fill(Color: TColor);
