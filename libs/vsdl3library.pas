@@ -413,7 +413,8 @@ var
 
 function LoadSDL3( const aPath : AnsiString = SDL3DefaultPath ) : Boolean;
 
-function SDL_IOFromStream(aStream: TStream; aSize: Int64; aOwnsStream: SDL_bool; aReadOnly: SDL_bool = False): PSDL_IOStream;
+function SDL_IOFromStream( aStream: TStream; aSize: Int64; aOwnsStream: SDL_bool; aReadOnly: SDL_bool = False): PSDL_IOStream;
+function SDL_IOCopyToOwningMemStream( aSrc : PSDL_IOStream; aCloseSrc : Boolean ) : PSDL_IOStream;
 function SDL_BUTTON_MASK(button: Integer): UInt32; inline;
 function SDL_WINDOWPOS_UNDEFINED_DISPLAY(x: Integer): Integer; inline;
 function SDL_WINDOWPOS_CENTERED_DISPLAY(x: Integer): Integer; inline;
@@ -980,6 +981,25 @@ begin
   begin
     FreeMem(U);
   end;
+end;
+
+function SDL_IOCopyToOwningMemStream( aSrc : PSDL_IOStream; aCloseSrc : Boolean ) : PSDL_IOStream;
+var
+  iBuf  : Pointer;
+  iSize : SizeT;
+  iDst  : PSDL_IOStream;
+begin
+  Result := nil;
+  if aSrc = nil then Exit( nil );
+  iBuf := SDL_LoadFile_IO( aSrc, @iSize, aCloseSrc );
+  if iBuf = nil then Exit(nil);
+  iDst := SDL_IOFromMem(iBuf, iSize);
+  if iDst = nil then
+  begin
+    SDL_free(iBuf);
+    Exit(nil);
+  end;
+  Result := iDst;
 end;
 
 function SDL_BUTTON_MASK( button: Integer ) : UInt32; inline;

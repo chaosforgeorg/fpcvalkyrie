@@ -42,7 +42,7 @@ type TFMODSound = class(TSound)
        // Implementation of Sound Loading
        function LoadSoundStream( Stream : TStream; Size : DWord ) : Pointer; override;
        // Implementation of Music Freeing
-       procedure FreeMusic( aData : Pointer; const aType : String ); override;
+       procedure FreeMusic( aData : Pointer; const aType : Ansistring ); override;
        // Implementation of Sound Freeing
        procedure FreeSound( aData : Pointer ); override;
        // Implementation of get error
@@ -52,13 +52,13 @@ type TFMODSound = class(TSound)
        // Implementation of play Sound
        procedure PlaySound( aData : Pointer; aVolume : Byte; aPan : Integer = -1 ); override;
        // Implementation of play Sound
-       procedure PlayMusic( aData : Pointer; const aType : string; aRepeat : Boolean = True ); override;
+       procedure PlayMusic( aData : Pointer; const aType : Ansistring; aRepeat : Boolean = True ); override;
        // Implementation of StopMusic
-       procedure StopMusic( aData : Pointer; const aType : string ); override;
+       procedure StopMusic( aData : Pointer; const aType : Ansistring ); override;
        // Implementation of StopMusic
        procedure StopSound(); override;	   
        // Implementation of VolumeMusic
-       procedure VolumeMusic( aData : Pointer; const aType : string; aVolume : Byte ); override;
+       procedure VolumeMusic( aData : Pointer; const aType : Ansistring; aVolume : Byte ); override;
      protected
        function CalculateMusicVolume( aVolume : Byte ) : Single;
        function PushSimpleData( aPointer : Pointer ) : Pointer;
@@ -228,7 +228,7 @@ begin
   Exit( PushSimpleData( iSound ) );
 end;
 
-procedure TFMODSound.FreeMusic( aData: Pointer; const aType : String );
+procedure TFMODSound.FreeMusic( aData: Pointer; const aType : Ansistring );
 begin
   FreeSound( aData );
 end;
@@ -283,7 +283,7 @@ begin
   FMOD_CHECK( FMOD_Channel_SetPaused( iChannel, 0 ) );
 end;
 
-procedure TFMODSound.PlayMusic(aData: Pointer; const aType : string; aRepeat: Boolean);
+procedure TFMODSound.PlayMusic(aData: Pointer; const aType : Ansistring; aRepeat: Boolean);
 var iSound : PFMOD_SOUND;
 begin
   iSound   := PFMOD_SOUND(DataToSound( aData ));
@@ -294,7 +294,7 @@ begin
   FMOD_CHECK( FMOD_System_PlaySound( GSystem, iSound, GGroupMusic, 0, nil ) );
 end;
 
-procedure TFMODSound.StopMusic(aData: Pointer; const aType : string );
+procedure TFMODSound.StopMusic(aData: Pointer; const aType : Ansistring );
 begin
   FMOD_CHECK( FMOD_ChannelGroup_Stop( GGroupMusic ) );
 end;
@@ -304,7 +304,7 @@ begin
   FMOD_CHECK( FMOD_ChannelGroup_Stop( GGroupSounds ) );
 end;
 
-procedure TFMODSound.VolumeMusic(aData: Pointer; const aType : string; aVolume: Byte );
+procedure TFMODSound.VolumeMusic(aData: Pointer; const aType : Ansistring; aVolume: Byte );
 begin
   FMOD_ChannelGroup_SetVolume( GGroupMusic, CalculateMusicVolume( aVolume ) );
 end;

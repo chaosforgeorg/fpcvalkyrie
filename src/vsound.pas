@@ -93,7 +93,7 @@ TSound = class(TSystem)
        // Implementation of Sound Loading
        function LoadSoundStream( Stream : TStream; Size : DWord ) : Pointer; virtual; abstract;
        // Implementation of Music Freeing
-       procedure FreeMusic( aData : Pointer; const aType : String ); virtual; abstract;
+       procedure FreeMusic( aData : Pointer; const aType : Ansistring ); virtual; abstract;
        // Implementation of Sound Freeing
        procedure FreeSound( aData : Pointer ); virtual; abstract;
        // Implementation of get error
@@ -103,14 +103,14 @@ TSound = class(TSystem)
        // Implementation of play Sound 3D
        procedure PlaySound3D( aData : Pointer; aRelative : TCoord2D ); virtual;
        // Implementation of play Sound
-       procedure PlayMusic( aData : Pointer; const aType : string; aRepeat : Boolean = True ); virtual; abstract;
+       procedure PlayMusic( aData : Pointer; const aType : Ansistring; aRepeat : Boolean = True ); virtual; abstract;
        // Implementation of StopMusic
-       procedure StopMusic( aData : Pointer; const aType : string ); virtual; abstract;
+       procedure StopMusic( aData : Pointer; const aType : Ansistring ); virtual; abstract;
        // Implementation of VolumeMusic
-       procedure VolumeMusic( aData : Pointer; const aType : string; aVolume : Byte ); virtual; abstract;
+       procedure VolumeMusic( aData : Pointer; const aType : Ansistring; aVolume : Byte ); virtual; abstract;
 
      private
-       function RawRegisterMusic( aData : Pointer; const aType : string ) : DWord;
+       function RawRegisterMusic( aData : Pointer; const aType : Ansistring ) : DWord;
        function RawRegisterSample( aData : Pointer ) : DWord;
      protected
        FMusicEnabled    : Boolean;
@@ -180,7 +180,7 @@ begin
   FPosFadeDist     := aConfig.Configure( 'audio.pos_fade_distance', 25 );
 end;
 
-function TSound.RawRegisterMusic ( aData : Pointer; const aType : string ) : DWord;
+function TSound.RawRegisterMusic ( aData : Pointer; const aType : Ansistring ) : DWord;
 begin
   MusicArray.Push( aData );
   MusicType.Push( aType );
@@ -254,7 +254,7 @@ begin
   if MusicPlaying >= 0 then Silence;
   if not MusicNames.Exists(mID) then raise ESoundException.Create('Trying play non-existent Music ID#'+mID+'!');
   iID := MusicNames[mID];
-  PlayMusic( MusicArray[iID], MusicType[iID] );
+  PlayMusic( MusicArray[iID], MusicType[iID], True );
   MusicPlaying := iID;
 end;
 
