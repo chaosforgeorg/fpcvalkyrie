@@ -1,8 +1,18 @@
 {$INCLUDE valkyrie.inc}
 unit vio;
 interface
-uses Classes, SysUtils, vsystem, vuitypes,
+uses Classes, SysUtils, vsystem, vuitypes, vgenerics,
      vuielement, vconui, vioevent, viotypes, vioconsole;
+
+type TIOLayer = class
+  procedure Update( aDTime : Integer ); virtual; abstract;
+  function IsFinished : Boolean; virtual; abstract;
+  function IsModal : Boolean; virtual;
+  function HandleEvent( const aEvent : TIOEvent ) : Boolean; virtual;
+  function HandleInput( aInput : Integer ) : Boolean; virtual;
+end;
+
+type TInterfaceLayerStack = specialize TGArray<TIOLayer>;
 
 type TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
@@ -41,6 +51,21 @@ var IO : TIO;
 implementation
 
 uses vluasystem, dateutils, math;
+
+function TIOLayer.IsModal : Boolean;
+begin
+  Exit( False );
+end;
+
+function TIOLayer.HandleEvent( const aEvent : TIOEvent ) : Boolean;
+begin
+  Exit( IsModal );
+end;
+
+function TIOLayer.HandleInput( aInput : Integer ) : Boolean;
+begin
+  Exit( False );
+end;
 
 { TIO }
 
