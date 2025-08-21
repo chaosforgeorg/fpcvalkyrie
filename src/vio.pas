@@ -2,7 +2,7 @@
 unit vio;
 interface
 uses Classes, SysUtils, vsystem, vuitypes, vgenerics,
-     vuielement, vconui, vioevent, viotypes, vioconsole;
+     vuielement, vconui, vioevent, viotypes, vtigconsole, vioconsole;
 
 type TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False  );
@@ -35,6 +35,7 @@ protected
   FUIRoot         : TConUIRoot;
   FConsole        : TIOConsoleRenderer;
   FConsoleWindow  : TConUIConsole;
+  FTIGConsoleView : TTIGConsoleView;
   FLayers         : TIOLayerStack;
 
   FLastUpdate     : DWord;
@@ -51,7 +52,7 @@ var IO : TIO;
 
 implementation
 
-uses vtig, vluasystem, vtigconsole, dateutils, math;
+uses vtig, vluasystem, dateutils, math;
 
 { TIO }
 
@@ -64,6 +65,7 @@ begin
   FUIRoot          := nil;
   FLastUpdate      := FIODriver.GetMs;
   FConsoleWindow   := nil;
+  FTIGConsoleView  := nil;
   FLayers          := TIOLayerStack.Create;
   FTIGActive       := False;
 
@@ -254,6 +256,22 @@ end;
 
 function TIO.ConsoleCallback ( aEvent : TIOEvent ) : Boolean;
 begin
+  if FTIGActive then
+  begin
+    if FTIGConsoleView <> nil then
+    begin
+      FConsole.HideCursor;
+      FTIGConsoleView.SaveHistory('console.history');
+      FTIGConsoleView.Finish;
+      FTIGConsoleView := nil;
+      Exit( True );
+    end;
+    FConsole.ShowCursor;
+    FTIGConsoleView := PushLayer( TTIGConsoleView.Create ) as TTIGConsoleView;
+    FTIGConsoleView.LoadHistory('console.history');
+    Exit( True );
+  end;
+
   if FConsoleWindow <> nil then
   begin
     FConsole.HideCursor;
