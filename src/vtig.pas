@@ -51,7 +51,7 @@ function VTIG_Length( const aText: AnsiString ) : Integer;
 function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
 function VTIG_StripTags( const aText : AnsiString ) : AnsiString;
 
-function VTIG_Input( aBuffer : PChar; aMaxSize : Word ) : Boolean;
+function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
 function VTIG_EnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
 function VTIG_IntInput( aValue : PInteger; aActive : Boolean; aMin, aMax, aStep : Integer ) : Boolean;
 function VTIG_EnumInput( aValue : PInteger; aActive : Boolean; aOpen : PBoolean; aNames : array of Ansistring ) : Boolean;
@@ -1139,15 +1139,19 @@ begin
   VTIG_Text( aText, [], aColor, aBGColor );
 end;
 
-function VTIG_Input( aBuffer : PChar; aMaxSize : Word ) : Boolean;
+function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
 var i, iLength : Word;
     iState     : TIOEventState;
     iChar      : Byte;
     iCmd       : TTIGDrawCommand;
+    iCharSet   : set of Byte;
 begin
   iLength := StrLen( aBuffer );
   Result  := VTIG_EventConfirm;
   iState  := GCtx.Io.EventState;
+  if aConsole
+    then iCharSet := [32..126]
+    else iCharSet := [Ord('a')..Ord('z')] + [Ord('A')..Ord('Z')] + [Ord(''''), Ord(' '), Ord('_')];
 
   for i := 0 to VIO_MAXINPUT - 1 do
   begin
@@ -1158,10 +1162,7 @@ begin
     begin
       iChar := Byte(iState.Input[i]);
 
-      if ( ((iChar >= Ord('a')) and (iChar <= Ord('z'))) or
-           ((iChar >= Ord('A')) and (iChar <= Ord('Z'))) or
-           ((iChar >= Ord('0')) and (iChar <= Ord('9'))) or
-           ((iChar = Ord('''')) or (iChar = Ord('_')) or (iChar = Ord(' '))) ) then
+      if iChar in iCharSet then
       begin
         aBuffer[iLength] := Char(iChar);
         Inc(iLength);
