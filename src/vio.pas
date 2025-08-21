@@ -12,12 +12,13 @@ type TIOLayer = class
   function HandleInput( aInput : Integer ) : Boolean; virtual;
 end;
 
-type TInterfaceLayerStack = specialize TGArray<TIOLayer>;
+type TIOLayerStack = specialize TGArray<TIOLayer>;
 
 type TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
   procedure Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
   procedure FullUpdate; virtual;
+  procedure Clear; virtual;
   procedure Update( aMSec : DWord ); virtual;
   procedure Delay( aTime : Integer );
   procedure ClearEventBuffer;
@@ -28,18 +29,26 @@ type TIO = class( TSystem )
   destructor Destroy; override;
   procedure RegisterDebugConsole( aKey : TIOKeyCode );
   procedure ConsolePrint( const aText : AnsiString );
+  function PushLayer( aLayer : TIOLayer ) : TIOLayer; virtual;
+  function IsTopLayer( aLayer : TIOLayer ) : Boolean;
+  function IsModal : Boolean;
+  procedure WaitForLayer;
 protected
+  function HandleInput( aInput : Integer ) : Boolean;
   function ConsoleInputCallback( aConsole : TConUIConsole; const aInput : TUIString ) : Boolean;
   function ConsoleCallback( aEvent : TIOEvent ) : Boolean;
+  procedure ClearFinishedLayers;
 protected
   FIODriver       : TIODriver;
   FUIRoot         : TConUIRoot;
   FConsole        : TIOConsoleRenderer;
   FConsoleWindow  : TConUIConsole;
+  FLayers         : TIOLayerStack;
 
   FLastUpdate     : DWord;
   FUILoop         : Boolean;
   FUILoopResult   : DWord;
+  FNoConsoleUpdate: Boolean;
 public
   property Root      : TConUIRoot read FUIRoot;
   property Driver    : TIODriver  read FIODriver;
@@ -73,11 +82,14 @@ constructor TIO.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; a
 begin
   inherited Create;
   IO := Self;
-  FIODriver   := aIODriver;
-  FConsole    := nil;
-  FUIRoot     := nil;
-  FLastUpdate := FIODriver.GetMs;
-  FConsoleWindow := nil;
+  FIODriver        := aIODriver;
+  FConsole         := nil;
+  FUIRoot          := nil;
+  FLastUpdate      := FIODriver.GetMs;
+  FConsoleWindow   := nil;
+  FLayers          := TIOLayerStack.Create;
+  FNoConsoleUpdate := False;
+
   if aConsole <> nil then
     Initialize( aConsole, aStyle );
 end;
@@ -93,7 +105,12 @@ begin
 end;
 
 destructor TIO.Destroy;
+var iLayer : TIOLayer;
 begin
+  for iLayer in FLayers do
+    iLayer.Free;
+  FreeAndNil( FLayers );
+
   FreeAndNil( FUIRoot );
   FreeAndNil( FConsole );
   FreeAndNil( FIODriver );
@@ -121,15 +138,50 @@ begin
   FIODriver.PostUpdate;
 end;
 
-procedure TIO.Update ( aMSec : DWord ) ;
+procedure TIO.Clear;
+var iLayer : TIOLayer;
 begin
+  for iLayer in FLayers do
+    iLayer.Free;
+  FLayers.Clear;
+end;
+
+procedure TIO.Update ( aMSec : DWord ) ;
+var iLayer : TIOLayer;
+begin
+  if FLayers.Size > 0 then
+  begin
+    ClearFinishedLayers;
+    for iLayer in FLayers do
+      iLayer.Update( Integer( aMSec ) );
+    ClearFinishedLayers;
+  end;
+
   FUIRoot.OnUpdate( aMSec );
   FUIRoot.Render;
-  FConsole.Update;
+  if not FNoConsoleUpdate then
+    FConsole.Update;
 end;
 
 function TIO.OnEvent( const event : TIOEvent ) : Boolean;
+var i : Integer;
 begin
+  if not FLayers.IsEmpty then
+    for i := FLayers.Size - 1 downto 0 do
+      if not FLayers[i].isFinished then
+        if FLayers[i].HandleEvent( event ) then
+          Exit( True );
+  Exit( False );
+end;
+
+function TIO.HandleInput( aInput : Integer ) : Boolean;
+var i : Integer;
+begin
+  if not FLayers.IsEmpty then
+    for i := FLayers.Size - 1 downto 0 do
+      if not FLayers[i].isFinished then
+        if FLayers[i].HandleInput( aInput ) then
+          Exit( True );
   Exit( False );
 end;
 
@@ -209,10 +261,56 @@ begin
   Exit( True );
 end;
 
+procedure TIO.ClearFinishedLayers;
+var i,j : Integer;
+begin
+  i := 0;
+  while i < FLayers.Size do
+    if FLayers[i].IsFinished then
+    begin
+      FLayers[i].Free;
+      if i < FLayers.Size - 1 then
+        for j := i to FLayers.Size - 2 do
+          FLayers[j] := FLayers[j + 1];
+      FLayers.Pop;
+    end
+    else
+      Inc( i );
+end;
+
+
 procedure TIO.ConsolePrint ( const aText : AnsiString ) ;
 begin
   if FConsoleWindow <> nil then
     FConsoleWindow.Writeln( aText );
+end;
+
+function TIO.PushLayer( aLayer : TIOLayer ) : TIOLayer;
+begin
+  FLayers.Push( aLayer );
+  Result := aLayer;
+end;
+
+function TIO.IsTopLayer( aLayer : TIOLayer ) : Boolean;
+begin
+  Exit( ( FLayers.Size > 0 ) and ( FLayers.Top = aLayer ) );
+end;
+
+function TIO.IsModal : Boolean;
+var iLayer : TIOLayer;
+begin
+  for iLayer in FLayers do
+    if iLayer.IsModal then Exit( True );
+  Exit( False );
+end;
+
+procedure TIO.WaitForLayer;
+begin
+  repeat
+    Sleep(10);
+    FullUpdate;
+    HandleEvents;
+  until FLayers.IsEmpty or (not IsModal);
 end;
 
 end.
