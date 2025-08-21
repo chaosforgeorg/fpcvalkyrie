@@ -15,9 +15,11 @@ end;
 type TIOLayerStack = specialize TGArray<TIOLayer>;
 
 type TIO = class( TSystem )
-  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
-  procedure Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
+  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False  );
+  procedure Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False );
+  procedure PreUpdate; virtual;
   procedure FullUpdate; virtual;
+  procedure PostUpdate; virtual;
   procedure Clear; virtual;
   procedure Update( aMSec : DWord ); virtual;
   procedure Delay( aTime : Integer );
@@ -48,7 +50,7 @@ protected
   FLastUpdate     : DWord;
   FUILoop         : Boolean;
   FUILoopResult   : DWord;
-  FNoConsoleUpdate: Boolean;
+  FTIGActive      : Boolean;
 public
   property Root      : TConUIRoot read FUIRoot;
   property Driver    : TIODriver  read FIODriver;
@@ -59,7 +61,7 @@ var IO : TIO;
 
 implementation
 
-uses vluasystem, dateutils, math;
+uses vtig, vluasystem, dateutils, math;
 
 function TIOLayer.IsModal : Boolean;
 begin
@@ -78,7 +80,7 @@ end;
 
 { TIO }
 
-constructor TIO.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle ) ;
+constructor TIO.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean ) ;
 begin
   inherited Create;
   IO := Self;
@@ -88,15 +90,25 @@ begin
   FLastUpdate      := FIODriver.GetMs;
   FConsoleWindow   := nil;
   FLayers          := TIOLayerStack.Create;
-  FNoConsoleUpdate := False;
+  FTIGActive       := False;
 
   if aConsole <> nil then
-    Initialize( aConsole, aStyle );
+    Initialize( aConsole, aStyle, aInitTIG );
 end;
 
-procedure TIO.Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
+procedure TIO.Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean );
 begin
   FreeAndNil( FUIRoot );
+  if aInitTIG then
+  begin
+    if FTIGActive then
+      VTIG_Shutdown;
+    if aConsole <> nil then
+    begin
+      FTIGActive := True;
+      VTIG_Initialize( aConsole, FIODriver, False );
+    end;
+  end;
   if FConsole <> aConsole then FreeAndNil( FConsole );
   FConsole    := aConsole;
   if FConsole = nil then Exit;
@@ -110,6 +122,8 @@ begin
   for iLayer in FLayers do
     iLayer.Free;
   FreeAndNil( FLayers );
+  if FTIGActive then
+    VTIG_Shutdown;
 
   FreeAndNil( FUIRoot );
   FreeAndNil( FConsole );
@@ -125,6 +139,11 @@ begin
 
 end;
 
+procedure TIO.PreUpdate;
+begin
+  FIODriver.PreUpdate;
+end;
+
 procedure TIO.FullUpdate;
 var iTickTime : DWord;
     iNow      : DWord;
@@ -133,8 +152,20 @@ begin
   iTickTime   := iNow - FLastUpdate;
   FLastUpdate := iNow;
 
-  FIODriver.PreUpdate;
+  if FTIGActive then
+    VTIG_NewFrame;
+  PreUpdate;
   Update( iTickTime );
+  if FTIGActive then
+  begin
+    VTIG_EndFrame;
+    VTIG_Render;
+  end;
+  PostUpdate;
+end;
+
+procedure TIO.PostUpdate;
+begin
   FIODriver.PostUpdate;
 end;
 
@@ -159,7 +190,7 @@ begin
 
   FUIRoot.OnUpdate( aMSec );
   FUIRoot.Render;
-  if not FNoConsoleUpdate then
+  if not FTIGActive then
     FConsole.Update;
 end;
 
