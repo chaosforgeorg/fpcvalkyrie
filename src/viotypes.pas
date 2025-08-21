@@ -7,17 +7,26 @@ type TIOColor         = DWord;
 type TIOCursorType    = ( VIO_CURSOR_SMALL, VIO_CURSOR_HALF, VIO_CURSOR_BLOCK );
 type TIORect          = TRectangle;
 type TIOPoint         = TPoint;
-type
+
+type TIOLayer = class
+  procedure Update( aDTime : Integer ); virtual; abstract;
+  function IsFinished : Boolean; virtual; abstract;
+  function IsModal : Boolean; virtual;
+  function HandleEvent( const aEvent : TIOEvent ) : Boolean; virtual;
+  function HandleInput( aInput : Integer ) : Boolean; virtual;
+end;
+
+type TIOLayerStack = specialize TGArray<TIOLayer>;
 
 { TIOGylph }
 
- TIOGylph = packed object
+type TIOGylph = packed object
   ASCII : Char;
   Color : TIOColor;
   procedure Init( aASCII : Char; aColor : TIOColor );
 end;
 
- TIODisplayMode = record
+type TIODisplayMode = record
    Index   : Integer;
    Width   : Integer;
    Height  : Integer;
@@ -161,6 +170,21 @@ function IOGylph( aChar : Char; aColor : TIOColor ) : TIOGylph;
 function IOColor( aR, aG, aB : Byte; aA : Byte = 255 ) : TIOColor;
 
 implementation
+
+function TIOLayer.IsModal : Boolean;
+begin
+  Exit( False );
+end;
+
+function TIOLayer.HandleEvent( const aEvent : TIOEvent ) : Boolean;
+begin
+  Exit( IsModal );
+end;
+
+function TIOLayer.HandleInput( aInput : Integer ) : Boolean;
+begin
+  Exit( False );
+end;
 
 function IOGylph( aChar : Char; aColor : TIOColor ) : TIOGylph;
 begin

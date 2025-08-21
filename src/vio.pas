@@ -4,16 +4,6 @@ interface
 uses Classes, SysUtils, vsystem, vuitypes, vgenerics,
      vuielement, vconui, vioevent, viotypes, vioconsole;
 
-type TIOLayer = class
-  procedure Update( aDTime : Integer ); virtual; abstract;
-  function IsFinished : Boolean; virtual; abstract;
-  function IsModal : Boolean; virtual;
-  function HandleEvent( const aEvent : TIOEvent ) : Boolean; virtual;
-  function HandleInput( aInput : Integer ) : Boolean; virtual;
-end;
-
-type TIOLayerStack = specialize TGArray<TIOLayer>;
-
 type TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False  );
   procedure Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False );
@@ -61,22 +51,7 @@ var IO : TIO;
 
 implementation
 
-uses vtig, vluasystem, dateutils, math;
-
-function TIOLayer.IsModal : Boolean;
-begin
-  Exit( False );
-end;
-
-function TIOLayer.HandleEvent( const aEvent : TIOEvent ) : Boolean;
-begin
-  Exit( IsModal );
-end;
-
-function TIOLayer.HandleInput( aInput : Integer ) : Boolean;
-begin
-  Exit( False );
-end;
+uses vtig, vluasystem, vtigconsole, dateutils, math;
 
 { TIO }
 
