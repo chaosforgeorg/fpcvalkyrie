@@ -1153,13 +1153,34 @@ begin
     GCtx.Current.Caret := aCaret;
 end;
 
+function VTIG_InputFilter( const aString : AnsiString; aMaxSize : Word; aSet : TFlags ) : AnsiString;
+var i, iL : Integer;
+    iB    : Byte;
+begin
+  if aMaxSize = 0 then Exit('');
+  SetLength( Result, aMaxSize );
+  iL := 0;
+  for i := 1 to Length( aString ) do
+  begin
+    iB := Byte( aString[i] );
+    if iB in aSet then
+    begin
+      Inc( iL );
+      if iL > aMaxSize then begin Dec( iL ); Break; end;
+      Result[iL] := Char( iB );
+    end;
+  end;
+  SetLength( Result, iL );
+end;
+
 function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
 var i, iLength : Word;
     iState     : TIOEventState;
     iChar      : Byte;
     iCmd       : TTIGDrawCommand;
-    iCharSet   : set of Byte;
+    iCharSet   : TFlags;
     iCursor    : Integer;
+    iText      : Ansistring;
 begin
   iLength := StrLen( aBuffer );
   Result  := VTIG_EventConfirm;
@@ -1208,6 +1229,18 @@ begin
   if (iCursor < iLength) and ( VTIG_Event( VTIG_IE_RIGHT ) ) then Inc(iCursor);
   if VTIG_Event( VTIG_IE_HOME ) then iCursor := 0;
   if VTIG_Event( VTIG_IE_END )  then iCursor := iLength;
+
+  if VTIG_Event( VTIG_IE_COPY )  then
+    GCtx.Io.Driver.SetClipboard( aBuffer );
+
+  if VTIG_Event( VTIG_IE_PASTE ) then
+  begin
+    iText   := VTIG_InputFilter( GCtx.Io.Driver.GetClipboard, aMaxSize, iCharSet );
+    System.Move(iText[1], aBuffer[0], Length(iText));
+    aBuffer[ Length( iText ) ] := #0;
+    iLength := Length( iText );
+    iCursor := iLength;
+  end;
 
   GCtx.Current.Caret := iCursor;
 

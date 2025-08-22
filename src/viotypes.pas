@@ -41,6 +41,7 @@ type TIOInterrupt = function( aEvent : TIOEvent ) : Boolean of object;
 type TIOInterrupts = array[0..IOKeyCodeMax] of TIOInterrupt;
 
 type TIODriver = class( TVObject )
+  constructor Create;
   function PollEvent( out aEvent : TIOEvent ) : Boolean; virtual; abstract;
   function PeekEvent( out aEvent : TIOEvent ) : Boolean; virtual; abstract;
   function EventPending : Boolean; virtual; abstract;
@@ -59,11 +60,14 @@ type TIODriver = class( TVObject )
   procedure RegisterInterrupt( aCode : TIOKeyCode; aInterrupt : TIOInterrupt );
   procedure StartTextInput; virtual;
   procedure StopTextInput; virtual;
+  procedure SetClipboard( const aValue : Ansistring ); virtual;
+  function GetClipboard : Ansistring; virtual;
   function Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean; virtual;
 protected
-  FOnQuit       : TIOInterrupt;
-  FInterrupts   : TIOInterrupts;
-  FDisplayModes : TIODisplayModeArray;
+  FOnQuit        : TIOInterrupt;
+  FInterrupts    : TIOInterrupts;
+  FDisplayModes  : TIODisplayModeArray;
+  FFakeClipboard : Ansistring;
 public
   property OnQuitEvent  : TIOInterrupt        write FOnQuit;
   property DisplayModes : TIODisplayModeArray read  FDisplayModes default nil;
@@ -207,6 +211,12 @@ end;
 
 { TIODriver }
 
+constructor TIODriver.Create;
+begin
+  FFakeClipboard := '';
+  ClearInterrupts;
+end;
+
 procedure TIODriver.ClearInterrupts;
 var iCount : Integer;
 begin
@@ -225,6 +235,16 @@ end;
 
 procedure TIODriver.StopTextInput;
 begin
+end;
+
+procedure TIODriver.SetClipboard( const aValue : Ansistring );
+begin
+  FFakeClipboard := aValue;
+end;
+
+function TIODriver.GetClipboard : Ansistring;
+begin
+  Exit( FFakeClipboard );
 end;
 
 function TIODriver.Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean;
