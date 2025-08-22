@@ -42,6 +42,7 @@ type TTIGWindow = class
   FReset        : Boolean;
   FMaxSize      : TIOPoint;
   FRenderable   : Boolean;
+  FCaret        : Integer;
 
   constructor Create;
   procedure Advance( aSize : TIOPoint );
@@ -52,7 +53,7 @@ private
 public
   property DrawList : TTIGDrawList read FDrawList;
   property DC       : TTIGWIndowDC read FDC;
-
+  property Caret    : Integer      read FCaret write FCaret;
 end;
 
 type TTIGStyleArray  = specialize TGArray<PTIGStyle>;
@@ -160,6 +161,7 @@ begin
   FBackground   := 0;
   FColor        := 0;
   FRenderable   := True;
+  FCaret        := -1;
 
   FillChar( FFocusInfo, SizeOf( FFocusInfo ), 0 );
   FScroll       := 0;

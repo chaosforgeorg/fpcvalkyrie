@@ -63,11 +63,13 @@ begin
     begin
       Inc( FHPos );
       StrPLCopy(@FInput[0], FHistory.Get( -FHPos ), High(FInput));
+      VTIG_ResetInput('tig_console');
     end;
     if VTIG_GetIOState.EventState.Activated( VTIG_IE_DOWN, true ) then
     begin
       Dec( FHPos );
       StrPLCopy(@FInput[0], FHistory.Get( -FHPos ), High(FInput));
+      VTIG_ResetInput('tig_console');
     end;
   end
   else Execute( iLine );

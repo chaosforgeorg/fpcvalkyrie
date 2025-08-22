@@ -51,6 +51,7 @@ function VTIG_Length( const aText: AnsiString ) : Integer;
 function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
 function VTIG_StripTags( const aText : AnsiString ) : AnsiString;
 
+procedure VTIG_ResetInput( const aName : Ansistring = ''; aCaret : Integer = -1 );
 function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
 function VTIG_EnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
 function VTIG_IntInput( aValue : PInteger; aActive : Boolean; aMin, aMax, aStep : Integer ) : Boolean;
@@ -1139,16 +1140,34 @@ begin
   VTIG_Text( aText, [], aColor, aBGColor );
 end;
 
+procedure VTIG_ResetInput( const aName : Ansistring = ''; aCaret : Integer = -1 );
+var iWindow : TTIGWindow;
+begin
+  if aName <> '' then
+  begin
+    iWindow := GCtx.WindowStore.Get( aName, nil );
+    if Assigned( iWindow ) then
+      iWindow.Caret := aCaret;
+  end
+  else
+    GCtx.Current.Caret := aCaret;
+end;
+
 function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
 var i, iLength : Word;
     iState     : TIOEventState;
     iChar      : Byte;
     iCmd       : TTIGDrawCommand;
     iCharSet   : set of Byte;
+    iCursor    : Integer;
 begin
   iLength := StrLen( aBuffer );
   Result  := VTIG_EventConfirm;
   iState  := GCtx.Io.EventState;
+  if ( GCtx.Current.Caret < 0 ) or ( GCtx.Current.Caret > iLength ) then
+    GCtx.Current.Caret := iLength;
+  iCursor := GCtx.Current.Caret;
+
   if aConsole
     then iCharSet := [32..126]
     else iCharSet := [Ord('a')..Ord('z')] + [Ord('A')..Ord('Z')] + [Ord(''''), Ord(' '), Ord('_')];
@@ -1164,23 +1183,38 @@ begin
 
       if iChar in iCharSet then
       begin
-        aBuffer[iLength] := Char(iChar);
+        System.Move( aBuffer[iCursor], aBuffer[iCursor + 1], (iLength - iCursor) + 1 );
+        aBuffer[iCursor] := Char(iChar);
         Inc(iLength);
-        aBuffer[iLength] := #0;
+        Inc(iCursor);
       end;
     end;
   end;
 
-  if (iLength > 0) and ( VTIG_Event( VTIG_IE_BACKSPACE) ) then
+  if (iCursor > 0) and VTIG_Event( VTIG_IE_BACKSPACE) then
   begin
+    System.Move( aBuffer[iCursor], aBuffer[iCursor - 1], (iLength - iCursor) + 1 );
+    Dec(iCursor);
     Dec(iLength);
-    aBuffer[iLength] := #0;
   end;
+
+  if ( iCursor < iLength ) and VTIG_Event( VTIG_IE_DELETE ) then
+  begin
+    System.Move( aBuffer[iCursor + 1], aBuffer[iCursor], (iLength - iCursor) );
+    Dec(iLength);
+  end;
+
+  if (iCursor > 0)       and ( VTIG_Event( VTIG_IE_LEFT) )   then Dec(iCursor);
+  if (iCursor < iLength) and ( VTIG_Event( VTIG_IE_RIGHT ) ) then Inc(iCursor);
+  if VTIG_Event( VTIG_IE_HOME ) then iCursor := 0;
+  if VTIG_Event( VTIG_IE_END )  then iCursor := iLength;
+
+  GCtx.Current.Caret := iCursor;
 
   Inc(GCtx.Current.FFocusInfo.Count);
 
   GCtx.DrawData.CursorType     := VTIG_CTINPUT;
-  GCtx.DrawData.CursorPosition := Point(GCtx.Current.DC.FCursor.x + iLength, GCtx.Current.DC.FCursor.y );
+  GCtx.DrawData.CursorPosition := Point(GCtx.Current.DC.FCursor.x + iCursor, GCtx.Current.DC.FCursor.y );
 
 
   GCtx.Color   := GCtx.Style^.Color[ VTIG_INPUT_TEXT_COLOR ];
