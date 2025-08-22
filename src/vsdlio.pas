@@ -182,7 +182,9 @@ begin
         end
     end;
     Result := PrintableToIOEvent( Char( iCode ) );
-    Result.Key.Pressed := event^._type = SDL_EVENT_KEY_DOWN;
+    if (iMod and SDL_KMOD_CTRL)  <> 0 then Include( Result.Key.ModState, VKMOD_CTRL );
+    if (iMod and SDL_KMOD_ALT)   <> 0 then Include( Result.Key.ModState, VKMOD_ALT );
+    Result.Key.Pressed  := event^._type = SDL_EVENT_KEY_DOWN;
     if event^._type = SDL_EVENT_KEY_UP then Result.EType := VEVENT_KEYUP;
     Exit;
   end;
