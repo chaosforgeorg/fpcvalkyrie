@@ -20,21 +20,18 @@ type TIO = class( TSystem )
   function HandleEvents : Boolean; virtual;
   destructor Destroy; override;
   procedure RegisterDebugConsole( aKey : TIOKeyCode );
-  procedure ConsolePrint( const aText : AnsiString );
   function PushLayer( aLayer : TIOLayer ) : TIOLayer; virtual;
   function IsTopLayer( aLayer : TIOLayer ) : Boolean;
   function IsModal : Boolean;
   procedure WaitForLayer;
 protected
   function HandleInput( aInput : Integer ) : Boolean;
-  function ConsoleInputCallback( aConsole : TConUIConsole; const aInput : TUIString ) : Boolean;
   function ConsoleCallback( aEvent : TIOEvent ) : Boolean;
   procedure ClearFinishedLayers;
 protected
   FIODriver       : TIODriver;
   FUIRoot         : TConUIRoot;
   FConsole        : TIOConsoleRenderer;
-  FConsoleWindow  : TConUIConsole;
   FTIGConsoleView : TTIGConsoleView;
   FLayers         : TIOLayerStack;
 
@@ -64,7 +61,6 @@ begin
   FConsole         := nil;
   FUIRoot          := nil;
   FLastUpdate      := FIODriver.GetMs;
-  FConsoleWindow   := nil;
   FTIGConsoleView  := nil;
   FLayers          := TIOLayerStack.Create;
   FTIGActive       := False;
@@ -111,9 +107,6 @@ end;
 procedure TIO.RegisterDebugConsole ( aKey : TIOKeyCode ) ;
 begin
   FIODriver.RegisterInterrupt( aKey, @ConsoleCallback );
-  if LuaSystem <> nil then
-    LuaSystem.SetPrintFunction( @ConsolePrint );
-
 end;
 
 procedure TIO.PreUpdate;
@@ -248,12 +241,6 @@ begin
   end;
 end;
 
-function TIO.ConsoleInputCallback ( aConsole : TConUIConsole; const aInput : TUIString ) : Boolean;
-begin
-  LuaSystem.ConsoleExecute( aInput );
-  Exit( True );
-end;
-
 function TIO.ConsoleCallback ( aEvent : TIOEvent ) : Boolean;
 begin
   if FTIGActive then
@@ -271,18 +258,7 @@ begin
     FTIGConsoleView.LoadHistory('console.history');
     Exit( True );
   end;
-
-  if FConsoleWindow <> nil then
-  begin
-    FConsole.HideCursor;
-    FConsoleWindow.SaveHistory('console.history');
-    FreeAndNil( FConsoleWindow );
-    Exit( True );
-  end;
-  FConsole.ShowCursor;
-  FConsoleWindow := TConUIConsole.Create( FUIRoot, @ConsoleInputCallback );
-  FConsoleWindow.LoadHistory('console.history');
-  Exit( True );
+  Exit( False );
 end;
 
 procedure TIO.ClearFinishedLayers;
@@ -300,13 +276,6 @@ begin
     end
     else
       Inc( i );
-end;
-
-
-procedure TIO.ConsolePrint ( const aText : AnsiString ) ;
-begin
-  if FConsoleWindow <> nil then
-    FConsoleWindow.Writeln( aText );
 end;
 
 function TIO.PushLayer( aLayer : TIOLayer ) : TIOLayer;
