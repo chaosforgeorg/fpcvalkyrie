@@ -131,7 +131,6 @@ end;
 
 procedure TTIGConsoleView.Execute( const aLine : Ansistring );
 begin
-  FText.PushBack( aLine );
   FInput[0] := #0;
   if Assigned( FHistory ) then
     if not ((FHistory.Size > 0) and (FHistory.Back = aLine)) then
@@ -140,6 +139,7 @@ begin
   try
     LuaSystem.ConsoleExecute( aLine );
   except on E : Exception do
+    Writeln( '{RException: }'+E.ToString );
   end;
 end;
 

@@ -1,7 +1,6 @@
 {$INCLUDE valkyrie.inc}
 // @abstract(LuaSystem class for Valkyrie)
 // @author(Kornel Kisielewicz <epyon@chaosforge.org>)
-// @cvs($Author: chaos-dev $)
 //
 //  @html <div class="license">
 //  This library is free software; you can redistribute it and/or modify it
@@ -239,17 +238,17 @@ begin
   index := lua_absindex(L,index);
   Prefix := StringOfChar(' ',Indent)+Prefix;
   case lua_type(L,index) of
-    LUA_TNIL           : LuaSystem.Print(Prefix+'@Bnil');
-    LUA_TBOOLEAN       : if lua_toboolean(L,index) then LuaSystem.Print(Prefix+'@Btrue') else LuaSystem.Print(Prefix+'@Bfalse');
-    LUA_TLIGHTUSERDATA : LuaSystem.Print(Prefix+'@blightuserdata(@B0x'+hexstr(lua_touserdata(L,index))+'@b)');
-    LUA_TNUMBER        : LuaSystem.Print(Prefix+'@L'+lua_tostring(L,index));
-    LUA_TSTRING        : LuaSystem.Print(Prefix+'"'+lua_tostring(L,index)+'"');
-    LUA_TFUNCTION      : LuaSystem.Print(Prefix+'@yfunction');
-    LUA_TUSERDATA      : LuaSystem.Print(Prefix+'@yuserdata');
-    LUA_TTHREAD        : LuaSystem.Print(Prefix+'@ythread');
+    LUA_TNIL           : LuaSystem.Print(Prefix+'{Rnil}');
+    LUA_TBOOLEAN       : if lua_toboolean(L,index) then LuaSystem.Print(Prefix+'{gtrue}') else LuaSystem.Print(Prefix+'{gfalse}');
+    LUA_TLIGHTUSERDATA : LuaSystem.Print(Prefix+'{blightuserdata({^0x'+hexstr(lua_touserdata(L,index))+'})}');
+    LUA_TNUMBER        : LuaSystem.Print(Prefix+'{L'+lua_tostring(L,index)+'}');
+    LUA_TSTRING        : LuaSystem.Print(Prefix+'"{G'+lua_tostring(L,index)+'}"');
+    LUA_TFUNCTION      : LuaSystem.Print(Prefix+'{yfunction}');
+    LUA_TUSERDATA      : LuaSystem.Print(Prefix+'{yuserdata}');
+    LUA_TTHREAD        : LuaSystem.Print(Prefix+'{ythread}');
     LUA_TTABLE         :
       begin
-        LuaSystem.Print(Prefix+'@ytable@> = {');
+        LuaSystem.Print(Prefix+'{ytable} = [');
         Indent += 2;
         Lines := 2;
         lua_pushnil(L);
@@ -262,14 +261,14 @@ begin
             Lines += print_value( L, -1, Indent, lua_tostring( L, -2 )+' = ');
           // remove value, keep key
           lua_pop(L, 1);
-          if Lines > 8 then
+          if Lines > 10 then
           begin
             LuaSystem.Print(StringOfChar(' ',Indent)+'...');
             lua_pop(L, 1);
             break;
           end;
         end;
-        if Lines <= 8 then LuaSystem.Print(StringOfChar(' ',Indent-2)+'}');
+        if Lines <= 8 then LuaSystem.Print(StringOfChar(' ',Indent-2)+']');
         Exit(Lines);
       end;
   end;
@@ -1751,7 +1750,7 @@ begin
   cmd := Trim(aCode);
   if length(cmd) = 0 then Exit;
   iStack := lua_gettop(FState);
-  Print('@B('+IntToStr(iStack)+')> @l'+cmd);
+  Print('({B'+IntToStr(iStack)+'})> '+cmd);
 
   if cmd[1] = '=' then
   begin
@@ -1764,7 +1763,7 @@ begin
   if iCode <> 0 then
   begin
     iError := lua_tostring(FState,-1);
-    Print('@RError: @l'+iError);
+    Print('{RError: }'+iError);
     lua_pop(FState,1);
     Exit;
   end;
