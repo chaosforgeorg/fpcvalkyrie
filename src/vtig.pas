@@ -10,6 +10,8 @@ procedure VTIG_EndFrame;
 procedure VTIG_Render;
 procedure VTIG_Clear;
 
+procedure VTIG_PresetPadding( aName : Ansistring; aPadding : TIOPoint );
+
 procedure VTIG_Begin( aName : Ansistring ); overload;
 procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint ); overload;
 procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
@@ -76,8 +78,7 @@ function VTIG_GetIOState : TTIGIOState;
 function VTIG_GetClipRect : TIORect;
 function VTIG_GetWindowRect : TIORect;
 
-var VTIG_ClipHack  : Boolean = False;
-    VTIG_HighColor : Boolean = False;
+var VTIG_HighColor : Boolean = False;
 
 function VTIG_BoldenColor( aColor : TIOColor ) : TIOColor;
 procedure VTIG_SetSubCallback( aCallback : TTIGSubCallback );
@@ -599,6 +600,20 @@ begin
   VTIG_Begin( aName, aSize, Point( -1, -1 ) )
 end;
 
+procedure VTIG_PresetPadding( aName : Ansistring; aPadding : TIOPoint );
+var iWindow : TTIGWindow;
+begin
+  iWindow := GCtx.WindowStore.Get( aName, nil );
+  if iWindow = nil then
+  begin
+    iWindow := TTIGWindow.Create;
+    GCtx.Windows.Push( iWindow );
+    GCtx.WindowStore[ aName ] := iWindow;
+    iWindow.FReset := True;
+  end;
+  iWindow.FPadding := aPadding;
+end;
+
 procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
 var iParent : TTIGWindow;
     iWindow : TTIGWindow;
@@ -655,8 +670,7 @@ begin
   if iFrame = ''
     then iWindow.DC.FClip := iFClip
     else iWindow.DC.FClip := iFClip.Shrinked(1);
-  iWindow.FClipContent := iWindow.DC.FClip.Shrinked(1);
-  if VTIG_ClipHack then iWindow.FClipContent := iWindow.DC.FClip;
+  iWindow.FClipContent := iWindow.DC.FClip.Shrinked( iWindow.FPadding.X, iWindow.FPadding.Y );
 
   Inc( iWindow.FClipContent.Dim.Y );
 

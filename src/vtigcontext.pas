@@ -44,6 +44,8 @@ type TTIGWindow = class
   FRenderable   : Boolean;
   FCaret        : Integer;
 
+  FPadding      : TIOPoint;
+
   constructor Create;
   procedure Advance( aSize : TIOPoint );
   destructor Destroy; override;
@@ -168,6 +170,8 @@ begin
   FSelectScroll := 0;
   FReset        := False;
   FMaxSize      := Point( -1,-1 );
+
+  FPadding      := Point( 1, 1 );
 
   FDC           := TTIGWindowDC.Create;
   FDrawList     := TTIGDrawList.Create;
