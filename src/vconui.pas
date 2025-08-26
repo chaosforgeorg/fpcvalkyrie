@@ -131,26 +131,6 @@ protected
   function Chunkify( const aString : AnsiString; aStart : Integer; aColor : TUIColor = ColorNone ) : TUIChunkBuffer; override;
 end;
 
-type TConUIConsoleHistory = specialize TGRingBuffer<AnsiString>;
-type TConUIConsole = class;
-type TConUIConsoleCallback = function ( aSender : TConUIConsole; const aLine : AnsiString ) : Boolean of object;
-type TConUIConsole = class( TConUIWindow )
-  constructor Create( aParent : TUIElement; aCallback : TConUIConsoleCallback );
-  procedure Writeln( const aText : Ansistring );
-  procedure LoadHistory( const aFileName : AnsiString );
-  procedure SaveHistory( const aFileName : AnsiString );
-  function OnKeyDown( const event : TIOKeyEvent ) : Boolean; override;
-  function OnLineConfirm( aSender : TUIElement ) : Boolean;
-protected
-  FHPos     : DWord;
-  FHistory  : TConUIConsoleHistory;
-  FInput    : TConUIInputLine;
-  FOutput   : TConUIStringList;
-  FCallback : TConUIConsoleCallback;
-public
-  property History : TConUIConsoleHistory read FHistory;
-end;
-
 implementation
 
 uses math;
@@ -537,80 +517,6 @@ begin
   iChunkList := nil;
   iCon.ChunkifyEx( iChunkList, iPosition, iColor, aString, iColor, Dim );
   Exit( iCon.LinifyChunkList( iChunkList ) );
-end;
-
-{ TConUIConsole }
-
-constructor TConUIConsole.Create ( aParent : TUIElement; aCallback : TConUIConsoleCallback ) ;
-begin
-  inherited Create( aParent, Rectangle( PointZero, aParent.Dim.x, 15 ), 'Console' );
-  FEventFilter := [ VEVENT_KEYDOWN ];
-  FCallback := aCallback;
-  FOutput   := TConUIStringList.Create( Self, Rectangle(0,0,Dim.X-4,Dim.Y-4 ), TUIStringArray.Create(), True );
-  FInput    := TConUIInputLine.Create( Self, Point( 0, Dim.Y-4 ), Dim.X - 4 );
-  FInput.OnConfirmEvent := @OnLineConfirm;
-  FHistory  := nil;
-  FHPos     := 0;
-  FRoot.GrabInput(Self);
-end;
-
-procedure TConUIConsole.Writeln ( const aText : Ansistring ) ;
-begin
-  FOutput.Add( aText );
-  FOutput.Scroll := FOutput.Count;
-end;
-
-procedure TConUIConsole.LoadHistory ( const aFileName : AnsiString ) ;
-var iStream : TStream;
-begin
-  FreeAndNil( FHistory );
-  if FileExists( aFileName ) then
-  begin
-    try
-      iStream := TFileStream.Create( aFileName, fmOpenRead );
-      FHistory := TConUIConsoleHistory.CreateFromStream( iStream );
-    finally
-      FreeAndNil( iStream );
-    end;
-  end;
-  if FHistory = nil then FHistory := TConUIConsoleHistory.Create(256);
-end;
-
-procedure TConUIConsole.SaveHistory ( const aFileName : AnsiString ) ;
-var iStream : TStream;
-begin
-  if FHistory <> nil then
-  try
-    iStream := TFileStream.Create( aFileName, fmCreate );
-    FHistory.WriteToStream( iStream );
-  finally
-    FreeAndNil( iStream );
-  end;
-end;
-
-function TConUIConsole.OnKeyDown ( const event : TIOKeyEvent ) : Boolean;
-begin
-  if FHistory <> nil then
-  case event.Code of
-    VKEY_UP   : if FHPos < FHistory.Size then begin Inc( FHPos ); FInput.Input := FHistory.Get( -FHPos ); FInput.SetCursorPosition( Length( FInput.Input ) + 1 ); Exit( True ); end;
-    VKEY_DOWN : if FHPos > 1             then begin Dec( FHPos ); FInput.Input := FHistory.Get( -FHPos ); FInput.SetCursorPosition( Length( FInput.Input ) + 1 ); Exit( True ); end;
-  end;
-  Result := inherited OnKeyDown ( event ) ;
-end;
-
-function TConUIConsole.OnLineConfirm ( aSender : TUIElement ) : Boolean;
-begin
-  if Assigned( FCallback ) then
-  begin
-    if Assigned( FHistory ) then
-      if not ((FHistory.Size > 0) and (FHistory.Back = FInput.Input)) then
-        FHistory.PushBack( FInput.Input );
-    Result := FCallback( Self, FInput.Input );
-    FHPos  := 0;
-    FInput.Input := '';
-    Exit;
-  end;
-  Exit( False );
 end;
 
 { TConsoleUIRoot }
