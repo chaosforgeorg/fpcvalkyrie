@@ -24,6 +24,7 @@ type TIO = class( TSystem )
   function IsTopLayer( aLayer : TIOLayer ) : Boolean;
   function IsModal : Boolean;
   procedure WaitForLayer;
+  function EventToUIInput( const aEvent : TIOEvent ) : Integer; virtual;
 protected
   function HandleInput( aInput : Integer ) : Boolean;
   function ConsoleCallback( aEvent : TIOEvent ) : Boolean;
@@ -165,8 +166,16 @@ begin
 end;
 
 function TIO.OnEvent( const event : TIOEvent ) : Boolean;
-var i : Integer;
+var i, iInput : Integer;
 begin
+  iInput := EventToUIInput( event );
+  if iInput > 0 then
+    if not FLayers.IsEmpty then
+      for i := FLayers.Size - 1 downto 0 do
+        if not FLayers[i].isFinished then
+          if FLayers[i].HandleInput( iInput ) then
+            Exit( True );
+
   if not FLayers.IsEmpty then
     for i := FLayers.Size - 1 downto 0 do
       if not FLayers[i].isFinished then
@@ -304,6 +313,11 @@ begin
     FullUpdate;
     HandleEvents;
   until FLayers.IsEmpty or (not IsModal);
+end;
+
+function TIO.EventToUIInput( const aEvent : TIOEvent ) : Integer;
+begin
+  Exit( 0 );
 end;
 
 end.
