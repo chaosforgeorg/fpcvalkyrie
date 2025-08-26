@@ -65,7 +65,7 @@ VTIGDefaultStyle.Frame[ VTIG_BORDER_FRAME ] := #196+#196+#179+#179+#218+#191+#19
 VTIGDefaultStyle.Frame[ VTIG_RULER_FRAME ]  := #196+#179;
 VTIGDefaultStyle.Frame[ VTIG_SCROLL_FRAME ] := #193+#194+#177+#178;
 
-VTIGDefaultStyle.Padding[ VTIG_WINDOW_PADDING ] := Point( 3,2 );
+VTIGDefaultStyle.Padding[ VTIG_WINDOW_PADDING ] := Point( 1,1 );
 
 end.
 

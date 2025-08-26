@@ -10,8 +10,6 @@ procedure VTIG_EndFrame;
 procedure VTIG_Render;
 procedure VTIG_Clear;
 
-procedure VTIG_PresetPadding( aName : Ansistring; aPadding : TIOPoint );
-
 procedure VTIG_Begin( aName : Ansistring ); overload;
 procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint ); overload;
 procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
@@ -600,20 +598,6 @@ begin
   VTIG_Begin( aName, aSize, Point( -1, -1 ) )
 end;
 
-procedure VTIG_PresetPadding( aName : Ansistring; aPadding : TIOPoint );
-var iWindow : TTIGWindow;
-begin
-  iWindow := GCtx.WindowStore.Get( aName, nil );
-  if iWindow = nil then
-  begin
-    iWindow := TTIGWindow.Create;
-    GCtx.Windows.Push( iWindow );
-    GCtx.WindowStore[ aName ] := iWindow;
-    iWindow.FReset := True;
-  end;
-  iWindow.FPadding := aPadding;
-end;
-
 procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
 var iParent : TTIGWindow;
     iWindow : TTIGWindow;
@@ -621,6 +605,7 @@ var iParent : TTIGWindow;
     iFClip  : TIORect;
     iFrame  : Ansistring;
     iCmd    : TTIGDrawCommand;
+    iPadding: TIOPoint;
 begin
   iParent := GCtx.Current;
   iWindow := GCtx.WindowStore.Get( aName, nil );
@@ -670,7 +655,8 @@ begin
   if iFrame = ''
     then iWindow.DC.FClip := iFClip
     else iWindow.DC.FClip := iFClip.Shrinked(1);
-  iWindow.FClipContent := iWindow.DC.FClip.Shrinked( iWindow.FPadding.X, iWindow.FPadding.Y );
+  iPadding := GCtx.Style^.Padding[ VTIG_WINDOW_PADDING ];
+  iWindow.FClipContent := iWindow.DC.FClip.Shrinked( iPadding.X, iPadding.Y );
 
   Inc( iWindow.FClipContent.Dim.Y );
 
