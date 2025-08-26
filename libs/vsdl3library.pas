@@ -408,6 +408,11 @@ var
   SDL_DestroyProperties : procedure( props : SDL_PropertiesID );
   SDL_free              : procedure(data: Pointer); cdecl;
 
+{ SDL_clipboard.h }
+var
+  SDL_SetClipboardText  : function( const text : PAnsiChar ) : Boolean;
+  SDL_GetClipboardText  : function : PAnsiChar;
+
 var
   SDL3 : TLibrary = nil;
 
@@ -781,6 +786,9 @@ begin
   Pointer(SDL_SetNumberProperty) := GetSymbol('SDL_SetNumberProperty');
   Pointer(SDL_CreateProperties)  := GetSymbol('SDL_CreateProperties');
   Pointer(SDL_DestroyProperties) := GetSymbol('SDL_DestroyProperties');
+
+  Pointer(SDL_SetClipboardText)  := GetSymbol('SDL_SetClipboardText');
+  Pointer(SDL_GetClipboardText)  := GetSymbol('SDL_GetClipboardText');
 
   Pointer(SDL_free)              := GetSymbol('SDL_free');
 

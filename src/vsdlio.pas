@@ -32,6 +32,8 @@ type TSDLIODriver = class( TIODriver )
   function SetDisplayMode( aIndex : Integer ) : Boolean;
   procedure StartTextInput; override;
   procedure StopTextInput; override;
+  procedure SetClipboard( const aValue : Ansistring ); override;
+  function GetClipboard : Ansistring; override;
   function Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean; override;
 private
   FFlags     : TSDLIOFlags;
@@ -955,6 +957,19 @@ end;
 procedure TSDLIODriver.StopTextInput;
 begin
   SDL_StopTextInput( FWindow );
+end;
+
+procedure TSDLIODriver.SetClipboard( const aValue : Ansistring );
+begin
+  SDL_SetClipboardText( PAnsiChar( aValue ) );
+end;
+
+function TSDLIODriver.GetClipboard : Ansistring;
+var iResult : PAnsiChar;
+begin
+  iResult := SDL_GetClipboardText();
+  GetClipboard := Ansistring( iResult );
+  SDL_free( iResult );
 end;
 
 function TSDLIODriver.Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean;
