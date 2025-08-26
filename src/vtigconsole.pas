@@ -19,7 +19,7 @@ protected
   procedure Execute( const aLine : Ansistring );
 protected
   FFinished : Boolean;
-  FHPos     : DWord;
+  FHPos     : LongInt;
   FText     : TTIGStringRing;
   FHistory  : TTIGStringRing;
   FInput    : array[0..74] of Char;
