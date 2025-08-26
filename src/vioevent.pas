@@ -38,7 +38,7 @@ type TIOEventType      = ( VEVENT_SYSTEM, VEVENT_KEYDOWN, VEVENT_KEYUP, VEVENT_M
      TIOPadButtonEvent = record Button : TIOPadButton; Pressed : Boolean; Which : int32; end;
      TIOPadDeviceEvent = record Event : TIOPadDevice; Which : int32; end;
      TIOSystemEvent    = record Code : DWord; Param1 : DWord; Param2 : DWord; end;
-     TIOTextEvent      = record Text : array[0..31] of Char; end;
+     TIOTextEvent      = record Text : array[0..63] of Char; end;
 
 const VPAD_AXIS_MIN = -32768;
       VPAD_AXIS_MAX = 32767;
