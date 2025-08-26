@@ -134,11 +134,7 @@ begin
     VTIG_NewFrame;
   PreUpdate;
   Update( iTickTime );
-  if FTIGActive then
-  begin
-    VTIG_EndFrame;
-    VTIG_Render;
-  end;
+
   PostUpdate;
 end;
 
@@ -189,7 +185,12 @@ begin
 
   FUIRoot.OnUpdate( aMSec );
   FUIRoot.Render;
-  if not FTIGActive then
+  if FTIGActive then
+  begin
+    VTIG_EndFrame;
+    VTIG_Render;
+  end
+  else
     FConsole.Update;
 end;
 
