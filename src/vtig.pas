@@ -20,7 +20,6 @@ procedure VTIG_Reset( aName : AnsiString );
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
 procedure VTIG_EndGroup( aVertical : Boolean = False );
 procedure VTIG_Ruler( aPosition : Integer = -1 );
-procedure VTIG_AdjustPadding( aPos : TIOPoint );
 
 function VTIG_Selectable( aText : Ansistring; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
@@ -51,7 +50,8 @@ function VTIG_Length( const aText: AnsiString ) : Integer;
 function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
 function VTIG_StripTags( const aText : AnsiString ) : AnsiString;
 
-function VTIG_Input( aBuffer : PChar; aMaxSize : Word ) : Boolean;
+procedure VTIG_ResetInput( const aName : Ansistring = ''; aCaret : Integer = -1 );
+function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
 function VTIG_EnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
 function VTIG_IntInput( aValue : PInteger; aActive : Boolean; aMin, aMax, aStep : Integer ) : Boolean;
 function VTIG_EnumInput( aValue : PInteger; aActive : Boolean; aOpen : PBoolean; aNames : array of Ansistring ) : Boolean;
@@ -75,8 +75,7 @@ function VTIG_GetIOState : TTIGIOState;
 function VTIG_GetClipRect : TIORect;
 function VTIG_GetWindowRect : TIORect;
 
-var VTIG_ClipHack  : Boolean = False;
-    VTIG_HighColor : Boolean = False;
+var VTIG_HighColor : Boolean = False;
 
 function VTIG_BoldenColor( aColor : TIOColor ) : TIOColor;
 procedure VTIG_SetSubCallback( aCallback : TTIGSubCallback );
@@ -605,6 +604,7 @@ var iParent : TTIGWindow;
     iFClip  : TIORect;
     iFrame  : Ansistring;
     iCmd    : TTIGDrawCommand;
+    iPadding: TIOPoint;
 begin
   iParent := GCtx.Current;
   iWindow := GCtx.WindowStore.Get( aName, nil );
@@ -629,7 +629,7 @@ begin
     iWindow.FMaxSize      := Point( -1, -1 );
     iWindow.FColor        := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
   end;
-  iWindow.FBackground     := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
+  iWindow.FBackground     := GCtx.Style^.Color[ VTIG_WINDOW_BACKGROUND_COLOR ];
 
   GCtx.WindowStack.Push( iWindow );
   GCtx.WindowOrder.Push( iWindow );
@@ -654,8 +654,8 @@ begin
   if iFrame = ''
     then iWindow.DC.FClip := iFClip
     else iWindow.DC.FClip := iFClip.Shrinked(1);
-  iWindow.FClipContent := iWindow.DC.FClip.Shrinked(1);
-  if VTIG_ClipHack then iWindow.FClipContent := iWindow.DC.FClip;
+  iPadding := GCtx.Style^.Padding[ VTIG_WINDOW_PADDING ];
+  iWindow.FClipContent := iWindow.DC.FClip.Shrinked( iPadding.X, iPadding.Y );
 
   Inc( iWindow.FClipContent.Dim.Y );
 
@@ -781,17 +781,6 @@ begin
     iWindow.DrawList.Push( iCmd );
   end;
   iWindow.DC.FCursor.Y += 3;
-end;
-
-procedure VTIG_AdjustPadding( aPos : TIOPoint );
-begin
-  GCtx.Current.DC.FCursor   += aPos;
-  GCtx.Current.DC.FContent  += aPos;
-  GCtx.Current.DC.FContent.Dim -= aPos;
-  GCtx.Current.DC.FContent.Dim -= aPos;
-  GCtx.Current.FClipContent += aPos;
-  GCtx.Current.FClipContent.Dim -= aPos;
-  GCtx.Current.FClipContent.Dim -= aPos;
 end;
 
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
@@ -1124,7 +1113,10 @@ var iClip  : TIORect;
     iCoord : TIOPoint;
 begin
   if aColor = 0   then aColor   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
-  if aBGColor = 0 then aBGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
+  if aBGColor = 0 then
+    if GCtx.WindowStack.Size = 1
+      then aBGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ]
+      else aBGColor := GCtx.Current.FBackground;
   GCtx.Color   := aColor;
   GCtx.BGColor := aBGColor;
   iClip  := VTIG_GetClipRect;
@@ -1139,15 +1131,58 @@ begin
   VTIG_Text( aText, [], aColor, aBGColor );
 end;
 
-function VTIG_Input( aBuffer : PChar; aMaxSize : Word ) : Boolean;
+procedure VTIG_ResetInput( const aName : Ansistring = ''; aCaret : Integer = -1 );
+var iWindow : TTIGWindow;
+begin
+  if aName <> '' then
+  begin
+    iWindow := GCtx.WindowStore.Get( aName, nil );
+    if Assigned( iWindow ) then
+      iWindow.Caret := aCaret;
+  end
+  else
+    GCtx.Current.Caret := aCaret;
+end;
+
+function VTIG_InputFilter( const aString : AnsiString; aMaxSize : Word; aSet : TFlags ) : AnsiString;
+var i, iL : Integer;
+    iB    : Byte;
+begin
+  if aMaxSize = 0 then Exit('');
+  SetLength( Result, aMaxSize );
+  iL := 0;
+  for i := 1 to Length( aString ) do
+  begin
+    iB := Byte( aString[i] );
+    if iB in aSet then
+    begin
+      Inc( iL );
+      if iL > aMaxSize then begin Dec( iL ); Break; end;
+      Result[iL] := Char( iB );
+    end;
+  end;
+  SetLength( Result, iL );
+end;
+
+function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
 var i, iLength : Word;
     iState     : TIOEventState;
     iChar      : Byte;
     iCmd       : TTIGDrawCommand;
+    iCharSet   : TFlags;
+    iCursor    : Integer;
+    iText      : Ansistring;
 begin
   iLength := StrLen( aBuffer );
   Result  := VTIG_EventConfirm;
   iState  := GCtx.Io.EventState;
+  if ( GCtx.Current.Caret < 0 ) or ( GCtx.Current.Caret > iLength ) then
+    GCtx.Current.Caret := iLength;
+  iCursor := GCtx.Current.Caret;
+
+  if aConsole
+    then iCharSet := [32..126]
+    else iCharSet := [Ord('a')..Ord('z')] + [Ord('A')..Ord('Z')] + [Ord(''''), Ord(' '), Ord('_')];
 
   for i := 0 to VIO_MAXINPUT - 1 do
   begin
@@ -1158,28 +1193,52 @@ begin
     begin
       iChar := Byte(iState.Input[i]);
 
-      if ( ((iChar >= Ord('a')) and (iChar <= Ord('z'))) or
-           ((iChar >= Ord('A')) and (iChar <= Ord('Z'))) or
-           ((iChar >= Ord('0')) and (iChar <= Ord('9'))) or
-           ((iChar = Ord('''')) or (iChar = Ord('_')) or (iChar = Ord(' '))) ) then
+      if iChar in iCharSet then
       begin
-        aBuffer[iLength] := Char(iChar);
+        System.Move( aBuffer[iCursor], aBuffer[iCursor + 1], (iLength - iCursor) + 1 );
+        aBuffer[iCursor] := Char(iChar);
         Inc(iLength);
-        aBuffer[iLength] := #0;
+        Inc(iCursor);
       end;
     end;
   end;
 
-  if (iLength > 0) and ( VTIG_Event( VTIG_IE_BACKSPACE) ) then
+  if (iCursor > 0) and VTIG_Event( VTIG_IE_BACKSPACE) then
   begin
+    System.Move( aBuffer[iCursor], aBuffer[iCursor - 1], (iLength - iCursor) + 1 );
+    Dec(iCursor);
     Dec(iLength);
-    aBuffer[iLength] := #0;
   end;
+
+  if ( iCursor < iLength ) and VTIG_Event( VTIG_IE_DELETE ) then
+  begin
+    System.Move( aBuffer[iCursor + 1], aBuffer[iCursor], (iLength - iCursor) );
+    Dec(iLength);
+  end;
+
+  if (iCursor > 0)       and ( VTIG_Event( VTIG_IE_LEFT) )   then Dec(iCursor);
+  if (iCursor < iLength) and ( VTIG_Event( VTIG_IE_RIGHT ) ) then Inc(iCursor);
+  if VTIG_Event( VTIG_IE_HOME ) then iCursor := 0;
+  if VTIG_Event( VTIG_IE_END )  then iCursor := iLength;
+
+  if VTIG_Event( VTIG_IE_COPY )  then
+    GCtx.Io.Driver.SetClipboard( aBuffer );
+
+  if VTIG_Event( VTIG_IE_PASTE ) then
+  begin
+    iText   := VTIG_InputFilter( GCtx.Io.Driver.GetClipboard, aMaxSize, iCharSet );
+    System.Move(iText[1], aBuffer[0], Length(iText));
+    aBuffer[ Length( iText ) ] := #0;
+    iLength := Length( iText );
+    iCursor := iLength;
+  end;
+
+  GCtx.Current.Caret := iCursor;
 
   Inc(GCtx.Current.FFocusInfo.Count);
 
   GCtx.DrawData.CursorType     := VTIG_CTINPUT;
-  GCtx.DrawData.CursorPosition := Point(GCtx.Current.DC.FCursor.x + iLength, GCtx.Current.DC.FCursor.y );
+  GCtx.DrawData.CursorPosition := Point(GCtx.Current.DC.FCursor.x + iCursor, GCtx.Current.DC.FCursor.y );
 
 
   GCtx.Color   := GCtx.Style^.Color[ VTIG_INPUT_TEXT_COLOR ];

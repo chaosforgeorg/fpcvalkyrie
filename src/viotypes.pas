@@ -7,17 +7,26 @@ type TIOColor         = DWord;
 type TIOCursorType    = ( VIO_CURSOR_SMALL, VIO_CURSOR_HALF, VIO_CURSOR_BLOCK );
 type TIORect          = TRectangle;
 type TIOPoint         = TPoint;
-type
+
+type TIOLayer = class
+  procedure Update( aDTime : Integer; aActive : Boolean ); virtual; abstract;
+  function IsFinished : Boolean; virtual; abstract;
+  function IsModal : Boolean; virtual;
+  function HandleEvent( const aEvent : TIOEvent ) : Boolean; virtual;
+  function HandleInput( aInput : Integer ) : Boolean; virtual;
+end;
+
+type TIOLayerStack = specialize TGArray<TIOLayer>;
 
 { TIOGylph }
 
- TIOGylph = packed object
+type TIOGylph = packed object
   ASCII : Char;
   Color : TIOColor;
   procedure Init( aASCII : Char; aColor : TIOColor );
 end;
 
- TIODisplayMode = record
+type TIODisplayMode = record
    Index   : Integer;
    Width   : Integer;
    Height  : Integer;
@@ -32,6 +41,7 @@ type TIOInterrupt = function( aEvent : TIOEvent ) : Boolean of object;
 type TIOInterrupts = array[0..IOKeyCodeMax] of TIOInterrupt;
 
 type TIODriver = class( TVObject )
+  constructor Create;
   function PollEvent( out aEvent : TIOEvent ) : Boolean; virtual; abstract;
   function PeekEvent( out aEvent : TIOEvent ) : Boolean; virtual; abstract;
   function EventPending : Boolean; virtual; abstract;
@@ -50,11 +60,14 @@ type TIODriver = class( TVObject )
   procedure RegisterInterrupt( aCode : TIOKeyCode; aInterrupt : TIOInterrupt );
   procedure StartTextInput; virtual;
   procedure StopTextInput; virtual;
+  procedure SetClipboard( const aValue : Ansistring ); virtual;
+  function GetClipboard : Ansistring; virtual;
   function Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean; virtual;
 protected
-  FOnQuit       : TIOInterrupt;
-  FInterrupts   : TIOInterrupts;
-  FDisplayModes : TIODisplayModeArray;
+  FOnQuit        : TIOInterrupt;
+  FInterrupts    : TIOInterrupts;
+  FDisplayModes  : TIODisplayModeArray;
+  FFakeClipboard : Ansistring;
 public
   property OnQuitEvent  : TIOInterrupt        write FOnQuit;
   property DisplayModes : TIODisplayModeArray read  FDisplayModes default nil;
@@ -162,6 +175,21 @@ function IOColor( aR, aG, aB : Byte; aA : Byte = 255 ) : TIOColor;
 
 implementation
 
+function TIOLayer.IsModal : Boolean;
+begin
+  Exit( False );
+end;
+
+function TIOLayer.HandleEvent( const aEvent : TIOEvent ) : Boolean;
+begin
+  Exit( IsModal );
+end;
+
+function TIOLayer.HandleInput( aInput : Integer ) : Boolean;
+begin
+  Exit( False );
+end;
+
 function IOGylph( aChar : Char; aColor : TIOColor ) : TIOGylph;
 begin
   IOGylph.ASCII := aChar;
@@ -183,6 +211,12 @@ end;
 
 { TIODriver }
 
+constructor TIODriver.Create;
+begin
+  FFakeClipboard := '';
+  ClearInterrupts;
+end;
+
 procedure TIODriver.ClearInterrupts;
 var iCount : Integer;
 begin
@@ -201,6 +235,16 @@ end;
 
 procedure TIODriver.StopTextInput;
 begin
+end;
+
+procedure TIODriver.SetClipboard( const aValue : Ansistring );
+begin
+  FFakeClipboard := aValue;
+end;
+
+function TIODriver.GetClipboard : Ansistring;
+begin
+  Exit( FFakeClipboard );
 end;
 
 function TIODriver.Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean;

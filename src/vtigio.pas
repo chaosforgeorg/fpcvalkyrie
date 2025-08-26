@@ -40,18 +40,21 @@ const
   VTIG_IE_CONFIRM   = 139; // ENTER
   VTIG_IE_TAB       = 140;
   VTIG_IE_BACKSPACE = 141;
-  VTIG_IE_MCONFIRM  = 142; // MOUSE LEFT
-  VTIG_IE_0         = 150;
-  VTIG_IE_1         = 151;
-  VTIG_IE_2         = 152;
-  VTIG_IE_3         = 153;
-  VTIG_IE_4         = 154;
-  VTIG_IE_5         = 155;
-  VTIG_IE_6         = 156;
-  VTIG_IE_7         = 157;
-  VTIG_IE_8         = 158;
-  VTIG_IE_9         = 159;
-  VTIG_IE_SHIFT     = 160;
+  VTIG_IE_DELETE    = 142;
+  VTIG_IE_COPY      = 143;
+  VTIG_IE_PASTE     = 144;
+  VTIG_IE_MCONFIRM  = 155; // MOUSE LEFT
+  VTIG_IE_0         = 160;
+  VTIG_IE_1         = 161;
+  VTIG_IE_2         = 162;
+  VTIG_IE_3         = 163;
+  VTIG_IE_4         = 164;
+  VTIG_IE_5         = 165;
+  VTIG_IE_6         = 166;
+  VTIG_IE_7         = 167;
+  VTIG_IE_8         = 168;
+  VTIG_IE_9         = 169;
+  VTIG_IE_SHIFT     = 170;
 
 type TTIGDrawCommand = record
     CType : TTIGDrawCommandType;
