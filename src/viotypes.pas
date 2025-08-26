@@ -9,7 +9,7 @@ type TIORect          = TRectangle;
 type TIOPoint         = TPoint;
 
 type TIOLayer = class
-  procedure Update( aDTime : Integer ); virtual; abstract;
+  procedure Update( aDTime : Integer; aActive : Boolean ); virtual; abstract;
   function IsFinished : Boolean; virtual; abstract;
   function IsModal : Boolean; virtual;
   function HandleEvent( const aEvent : TIOEvent ) : Boolean; virtual;

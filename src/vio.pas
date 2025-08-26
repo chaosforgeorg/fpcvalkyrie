@@ -1,11 +1,11 @@
 {$INCLUDE valkyrie.inc}
 unit vio;
 interface
-uses Classes, SysUtils, vsystem, vuitypes, vgenerics,
+uses Classes, SysUtils, vsystem, vgenerics,
      vuielement, vconui, vioevent, viotypes, vtigconsole, vioconsole;
 
 type TIO = class( TSystem )
-  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False  );
+  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False  ); reintroduce;
   procedure Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False );
   procedure PreUpdate; virtual;
   procedure FullUpdate; virtual;
@@ -55,7 +55,7 @@ var IO : TIO;
 
 implementation
 
-uses vutil, vtig, vtigio, vluasystem, dateutils, math;
+uses vutil, vtig, vtigio, dateutils, math;
 
 { TIO }
 
@@ -158,8 +158,8 @@ begin
 end;
 
 procedure TIO.Update ( aMSec : DWord ) ;
-var iLayer  : TIOLayer;
-    iMEvent : TIOEvent;
+var iMEvent : TIOEvent;
+    i,iM    : Integer;
 begin
   if FUIMouse <> FUIMouseLast then
   begin
@@ -175,8 +175,15 @@ begin
   if FLayers.Size > 0 then
   begin
     ClearFinishedLayers;
-    for iLayer in FLayers do
-      iLayer.Update( Integer( aMSec ) );
+    iM := -1;
+    for i := FLayers.Size-1 downto 0 do
+      if FLayers[i].IsModal then
+        begin
+          iM := i;
+          Break;
+        end;
+    for i := 0 to FLayers.Size-1 do
+      FLayers[i].Update( Integer( aMSec ), i >= iM );
     ClearFinishedLayers;
   end;
 

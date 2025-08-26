@@ -7,7 +7,7 @@ type TTIGStringRing = specialize TGRingBuffer<AnsiString>;
 
 type TTIGConsoleView = class( TIOLayer )
   constructor Create;
-  procedure Update( aDTime : Integer ); override;
+  procedure Update( aDTime : Integer; aActive : Boolean ); override;
   function IsFinished : Boolean; override;
   function IsModal : Boolean; override;
   procedure Writeln( const aText : Ansistring );
@@ -42,7 +42,7 @@ begin
   IO.Driver.StartTextInput;
 end;
 
-procedure TTIGConsoleView.Update( aDTime : Integer );
+procedure TTIGConsoleView.Update( aDTime : Integer; aActive : Boolean );
 var iLine : Ansistring;
     i     : Integer;
 begin
@@ -56,6 +56,7 @@ begin
   if VTIG_Input(@FInput[0],74,True) then
     iLine := AnsiString( FInput );
   VTIG_End();
+  if not aActive then Exit;
 
   if iLine = '' then
   begin
