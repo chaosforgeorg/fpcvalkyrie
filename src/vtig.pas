@@ -630,7 +630,7 @@ begin
     iWindow.FMaxSize      := Point( -1, -1 );
     iWindow.FColor        := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
   end;
-  iWindow.FBackground     := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
+  iWindow.FBackground     := GCtx.Style^.Color[ VTIG_WINDOW_BACKGROUND_COLOR ];
 
   GCtx.WindowStack.Push( iWindow );
   GCtx.WindowOrder.Push( iWindow );
@@ -1125,7 +1125,10 @@ var iClip  : TIORect;
     iCoord : TIOPoint;
 begin
   if aColor = 0   then aColor   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
-  if aBGColor = 0 then aBGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
+  if aBGColor = 0 then
+    if GCtx.WindowStack.Size = 1
+      then aBGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ]
+      else aBGColor := GCtx.Current.FBackground;
   GCtx.Color   := aColor;
   GCtx.BGColor := aBGColor;
   iClip  := VTIG_GetClipRect;

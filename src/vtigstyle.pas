@@ -13,6 +13,7 @@ type TTIGStyleColorEntry = (
   VTIG_SCROLL_COLOR,
   VTIG_DISABLED_COLOR,
   VTIG_BACKGROUND_COLOR,
+  VTIG_WINDOW_BACKGROUND_COLOR,
   VTIG_INPUT_TEXT_COLOR,
   VTIG_INPUT_BACKGROUND_COLOR,
   VTIG_SELECTED_TEXT_COLOR,
@@ -55,6 +56,7 @@ VTIGDefaultStyle.Color[ VTIG_FRAME_COLOR ]               := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_SCROLL_COLOR ]              := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_DISABLED_COLOR ]            := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_BACKGROUND_COLOR ]          := Black;
+VTIGDefaultStyle.Color[ VTIG_WINDOW_BACKGROUND_COLOR ]   := Black;
 VTIGDefaultStyle.Color[ VTIG_INPUT_TEXT_COLOR ]          := Yellow;
 VTIGDefaultStyle.Color[ VTIG_INPUT_BACKGROUND_COLOR ]    := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_SELECTED_TEXT_COLOR ]       := White;
