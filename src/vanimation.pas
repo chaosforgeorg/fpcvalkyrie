@@ -32,6 +32,7 @@ type TAnimation = class
   procedure OnStart; virtual;
   procedure OnDraw; virtual;
   function IsExpired : Boolean;
+  function Started : Boolean;
 protected
   FDelay    : DWord;
   FTime     : DWord;
@@ -113,6 +114,11 @@ end;
 function TAnimation.IsExpired: Boolean;
 begin
   Exit( FTime > FDuration );
+end;
+
+function TAnimation.Started : Boolean;
+begin
+  Exit( FTime > 0 );
 end;
 
 constructor TAnimations.Create;
