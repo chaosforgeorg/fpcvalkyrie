@@ -1182,7 +1182,7 @@ begin
 
   if aConsole
     then iCharSet := [32..126]
-    else iCharSet := [Ord('a')..Ord('z')] + [Ord('A')..Ord('Z')] + [Ord(''''), Ord(' '), Ord('_')];
+    else iCharSet := [Ord('a')..Ord('z')] + [Ord('A')..Ord('Z')] + [Ord('0')..Ord('9')] + [Ord(''''), Ord(' '), Ord('_')];
 
   for i := 0 to VIO_MAXINPUT - 1 do
   begin
