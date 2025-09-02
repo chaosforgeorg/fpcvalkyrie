@@ -91,7 +91,7 @@ begin
   Close(TF);
 end;
 
-function LuaStreamWriter(L : Plua_State; const p : Pointer; sz : LongWord; ud : Pointer) : Integer; cdecl;
+function LuaStreamWriter(L : Plua_State; const p : Pointer; sz : Size_T; ud : Pointer) : Integer; cdecl;
 begin
   TStream(ud).WriteBuffer( p^, sz );
   Exit( 0 );

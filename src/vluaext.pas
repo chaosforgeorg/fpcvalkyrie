@@ -56,7 +56,7 @@ procedure vlua_register( L: Plua_State; const libname : AnsiString; const lr : P
 
 function vlua_loadstream( L: Plua_State; Stream : TStream; Size : DWord = 0; StreamName : AnsiString = '' ) : Integer;
 function vlua_dostream( L: Plua_State; Stream : TStream; Size : DWord = 0; StreamName : AnsiString = '' ) : Integer;
-procedure vlua_registerenumvalues( L : Plua_State; idx : Integer; enuminfo : PTypeInfo; UpperCase : Boolean = false );
+procedure vlua_registerenumvalues( L : Plua_State; enuminfo : PTypeInfo; UpperCase : Boolean = false );
 
 procedure vlua_table_toset(L: Plua_State; idx: Integer);
 procedure vlua_table_tokeyset( L: Plua_State; index : Integer );
@@ -533,7 +533,7 @@ function vlua_getpath( L : Plua_State; const path : AnsiString; idx : Integer; m
 var Piece : AnsiString;
     Count : Integer;
 begin
-  idx := lua_absindex( L, idx );
+  if idx <> 0 then idx := lua_absindex( L, idx );
   Count := 0;
   if Pos('.',path) = 0 then
   begin
@@ -578,7 +578,7 @@ end;
 function vlua_getpath ( L : Plua_State; const path : array of const; idx : Integer; max : Integer ) : Boolean;
 var i     : Integer;
 begin
-  idx := lua_absindex( L, idx );
+  if idx <> 0 then idx := lua_absindex( L, idx );
   if Max = -1 then Max := High(Path);
   if Max < 0 then Exit( false );
   for i:=0 to Max do
@@ -707,11 +707,10 @@ begin
   if Result = 0 then Result := lua_pcall(L, 0, 0, 0);
 end;
 
-procedure vlua_registerenumvalues ( L : Plua_State; idx : Integer; enuminfo : PTypeInfo; UpperCase : Boolean ) ;
+procedure vlua_registerenumvalues ( L : Plua_State; enuminfo : PTypeInfo; UpperCase : Boolean ) ;
 var count, i : DWord;
     name     : AnsiString;
 begin
-  idx := lua_absindex( L, idx );
   count := GetEnumNameCount( enuminfo );
   if count > 0 then
   for i := 0 to Count-1 do
@@ -720,7 +719,7 @@ begin
     if UpperCase then name := UpCase(name);
     lua_pushansistring( L, name );
     lua_pushinteger( L, GetEnumValue( enuminfo, name ) );
-    lua_rawset( L, idx );
+    lua_rawset_global( L );
   end;
 end;
 

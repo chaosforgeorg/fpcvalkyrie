@@ -87,11 +87,11 @@ begin
   if aState = nil then
   begin
     LoadLua;
-    FState := lua_open();
-    luaopen_base( FState );
-    luaopen_string( FState );
-    luaopen_table( FState );
-    luaopen_math( FState );
+    FState := luaL_newstate();
+    luaL_requiref( FState, '_G', luaopen_base, 1);              lua_pop(FState, 1);
+    luaL_requiref( FState, LUA_STRLIBNAME,  luaopen_string, 1); lua_pop(FState, 1);
+    luaL_requiref( FState, LUA_TABLIBNAME,  luaopen_table, 1);  lua_pop(FState, 1);
+    luaL_requiref( FState, LUA_MATHLIBNAME, luaopen_math, 1);   lua_pop(FState, 1);
   end
   else
     FState := aState;
@@ -242,7 +242,7 @@ var Error : AnsiString;
 begin
   if FThread = nil then Exit( false );
   vlua_pushvariant( FThread, FResult );
-  Res := lua_resume( FThread, 1 );
+  Res := lua_resume( FThread, nil, 1 );
   if (Res <> 0) and (Res <> LUA_YIELD_) then
   begin
     Error := lua_tostring( FThread, -1 );

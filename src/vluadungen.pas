@@ -790,12 +790,15 @@ begin
   if ObjectName = '' then
     ObjectName := 'dungen';
   vlua_newmetatable( L, VALKYRIE_DUNGEN );
-  luaL_register( L, PChar( ObjectName ), dungenlib_f );
+  lua_createtable(L, 0, High(dungenlib_f));
+  luaL_setfuncs( L, dungenlib_f, 0 );
+  lua_setglobal( L, PChar( ObjectName ) );
 
   vlua_newmetatable( L, VALKYRIE_DUNGEN_TILE );
   lua_pushvalue( L, -1 );
   lua_setfield( L, -2, '__index' );
-  luaL_register( L, nil, dungentile_f );
+  luaL_setfuncs( L, dungentile_f, 0 );
+  lua_pop( L, 1 );
 end;
 
 end.

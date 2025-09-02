@@ -1362,8 +1362,8 @@ end;
 function lua_math_dice( L: Plua_State ): Integer; cdecl;
 var dice, sides, count, res : LongInt;
 begin
-  dice  := luaL_checkint(L, 1);
-  sides := luaL_checkint(L, 2);
+  dice  := luaL_checkinteger(L, 1);
+  sides := luaL_checkinteger(L, 2);
   res   := 0;
   if (dice > 0) and (sides > 0) then
   for count := 1 to dice do
@@ -1430,7 +1430,7 @@ begin
   begin
     if lua_istable( L, 2 ) then
     begin
-      lua_pushliteral( L, 'weight' );
+      lua_pushansistring( L, 'weight' );
       lua_rawget( L, 2 );
       if lua_type( L, -1 ) = LUA_TNUMBER then
         iWeight := lua_tointeger( L, -1 );
@@ -1528,7 +1528,7 @@ begin
         begin
           if lua_istable( L, -1 ) then
           begin
-            lua_pushliteral( L, 'weight' );
+            lua_pushansistring( L, 'weight' );
             lua_rawget( L, -2 );
             if lua_type( L, -1 ) = LUA_TNUMBER then iWeight := lua_tointeger( L, -1 );
             lua_pop( L, 1 );
@@ -1630,7 +1630,7 @@ end;
 
 function lua_stats_inc( L: Plua_State ): Integer; cdecl;
 begin
-  GStatistics.Inc( lua_tostring( L, 1 ), luaL_optint( L, 2, 1 ) );
+  GStatistics.Inc( lua_tostring( L, 1 ), luaL_optinteger( L, 2, 1 ) );
   Result := 0;
 end;
 
@@ -1844,39 +1844,45 @@ const statslib_m : array[0..2] of luaL_Reg = (
 
 procedure RegisterTableAuxFunctions(L: Plua_State);
 begin
-  luaL_register( L, 'table', tableauxlib_f );
+  lua_getglobal( L, 'table' );
+  luaL_setfuncs( L, tableauxlib_f, 0 );
   lua_pop( L, 1 );
 end;
 
 procedure RegisterMathAuxFunctions ( L : Plua_State ) ;
 begin
-  luaL_register( L, 'math', mathauxlib_f );
+  lua_getglobal( L, 'math' );
+  luaL_setfuncs( L, mathauxlib_f, 0 );
   lua_pop( L, 1 );
 end;
 
 procedure RegisterUIDClass( L: Plua_State; const Name : AnsiString = 'uids' );
 begin
-  luaL_register( L, PChar(Name), uidlib_f );
-  lua_pop( L, 1 );
+  lua_createtable(L, 0, High(uidlib_f));
+  luaL_setfuncs( L, uidlib_f, 0 );
+  lua_setglobal( L, PAnsiChar(Name) );
 end;
 
 procedure RegisterWeightTableClass(L: Plua_State; const Name: AnsiString);
 begin
-  luaL_register( L, PChar(Name), weight_tablelib_f );
-  lua_pop( L, 1 );
+  lua_createtable(L, 0, High(weight_tablelib_f));
+  luaL_setfuncs( L, weight_tablelib_f, 0 );
+  lua_setglobal( L, PAnsiChar(Name) );
 end;
 
 procedure RegisterStringListClass(L: Plua_State; const Name: AnsiString);
 begin
-  luaL_register( L, PChar(Name), string_listlib_f );
-  lua_pop( L, 1 );
+  lua_createtable(L, 0, High(string_listlib_f));
+  luaL_setfuncs( L, string_listlib_f, 0 );
+  lua_setglobal( L, PAnsiChar(Name) );
 end;
 
 procedure RegisterCoordClass( L: Plua_State );
 begin
   vlua_newmetatable( L, VALKYRIE_COORD );
-  luaL_register( L, nil, coordlib_m );
-  luaL_register( L, 'coord', coordlib_f );
+  luaL_setfuncs( L, coordlib_m, 0 );
+  lua_createtable(L, 0, High(coordlib_f));
+  luaL_setfuncs( L, coordlib_f, 0 );
 
   vlua_pushcoord( L, ZeroCoord2D );
   lua_setfield( L, -2, 'ZERO' );
@@ -1884,21 +1890,24 @@ begin
   vlua_pushcoord( L, UnitCoord2D );
   lua_setfield( L, -2, 'UNIT' );
   lua_createtable( L, 0, 0 );
-  luaL_register( L, nil, coordlib_sm );
+  luaL_setfuncs( L, coordlib_sm, 0 );
   lua_setmetatable( L, -2 );
-  lua_pop( L, 2 );
+  lua_setglobal( L, 'coord' );
+  lua_pop( L, 1 ); // metatable
 end;
 
 procedure RegisterAreaClass( L: Plua_State );
 begin
   vlua_newmetatable( L, VALKYRIE_AREA );
-  luaL_register( L, nil, arealib_m );
-  luaL_register( L, 'area', arealib_f );
+  luaL_setfuncs( L, arealib_m, 0 );
+  lua_createtable(L, 0, High(arealib_f));
+  luaL_setfuncs( L, arealib_f, 0 );
 
   lua_createtable( L, 0, 0 );
-  luaL_register( L, nil, arealib_sm );
+  luaL_setfuncs( L, arealib_sm, 0 );
   lua_setmetatable( L, -2 );
-  lua_pop( L, 2 );
+  lua_setglobal( L, 'area' );
+  lua_pop( L, 1 ); // metatable
 end;
 
 procedure RegisterAreaFull(L: Plua_State; Area: TArea);
@@ -1914,23 +1923,27 @@ end;
 procedure RegisterPointClass(L: Plua_State);
 begin
   vlua_newmetatable( L, VALKYRIE_POINT );
-  luaL_register( L, nil, pointlib_m );
-  luaL_register( L, 'point', pointlib_f );
+  luaL_setfuncs( L, pointlib_m, 0 );
+  lua_createtable(L, 0, High(pointlib_f));
+  luaL_setfuncs( L, pointlib_f, 0 );
 
   vlua_pushpoint( L, PointZero );
   lua_setfield( L, -2, 'ZERO' );
 
   vlua_pushpoint( L, PointUnit );
   lua_setfield( L, -2, 'UNIT' );
-  lua_pop( L, 2 );
+  lua_setglobal( L, 'point' );
+  lua_pop( L, 1 ); // metatable
 end;
 
 procedure RegisterRectClass(L: Plua_State);
 begin
   vlua_newmetatable( L, VALKYRIE_RECT );
-  luaL_register( L, nil, rectlib_m );
-  luaL_register( L, 'rect', rectlib_f );
-  lua_pop( L, 2 );
+  luaL_setfuncs( L, rectlib_m, 0 );
+  lua_createtable(L, 0, High(rectlib_f));
+  luaL_setfuncs( L, rectlib_f, 0 );
+  lua_setglobal( L, 'rect' );
+  lua_pop( L, 1 ); // metatable
 end;
 
 procedure RegisterKillsClass(L: Plua_State; aKills: TKillTable; const aName : AnsiString = 'kills' );
@@ -1938,9 +1951,9 @@ begin
   GKills := aKills;
   lua_pushansistring( L, aName );
   lua_createtable( L, 0, 2 );
-  luaL_register( L, nil, killslib_f );
+  luaL_setfuncs( L, killslib_f, 0 );
   lua_createtable( L, 0, 2 );
-  luaL_register( L, nil, killslib_m );
+  luaL_setfuncs( L, killslib_m, 0 );
   lua_setmetatable( L, -2 );
   lua_rawset_global( L );
 end;
@@ -1950,13 +1963,12 @@ begin
   GStatistics := aStatistics;
   lua_pushansistring( L, aName );
   lua_createtable( L, 0, 2 );
-  luaL_register( L, nil, statslib_f );
+  luaL_setfuncs( L, statslib_f, 0  );
   lua_createtable( L, 0, 2 );
-  luaL_register( L, nil, statslib_m );
+  luaL_setfuncs( L, statslib_m, 0  );
   lua_setmetatable( L, -2 );
   lua_rawset_global( L );
 end;
-
 
 end.
 

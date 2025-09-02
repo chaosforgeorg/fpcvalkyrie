@@ -1800,7 +1800,7 @@ begin
   RP := RPos( '.', Path );
   if RP < 1 then
   begin
-    lua_push_global( FState );
+    lua_pushglobaltable( FState );
     lua_pushansistring( FState, Path );
   end
   else
@@ -1815,7 +1815,7 @@ begin
   Assert( High( Path ) >= 0 );
   if High( Path ) = 0 then
   begin
-    lua_push_global( FState );
+    lua_pushglobaltable( FState );
     vlua_pushvarrec( FState, @Path[0] );
   end
   else

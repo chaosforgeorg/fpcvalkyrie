@@ -10,9 +10,6 @@ type
   ELuaException      = vlualibrary.ELuaException;
   Plua_State         = vlualibrary.Plua_State;
 
-const GLOBALSINDEX  = -10002;
-
-
 type
 
 { TLuaState }
@@ -94,10 +91,9 @@ TLuaState = object
     procedure PushUserdata( Value : Pointer );
     procedure PushReference( Value : Integer );
     procedure PushNewLuaObject( const Name : AnsiString; const ConstructorParams : array of const );
-    procedure RegisterEnumValues( EnumTypeInfo : PTypeInfo; UpperCase : Boolean = True; Index : Integer = GLOBALSINDEX );
+    procedure RegisterEnumValues( EnumTypeInfo : PTypeInfo; UpperCase : Boolean = True );
     procedure SetPrototypeTable(Obj: ILuaReferencedObject; const FieldName : AnsiString = 'proto' );
     function  RunHook( Obj : ILuaReferencedObject; HookName : AnsiString; const Params : array of const ) : Variant;
-    function  CallFunction( Name : AnsiString; const Params : array of const; idx : Integer = GLOBALSINDEX ) : Variant;
     function  CallFunction( aIdx : Integer; const aParams : array of const ) : Variant;
     destructor Done;
     function HasSubTable( Obj : ILuaReferencedObject; const Name : AnsiString ) : Boolean;
@@ -508,9 +504,9 @@ begin
   // leave the object on stack
 end;
 
-procedure TLuaState.RegisterEnumValues(EnumTypeInfo: PTypeInfo; UpperCase : Boolean; Index : Integer );
+procedure TLuaState.RegisterEnumValues( EnumTypeInfo: PTypeInfo; UpperCase : Boolean );
 begin
-  vlua_registerenumvalues( FState, Index, EnumTypeInfo, UpperCase );
+  vlua_registerenumvalues( FState, EnumTypeInfo, UpperCase );
 end;
 
 procedure TLuaState.Push(const Args: array of const);
@@ -610,22 +606,6 @@ begin
 
   RunHook := vlua_tovariant( FState, -1 );
   lua_settop( FState, iInitial );
-end;
-
-function TLuaState.CallFunction( Name : AnsiString;
-    const Params : array of const; idx : Integer = GLOBALSINDEX ) : Variant;
-var Index : Integer;
-begin
-  Index := lua_absindex( FState, idx );
-  lua_pushansistring( FState, Name );
-  lua_rawget( FState, Index );
-  if not lua_isfunction( FState, -1) then PopRaise( 1, Name+' not found!');
-
-  Push( Params );
-
-  if lua_pcall( FState, High( Params ) + 1, 1, 0 ) <> 0 then PopRaise( 1, 'Lua error : '+lua_tostring( FState, -1) );
-  CallFunction := vlua_tovariant( FState, -1 );
-  lua_pop( FState, 1 );
 end;
 
 function TLuaState.CallFunction( aIdx : Integer; const aParams : array of const ) : Variant;

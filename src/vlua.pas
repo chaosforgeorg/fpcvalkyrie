@@ -78,11 +78,11 @@ begin
   LoadLua;
   if coverState = nil then
   begin
-    LuaState := lua_open;
-    luaopen_base(LuaState);
-    luaopen_string(LuaState);
-    luaopen_table(LuaState);
-    luaopen_math(LuaState);
+    LuaState := luaL_newstate();
+    luaL_requiref( LuaState, '_G', luaopen_base, 1); lua_pop(LuaState, 1);
+    luaL_requiref( LuaState, LUA_STRLIBNAME,  luaopen_string, 1); lua_pop(LuaState, 1);
+    luaL_requiref( LuaState, LUA_TABLIBNAME,  luaopen_table, 1);  lua_pop(LuaState, 1);
+    luaL_requiref( LuaState, LUA_MATHLIBNAME, luaopen_math, 1);   lua_pop(LuaState, 1);
     Owner := True;
   end
   else
