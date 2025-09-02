@@ -364,7 +364,7 @@ procedure lua_unref(L : Plua_State; ref : Integer);
 procedure lua_getref(L : Plua_State; ref : Integer);
 
 // these functions are introduced to prevent the usage of deprecated LUA_GLOBALSINDEX
-procedure lua_push_global( L : PLua_State );
+procedure lua_pushglobaltable( L : PLua_State );
 procedure lua_rawset_global( L : PLua_State );
 procedure lua_rawget_global( L : PLua_State );
 
@@ -770,7 +770,7 @@ begin
   lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
 end;
 
-procedure lua_push_global(L: PLua_State);
+procedure lua_pushglobaltable(L: PLua_State);
 begin
   // lua_pushglobaltable( L ); // 5.2
   lua_pushvalue( L, LUA_GLOBALSINDEX );
