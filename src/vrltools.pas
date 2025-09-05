@@ -64,7 +64,7 @@ type TDiceRoll = object
   function IsZero : Boolean;
   function Roll : LongInt;
   function toString : string;
-  procedure fromString(diecode : string);
+  function fromString( const aDieCode : Ansistring ) : Boolean;
   function max : LongInt;
   function min : LongInt;
 end;
@@ -942,7 +942,6 @@ end;
 
 procedure TDiceRoll.Init(const diecode: string);
 begin
-  Init(0,0,0);
   fromString(diecode);
 end;
 
@@ -968,39 +967,66 @@ begin
   if bonus < 0 then Exit(toString+IntToStr(bonus));
 end;
 
-procedure TDiceRoll.fromString(diecode : string);
-var PartA,PartB : Ansistring;
+function TDiceRoll.fromString( const aDieCode : Ansistring ) : Boolean;
+var i, n, a, b, c : Integer;
+  function ParseUInt( out aValue : Integer ): Boolean;
+  begin
+    aValue := 0;
+    Result := False;
+    while (i <= n) and (aDieCode[i] in ['0'..'9']) do
+    begin
+      aValue := aValue * 10 + Ord(aDieCode[i]) - Ord('0');
+      if ( aValue > 10000 ) then Exit( False );
+      Inc(i);
+      Result := True;
+    end;
+  end;
+
+  function ParseInt( out aValue : Integer ): Boolean;
+  var iSign  : Integer;
+      iValue : Integer;
+  begin
+    iSign := 1;
+    if (i <= n) and (aDieCode[i] in ['+','-']) then
+    begin
+      if aDieCode[i] = '-' then iSign := -1;
+      Inc(i);
+    end;
+    if not ParseUInt(iValue) then Exit( False );
+    aValue := iSign * iValue;
+    Result := True;
+  end;
+
 begin
-  if diecode = '' then
+  Init( 0,0,0 );
+  if aDieCode = '' then Exit( True );
+  i := 1;
+  n := Length(aDieCode);
+
+  if not ParseInt( a ) then Exit( False );
+
+  if i > n then
   begin
-    Init(0,0);
-    exit;
+    Bonus := a;
+    Exit( True )
   end;
-  if Pos('d',diecode) = 0 then
-  begin
-    Init(0,0,StrToInt(diecode));
-    exit;
-  end;
-  split(diecode,parta,partb,'d');
-  amount := StrToInt(parta);
-  diecode := partb;
-  if Pos('+',diecode) <> 0 then
-  begin
-    split(diecode,parta,partb,'+');
-    sides := StrToInt(parta);
-    bonus := StrToInt(partb);
-  end
-  else if Pos('-',diecode) <> 0 then
-  begin
-    split(diecode,parta,partb,'-');
-    sides := StrToInt(parta);
-    bonus := -StrToInt(partb);
-  end
-  else
-  begin
-    sides := StrToInt(diecode);
-    bonus := 0;
-  end;
+  if a < 0 then Exit( False );
+
+  if not (aDieCode[i] in ['d','D']) then Exit(False);
+  Inc(i);
+
+  if not ParseUInt(b) then Exit(False);
+
+  c := 0;
+  if i <= n then
+    if not ParseInt(c) then
+      Exit(False);
+
+  if i <= n then Exit( False );
+  Amount := a;
+  Sides  := b;
+  Bonus  := c;
+  Exit( True );
 end;
 
 function TDiceRoll.Max : LongInt;

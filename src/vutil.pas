@@ -98,15 +98,6 @@ function StrToBool( const aString : AnsiString ) : Boolean;
 // @returns( 'TRUE' if aBoolean is @true, 'FALSE' if @false )
 function BoolToStr(const aBoolean : boolean) : string;
 
-// Reads a parameter from the string. Depending on the length of aParamChar:
-// Lenght 1 returns delimeted word number aNumber, length 2 returns the word
-// between the two characters, length three - parameter delimeted by character
-// number 2, between characters 1 and 3.
-//
-// @deprecated
-// Use ExtractDelimited and ExtractSubStr instead.
-function Parameter( const aString : AnsiString; aNumber : Byte; const aParamChar: AnsiString ) : AnsiString; deprecated;
-
 // Crops the String to given length. Returned string will be at most
 // the passed length.
 //
@@ -141,24 +132,6 @@ function CapLet(const s : Ansistring):Ansistring; deprecated;
 //
 // @returns( DateTimeToStr( Now ) )
 function TimeStamp : string;
-
-// Splits a string into two substrings. Split is performed at the first split
-// character position after split distance. The split character is not present
-// in any of the output strings.
-//
-// If the split character is not present, the string is returned in the first
-// string, if it is the first character, then the string is returned in the
-// second one.
-//
-// @param( aString String to be splitted )
-// @param( aFirstResult String to the left of the split character )
-// @param( aSecondResult String to the right of the split character )
-// @param( aSplitChar The character to split the string, space by default )
-// @param( aSplitPos The position from which to search for the split character,
-//         zero by default )
-procedure Split( const aString : Ansistring;
-                 out aFirstResult, aSecondResult : Ansistring;
-                 aSplitChar : Char = ' '; aSplitDist : Byte = 0); deprecated;
 
 // Formats the string the Valkyrie way -- replacing @1..@X with the passed
 // parameters. Supports conversion for integers and floats.
@@ -679,28 +652,6 @@ begin
   if Version[4] <> 0 then VersionToString += '.'+IntToStr( Version[4] );
 end;
 
-procedure Split( const aString : Ansistring;
-                 out aFirstResult, aSecondResult : Ansistring;
-                 aSplitChar : Char = ' '; aSplitDist : Byte = 0 );
-var iSplitCharPos : Word;
-begin
-  if aSplitDist = 0 then
-    iSplitCharPos := Pos( aSplitChar, aString )
-  else
-  begin
-    iSplitCharPos := aSplitDist;
-    if iSplitCharPos < Length( aString )
-      then while ( iSplitCharPos > 0 ) and ( aString[iSplitCharPos] <> aSplitChar ) do Dec( iSplitCharPos )
-      else iSplitCharPos := 0;
-  end;
-
-  if iSplitCharPos = 0 then begin aFirstResult := aString; aSecondResult := '';      Exit; end;
-  if iSplitCharPos = 1 then begin aFirstResult := '';      aSecondResult := aString; Exit; end;
-
-  aFirstResult  := AnsiLeftStr ( aString, iSplitCharPos - 1 );
-  aSecondResult := AnsiRightStr( aString, Length( aString ) - iSplitCharPos );
-end;
-
 function CroppedString( const aString : Ansistring; aLength : Word) : Ansistring;
 begin
   CroppedString := aString;
@@ -725,22 +676,6 @@ end;
 function CapLet(const s : Ansistring):Ansistring;
 begin
   Exit( Capitalized( s ) );
-end;
-
-function Parameter( const aString : AnsiString; aNumber : Byte; const aParamChar: AnsiString ) : AnsiString;
-var iPos : Integer;
-begin
-  if Length( aParamChar ) = 1 then Parameter := ExtractDelimited( aNumber, aString, [ aParamChar[1] ]) else
-  if Length( aParamChar ) = 2 then
-  begin
-    iPos := Pos( aParamChar[1], aString ) + 1;
-    Parameter := ExtractSubStr( aString, iPos, [ aParamChar[2] ] )
-  end
-  else
-  begin
-    iPos := Pos( aParamChar[1], aString ) + 1;
-    Parameter := ExtractDelimited( aNumber, ExtractSubStr( aString, iPos, [ aParamChar[3] ] ), [ aParamChar[2], aParamChar[3] ]);
-  end;
 end;
 
 function StrToBool( const aString : AnsiString ) : Boolean;
