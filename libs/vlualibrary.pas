@@ -156,7 +156,7 @@ var
   luaL_checkudata : function (L : Plua_State; ud : Integer; const tname : PChar) : Pointer; calldecl;
   luaL_where : procedure (L : Plua_State; lvl : Integer); calldecl;
   luaL_error : function (L : Plua_State; const fmt : PChar) : Integer; varargs; calldecl;
-  luaL_checkoption : function (L : Plua_State; narg : Integer; const def : PChar; const lst : array of PChar) : Integer; calldecl;
+  luaL_checkoption : function (L : Plua_State; narg : Integer; const def : PChar; const lst : PPChar) : Integer; calldecl;
   luaL_ref : function (L : Plua_State; t : Integer) : Integer; calldecl;
   luaL_unref : procedure (L : Plua_State; t, ref : Integer); calldecl;
 
