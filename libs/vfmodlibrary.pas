@@ -314,11 +314,13 @@ function LoadFMOD( const aPath : AnsiString = FMODDefaultPath ) : Boolean;
 
 implementation
 
+{$IFDEF FPUSSE}
 var
   Saved8087CW: Word;
 
 const
   Default8087CW = $1332;
+  {$ENDIF}
 
 function LoadFMOD( const aPath : AnsiString ) : Boolean;
   function GetSymbol( const aSymbol : AnsiString ) : Pointer;
@@ -330,8 +332,8 @@ function LoadFMOD( const aPath : AnsiString ) : Boolean;
 begin
   if FMOD <> nil then Exit( True );
 
-  Saved8087CW := Default8087CW;
   {$IFDEF FPUSSE}
+  Saved8087CW := Default8087CW;
   Set8087CW($133f); { Disable all fpu exceptions }
   {$ENDIF}
 

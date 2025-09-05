@@ -164,6 +164,7 @@ var iStream : PFMOD_SOUND;
     iInfo   : FMOD_CREATESOUNDEXINFO;
 begin
   iStream := nil;
+  Initialize( iInfo );
   FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
   FMOD_CHECK( FMOD_System_CreateStream( GSystem, PChar(aFileName), FMOD_2D or FMOD_CREATESTREAM or FMOD_LOOP_NORMAL, @iInfo, @iStream) );
@@ -180,6 +181,7 @@ begin
     iMode := FMOD_3D or FMOD_3D_WORLDRELATIVE or FMOD_3D_INVERSEROLLOFF;
 
   iSound := nil;
+  Initialize( iInfo );
   FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
   FMOD_CHECK( FMOD_System_CreateSound( GSystem, PChar(aFileName), iMode, @iInfo, @iSound ) );
@@ -195,6 +197,7 @@ begin
   iData := GetMem( Size );
   Stream.Read( iData^, Size );
   iStream := nil;
+  Initialize( iInfo );
   FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
   iInfo.length := Size;
@@ -220,6 +223,7 @@ begin
     iMode := FMOD_3D or FMOD_3D_WORLDRELATIVE or FMOD_3D_INVERSEROLLOFF or FMOD_OPENMEMORY;
 
   iSound := nil;
+  Initialize( iInfo );
   FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
   iInfo.length := Size;

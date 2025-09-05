@@ -41,8 +41,10 @@ type TStoreInterface = class( TVObject )
   function StartText( const aPrompt : Ansistring; aMaxLength : Integer; const aCurrent : AnsiString = '' ) : Boolean; virtual;
   function GetText( out aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean; virtual;
   destructor Destroy; override;
+{$WARNINGS OFF}
 protected
   constructor Create;
+{$WARNINGS ON}
 end;
 
 

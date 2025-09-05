@@ -49,7 +49,7 @@ type PMapCell = ^TMapCell;
 
 type TLuaMapNode = class( TNode, IVisionQuery )
   // Create and setup
-  constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte );
+  constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte ); reintroduce;
   // Removes given bits from lightMap
   procedure ClearLightMapBits( aValue : TWordSet );
   // Fills the light map with given value

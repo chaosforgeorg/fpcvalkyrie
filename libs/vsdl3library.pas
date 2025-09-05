@@ -975,6 +975,7 @@ begin
   U^.OwnsStream := aOwnsStream;
   U^.ReadOnly   := aReadOnly;
 
+  Initialize( IFace );
   FillChar(Iface, 0, SizeOf(Iface));
   Iface.version := SizeOf(SDL_IOStreamInterface);
   Iface.size    := @IO_Stream_Size;

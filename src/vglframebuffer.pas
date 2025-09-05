@@ -123,6 +123,7 @@ begin
     glGenFramebuffers(1, @FFramebufferID);
   glBindFramebuffer( GL_FRAMEBUFFER, FFramebufferID );
 
+  Initialize( iBuffers );
   SetLength( iBuffers, FAttachments.Size );
   for i := 0 to FAttachments.Size - 1 do
   begin
