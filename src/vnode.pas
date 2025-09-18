@@ -552,26 +552,31 @@ end;
 
 procedure TNode.WriteToStream( Stream: TStream );
 begin
-  Stream.WriteAnsiString( FID );
-  Stream.WriteQWord( FUID );
-  Stream.WriteAnsiString(FName);
-  Stream.Write( FFlags, SizeOf(FFlags) );
-  Stream.Write( FHooks, SizeOf(FHooks) );
+  try
+    Stream.WriteAnsiString( FID );
+    Stream.WriteQWord( FUID );
+    Stream.WriteAnsiString(FName);
+    Stream.Write( FFlags, SizeOf(FFlags) );
+    Stream.Write( FHooks, SizeOf(FHooks) );
 
-  if FLuaIndex >= 0 then
-  begin
-    Stream.WriteByte(1);
-    LuaSystem.State.SubTableToStream( Self ,'__props', Stream );
-    if LuaSystem.State.HasSubTable( Self, '__hooks' ) then
+    if FLuaIndex >= 0 then
     begin
       Stream.WriteByte(1);
-      LuaSystem.State.SubTableToStream( Self ,'__hooks', Stream );
+      LuaSystem.State.SubTableToStream( Self ,'__props', Stream );
+      if LuaSystem.State.HasSubTable( Self, '__hooks' ) then
+      begin
+        Stream.WriteByte(1);
+        LuaSystem.State.SubTableToStream( Self ,'__hooks', Stream );
+      end
+      else
+        Stream.WriteByte(0);
     end
     else
       Stream.WriteByte(0);
-  end
-  else
-    Stream.WriteByte(0);
+  except
+    on E : Exception do
+      raise ExceptClass(E.ClassType).CreateFmt('%s [while writing %s]', [E.Message,FID]) at ExceptAddr;
+  end;
 end;
 
 procedure TNode.Clean;
