@@ -1053,41 +1053,52 @@ begin
 end;
 
 function lua_map_node_transmute( L : Plua_State ) : Integer; cdecl;
-var iState : TLuaMapState;
-    iFrom  : TFlags;
-    iTo    : Byte;
-    iArea  : TArea;
-    iCoord : TCoord2D;
+var iState  : TLuaMapState;
+    iFrom   : TFlags;
+    iTo     : Byte;
+    iArea   : TArea;
+    iCoord  : TCoord2D;
+    iResult : Integer;
 begin
   iState.Init( L );
-  iFrom := iState.ToCellSet( 2 );
-  iTo   := iState.ToCell( 3 );
-  iArea := iState.ToOptionalArea( 4 );
+  iFrom   := iState.ToCellSet( 2 );
+  iTo     := iState.ToCell( 3 );
+  iArea   := iState.ToOptionalArea( 4 );
+  iResult := 0;
   for iCoord in iArea do
     if iState.Map.getCell( iCoord ) in iFrom then
+    begin
+      Inc( iResult );
       iState.Map.putCell( iCoord, iTo );
-  Exit( 0 );
+    end;
+  iState.Push( iResult );
+  Exit( 1 );
 end;
 
 function lua_map_node_transmute_by_flag( L : Plua_State ) : Integer; cdecl;
-var iState : TLuaMapState;
-    iFrom  : TFlags;
-    iTo    : Byte;
+var iState     : TLuaMapState;
+    iFrom      : TFlags;
+    iTo        : Byte;
     iLightFlag : Byte;
-    iArea  : TArea;
-    iCoord : TCoord2D;
+    iArea      : TArea;
+    iCoord     : TCoord2D;
+    iResult    : Integer;
 begin
-
   iState.Init( L );
   iFrom := iState.ToCellSet( 2 );
   iTo   := iState.ToCell( 3 );
   iLightFlag := iState.ToInteger( 4 );
-  iArea := iState.ToOptionalArea( 5 );
+  iArea      := iState.ToOptionalArea( 5 );
+  iResult    := 0;
   for iCoord in iArea do
     if iState.Map.getCell( iCoord ) in iFrom then
       if iState.Map.getLightFlag( iCoord, iLightFlag) then
+      begin
+        Inc( iResult );
         iState.Map.putCell( iCoord, iTo );
-  Exit( 0 );
+      end;
+  iState.Push( iResult );
+  Exit( 1 );
 end;
 
 function lua_map_node_random_square( L : Plua_State ) : Integer; cdecl;
