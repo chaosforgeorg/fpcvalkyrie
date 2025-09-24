@@ -29,8 +29,16 @@ begin
   iPoint      := iState.ToCoord( 2 );
   iHoriz      := iState.ToBoolean( 3 );
   iCell       := iState.ToCell( 4 );
-  iBlockCells := iState.ToCellset( 5 );
-  iArea       := iState.Map.Area;
+  if iState.IsArea( 5 ) then
+  begin
+    iBlockCells := [ iCell ];
+    iArea       := iState.ToOptionalArea( 5 );
+  end
+  else
+  begin
+    iBlockCells := iState.ToCellset( 5, [ iCell ] );
+    iArea       := iState.ToOptionalArea( 6 );
+  end;
 
   if iHoriz
     then iStep := NewCoord2D( +1,  0 )

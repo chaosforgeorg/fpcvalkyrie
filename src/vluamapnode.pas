@@ -157,7 +157,7 @@ end;
 TLuaMapState = object(TLuaGameState)
   constructor Init( aState : Pointer );
   function ToCell( aIndex : Integer ) : Byte;
-  function ToCellSet( aIndex : Integer ) : TFlags;
+  function ToCellSet( aIndex : Integer; aDefault : TFlags = [] ) : TFlags;
   function ToCellArray( aIndex : Integer ) : TOpenByteArray;
   function ToOptionalArea( aIndex : Integer ) : TArea;
 protected
@@ -553,7 +553,7 @@ begin
   Error( 'Cell ID/NID expected at index '+ToString( aIndex ) +'!' );
 end;
 
-function TLuaMapState.ToCellSet( aIndex : Integer ) : TFlags;
+function TLuaMapState.ToCellSet( aIndex : Integer; aDefault : TFlags = [] ) : TFlags;
 begin
   Result := [];
   case lua_type( FState, aIndex ) of
@@ -568,6 +568,8 @@ begin
     end;
     LUA_TSTRING : Include( Result, ToCell( aIndex ) );
     LUA_TNUMBER : Include( Result, lua_tointeger( FState, aIndex ) );
+  else
+    Result := aDefault;
   end;
 end;
 
