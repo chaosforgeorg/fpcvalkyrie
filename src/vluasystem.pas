@@ -1229,7 +1229,15 @@ begin
   Result := 1;
 end;
 
-const lua_core_lib : array[0..29] of luaL_Reg = (
+function lua_core_to_object(L: Plua_State): Integer; cdecl;
+var iObject : TObject;
+begin
+  iObject := vlua_toobject( L, 1 );
+  vlua_pushobject( L, iObject );
+  Exit( 1 );
+end;
+
+const lua_core_lib : array[0..30] of luaL_Reg = (
     ( name : 'TID';                      func : @lua_core_type_id),
     ( name : 'TNID';                     func : @lua_core_type_nid),
     ( name : 'TFLAGS';                   func : @lua_core_type_flags),
@@ -1257,6 +1265,7 @@ const lua_core_lib : array[0..29] of luaL_Reg = (
     ( name : 'require';                  func : @lua_valkyrie_require),
     ( name : 'print';                    func : @lua_valkyrie_print),
     ( name : 'create_seq_function';      func : @lua_core_create_seq_function),
+    ( name : 'to_object';                func : @lua_core_to_object),
 
     ( name : 'apply_blueprint';          func : @lua_core_apply_blueprint ),
     ( name : 'apply_blueprint_values';   func : @lua_core_apply_blueprint_values ),
