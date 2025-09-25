@@ -82,11 +82,16 @@ begin
 
   iCoord := iWhere;
   if iHoriz
-    then iStep := NewCoord2D( +1, 0 )
-    else iStep := NewCoord2D( 0, +1 );
+    then iStep := NewCoord2D( -1, 0 )
+    else iStep := NewCoord2D( 0, -1 );
   while True do
   begin
     iCoord += iStep;
+    if not iState.Map.isProperCoord( iCoord ) then
+    begin
+      lua_pushnil( L );
+      Break;
+    end;
     iCell := iState.Map.GetCell( iCoord );
     if not ( iCell in iCellSet ) then
     begin
@@ -98,10 +103,67 @@ begin
   while True do
   begin
     iCoord -= iStep;
+    if not iState.Map.isProperCoord( iCoord ) then
+    begin
+      lua_pushnil( L );
+      Break;
+    end;
     iCell := iState.Map.GetCell( iCoord );
     if not ( iCell in iCellSet ) then
     begin
       lua_pushinteger( L, iCell );
+      Break;
+    end;
+  end;
+  Exit( 2 );
+end;
+
+function lua_dungen_get_endpoint_coords( L : Plua_State ) : Integer; cdecl;
+var iState   : TLuaMapState;
+    iCoord   : TCoord2D;
+    iWhere   : TCoord2D;
+    iStep    : TCoord2D;
+    iHoriz   : Boolean;
+    iCellSet : TFlags;
+    iCell    : Byte;
+begin
+  iState.Init( L );
+  iWhere   := iState.ToCoord( 2 );
+  iHoriz   := iState.ToBoolean( 3 );
+  iCellSet := iState.ToCellSet( 4 );
+
+  iCoord := iWhere;
+  if iHoriz
+    then iStep := NewCoord2D( -1, 0 )
+    else iStep := NewCoord2D( 0, -1 );
+  while True do
+  begin
+    iCoord += iStep;
+    if not iState.Map.isProperCoord( iCoord ) then
+    begin
+      iState.PushCoord( iCoord - iStep );
+      Break;
+    end;
+    iCell := iState.Map.GetCell( iCoord );
+    if not ( iCell in iCellSet ) then
+    begin
+      iState.PushCoord( iCoord );
+      Break;
+    end;
+  end;
+  iCoord := iWhere;
+  while True do
+  begin
+    iCoord -= iStep;
+    if not iState.Map.isProperCoord( iCoord ) then
+    begin
+      iState.PushCoord( iCoord + iStep );
+      Break;
+    end;
+    iCell := iState.Map.GetCell( iCoord );
+    if not ( iCell in iCellSet ) then
+    begin
+      iState.PushCoord( iCoord );
       Break;
     end;
   end;
@@ -760,11 +822,12 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..10] of luaL_Reg = (
+  dungenlib_f : array[0..11] of luaL_Reg = (
     ( Name : 'tile_new'; func : @lua_dungen_tile_new ),
     ( Name : 'tile_place'; func : @lua_dungen_tile_place; ),
     ( Name : 'plot_line'; func : @lua_dungen_plot_line; ),
     ( Name : 'get_endpoints'; func : @lua_dungen_get_endpoints; ),
+    ( Name : 'get_endpoint_coords'; func : @lua_dungen_get_endpoint_coords; ),
     ( Name : 'read_rooms'; func : @lua_dungen_read_rooms; ),
     ( Name : 'run_drunkard_walk'; func : @lua_dungen_run_drunkard_walk; ),
     ( Name : 'cellular_init'; func : @lua_dungen_cellular_init; ),
