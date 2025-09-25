@@ -400,6 +400,18 @@ begin
   Exit(1);
 end;
 
+function lua_coord_div( L: Plua_State): Integer; cdecl;
+begin
+  if vlua_iscoord( L, 1 ) then
+    if vlua_iscoord( L, 2 ) then
+      vlua_pushcoord( L, vlua_tocoord( L, 1 ) / vlua_tocoord( L, 2 ) )
+    else
+      vlua_pushcoord( L, vlua_tocoord( L, 1 ) / lua_tointeger( L, 2 ) )
+  else
+    vlua_pushcoord( L, vlua_tocoord( L, 2 ) / lua_tointeger( L, 1 ) );
+  Exit(1);
+end;
+
 function lua_coord_eq( L: Plua_State): Integer; cdecl;
 begin
   lua_pushboolean( L, vlua_tocoord( L, 1 ) = vlua_tocoord( L, 2 ) );
@@ -1671,11 +1683,12 @@ const coordlib_f : array[0..13] of luaL_Reg = (
   ( name : nil;              func : nil; )
   );
 
-const coordlib_m : array[0..8] of luaL_Reg = (
+const coordlib_m : array[0..9] of luaL_Reg = (
   ( name : '__add';      func : @lua_coord_add; ),
   ( name : '__sub';      func : @lua_coord_sub; ),
   ( name : '__unm';      func : @lua_coord_unm; ),
   ( name : '__mul';      func : @lua_coord_mul; ),
+  ( name : '__div';      func : @lua_coord_div; ),
   ( name : '__eq';       func : @lua_coord_eq; ),
   ( name : '__index';    func : @lua_coord_index; ),
   ( name : '__newindex'; func : @lua_coord_newindex; ),

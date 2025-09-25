@@ -249,6 +249,8 @@ operator - (a,b : TCoord2D) r : TCoord2D; inline;
 operator + (a : TCoord2D; d : TDirection) r : TCoord2D; inline;
 operator * (a,b : TCoord2D) r : TCoord2D; inline;
 operator * (a : TCoord2D; b : Integer) r : TCoord2D; inline;
+operator / (a,b : TCoord2D) r : TCoord2D; inline;
+operator / (a : TCoord2D; b : Integer) r : TCoord2D; inline;
 operator + (a : TArea; b : TCoord2D) r : TArea; inline;
 operator - (a : TArea; b : TCoord2D) r : TArea; inline;
 
@@ -726,6 +728,18 @@ operator * (a : TCoord2D; b : Integer) r : TCoord2D; inline;
 begin
   r.x := a.x * b;
   r.y := a.y * b;
+end;
+
+operator / (a,b : TCoord2D) r : TCoord2D; inline;
+begin
+  r.x := a.x div b.x;
+  r.y := a.y div b.y;
+end;
+
+operator / (a : TCoord2D; b : Integer) r : TCoord2D; inline;
+begin
+  r.x := a.x div b;
+  r.y := a.y div b;
 end;
 
 operator + ( a : TArea; b : TCoord2D ) r : TArea;
