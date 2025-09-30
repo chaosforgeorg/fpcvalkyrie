@@ -29,8 +29,6 @@ TLuaConfig = class(TVObject)
     procedure SetConstant( const ID : AnsiString; const Value : Variant );
     function Call(const Path: array of const; const Args: array of const): Variant;
     function Configure( const ID : AnsiString; aDefault : Variant ) : Variant;
-    function isPaused : Boolean;
-    function Resume : Variant;
     procedure ResetCommands;
     destructor Destroy; override;
   protected
@@ -42,17 +40,13 @@ TLuaConfig = class(TVObject)
     procedure SetCommand( Key : TIOKeyCode; Value : Byte );
   protected
     FState      : PLua_State;
-    FThread     : PLua_State;
     FLuaState   : TLuaState;
-    FResult     : Variant;
     FKeyTabName : AnsiString;
     FConfigPath : AnsiString;
     FCommands   : array[0..IOKeyCodeMax] of Byte;
   public
     property ConfigPath : AnsiString read FConfigPath write FConfigPath;
     property Commands[ const Key : TIOKeyCode ] : Byte read GetCommand write SetCommand;
-    property Entries[ const Key : AnsiString ] : Variant read GetValue; default;
-    property Valid[ const Key : AnsiString ] : Boolean read HasValue;
     property Raw : PLua_State read FState;
     property State : TLuaState read FLuaState;
   end;
@@ -97,8 +91,6 @@ begin
     FState := aState;
 
   if aFileName <> '' then LoadMain( aFileName );
-  FThread := nil;
-  FResult := Null;
   FLuaState.Init( FState );
 end;
 
@@ -128,12 +120,12 @@ end;
 
 function TLuaConfig.RunKey ( const aKeyID : AnsiString ) : Variant;
 begin
-  Exit( Entries[FKeyTabName+'.'+aKeyID ] );
+  Exit( GetValue( FKeyTabName+'.'+aKeyID ) );
 end;
 
 function TLuaConfig.RunKey ( aKeyCode : TIOKeyCode ) : Variant;
 begin
-  Exit( Entries[FKeyTabName+'.'+IOKeyCodeToString(aKeyCode) ] );
+  Exit( GetValue( FKeyTabName+'.'+IOKeyCodeToString(aKeyCode) ) );
 end;
 
 procedure TLuaConfig.Load( const aFileName : Ansistring );
@@ -231,36 +223,6 @@ begin
     else Exit( aDefault );
 end;
 
-function TLuaConfig.isPaused: Boolean;
-begin
-  Exit( FThread <> nil );
-end;
-
-function TLuaConfig.Resume: Variant;
-var Error : AnsiString;
-    Res   : Integer;
-begin
-  if FThread = nil then Exit( false );
-  vlua_pushvariant( FThread, FResult );
-  Res := lua_resume( FThread, 1 );
-  if (Res <> 0) and (Res <> LUA_YIELD_) then
-  begin
-    Error := lua_tostring( FThread, -1 );
-    lua_pop( FThread, 1 );
-    lua_pop( FState, 1 );
-    FThread := nil;
-    raise Exception.Create( Error );
-  end;
-  FResult := vlua_tovariant( FThread, -1 );
-  Resume := FResult;
-  lua_pop( FThread, 1 );
-  if Res <> LUA_YIELD_ then
-  begin
-    lua_pop( FState, 1 );
-    FThread := nil;
-  end;
-end;
-
 procedure TLuaConfig.ResetCommands;
 begin
   FillByte(FCommands,IOKeyCodeMax+1,0);
@@ -286,20 +248,18 @@ begin
 end;
 
 function TLuaConfig.GetValue(const Key: AnsiString): Variant;
+var iError : Ansistring;
 begin
-  if FThread <> nil then
-  begin
-    // Signal error?
-    lua_pop( FState, 1 );
-    FThread := nil;
-  end;
   if not Resolve( Key ) then raise ELuaException.Create('GetValue('+Key+') failed!');
   if lua_isfunction( FState, -1 ) then
   begin
-    FThread := lua_newthread( FState );
-    lua_insert(FState, -2);
-    lua_xmove(FState, FThread, 1);
-    GetValue := Resume;
+    if lua_pcall( FState, 0, 0, 0 ) <> 0 then
+    begin
+      iError := lua_tostring( FState, -1 );
+      lua_pop( FState, 1 );
+      raise ELuaException.Create('GetValue('+Key+') - '+iError+'!');
+    end;
+    GetValue := 0;
     Exit;
   end;
   GetValue := vlua_tovariant( FState, -1 );

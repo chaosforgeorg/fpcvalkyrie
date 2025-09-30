@@ -5,7 +5,6 @@ uses Classes, SysUtils, vio, vrltools, vconuirl, vuitypes, vluaentitynode, vluam
      vuielement, vconui, vluastate, vluaconfig, vioevent, viotypes, vioconsole;
 
 const COMMAND_INVALID = 255;
-      COMMAND_YIELD   = 254;
       COMMAND_SYSQUIT = 253;
 
 type TCommandSet = Set of Byte;
@@ -159,17 +158,8 @@ function TIORL.GetCommand : Byte;
 var iSpecial    : Variant;
 begin
   Assert( FConfig <> nil );
-  if FConfig.isPaused then
-  begin
-     iSpecial := FConfig.Resume;
-     if VarIsOrdinal(iSpecial) and (not VarIsType( iSpecial, varBoolean ) )
-        then GetCommand := iSpecial
-        else GetCommand := COMMAND_YIELD;
-  end
-  else
-    GetCommand := WaitForCommand([]);
-
-  if GetCommand <> COMMAND_YIELD then MsgUpdate;
+  GetCommand := WaitForCommand([]);
+  MsgUpdate;
 
   if GetCommand = COMMAND_INVALID then
   begin
