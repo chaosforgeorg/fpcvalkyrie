@@ -217,8 +217,7 @@ begin
     repeat
       FullUpdate;
       FIODriver.Sleep(10);
-    until FIODriver.EventPending;
-    FIODriver.PollEvent( aEvent );
+    until FIODriver.EventPending and FIODriver.PollEvent( aEvent );
     if FUIRoot.OnEvent( aEvent ) then aEvent.EType := VEVENT_KEYUP;
     if (aEvent.EType = VEVENT_SYSTEM) and (aEvent.System.Code = VIO_SYSEVENT_QUIT) then Exit( True );
     if FBreakLoop then Exit( False );
