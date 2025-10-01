@@ -300,23 +300,23 @@ begin
       iWidth     := 0;
       iLastSpace := -1;
       iPos       := i;
-      iSpaceLeft := aClip.x2 - aCurrentX;
+      iSpaceLeft := aClip.x2 - aCurrentX + 1;
 
       while iPos <= Length(aText) do
       begin
         if aText[iPos] = ' ' then
           iLastSpace := iWidth;
-        if (aText[iPos] in [#10,#13,'{','}']) or (iWidth > iSpaceLeft) then
+        if (aText[iPos] in [#10,#13,'{','}']) or (iWidth >= iSpaceLeft) then
           break;
         Inc(iPos);
         Inc(iWidth);
       end;
 
-      if ( iPos > Length(aText) ) or (aText[iPos] in [#10,#13,'{','}']) then
+      if ( iPos >= Length(aText) ) or (aText[iPos] in [#10,#13,'{','}']) then
       begin
-        if iPos > Length(aText) then
+        if iPos >= Length(aText) then
         begin
-          Render( aText + i, iWidth - 1 );
+          Render( aText + i, iWidth );
           Exit; // nothing more to render, exit
         end;
         Render( aText + i, iWidth );
