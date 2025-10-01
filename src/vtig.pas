@@ -159,6 +159,7 @@ var iWindow        : TTIGWindow;
     iPNamePtr      : PAnsiChar;
     iNamePos       : Integer;
     iValue         : AnsiString;
+    iLineContent   : Boolean;
 
   procedure Render( const aPart : PAnsiChar; aLength : Integer );
   var iCmd    : TTIGDrawCommand;
@@ -220,8 +221,10 @@ var iWindow        : TTIGWindow;
 
 begin
   if aCurrentY > aClip.y2 then Exit;
-  iWindow   := GCtx.Current;
-  i         := 0;
+  iWindow      := GCtx.Current;
+  i            := 0;
+  iLineContent := False;
+
   while aText[i] <> #0 do
   begin
     if aText[i] = '{' then
@@ -252,6 +255,7 @@ begin
             begin
               iParamIndex := Ord(aText[i]) - Ord('0');
               HandleParameter( iParamIndex );
+              iLineContent := True;
             end;
 
           '$' :
@@ -267,6 +271,7 @@ begin
                 begin
                   iValue := GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) );
                   VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+                  iLineContent := True;
                 end;
                 Inc(i, iNamePos + 1);
               end
@@ -287,6 +292,7 @@ begin
       aCurrentX := aClip.X;
       Inc(aCurrentY);
       Inc(i);
+      iLineContent := False;
     end
     else
     begin
@@ -314,6 +320,7 @@ begin
           Exit; // nothing more to render, exit
         end;
         Render( aText + i, iWidth );
+        iLineContent := True;
         i := iPos;
       end
       else // iWidth >= iSpaceLeft
@@ -323,15 +330,20 @@ begin
           Render( aText + i, iLastSpace );
           aCurrentX := aClip.X;
           Inc(aCurrentY);
+          iLineContent := False;
           i += iLastSpace + 1;
         end
         else
         // If there was no space, break at the line width
         begin
-          Render( aText + i, iWidth );
+          if not iLineContent then
+          begin
+            Render( aText + i, iWidth );
+            i := i + iWidth;
+          end;
           aCurrentX := aClip.X;
           Inc(aCurrentY);
-          i := i + iWidth;
+          iLineContent := False;
         end;
 
         // Stop if we've exceeded the clipping rectangle's height
