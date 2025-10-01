@@ -15,7 +15,10 @@ type
 { TIORL }
 
  TIORL = class( TIO )
-  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
+  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False );
+
+  // TIG-version functions
+  procedure RunLayer( aLayer : TIOLayer ); virtual;
 
   // Settings
 
@@ -92,16 +95,22 @@ var IORL : TIORL = nil;
 
 { TIORL }
 
-constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle ) ;
+constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False ) ;
 begin
   IORL := Self;
-  inherited Create( aIODriver, aConsole, aStyle );
+  inherited Create( aIODriver, aConsole, aStyle, aInitTIG );
   FMap       := nil;
   FMessages  := nil;
   FLevel     := nil;
   FPlayer    := nil;
   FConfig    := nil;
   FBreakLoop := False;
+end;
+
+procedure TIORL.RunLayer( aLayer : TIOLayer );
+begin
+  PushLayer( aLayer );
+  WaitForLayer;
 end;
 
 procedure TIORL.Configure ( aLuaConfig : TLuaConfig ) ;
