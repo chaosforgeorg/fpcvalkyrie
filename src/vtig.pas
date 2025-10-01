@@ -736,7 +736,7 @@ var iWindow : TTIGWindow;
     iFrame  : AnsiString;
 begin
   iWindow := GCtx.Current;
-  if (not aVertical) and (aSize <> -1) then
+  if (not aVertical) and (aSize <> -1) and ( GCtx.Style^.Frame[ VTIG_GROUP_FRAME ] <> '' )then
   begin
     iHeight := iWindow.FClipContent.Y2 - (iWindow.DC.FCursor.y - 1);
     if aMaxHeight >= 0 then
@@ -749,7 +749,7 @@ begin
     ClampTo( iCmd.Area, iWindow.DC.FClip );
     iCmd.FG := GCtx.Style^.Color[ VTIG_FRAME_COLOR ];
     iCmd.BG := iWindow.FBackground;
-    iFrame  := GCtx.Style^.Frame[ VTIG_RULER_FRAME ];
+    iFrame  := GCtx.Style^.Frame[ VTIG_GROUP_FRAME ];
     iCmd.Text := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
     iWindow.DrawList.Push( iCmd );
   end;
