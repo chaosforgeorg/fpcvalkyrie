@@ -856,7 +856,7 @@ begin
       begin
         if iSelected
           then GCtx.Color := GCtx.Style^.Color[ VTIG_SELECTED_TEXT_COLOR ]
-          else GCtx.Color := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+          else GCtx.Color := GCtx.Style^.Color[ VTIG_SELECTED_UNSELECTED_COLOR ];
       end
       else
       begin
@@ -877,7 +877,7 @@ begin
   end;
 
   // Padding
-  iWindow.DC.FCursor.X += 1;
+  iWindow.DC.FCursor.X += GCtx.Style^.Padding[ VTIG_SELECTABLE_PADDING ].X;
   VTIG_Text( aText, aParams, GCtx.Color, GCtx.BGColor );
   if Result then GCtx.Io.PlaySound( VTIG_SOUND_ACCEPT );
 end;
