@@ -16,6 +16,7 @@ procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); o
 procedure VTIG_End; overload;
 procedure VTIG_End( aFooter : Ansistring ); overload;
 procedure VTIG_Reset( aName : AnsiString );
+procedure VTIG_BringToTop( aName : Ansistring );
 
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
 procedure VTIG_EndGroup( aVertical : Boolean = False );
@@ -205,12 +206,14 @@ var iWindow        : TTIGWindow;
           begin
             iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
             VTIG_RenderTextSegment( iParamStr, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+            Dec( aCurrentX );
           end;
         vtInteger:
         begin
           Str( aParameters[aParameterIndex].VInteger, iBuffer );
           iBuffer[Length(iBuffer)+1] := #0;
           VTIG_RenderTextSegment( @iBuffer[1], aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+          Dec( aCurrentX );
         end;
 
         // Add handling for other parameter types if needed
@@ -256,6 +259,7 @@ begin
               iParamIndex := Ord(aText[i]) - Ord('0');
               HandleParameter( iParamIndex );
               iLineContent := True;
+              Inc(i);
             end;
 
           '$' :
@@ -729,6 +733,21 @@ begin
     iWindow.FReset := True;
 end;
 
+procedure VTIG_BringToTop( aName : Ansistring );
+var iWindow : TTIGWindow;
+    i       : Integer;
+begin
+  iWindow := GCtx.WindowStore.Get( aName, nil );
+  if Assigned( iWindow ) then
+    if GCtx.WindowOrder.Top <> iWindow then
+      for i := 0 to GCtx.WindowOrder.Size - 1 do
+        if GCtx.WindowOrder[i] = iWindow then
+        begin
+          GCtx.WindowOrder[i] := GCtx.WindowOrder.Top;
+          GCtx.WindowOrder[GCtx.WindowOrder.Size-1] := iWindow;
+        end;
+end;
+
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
 var iWindow : TTIGWindow;
     iHeight : Integer;
@@ -1093,7 +1112,6 @@ begin
   iClip  := aArea;
   iStart := VTIG_PositionResolve( aArea.Pos );
   iClip.Pos.X := iStart.X;
-  iClip.Dim.X -= ( iStart.X - aArea.Pos.X );
   if ( iStart.X > iClip.x2 ) or ( iStart.Y > iClip.y2 ) then Exit;
   VTIG_RenderText( aText, iStart, iClip, aParams );
 end;
