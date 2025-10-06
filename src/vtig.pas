@@ -991,15 +991,20 @@ end;
 
 procedure VTIG_ResetScroll( aName : AnsiString = ''; aValue : Integer = 0 );
 var iWindow : TTIGWindow;
+    iLines  : Integer;
+    iHeight : Integer;
+    iMax    : Integer;
 begin
-  if aName <> '' then
+  if aName <> ''
+    then iWindow := GCtx.WindowStore.Get( aName, nil )
+    else iWindow := GCtx.Current;
+  if Assigned( iWindow ) then
   begin
-    iWindow := GCtx.WindowStore.Get( aName, nil );
-    if Assigned( iWindow ) then
-      iWindow.FScroll := aValue;
-  end
-  else
-    GCtx.Current.FScroll := aValue;
+    iLines  := iWindow.DC.FContent.Dim.Y;
+    iHeight := iWindow.FClipContent.Dim.Y;
+    iMax    := iLines - iHeight;
+    iWindow.FScroll := Min( Max( aValue, 0 ), iMax );
+  end;
 end;
 
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
