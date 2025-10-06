@@ -218,8 +218,6 @@ TNode = class(TVObject, ILuaReferencedObject)
        function GetLuaProperty( const aPath : array of const; aDefValue : Variant ) : Variant;
        // Sets a property value in Lua __props of this instance
        procedure SetLuaProperty( const aPath : array of const; aValue : Variant );
-       // Returns if Lua hooks can be read from the object itself
-       function HasVolatileHooks : Boolean; virtual;
        // Returns a value from the prototype table
        function GetLuaProtoValue( const Index : AnsiString ) : Variant;
        // Returns whether the object has the passed flag
@@ -855,11 +853,6 @@ begin
   Exit( LuaSystem.State.GetLuaProperty( Self, Index ) );
 end;
 
-function TNode.HasVolatileHooks: Boolean;
-begin
-  Exit( False );
-end;
-
 procedure TNode.SetLuaProperty ( const Index : AnsiString; Value : Variant ) ;
 begin
   LuaSystem.State.SetLuaProperty( Self, Index, Value );
@@ -1368,18 +1361,6 @@ begin
   begin
     SetPropValue( Node as Node.ClassType, Prop, State.ToVariant(3) );
     Exit( 0 );
-  end;
-  if Node.HasVolatileHooks and (Node.LuaClassInfo <> nil) then
-  begin
-    HookID := TLuaClassInfo( Node.LuaClassInfo ).GetHookID( Prop );
-    if (HookID >= 0) and (lua_isnil(L,3) or lua_isfunction(L,3)) then
-    begin
-      if lua_isnil(L,3)
-        then Exclude( Node.FHooks, HookID )
-        else Include( Node.FHooks, HookID );
-      lua_rawset( L, -3 );
-      Exit(0);
-    end;
   end;
   State.Error('Unknown property "'+Prop+'" requested on object of type '+Node.ClassName+'!');
   Result := 0;

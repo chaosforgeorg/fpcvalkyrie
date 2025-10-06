@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vuielement;
 interface
-uses SysUtils, vutil, vnode, viotypes, vuitypes, vioevent, vgenerics, vlualibrary;
+uses SysUtils, vutil, vnode, viotypes, vuitypes, vioevent, vgenerics;
 
 type
 
@@ -76,11 +76,6 @@ TUIElement = class( TNode, IIOElement )
   procedure SetStyle( aStyle : TUIStyle ); virtual;
   procedure SetBackColor( const aValue : TUIColor ); virtual;
   procedure SetForeColor( const aValue : TUIColor ); virtual;
-  function HasVolatileHooks : Boolean; override;
-  // TODO: remove:
-  procedure AddHook( aHookID : Word );
-  function GetProperty( L : PLua_State; const aPropertyName : AnsiString ) : Integer; override;
-  function SetProperty( L : PLua_State; const aPropertyName : AnsiString; aValueIndex : Integer ) : Boolean; override;
 protected
   function DirtyAndTrue : Boolean;
   function GetStyleValue ( const aElementID : AnsiString ) : Variant;
@@ -158,8 +153,6 @@ end;
 const UIPrintableChars : TUICharSet = [' '..'~'];
 
 implementation
-
-uses vluasystem, vluatools;
 
 { TUIStyle }
 
@@ -305,7 +298,6 @@ procedure TUIElement.AfterConstruction;
 begin
   inherited AfterConstruction;
   if not (Self is TUIRoot) then SetStyle( FRoot.GetDefaultStyle );
-//  if HasHook( UIHOOK_ONCREATE ) then
 end;
 
 procedure TUIElement.ParentChanged;
@@ -560,35 +552,6 @@ procedure TUIElement.SetForeColor ( const aValue : TUIColor );
 begin
   FForeColor := aValue;
   FDirty := True;
-end;
-
-function TUIElement.HasVolatileHooks: Boolean;
-begin
-  Exit( True );
-end;
-
-procedure TUIElement.AddHook( aHookID : Word );
-begin
-  Include( FHooks, aHookID );
-end;
-
-function TUIElement.GetProperty(L: PLua_State; const aPropertyName: AnsiString ): Integer;
-begin
-  if aPropertyName = 'padding'  then begin vlua_pushpoint( L, Padding );    Exit(1); end;
-  if aPropertyName = 'dim'      then begin vlua_pushpoint( L, Dim );        Exit(1); end;
-  if aPropertyName = 'pos'      then begin vlua_pushpoint( L, Pos );        Exit(1); end;
-  if aPropertyName = 'absdim'   then begin vlua_pushrect ( L, AbsDim );     Exit(1); end;
-  if aPropertyName = 'dimrect'  then begin vlua_pushrect ( L, GetDimRect ); Exit(1); end;
-  if aPropertyName = 'pdimrect' then begin vlua_pushrect ( L, TUIElement(Parent).GetDimRect ); Exit(1); end;
-  Result:=inherited GetProperty(L, aPropertyName);
-end;
-
-function TUIElement.SetProperty(L: PLua_State; const aPropertyName: AnsiString; aValueIndex: Integer): Boolean;
-begin
-  if aPropertyName = 'padding' then begin Padding := vlua_topoint( L, aValueIndex ); Exit(True); end;
-  if aPropertyName = 'dim'     then begin Dim     := vlua_topoint( L, aValueIndex ); Exit(True); end;
-  if aPropertyName = 'pos'     then begin Pos     := vlua_topoint( L, aValueIndex ); Exit(True); end;
-  Result:=inherited SetProperty(L, aPropertyName, aValueIndex);
 end;
 
 function TUIElement.DirtyAndTrue : Boolean;
