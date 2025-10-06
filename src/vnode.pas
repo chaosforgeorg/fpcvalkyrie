@@ -35,7 +35,7 @@
 
 unit vnode;
 interface
-uses Classes, vmsg, vutil, vdebug, vluatype, vlualibrary;
+uses Classes, vutil, vdebug, vluatype, vlualibrary;
 
 // The most generic of Valkyrie objects. Implements only the error
 // handling functions. It is recommended that all Valkyrie classes
@@ -158,8 +158,6 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Changes parent to Destination.
        // Error free.
        procedure   Move(Destination : TNode);
-       // Basic recieveing method. Should be overriden.
-       procedure   Receive(MSG : TMessage); virtual;
        // Removes self from Parent node, calls Parent.Remove(Self)
        // if parent present.
        procedure   Detach; virtual;
@@ -681,18 +679,6 @@ begin
   begin
     FChild.Free;
   end;
-end;
-
-
-procedure TNode.Receive(MSG : TMessage);
-begin
-  case MSG.ID of
-    0 :;
-    //MSG_NODE_Destroy : begin FParent.Remove(Self); Self.Done; exit; end;
-  else
-//    Self.Log('Unknown message recieved (@1, ID: @2)',[Msg.ClassName,Msg.ID]);
-  end;
-  MSG.Free;
 end;
 
 procedure TNode.Move(Destination : TNode);
