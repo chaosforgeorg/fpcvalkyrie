@@ -3,27 +3,6 @@ unit vuielement;
 interface
 uses SysUtils, vutil, vnode, viotypes, vuitypes, vioevent, vgenerics, vlualibrary;
 
-var UIHOOK_ONCREATE    : Byte;
-    UIHOOK_ONDESTROY   : Byte;
-    UIHOOK_ONREDRAW    : Byte;
-    UIHOOK_ONRENDER    : Byte;
-    UIHOOK_ONUPDATE    : Byte;
-    UIHOOK_ONKEYDOWN   : Byte;
-    UIHOOK_ONKEYUP     : Byte;
-    UIHOOK_ONMOUSEDOWN : Byte;
-    UIHOOK_ONMOUSEUP   : Byte;
-    UIHOOK_ONMOUSEMOVE : Byte;
-    UIHOOK_ONSYSTEM    : Byte;
-    UIHOOK_ONSELECT    : Byte;
-    UIHOOK_ONCANCEL    : Byte;
-    UIHOOK_ONCONFIRM   : Byte;
-    UIHOOK_ONCHANGE    : Byte;
-
-function RegisterUIHook( const aUIHookName : AnsiString ) : Byte;
-function UIHookExists( const aUIHookName : AnsiString ) : Boolean;
-function ResolveUIHook( const aUIHookName : AnsiString ) : Byte;
-procedure RegisterUIHooksWithLua;
-
 type
 
 TUIRoot = class;
@@ -180,7 +159,7 @@ const UIPrintableChars : TUICharSet = [' '..'~'];
 
 implementation
 
-uses vluasystem, vluatools, vluaui;
+uses vluasystem, vluatools;
 
 { TUIStyle }
 
@@ -318,7 +297,6 @@ end;
 
 procedure TUIElement.BeforeDestruction;
 begin
-  if HasHook( UIHOOK_ONDESTROY ) then RunHook( UIHOOK_ONDESTROY, [] );
   inherited BeforeDestruction;
   if FRoot <> nil then FRoot.ElementDestroyed( Self );
 end;
@@ -349,13 +327,11 @@ end;
 
 procedure TUIElement.OnRender;
 begin
-  if HasHook( UIHOOK_ONRENDER ) then RunHook( UIHOOK_ONRENDER, [] );
 end;
 
 procedure TUIElement.OnRedraw;
 begin
   FDirty := False;
-  if HasHook( UIHOOK_ONREDRAW ) then RunHook( UIHOOK_ONREDRAW, [] );
 end;
 
 procedure TUIElement.OnUpdate ( aTime : DWord );
@@ -370,21 +346,11 @@ begin
       if iElement.FDirty and iVisible then
         FDirty := True;
     end;
-  if HasHook( UIHOOK_ONUPDATE ) then RunHook( UIHOOK_ONUPDATE, [] );
 end;
 
 function TUIElement.OnEvent ( const event : TIOEvent ) : Boolean;
 begin
   if not FEnabled then Exit( False );
-
-  case event.EType of
-    VEVENT_KEYDOWN    : if HasHook( UIHOOK_ONKEYDOWN )   then if RunHook( UIHOOK_ONKEYDOWN,   [ LuaIOKeyEvent( event.key ) ] )             then Exit( True );
-    VEVENT_KEYUP      : if HasHook( UIHOOK_ONKEYUP )     then if RunHook( UIHOOK_ONKEYUP,     [ LuaIOKeyEvent( event.key ) ] )             then Exit( True );
-    VEVENT_MOUSEDOWN  : if HasHook( UIHOOK_ONMOUSEDOWN ) then if RunHook( UIHOOK_ONMOUSEDOWN, [ LuaIOMouseEvent( event.mouse ) ] )         then Exit( True );
-    VEVENT_MOUSEUP    : if HasHook( UIHOOK_ONMOUSEUP )   then if RunHook( UIHOOK_ONMOUSEUP,   [ LuaIOMouseEvent( event.mouse ) ] )         then Exit( True );
-    VEVENT_MOUSEMOVE  : if HasHook( UIHOOK_ONMOUSEMOVE ) then if RunHook( UIHOOK_ONMOUSEMOVE, [ LuaIOMouseMoveEvent( event.mousemove ) ] ) then Exit( True );
-    VEVENT_SYSTEM     : if HasHook( UIHOOK_ONSYSTEM )    then if RunHook( UIHOOK_ONSYSTEM,    [ LuaIOSystemEvent( event.system ) ] )       then Exit( True );
-  end;
 
   case event.EType of
     VEVENT_KEYDOWN    : if Assigned( FOnKeyDown )   and FOnKeyDown( Self, event.Key )        then Exit( True );
@@ -665,64 +631,6 @@ begin
   if Parent = nil then Exit( nil );
   Exit( TUIElement(Parent).FindRoot );
 end;
-
-type TUIHookHashMap = specialize TGHashMap<Byte>;
-     TUIHookList    = specialize TGArray<AnsiString>;
-var  UIHookHashMap : TUIHookHashMap;
-     UIHookList    : TUIHookList;
-
-
-function RegisterUIHook(const aUIHookName: AnsiString): Byte;
-begin
-  if UIHookHashMap.Exists( aUIHookName ) then raise EException.Create('Re-registration of '+aUIHookName+' UI hook!');
-  RegisterUIHook := UIHookList.Push( aUIHookName ) - 1;
-  UIHookHashMap[ aUIHookName ] := RegisterUIHook;
-end;
-
-function UIHookExists(const aUIHookName: AnsiString): Boolean;
-begin
-  Exit( UIHookHashMap.Exists( aUIHookName ) );
-end;
-
-function ResolveUIHook(const aUIHookName: AnsiString): Byte;
-begin
-  Exit( UIHookHashMap[ aUIHookName ] );
-end;
-
-procedure RegisterUIHooksWithLua;
-var iLuaInfo : TLuaClassInfo;
-    iCount   : DWord;
-begin
-  iLuaInfo := LuaSystem.GetClassInfo( TUIElement );
-  for iCount := 0 to UIHookList.Size-1 do
-    iLuaInfo.RegisterHook( iCount, UIHookList[ iCount ] );
-end;
-
-initialization
-
-UIHookHashMap      := TUIHookHashMap.Create;
-UIHookList         := TUIHookList.Create;
-
-UIHOOK_ONCREATE    := RegisterUIHook('on_create');
-UIHOOK_ONDESTROY   := RegisterUIHook('on_destroy');
-UIHOOK_ONREDRAW    := RegisterUIHook('on_redraw');
-UIHOOK_ONRENDER    := RegisterUIHook('on_render');
-UIHOOK_ONUPDATE    := RegisterUIHook('on_update');
-UIHOOK_ONKEYDOWN   := RegisterUIHook('on_key_down');
-UIHOOK_ONKEYUP     := RegisterUIHook('on_key_up');
-UIHOOK_ONMOUSEDOWN := RegisterUIHook('on_mouse_down');
-UIHOOK_ONMOUSEUP   := RegisterUIHook('on_mouse_up');
-UIHOOK_ONMOUSEMOVE := RegisterUIHook('on_mouse_move');
-UIHOOK_ONSYSTEM    := RegisterUIHook('on_system');
-UIHOOK_ONSELECT    := RegisterUIHook('on_select');
-UIHOOK_ONCANCEL    := RegisterUIHook('on_cancel');
-UIHOOK_ONCONFIRM   := RegisterUIHook('on_confirm');
-UIHOOK_ONCHANGE    := RegisterUIHook('on_change');
-
-finalization
-
-FreeAndNil( UIHookList );
-FreeAndNil( UIHookHashMap );
 
 end.
 

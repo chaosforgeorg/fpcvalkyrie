@@ -546,19 +546,16 @@ end;
 function TUICustomInputLine.OnChange : Boolean;
 begin
   FDirty := True;
-  if HasHook( UIHOOK_ONCHANGE ) then if RunHook( UIHOOK_ONCHANGE, [Input] ) then Exit( True );
   Exit( Assigned( FOnChange ) and FOnChange( Self ) );
 end;
 
 function TUICustomInputLine.OnConfirm : Boolean;
 begin
-  if HasHook( UIHOOK_ONCONFIRM ) then if RunHook( UIHOOK_ONCONFIRM, [Input] ) then Exit( True );
   Exit( Assigned( FOnConfirm ) and FOnConfirm( Self ) );
 end;
 
 function TUICustomInputLine.OnCancel : Boolean;
 begin
-  if HasHook( UIHOOK_ONCANCEL ) then if RunHook( UIHOOK_ONCANCEL, [] ) then Exit( True );
   Exit( Assigned( FOnCancel ) and FOnCancel( Self ) );
 end;
 
@@ -767,19 +764,16 @@ end;
 
 function TUICustomMenu.OnSelect : Boolean;
 begin
-  if HasHook( UIHOOK_ONSELECT ) then if RunHook( UIHOOK_ONSELECT, [FSelected,DWord(SelectedItem.Data)] ) then Exit( True );
   Exit( Assigned( FOnSelect ) and FOnSelect( Self, FSelected, Items[ FSelected ] ) );
 end;
 
 function TUICustomMenu.OnConfirm : Boolean;
 begin
-  if HasHook( UIHOOK_ONCONFIRM ) then if RunHook( UIHOOK_ONCONFIRM, [FSelected,DWord(SelectedItem.Data)] ) then Exit( True );
   Exit( Assigned( FOnConfirm ) and FOnConfirm( Self ) );
 end;
 
 function TUICustomMenu.OnCancel : Boolean;
 begin
-  if HasHook( UIHOOK_ONCANCEL ) then if RunHook( UIHOOK_ONCANCEL, [] ) then Exit( True );
   Exit( Assigned( FOnCancel ) and FOnCancel( Self ) );
 end;
 
