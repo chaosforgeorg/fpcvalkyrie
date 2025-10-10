@@ -275,6 +275,7 @@ begin
                 begin
                   iValue := GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) );
                   VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+                  Dec( aCurrentX );
                   iLineContent := True;
                 end;
                 Inc(i, iNamePos + 1);
