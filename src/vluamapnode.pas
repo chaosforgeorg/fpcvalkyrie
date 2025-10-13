@@ -98,6 +98,10 @@ type TLuaMapNode = class( TNode, IVisionQuery )
   procedure SetLightFlag( const aCoord : TCoord2D; aFlag : Byte; aValue : Boolean );
   // Get Light flag
   function GetLightFlag( const aCoord : TCoord2D; aFlag : Byte ) : Boolean;
+  // Set Light value
+  procedure SetLightValue( const aCoord : TCoord2D; aValue : Word );
+  // Get Light value
+  function GetLightValue( const aCoord : TCoord2D ) : Word;
   // Return Being at position aCoord
   function GetBeing( const aCoord : TCoord2D ) : TLuaEntityNode; virtual;
   // Return Item at position aCoord
@@ -353,6 +357,16 @@ end;
 function TLuaMapNode.GetLightFlag ( const aCoord : TCoord2D; aFlag : Byte ) : Boolean;
 begin
   Exit( aFlag in FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light );
+end;
+
+procedure TLuaMapNode.SetLightValue( const aCoord : TCoord2D; aValue : Word );
+begin
+  FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light := TWordSet( aValue );
+end;
+
+function TLuaMapNode.GetLightValue( const aCoord : TCoord2D ) : Word;
+begin
+  Exit( Word( FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light ) );
 end;
 
 procedure TLuaMapNode.SetBeing ( const aCoord : TCoord2D; aBeing : TLuaEntityNode ) ;
