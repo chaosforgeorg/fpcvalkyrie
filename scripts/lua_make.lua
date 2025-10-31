@@ -327,6 +327,14 @@ end
 function make.gitrevision()
 	os.execute( "git rev-parse --short HEAD > revision.info" )
 	local revision = os.readsingleline( "revision.info" )
+	if not revision then
+		return {
+			full    = "",
+			working = 0,
+			current = 0,
+			mod     = "",
+		}
+	end
 
 	local mod = ""
 	if OS ~= "WINDOWS" then
