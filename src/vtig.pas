@@ -80,6 +80,7 @@ var VTIG_HighColor : Boolean = False;
 
 function VTIG_BoldenColor( aColor : TIOColor ) : TIOColor;
 procedure VTIG_SetSubCallback( aCallback : TTIGSubCallback );
+function VTIG_ColorChar( aColor : TIOColor ) : Char;
 
 implementation
 
@@ -102,6 +103,13 @@ begin
     8    : Exit( 7 );
   end;
   Exit( 15 );
+end;
+
+function VTIG_ColorChar( aColor : TIOColor ) : Char;
+const ResultStr : array [0..15] of char ='DbgcrvnldBGCRVYL';
+begin
+  if aColor > 15 then aColor := aColor mod 16;
+  Exit( ResultStr[ aColor ] );
 end;
 
 type TTIGStyleStack = object
