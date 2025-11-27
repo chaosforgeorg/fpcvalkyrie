@@ -47,6 +47,7 @@ procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor );
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint );
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+procedure VTIG_Text( aText : Ansistring; aMaxSize : TIOPoint; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 function VTIG_Length( const aText: AnsiString ) : Integer;
 function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
 function VTIG_StripTags( const aText : AnsiString ) : AnsiString;
@@ -1130,9 +1131,9 @@ begin
   if GCtx.WindowStack.Size = 1
     then GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ]
     else GCtx.BGColor := GCtx.Current.FBackground;
-  iClip  := aArea;
   iStart := VTIG_PositionResolve( aArea.Pos );
-  iClip.Pos.X := iStart.X;
+  iClip  := Rectangle( iStart, aArea.Dim );
+  ClampTo( iClip, GCtx.Current.DC.FClip );
   if ( iStart.X > iClip.x2 ) or ( iStart.Y > iClip.y2 ) then Exit;
   VTIG_RenderText( aText, iStart, iClip, aParams );
 end;
@@ -1180,6 +1181,38 @@ end;
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 begin
   VTIG_Text( aText, [], aColor, aBGColor );
+end;
+
+procedure VTIG_Text( aText : Ansistring; aMaxSize : TIOPoint; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+var iClip  : TIORect;
+    iStart : TIOPoint;
+    iCoord : TIOPoint;
+begin
+  if aColor = 0   then aColor   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+  if aBGColor = 0 then
+    if GCtx.WindowStack.Size = 1
+      then aBGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ]
+      else aBGColor := GCtx.Current.FBackground;
+  GCtx.Color   := aColor;
+  GCtx.BGColor := aBGColor;
+  iClip  := VTIG_GetClipRect;
+  iStart := GCtx.Current.DC.FCursor;
+  if ( iStart.X > iClip.x2 ) then Exit;
+  
+  // Adjust clip rectangle to limit output to aMaxSize from cursor position
+  if aMaxSize.X > 0 then
+  begin
+    iClip.Dim.X := Min( iClip.x2 - iStart.X + 1, aMaxSize.X );
+    iClip.Pos.X := iStart.X;
+  end;
+  if aMaxSize.Y > 0 then
+  begin
+    iClip.Dim.Y := Min( iClip.y2 - iStart.Y + 1, aMaxSize.Y );
+    iClip.Pos.Y := iStart.Y;
+  end;
+  
+  iCoord := VTIG_RenderText( aText, iStart, iClip, [] );
+  GCtx.Current.Advance( iCoord - iStart + Point(1,1) );
 end;
 
 procedure VTIG_ResetInput( const aName : Ansistring = ''; aCaret : Integer = -1 );
