@@ -225,7 +225,7 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Runs a script from the registered table by id and with self
        function RunHook( Hook : Word; const Args : array of Const ) : Variant;
        // Returns whether the object has the passed hook
-       function HasHook( Hook : Word ) : Boolean;
+       function HasHook( Hook : Word ) : Boolean; virtual;
        // Lua interface - Register API -- WARNING - registers TableName metatable!
        class procedure RegisterLuaAPI( const TableName : AnsiString );
        // Function for getting custom properties in Lua.
