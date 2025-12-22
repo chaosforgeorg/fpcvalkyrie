@@ -17,6 +17,7 @@ type TTIGStyleColorEntry = (
   VTIG_INPUT_TEXT_COLOR,
   VTIG_INPUT_BACKGROUND_COLOR,
   VTIG_SELECTED_TEXT_COLOR,
+  VTIG_SELECTED_UNSELECTED_COLOR,
   VTIG_SELECTED_DISABLED_COLOR,
   VTIG_SELECTED_BACKGROUND_COLOR
 );
@@ -24,11 +25,13 @@ type TTIGStyleColorEntry = (
 type TTIGStyleFrameEntry = (
   VTIG_BORDER_FRAME,
   VTIG_RULER_FRAME,
+  VTIG_GROUP_FRAME,
   VTIG_SCROLL_FRAME
 );
 
 type TTIGStylePaddingEntry = (
-  VTIG_WINDOW_PADDING
+  VTIG_WINDOW_PADDING,
+  VTIG_SELECTABLE_PADDING
 );
 
 type TTIGStyle = record
@@ -60,14 +63,17 @@ VTIGDefaultStyle.Color[ VTIG_WINDOW_BACKGROUND_COLOR ]   := Black;
 VTIGDefaultStyle.Color[ VTIG_INPUT_TEXT_COLOR ]          := Yellow;
 VTIGDefaultStyle.Color[ VTIG_INPUT_BACKGROUND_COLOR ]    := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_SELECTED_TEXT_COLOR ]       := White;
+VTIGDefaultStyle.Color[ VTIG_SELECTED_UNSELECTED_COLOR ] := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_SELECTED_DISABLED_COLOR ]   := DarkGray;
 VTIGDefaultStyle.Color[ VTIG_SELECTED_BACKGROUND_COLOR ] := LightGray;
 
 VTIGDefaultStyle.Frame[ VTIG_BORDER_FRAME ] := #196+#196+#179+#179+#218+#191+#192+#217;
 VTIGDefaultStyle.Frame[ VTIG_RULER_FRAME ]  := #196+#179;
+VTIGDefaultStyle.Frame[ VTIG_GROUP_FRAME ]  := #196+#179;
 VTIGDefaultStyle.Frame[ VTIG_SCROLL_FRAME ] := #193+#194+#177+#178;
 
-VTIGDefaultStyle.Padding[ VTIG_WINDOW_PADDING ] := Point( 1,1 );
+VTIGDefaultStyle.Padding[ VTIG_WINDOW_PADDING ]     := Point( 1,1 );
+VTIGDefaultStyle.Padding[ VTIG_SELECTABLE_PADDING ] := Point( 1,0 );
 
 end.
 

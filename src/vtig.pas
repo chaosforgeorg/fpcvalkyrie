@@ -16,6 +16,7 @@ procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); o
 procedure VTIG_End; overload;
 procedure VTIG_End( aFooter : Ansistring ); overload;
 procedure VTIG_Reset( aName : AnsiString );
+procedure VTIG_BringToTop( aName : Ansistring );
 
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
 procedure VTIG_EndGroup( aVertical : Boolean = False );
@@ -46,6 +47,7 @@ procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor );
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint );
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+procedure VTIG_Text( aText : Ansistring; aMaxSize : TIOPoint; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 function VTIG_Length( const aText: AnsiString ) : Integer;
 function VTIG_Length( const aText: AnsiString; aParameters: array of const) : Integer;
 function VTIG_StripTags( const aText : AnsiString ) : AnsiString;
@@ -79,6 +81,7 @@ var VTIG_HighColor : Boolean = False;
 
 function VTIG_BoldenColor( aColor : TIOColor ) : TIOColor;
 procedure VTIG_SetSubCallback( aCallback : TTIGSubCallback );
+function VTIG_ColorChar( aColor : TIOColor ) : Char;
 
 implementation
 
@@ -86,6 +89,7 @@ uses Math, vdebug, SysUtils, vtigcontext, vioeventstate, viomousestate;
 
 var GDefaultContext : TTIGContext;
     GCtx            : TTIGContext;
+    GRawMode        : Boolean = False;
 
 procedure VTIG_SetSubCallback( aCallback : TTIGSubCallback );
 begin
@@ -100,6 +104,13 @@ begin
     8    : Exit( 7 );
   end;
   Exit( 15 );
+end;
+
+function VTIG_ColorChar( aColor : TIOColor ) : Char;
+const ResultStr : array [0..15] of char ='DbgcrvnldBGCRVYL';
+begin
+  if aColor > 15 then aColor := aColor mod 16;
+  Exit( ResultStr[ aColor ] );
 end;
 
 type TTIGStyleStack = object
@@ -159,6 +170,8 @@ var iWindow        : TTIGWindow;
     iPNamePtr      : PAnsiChar;
     iNamePos       : Integer;
     iValue         : AnsiString;
+    iLineContent   : Boolean;
+    iSpecial       : set of Char;
 
   procedure Render( const aPart : PAnsiChar; aLength : Integer );
   var iCmd    : TTIGDrawCommand;
@@ -204,12 +217,14 @@ var iWindow        : TTIGWindow;
           begin
             iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
             VTIG_RenderTextSegment( iParamStr, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+            Dec( aCurrentX );
           end;
         vtInteger:
         begin
           Str( aParameters[aParameterIndex].VInteger, iBuffer );
           iBuffer[Length(iBuffer)+1] := #0;
           VTIG_RenderTextSegment( @iBuffer[1], aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+          Dec( aCurrentX );
         end;
 
         // Add handling for other parameter types if needed
@@ -220,73 +235,85 @@ var iWindow        : TTIGWindow;
 
 begin
   if aCurrentY > aClip.y2 then Exit;
-  iWindow   := GCtx.Current;
-  i         := 0;
+  iWindow      := GCtx.Current;
+  i            := 0;
+  iLineContent := False;
+  iSpecial     := [#10,'{','}'];
+  if GRawMode then iSpecial := [#10];
+
   while aText[i] <> #0 do
   begin
-    if aText[i] = '{' then
+    if aText[i] in iSpecial then
     begin
-      Inc(i);
-      if i <= Length(aText) then
+      if ( aText[i] = '{' ) then
       begin
-        case aText[i] of
-          '^' : aStyleStack.Push(VTIG_BoldenColor(aStyleStack.Current));
-          'r' : aStyleStack.Push(Red);
-          'R' : aStyleStack.Push(LightRed);
-          'b' : aStyleStack.Push(Blue);
-          'B' : aStyleStack.Push(LightBlue);
-          'g' : aStyleStack.Push(Green);
-          'G' : aStyleStack.Push(LightGreen);
-          'v' : aStyleStack.Push(Magenta);
-          'V' : aStyleStack.Push(LightMagenta);
-          'c' : aStyleStack.Push(Cyan);
-          'C' : aStyleStack.Push(LightCyan);
-          'l' : aStyleStack.Push(LightGray);
-          'L' : aStyleStack.Push(White);
-          'd' : aStyleStack.Push(DarkGray);
-          'D' : aStyleStack.Push(Black);
-      'n','N' : aStyleStack.Push(Brown);
-      'y','Y' : aStyleStack.Push(Yellow);
-          '!' : aStyleStack.Push(GCtx.Style^.Color[VTIG_BOLD_COLOR]);
-          '0'..'9':
-            begin
-              iParamIndex := Ord(aText[i]) - Ord('0');
-              HandleParameter( iParamIndex );
-            end;
-
-          '$' :
-            begin
-              iPNamePtr := @aText[i+1];
-              iNamePos  := 0;
-              while (iPNamePtr[iNamePos] <> '}') and (iPNamePtr[iNamePos] <> #0) do
-                Inc(iNamePos);
-
-              if iPNamePtr[iNamePos] = '}' then
-              begin
-                if Assigned( GCtx.SubCallback ) then
-                begin
-                  iValue := GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) );
-                  VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
-                end;
-                Inc(i, iNamePos + 1);
-              end
-              else
-                Inc(i);
-            end;
-        end;
         Inc(i);
-      end;
-    end
-    else if aText[i] = '}' then
-    begin
-      aStyleStack.Pop;
-      Inc(i);
-    end
-    else if aText[i] = #10 then // Handle newline
-    begin
-      aCurrentX := aClip.X;
-      Inc(aCurrentY);
-      Inc(i);
+        if i <= Length(aText) then
+        begin
+          case aText[i] of
+            '^' : aStyleStack.Push(VTIG_BoldenColor(aStyleStack.Current));
+            'r' : aStyleStack.Push(Red);
+            'R' : aStyleStack.Push(LightRed);
+            'b' : aStyleStack.Push(Blue);
+            'B' : aStyleStack.Push(LightBlue);
+            'g' : aStyleStack.Push(Green);
+            'G' : aStyleStack.Push(LightGreen);
+            'v' : aStyleStack.Push(Magenta);
+            'V' : aStyleStack.Push(LightMagenta);
+            'c' : aStyleStack.Push(Cyan);
+            'C' : aStyleStack.Push(LightCyan);
+            'l' : aStyleStack.Push(LightGray);
+            'L' : aStyleStack.Push(White);
+            'd' : aStyleStack.Push(DarkGray);
+            'D' : aStyleStack.Push(Black);
+        'n','N' : aStyleStack.Push(Brown);
+        'y','Y' : aStyleStack.Push(Yellow);
+            '!' : aStyleStack.Push(GCtx.Style^.Color[VTIG_BOLD_COLOR]);
+            '0'..'9':
+              begin
+                iParamIndex := Ord(aText[i]) - Ord('0');
+                HandleParameter( iParamIndex );
+                iLineContent := True;
+                Inc(i);
+              end;
+
+            '$' :
+              begin
+                iPNamePtr := @aText[i+1];
+                iNamePos  := 0;
+                while (iPNamePtr[iNamePos] <> '}') and (iPNamePtr[iNamePos] <> #0) do
+                  Inc(iNamePos);
+
+                if iPNamePtr[iNamePos] = '}' then
+                begin
+                  if Assigned( GCtx.SubCallback ) then
+                  begin
+                    iValue := GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) );
+                    VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+                    Dec( aCurrentX );
+                    iLineContent := True;
+                  end;
+                  Inc(i, iNamePos + 1);
+                end
+                else
+                  Inc(i);
+              end;
+          end;
+          Inc(i);
+        end;
+      end
+      else if aText[i] = '}' then
+      begin
+        aStyleStack.Pop;
+        Inc(i);
+      end
+      else if aText[i] = #10 then // Handle newline
+      begin
+        aCurrentX := aClip.X;
+        Inc(aCurrentY);
+        Inc(i);
+        iLineContent := False;
+      end
     end
     else
     begin
@@ -294,26 +321,27 @@ begin
       iWidth     := 0;
       iLastSpace := -1;
       iPos       := i;
-      iSpaceLeft := aClip.x2 - aCurrentX;
+      iSpaceLeft := aClip.x2 - aCurrentX + 1;
 
       while iPos <= Length(aText) do
       begin
         if aText[iPos] = ' ' then
           iLastSpace := iWidth;
-        if (aText[iPos] in [#10,#13,'{','}']) or (iWidth > iSpaceLeft) then
+        if (aText[iPos] in iSpecial) or (iWidth >= iSpaceLeft) then
           break;
         Inc(iPos);
         Inc(iWidth);
       end;
 
-      if ( iPos > Length(aText) ) or (aText[iPos] in [#10,#13,'{','}']) then
+      if ( iPos >= Length(aText) ) or (aText[iPos] in iSpecial) then
       begin
-        if iPos > Length(aText) then
+        if iPos >= Length(aText) then
         begin
-          Render( aText + i, iWidth - 1 );
+          Render( aText + i, iWidth );
           Exit; // nothing more to render, exit
         end;
         Render( aText + i, iWidth );
+        iLineContent := True;
         i := iPos;
       end
       else // iWidth >= iSpaceLeft
@@ -323,15 +351,20 @@ begin
           Render( aText + i, iLastSpace );
           aCurrentX := aClip.X;
           Inc(aCurrentY);
+          iLineContent := False;
           i += iLastSpace + 1;
         end
         else
         // If there was no space, break at the line width
         begin
-          Render( aText + i, iWidth );
+          if not iLineContent then
+          begin
+            Render( aText + i, iWidth );
+            i := i + iWidth;
+          end;
           aCurrentX := aClip.X;
           Inc(aCurrentY);
-          i := i + iWidth;
+          iLineContent := False;
         end;
 
         // Stop if we've exceeded the clipping rectangle's height
@@ -717,6 +750,21 @@ begin
     iWindow.FReset := True;
 end;
 
+procedure VTIG_BringToTop( aName : Ansistring );
+var iWindow : TTIGWindow;
+    i       : Integer;
+begin
+  iWindow := GCtx.WindowStore.Get( aName, nil );
+  if Assigned( iWindow ) then
+    if GCtx.WindowOrder.Top <> iWindow then
+      for i := 0 to GCtx.WindowOrder.Size - 1 do
+        if GCtx.WindowOrder[i] = iWindow then
+        begin
+          GCtx.WindowOrder[i] := GCtx.WindowOrder.Top;
+          GCtx.WindowOrder[GCtx.WindowOrder.Size-1] := iWindow;
+        end;
+end;
+
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
 var iWindow : TTIGWindow;
     iHeight : Integer;
@@ -724,7 +772,7 @@ var iWindow : TTIGWindow;
     iFrame  : AnsiString;
 begin
   iWindow := GCtx.Current;
-  if (not aVertical) and (aSize <> -1) then
+  if (not aVertical) and (aSize <> -1) and ( GCtx.Style^.Frame[ VTIG_GROUP_FRAME ] <> '' )then
   begin
     iHeight := iWindow.FClipContent.Y2 - (iWindow.DC.FCursor.y - 1);
     if aMaxHeight >= 0 then
@@ -737,7 +785,7 @@ begin
     ClampTo( iCmd.Area, iWindow.DC.FClip );
     iCmd.FG := GCtx.Style^.Color[ VTIG_FRAME_COLOR ];
     iCmd.BG := iWindow.FBackground;
-    iFrame  := GCtx.Style^.Frame[ VTIG_RULER_FRAME ];
+    iFrame  := GCtx.Style^.Frame[ VTIG_GROUP_FRAME ];
     iCmd.Text := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
     iWindow.DrawList.Push( iCmd );
   end;
@@ -844,7 +892,7 @@ begin
       begin
         if iSelected
           then GCtx.Color := GCtx.Style^.Color[ VTIG_SELECTED_TEXT_COLOR ]
-          else GCtx.Color := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+          else GCtx.Color := GCtx.Style^.Color[ VTIG_SELECTED_UNSELECTED_COLOR ];
       end
       else
       begin
@@ -865,7 +913,7 @@ begin
   end;
 
   // Padding
-  iWindow.DC.FCursor.X += 1;
+  iWindow.DC.FCursor.X += GCtx.Style^.Padding[ VTIG_SELECTABLE_PADDING ].X;
   VTIG_Text( aText, aParams, GCtx.Color, GCtx.BGColor );
   if Result then GCtx.Io.PlaySound( VTIG_SOUND_ACCEPT );
 end;
@@ -960,15 +1008,20 @@ end;
 
 procedure VTIG_ResetScroll( aName : AnsiString = ''; aValue : Integer = 0 );
 var iWindow : TTIGWindow;
+    iLines  : Integer;
+    iHeight : Integer;
+    iMax    : Integer;
 begin
-  if aName <> '' then
+  if aName <> ''
+    then iWindow := GCtx.WindowStore.Get( aName, nil )
+    else iWindow := GCtx.Current;
+  if Assigned( iWindow ) then
   begin
-    iWindow := GCtx.WindowStore.Get( aName, nil );
-    if Assigned( iWindow ) then
-      iWindow.FScroll := aValue;
-  end
-  else
-    GCtx.Current.FScroll := aValue;
+    iLines  := iWindow.DC.FContent.Dim.Y;
+    iHeight := iWindow.FClipContent.Dim.Y;
+    iMax    := iLines - iHeight;
+    iWindow.FScroll := Min( Max( aValue, 0 ), iMax );
+  end;
 end;
 
 procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
@@ -1078,10 +1131,9 @@ begin
   if GCtx.WindowStack.Size = 1
     then GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ]
     else GCtx.BGColor := GCtx.Current.FBackground;
-  iClip  := aArea;
   iStart := VTIG_PositionResolve( aArea.Pos );
-  iClip.Pos.X := iStart.X;
-  iClip.Dim.X -= ( iStart.X - aArea.Pos.X );
+  iClip  := Rectangle( iStart, aArea.Dim );
+  ClampTo( iClip, GCtx.Current.DC.FClip );
   if ( iStart.X > iClip.x2 ) or ( iStart.Y > iClip.y2 ) then Exit;
   VTIG_RenderText( aText, iStart, iClip, aParams );
 end;
@@ -1129,6 +1181,38 @@ end;
 procedure VTIG_Text( aText : Ansistring; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
 begin
   VTIG_Text( aText, [], aColor, aBGColor );
+end;
+
+procedure VTIG_Text( aText : Ansistring; aMaxSize : TIOPoint; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
+var iClip  : TIORect;
+    iStart : TIOPoint;
+    iCoord : TIOPoint;
+begin
+  if aColor = 0   then aColor   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
+  if aBGColor = 0 then
+    if GCtx.WindowStack.Size = 1
+      then aBGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ]
+      else aBGColor := GCtx.Current.FBackground;
+  GCtx.Color   := aColor;
+  GCtx.BGColor := aBGColor;
+  iClip  := VTIG_GetClipRect;
+  iStart := GCtx.Current.DC.FCursor;
+  if ( iStart.X > iClip.x2 ) then Exit;
+  
+  // Adjust clip rectangle to limit output to aMaxSize from cursor position
+  if aMaxSize.X > 0 then
+  begin
+    iClip.Dim.X := Min( iClip.x2 - iStart.X + 1, aMaxSize.X );
+    iClip.Pos.X := iStart.X;
+  end;
+  if aMaxSize.Y > 0 then
+  begin
+    iClip.Dim.Y := Min( iClip.y2 - iStart.Y + 1, aMaxSize.Y );
+    iClip.Pos.Y := iStart.Y;
+  end;
+  
+  iCoord := VTIG_RenderText( aText, iStart, iClip, [] );
+  GCtx.Current.Advance( iCoord - iStart + Point(1,1) );
 end;
 
 procedure VTIG_ResetInput( const aName : Ansistring = ''; aCaret : Integer = -1 );
@@ -1250,7 +1334,10 @@ begin
   iCmd.FG    := GCtx.Color;
   iCmd.BG    := GCtx.BGColor;
   GCtx.Current.DrawList.Push( iCmd );
+
+  GRawMode := aConsole;
   VTIG_Text( aBuffer, [], GCtx.Color, GCtx.BGColor );
+  GRawMode := False;
 end;
 
 function VTIG_EnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;

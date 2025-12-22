@@ -35,7 +35,7 @@
 
 unit vnode;
 interface
-uses Classes, vmsg, vutil, vdebug, vluatype, vlualibrary;
+uses Classes, vutil, vdebug, vluatype, vlualibrary;
 
 // The most generic of Valkyrie objects. Implements only the error
 // handling functions. It is recommended that all Valkyrie classes
@@ -158,8 +158,6 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Changes parent to Destination.
        // Error free.
        procedure   Move(Destination : TNode);
-       // Basic recieveing method. Should be overriden.
-       procedure   Receive(MSG : TMessage); virtual;
        // Removes self from Parent node, calls Parent.Remove(Self)
        // if parent present.
        procedure   Detach; virtual;
@@ -218,8 +216,6 @@ TNode = class(TVObject, ILuaReferencedObject)
        function GetLuaProperty( const aPath : array of const; aDefValue : Variant ) : Variant;
        // Sets a property value in Lua __props of this instance
        procedure SetLuaProperty( const aPath : array of const; aValue : Variant );
-       // Returns if Lua hooks can be read from the object itself
-       function HasVolatileHooks : Boolean; virtual;
        // Returns a value from the prototype table
        function GetLuaProtoValue( const Index : AnsiString ) : Variant;
        // Returns whether the object has the passed flag
@@ -229,7 +225,7 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Runs a script from the registered table by id and with self
        function RunHook( Hook : Word; const Args : array of Const ) : Variant;
        // Returns whether the object has the passed hook
-       function HasHook( Hook : Word ) : Boolean;
+       function HasHook( Hook : Word ) : Boolean; virtual;
        // Lua interface - Register API -- WARNING - registers TableName metatable!
        class procedure RegisterLuaAPI( const TableName : AnsiString );
        // Function for getting custom properties in Lua.
@@ -685,18 +681,6 @@ begin
   end;
 end;
 
-
-procedure TNode.Receive(MSG : TMessage);
-begin
-  case MSG.ID of
-    0 :;
-    //MSG_NODE_Destroy : begin FParent.Remove(Self); Self.Done; exit; end;
-  else
-//    Self.Log('Unknown message recieved (@1, ID: @2)',[Msg.ClassName,Msg.ID]);
-  end;
-  MSG.Free;
-end;
-
 procedure TNode.Move(Destination : TNode);
 begin
   if FParent <> nil     then Detach;
@@ -853,11 +837,6 @@ end;
 function TNode.GetLuaProperty ( const Index : AnsiString ) : Variant;
 begin
   Exit( LuaSystem.State.GetLuaProperty( Self, Index ) );
-end;
-
-function TNode.HasVolatileHooks: Boolean;
-begin
-  Exit( False );
 end;
 
 procedure TNode.SetLuaProperty ( const Index : AnsiString; Value : Variant ) ;
@@ -1368,18 +1347,6 @@ begin
   begin
     SetPropValue( Node as Node.ClassType, Prop, State.ToVariant(3) );
     Exit( 0 );
-  end;
-  if Node.HasVolatileHooks and (Node.LuaClassInfo <> nil) then
-  begin
-    HookID := TLuaClassInfo( Node.LuaClassInfo ).GetHookID( Prop );
-    if (HookID >= 0) and (lua_isnil(L,3) or lua_isfunction(L,3)) then
-    begin
-      if lua_isnil(L,3)
-        then Exclude( Node.FHooks, HookID )
-        else Include( Node.FHooks, HookID );
-      lua_rawset( L, -3 );
-      Exit(0);
-    end;
   end;
   State.Error('Unknown property "'+Prop+'" requested on object of type '+Node.ClassName+'!');
   Result := 0;

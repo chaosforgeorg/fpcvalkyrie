@@ -549,6 +549,11 @@ begin
   lua_pushnil(L);
   while lua_next( L, ISET ) <> 0 do
   begin
+    if (lua_type(L, -2) = LUA_TSTRING) and (Copy(lua_tolstring(L, -2, nil), 1, 2) = '__') then
+    begin
+      lua_pop(L, 1);
+      continue;
+    end;
     luaL_error( L, 'LUA: %s has unknown field "%s"!', lua_tolstring( L, 3, nil ), lua_tolstring( L, -2, nil ) );
     lua_pop(L, 1);
   end;
@@ -621,6 +626,46 @@ function lua_core_create_constructor_impl(L: Plua_State): Integer; cdecl;
 var ident : ansistring;
 begin
   luaL_checktype( L, 1, LUA_TTABLE );
+
+  lua_getfield( L, 1, 'inherit' );
+  if not lua_isnil( L, -1 ) then
+  begin
+    if lua_type( L, -1 ) <> LUA_TSTRING then
+      luaL_error( L, 'inherit field must be a string!' );
+    
+    lua_pushvalue( L, lua_upvalueindex( 2 ) );
+    lua_pushvalue( L, -2 );
+    lua_rawget( L, -2 );
+    
+    if lua_isnil( L, -1 ) then
+      luaL_error( L, 'Cannot inherit from "%s" - not found in storage!', lua_tolstring( L, -3, nil ) );
+    
+    lua_getfield( L, -1, '__source' );
+    if lua_isnil( L, -1 ) then
+      luaL_error( L, 'Parent entry "%s" has no __source field!', lua_tolstring( L, -4, nil ) );
+    
+    vlua_deepcopy( L, -1 );
+    
+    lua_pushnil( L );
+    lua_setfield( L, -2, 'id' );
+    lua_pushnil( L );
+    lua_setfield( L, -2, 'nid' );
+    
+    lua_pushvalue( L, -3 );
+    lua_setfield( L, -2, '__inherited' );
+    
+    vlua_shallowmerge( L, 1 );
+    lua_replace( L, 1 );
+    lua_pop( L, 4 );
+    
+    lua_pushnil( L );
+    lua_setfield( L, 1, 'inherit' );
+  end
+  else
+    lua_pop( L, 1 );
+  
+  vlua_deepcopy( L, 1 );
+  lua_setfield( L, 1, '__source' );
 
   lua_pushvalue( L, lua_upvalueindex( 1 ) ); // id
   ident := vlua_tostring( L, -1 );

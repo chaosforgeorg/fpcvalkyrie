@@ -538,41 +538,27 @@ function TLuaState.RunHook(Obj: ILuaReferencedObject; HookName: AnsiString;
   const Params: array of const): Variant;
 var iCount    : DWord;
     iFound    : Boolean;
-    iVolatile : Boolean;
     iInitial  : Integer;
 begin
   iInitial  := lua_gettop( FState );
   iFound    := False;
-  iVolatile := Obj.HasVolatileHooks;
 
   lua_rawgeti(FState, LUA_REGISTRYINDEX, Obj.GetLuaIndex);
   if not lua_istable( FState, -1 ) then PopRaise( 1, 'Object not found!');
 
-  if iVolatile then
+  lua_pushansistring( FState, '__hooks' );
+  lua_rawget( FState, -2 );
+  if lua_istable( FState, -1 ) then
   begin
     lua_pushansistring( FState, HookName );
     lua_rawget( FState, -2 );
-    if lua_isfunction( FState, -1 ) then
-      iFound := True
+    if lua_isnil( FState, -1 ) then
+      lua_pop( FState, 2 ) // was -2 -- IS THIS A BUG??
     else
-      lua_pop( FState, 1 );
+      iFound := True;
   end
   else
-  begin
-    lua_pushansistring( FState, '__hooks' );
-    lua_rawget( FState, -2 );
-    if lua_istable( FState, -1 ) then
-    begin
-      lua_pushansistring( FState, HookName );
-      lua_rawget( FState, -2 );
-      if lua_isnil( FState, -1 ) then
-        lua_pop( FState, 2 ) // was -2 -- IS THIS A BUG??
-      else
-        iFound := True;
-    end
-    else
-      lua_pop( FState, 1 );
-  end;
+    lua_pop( FState, 1 );
 
   if not iFound then
   begin
@@ -581,7 +567,7 @@ begin
     lua_rawget( FState, -2 );
   end;
 
-  if (not iVolatile) and (not lua_isfunction( FState, -1)) then
+  if not lua_isfunction( FState, -1) then
   begin
     if lua_isnil( FState, -1 ) then PopRaise( 3, Obj.GetProtoTable+'['+Obj.GetID+'].'+HookName+' not found!');
     lua_getglobal( FState, Obj.GetProtoTable );

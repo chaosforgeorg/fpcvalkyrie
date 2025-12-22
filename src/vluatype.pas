@@ -15,7 +15,6 @@ type ILuaReferencedObject = interface['vluastate.luareferencedobject']
     function GetLuaIndex      : Integer;
     function GetID            : AnsiString;
     function GetProtoTable    : AnsiString;
-    function HasVolatileHooks : Boolean;
 end;
 
 procedure vlua_pushobject( L : Plua_State; aObject : TObject );

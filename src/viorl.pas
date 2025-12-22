@@ -5,7 +5,6 @@ uses Classes, SysUtils, vio, vrltools, vconuirl, vuitypes, vluaentitynode, vluam
      vuielement, vconui, vluastate, vluaconfig, vioevent, viotypes, vioconsole;
 
 const COMMAND_INVALID = 255;
-      COMMAND_YIELD   = 254;
       COMMAND_SYSQUIT = 253;
 
 type TCommandSet = Set of Byte;
@@ -16,7 +15,10 @@ type
 { TIORL }
 
  TIORL = class( TIO )
-  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle );
+  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False );
+
+  // TIG-version functions
+  procedure RunLayer( aLayer : TIOLayer ); virtual;
 
   // Settings
 
@@ -93,16 +95,22 @@ var IORL : TIORL = nil;
 
 { TIORL }
 
-constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle ) ;
+constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False ) ;
 begin
   IORL := Self;
-  inherited Create( aIODriver, aConsole, aStyle );
+  inherited Create( aIODriver, aConsole, aStyle, aInitTIG );
   FMap       := nil;
   FMessages  := nil;
   FLevel     := nil;
   FPlayer    := nil;
   FConfig    := nil;
   FBreakLoop := False;
+end;
+
+procedure TIORL.RunLayer( aLayer : TIOLayer );
+begin
+  PushLayer( aLayer );
+  WaitForLayer;
 end;
 
 procedure TIORL.Configure ( aLuaConfig : TLuaConfig ) ;
@@ -159,17 +167,8 @@ function TIORL.GetCommand : Byte;
 var iSpecial    : Variant;
 begin
   Assert( FConfig <> nil );
-  if FConfig.isPaused then
-  begin
-     iSpecial := FConfig.Resume;
-     if VarIsOrdinal(iSpecial) and (not VarIsType( iSpecial, varBoolean ) )
-        then GetCommand := iSpecial
-        else GetCommand := COMMAND_YIELD;
-  end
-  else
-    GetCommand := WaitForCommand([]);
-
-  if GetCommand <> COMMAND_YIELD then MsgUpdate;
+  GetCommand := WaitForCommand([]);
+  MsgUpdate;
 
   if GetCommand = COMMAND_INVALID then
   begin
@@ -217,8 +216,7 @@ begin
     repeat
       FullUpdate;
       FIODriver.Sleep(10);
-    until FIODriver.EventPending;
-    FIODriver.PollEvent( aEvent );
+    until FIODriver.EventPending and FIODriver.PollEvent( aEvent );
     if FUIRoot.OnEvent( aEvent ) then aEvent.EType := VEVENT_KEYUP;
     if (aEvent.EType = VEVENT_SYSTEM) and (aEvent.System.Code = VIO_SYSEVENT_QUIT) then Exit( True );
     if FBreakLoop then Exit( False );
