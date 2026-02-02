@@ -109,7 +109,7 @@ type TLuaMapNode = class( TNode, IVisionQuery )
   // Drop something onto the map
   function Drop( aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 = [] ) : TLuaEntityNode;
   // Find a suitable drop coord
-  function DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32 ) : TCoord2D;
+  function DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D;
   // Returns the number of cells in aCells around cell (excluding self)
   function CellsAround( const aWhere : TCoord2D; const aCells : TCellSet; aRange : Byte = 1 ) : Byte;
   // Returns the number of cells in aCells around cell in cardinal dirs (excluding self );
@@ -399,7 +399,7 @@ begin
   end;
 
   try
-    aPosition := DropCoord( aPosition, aEmptyFlags );
+    aPosition := DropCoord( aPosition, aEmptyFlags, False );
     if aWhat.Parent <> Self then Add( aWhat );
     aWhat.Displace( aPosition );
     case aWhat.EntityID of
@@ -412,25 +412,43 @@ begin
   Result := aWhat;
 end;
 
-function TLuaMapNode.DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32 ): TCoord2D;
-var iC    : TCoord2D;
-    iList : TMinCoordChoice;
+function TLuaMapNode.DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ): TCoord2D;
+var iC        : TCoord2D;
+    iList     : TMinCoordChoice;
+    iRange    : Byte;
+    iArea     : TArea;
+    iMaxRange : Byte;
+    iCheckEye : Boolean;
 begin
   if isEmpty( aCoord, aEmptyFlags ) then
     Exit( aCoord );
 
-  iList := TMinCoordChoice.Create;
+  iList     := TMinCoordChoice.Create;
+  iCheckEye := aInVision;
+  iMaxRange := 5;
+  if not aInVision then iMaxRange := 7;
 
-  for iC in NewArea( aCoord, 1 ) do
-    if FArea.Contains( iC ) then
-      if isEmpty( iC, aEmptyFlags ) then
-        iList.Add( iC, Distance( aCoord, iC ) );
+  repeat
+    for iRange := 1 to iMaxRange do
+    begin
+      iArea := NewArea( aCoord, iRange );
+      for iC in iArea do
+        if FArea.Contains( iC ) then
+          if iArea.isEdge( iC ) then
+            if isEmpty( iC, aEmptyFlags ) then
+              if (not iCheckEye) or isEyeContact( aCoord, iC ) then
+                iList.Add( iC, Distance( aCoord, iC ) );
+      if not iList.IsEmpty then Break;
+    end;
 
-  if iList.IsEmpty then
-    for iC in NewArea( aCoord, 5 ) do
-      if FArea.Contains( iC ) then
-        if isEmpty( iC, aEmptyFlags ) then
-          iList.Add( iC, Distance( aCoord, iC ) );
+    if iList.IsEmpty and iCheckEye then
+    begin
+      iCheckEye := False;
+      iMaxRange := 7;
+    end
+    else
+      Break;
+  until False;
 
   if iList.IsEmpty then raise EPlacementException.CreateFmt('TLuaMapNode.DropCoord(%d,%d) failed!',[aCoord.x, aCoord.y]);
 
@@ -1259,7 +1277,7 @@ begin
   iState.Init( L );
   iCoord := iState.ToPosition( 2 );
   try
-    vlua_pushcoord( L, iState.Map.DropCoord( iCoord, iState.ToFlags32( 3 ) ) );
+    vlua_pushcoord( L, iState.Map.DropCoord( iCoord, iState.ToFlags32( 3 ), iState.ToBoolean( 4, False ) ) );
     Exit( 1 );
   except
     on EPlacementException do
