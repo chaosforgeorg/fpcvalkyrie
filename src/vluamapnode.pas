@@ -792,20 +792,6 @@ begin
   Result := 1;
 end;
 
-function lua_map_node_get_indexed_light_flag(L: Plua_State): Integer; cdecl;
-var iState : TLuaMapState;
-begin
-  iState.Init(L);
-  if iState.IsNil(3) then
-  begin
-    lua_pushstring( L, '__coord' );
-    lua_rawget( L, 1 );
-    iState.Push( iState.Map.LightFlag[ iState.ToPosition(-1), iState.ToInteger(2) ] )
-  end
-  else iState.Push( iState.Map.LightFlag[ iState.ToPosition(2), iState.ToInteger(3) ] );
-  Result := 1;
-end;
-
 function lua_map_node_set_light_flag(L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
     iCoord : TCoord2D;
@@ -831,89 +817,6 @@ begin
     for iCoord in iState.Map.Area do
       iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
   end;
-  Result := 0;
-end;
-
-function lua_map_node_set_indexed_light_flag(L: Plua_State): Integer; cdecl;
-var iState : TLuaMapState;
-    iCoord : TCoord2D;
-    iArea  : TArea;
-    iFlag  : Integer;
-    iValue : Boolean;
-begin
-  iState.Init(L);
-  if iState.IsNil(4) then
-  begin
-    lua_pushstring( L, '__coord' );
-    lua_rawget( L, 1 );
-    if lua_isnil( L, -1 ) then
-    begin
-      lua_pushstring( L, '__area' );
-      lua_rawget( L, 1 );
-      iArea  := vlua_toarea( L, lua_absindex(L,-1) );
-      iFlag  := iState.ToInteger(2);
-      iValue := iState.ToBoolean(3);
-      for iCoord in iArea do
-        iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
-      Exit(0);
-    end;
-    iState.Map.LightFlag[ iState.ToCoord(-1), iState.ToInteger(2) ] := iState.ToBoolean(3)
-  end
-  else
-  begin
-    if iState.IsCoord(2) then
-      iState.Map.LightFlag[ iState.ToCoord(2), iState.ToInteger(3) ] := iState.ToBoolean(4)
-    else
-    begin
-      iArea  := iState.ToArea(2);
-      iFlag  := iState.ToInteger(3);
-      iValue := iState.ToBoolean(4);
-      for iCoord in iArea do
-        iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
-    end;
-  end;
-  Result := 0;
-end;
-
-function lua_map_node_light_index(L: Plua_State): Integer; cdecl;
-var iState : TLuaMapState;
-begin
-  iState.Init(L);
-  lua_settop( L, 2 );
-  lua_createtable( L, 0, 2 );
-    lua_pushstring( L, '__ptr');
-    lua_pushlightuserdata( L, iState.Map );
-    lua_rawset( L, -3 );
-
-    if vlua_iscoord( L, 2 ) then
-      lua_pushstring( L, '__coord')
-    else if vlua_isarea( L, 2 ) then
-      lua_pushstring( L, '__area')
-    else luaL_argerror( L, 2, 'Coord or area expected' );
-    lua_pushvalue( L, 2 );
-    lua_rawset( L, -3 );
-
-    lua_createtable( L, 0, 2 );
-      lua_pushcfunction( L, @lua_map_node_get_indexed_light_flag );
-      lua_setfield( L, -2, '__index' );
-      lua_pushcfunction( L, @lua_map_node_set_indexed_light_flag );
-      lua_setfield( L, -2, '__newindex' );
-    lua_setmetatable( L, -2 );
-
-  Result := 1;
-end;
-
-function lua_map_node_light_newindex(L: Plua_State): Integer; cdecl;
-var iState : TLuaMapState;
-    iCoord : TCoord2D;
-    iFlag  : Byte;
-    iValue : Boolean;
-begin
-  iState.Init(L);
-  iFlag  := iState.ToInteger(2);
-  iValue := iState.ToBoolean(3);
-  for iCoord in iState.Map.Area do
-    iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
   Result := 0;
 end;
 
@@ -1455,7 +1358,6 @@ const lua_map_node_lib : array[0..34] of luaL_Reg = (
 class procedure TLuaMapNode.RegisterLuaAPI ( const aTableName : AnsiString ) ;
 begin
   LuaSystem.Register( aTableName, lua_map_node_lib );
-  LuaSystem.RegisterMetaTable( aTableName, 'light', @lua_map_node_light_index, @lua_map_node_light_newindex );
   LuaSystem.RegisterMetaTable( aTableName, 'map',   @lua_map_node_get_cell,    @lua_map_node_set_cell );
   LuaSystem.RegisterMetaTable( aTableName, 'hp',    @lua_map_node_get_hp,      @lua_map_node_set_hp );
 end;
