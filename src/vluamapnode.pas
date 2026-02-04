@@ -998,7 +998,8 @@ begin
       end;
     end;
   until iMap.GetCell( iCoord^ ) = iCell;
-  vlua_pushcoord( L, iCoord^ );
+  // push modified coord
+  lua_pushvalue( L, lua_upvalueindex( 2 ) );
   Exit( 1 );
 end;
 
