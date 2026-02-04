@@ -788,6 +788,14 @@ function lua_map_node_get_light_flag(L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init(L);
+  iState.Push( iState.Map.LightFlag[ iState.ToPosition(2), iState.ToInteger(3) ] );
+  Result := 1;
+end;
+
+function lua_map_node_get_indexed_light_flag(L: Plua_State): Integer; cdecl;
+var iState : TLuaMapState;
+begin
+  iState.Init(L);
   if iState.IsNil(3) then
   begin
     lua_pushstring( L, '__coord' );
@@ -799,6 +807,34 @@ begin
 end;
 
 function lua_map_node_set_light_flag(L: Plua_State): Integer; cdecl;
+var iState : TLuaMapState;
+    iCoord : TCoord2D;
+    iArea  : TArea;
+    iFlag  : Byte;
+    iValue : Boolean;
+begin
+  iState.Init(L);
+  if vlua_iscoord( L, 2 ) then
+    iState.Map.LightFlag[ iState.ToPosition(2), iState.ToInteger(3) ] := iState.ToBoolean(4)
+  else if vlua_isarea( L, 2 ) then
+  begin
+    iArea  := iState.ToArea(2);
+    iFlag  := iState.ToInteger(3);
+    iValue := iState.ToBoolean(4);
+    for iCoord in iArea do
+      iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
+  end
+  else
+  begin
+    iFlag  := iState.ToInteger(2);
+    iValue := iState.ToBoolean(3);
+    for iCoord in iState.Map.Area do
+      iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
+  end;
+  Result := 0;
+end;
+
+function lua_map_node_set_indexed_light_flag(L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
     iCoord : TCoord2D;
     iArea  : TArea;
@@ -858,9 +894,9 @@ begin
     lua_rawset( L, -3 );
 
     lua_createtable( L, 0, 2 );
-      lua_pushcfunction( L, @lua_map_node_get_light_flag );
+      lua_pushcfunction( L, @lua_map_node_get_indexed_light_flag );
       lua_setfield( L, -2, '__index' );
-      lua_pushcfunction( L, @lua_map_node_set_light_flag );
+      lua_pushcfunction( L, @lua_map_node_set_indexed_light_flag );
       lua_setfield( L, -2, '__newindex' );
     lua_setmetatable( L, -2 );
 
