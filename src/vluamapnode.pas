@@ -28,14 +28,14 @@ const vlfExplored     = 0;
       vlfVisible      = 1;
       vlfLighted      = 2;
 
-      vlfFlood        = 15;
+      vlfFloodFill    = 31;
 
 const EF_NOBLOCK      = 0;
       EF_NOBEINGS     = 1;
       EF_NOITEMS      = 2;
 
 {$PACKSET 2}
-type TWordSet = set of 0..15;
+type TWordSet = set of 0..31;
 type TMapCell = record
   Being : TLuaEntityNode;
   Item  : TLuaEntityNode;
@@ -99,9 +99,9 @@ type TLuaMapNode = class( TNode, IVisionQuery )
   // Get Light flag
   function GetLightFlag( const aCoord : TCoord2D; aFlag : Byte ) : Boolean;
   // Set Light value
-  procedure SetLightValue( const aCoord : TCoord2D; aValue : Word );
+  procedure SetLightValue( const aCoord : TCoord2D; aValue : DWord );
   // Get Light value
-  function GetLightValue( const aCoord : TCoord2D ) : Word;
+  function GetLightValue( const aCoord : TCoord2D ) : DWord;
   // Return Being at position aCoord
   function GetBeing( const aCoord : TCoord2D ) : TLuaEntityNode; virtual;
   // Return Item at position aCoord
@@ -359,14 +359,14 @@ begin
   Exit( aFlag in FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light );
 end;
 
-procedure TLuaMapNode.SetLightValue( const aCoord : TCoord2D; aValue : Word );
+procedure TLuaMapNode.SetLightValue( const aCoord : TCoord2D; aValue : DWord );
 begin
   FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light := TWordSet( aValue );
 end;
 
-function TLuaMapNode.GetLightValue( const aCoord : TCoord2D ) : Word;
+function TLuaMapNode.GetLightValue( const aCoord : TCoord2D ) : DWord;
 begin
-  Exit( Word( FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light ) );
+  Exit( DWord( FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light ) );
 end;
 
 procedure TLuaMapNode.SetBeing ( const aCoord : TCoord2D; aBeing : TLuaEntityNode ) ;
