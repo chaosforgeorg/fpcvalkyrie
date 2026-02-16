@@ -381,14 +381,14 @@ begin
   if not iState.Map.isProperCoord( iStart ) then Exit( 0 );
   if not iArea.Contains( iStart )           then Exit( 0 );
 
-  iState.Map.ClearLightMapBits( [vlfFlood] );
+  iState.Map.ClearLightMapBits( [vlfFloodFill] );
   Initialize( iQueue );
   SetLength( iQueue, ( iArea.Width + 1 ) * ( iArea.Height + 1 ) + 1 );
   iHead  := 0;
   iTail  := 0;
   iCount := 0;
 
-  iState.Map.LightFlag[ iStart, vlfFlood ] := True;
+  iState.Map.LightFlag[ iStart, vlfFloodFill ] := True;
   if iFTo
     then iState.CallFunction( 3, [LuaCoord( iStart )] )
     else iState.Map.putCell( iStart, iTo );
@@ -402,9 +402,9 @@ begin
     iAround := NewArea( iCur, 1 ).Clamped( iArea );
     for iC in iAround do
       if iC <> iCur then
-        if not iState.Map.LightFlag[ iC, vlfFlood ] then
+        if not iState.Map.LightFlag[ iC, vlfFloodFill ] then
         begin
-          iState.Map.LightFlag[ iC, vlfFlood ] := True;
+          iState.Map.LightFlag[ iC, vlfFloodFill ] := True;
           if ( ( not iFFrom ) and ( iState.Map.getCell( iC ) in iFrom ) ) or
              ( iFFrom and Boolean( iState.CallFunction( 4, [LuaCoord( iC )] ) ) ) then
           begin
@@ -417,6 +417,7 @@ begin
           end;
         end;
   end;
+  iState.Map.ClearLightMapBits( [vlfFloodFill] );
   iState.Push( iCount );
   Exit( 1 );
 end;

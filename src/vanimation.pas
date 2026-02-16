@@ -38,12 +38,14 @@ protected
   FTime     : DWord;
   FDuration : DWord;
   FUID      : TUID;
+  FBlocking : Boolean;
 public
   property Expired  : Boolean read IsExpired;
   property Duration : DWord   read FDuration;
   property Time     : DWord   read FTime;
   property UID      : TUID    read FUID;
   property Delay    : DWord   read FDelay write FDelay;
+  property Blocking : Boolean read FBlocking;
 end;
 
 type TAnimationArray = specialize TGObjectArray< TAnimation >;
@@ -55,6 +57,7 @@ type TAnimations = class
   procedure Draw;
   procedure Clear;
   function Finished : Boolean;
+  function BlockingFinished : Boolean;
   destructor Destroy; override;
 private
   function UIDDuration( aUID : TUID ) : DWord;
@@ -76,6 +79,7 @@ begin
   FTime     := 0;
   FDuration := aDuration;
   FUID      := aUID;
+  FBlocking := True;
 end;
 
 procedure TAnimation.OnUpdate ( aTime : DWord ) ;
@@ -170,6 +174,15 @@ end;
 function TAnimations.Finished: Boolean;
 begin
   Exit( FAnimations.Size = 0 );
+end;
+
+function TAnimations.BlockingFinished : Boolean;
+var iAnim : TAnimation;
+begin
+  for iAnim in FAnimations do
+    if iAnim.Blocking then
+      Exit( False );
+  Exit( True );
 end;
 
 destructor TAnimations.Destroy;

@@ -31,6 +31,7 @@ type TTextMap = class
   procedure AddAnimation( aAnimation : TAnimation );
   procedure ClearAnimations;
   function AnimationsFinished : Boolean;
+  function AnimationsBlockingFinished : Boolean;
   function Screen( aWorld : TCoord2D ) : TIOPoint; inline;
   function World( aScreen : TIOPoint ) : TCoord2D;  inline;
 protected
@@ -226,6 +227,11 @@ end;
 function TTextMap.AnimationsFinished : Boolean;
 begin
   Exit( FAnimations.Finished );
+end;
+
+function TTextMap.AnimationsBlockingFinished : Boolean;
+begin
+  Exit( FAnimations.BlockingFinished );
 end;
 
 function TTextMap.Screen ( aWorld : TCoord2D ) : TIOPoint;

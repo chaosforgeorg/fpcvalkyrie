@@ -28,14 +28,14 @@ const vlfExplored     = 0;
       vlfVisible      = 1;
       vlfLighted      = 2;
 
-      vlfFlood        = 15;
+      vlfFloodFill    = 31;
 
 const EF_NOBLOCK      = 0;
       EF_NOBEINGS     = 1;
       EF_NOITEMS      = 2;
 
 {$PACKSET 2}
-type TWordSet = set of 0..15;
+type TWordSet = set of 0..31;
 type TMapCell = record
   Being : TLuaEntityNode;
   Item  : TLuaEntityNode;
@@ -99,9 +99,9 @@ type TLuaMapNode = class( TNode, IVisionQuery )
   // Get Light flag
   function GetLightFlag( const aCoord : TCoord2D; aFlag : Byte ) : Boolean;
   // Set Light value
-  procedure SetLightValue( const aCoord : TCoord2D; aValue : Word );
+  procedure SetLightValue( const aCoord : TCoord2D; aValue : DWord );
   // Get Light value
-  function GetLightValue( const aCoord : TCoord2D ) : Word;
+  function GetLightValue( const aCoord : TCoord2D ) : DWord;
   // Return Being at position aCoord
   function GetBeing( const aCoord : TCoord2D ) : TLuaEntityNode; virtual;
   // Return Item at position aCoord
@@ -109,7 +109,7 @@ type TLuaMapNode = class( TNode, IVisionQuery )
   // Drop something onto the map
   function Drop( aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 = [] ) : TLuaEntityNode;
   // Find a suitable drop coord
-  function DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32 ) : TCoord2D;
+  function DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D;
   // Returns the number of cells in aCells around cell (excluding self)
   function CellsAround( const aWhere : TCoord2D; const aCells : TCellSet; aRange : Byte = 1 ) : Byte;
   // Returns the number of cells in aCells around cell in cardinal dirs (excluding self );
@@ -359,14 +359,14 @@ begin
   Exit( aFlag in FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light );
 end;
 
-procedure TLuaMapNode.SetLightValue( const aCoord : TCoord2D; aValue : Word );
+procedure TLuaMapNode.SetLightValue( const aCoord : TCoord2D; aValue : DWord );
 begin
   FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light := TWordSet( aValue );
 end;
 
-function TLuaMapNode.GetLightValue( const aCoord : TCoord2D ) : Word;
+function TLuaMapNode.GetLightValue( const aCoord : TCoord2D ) : DWord;
 begin
-  Exit( Word( FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light ) );
+  Exit( DWord( FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light ) );
 end;
 
 procedure TLuaMapNode.SetBeing ( const aCoord : TCoord2D; aBeing : TLuaEntityNode ) ;
@@ -399,7 +399,7 @@ begin
   end;
 
   try
-    aPosition := DropCoord( aPosition, aEmptyFlags );
+    aPosition := DropCoord( aPosition, aEmptyFlags, False );
     if aWhat.Parent <> Self then Add( aWhat );
     aWhat.Displace( aPosition );
     case aWhat.EntityID of
@@ -412,25 +412,43 @@ begin
   Result := aWhat;
 end;
 
-function TLuaMapNode.DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32 ): TCoord2D;
-var iC    : TCoord2D;
-    iList : TMinCoordChoice;
+function TLuaMapNode.DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ): TCoord2D;
+var iC        : TCoord2D;
+    iList     : TMinCoordChoice;
+    iRange    : Byte;
+    iArea     : TArea;
+    iMaxRange : Byte;
+    iCheckEye : Boolean;
 begin
   if isEmpty( aCoord, aEmptyFlags ) then
     Exit( aCoord );
 
-  iList := TMinCoordChoice.Create;
+  iList     := TMinCoordChoice.Create;
+  iCheckEye := aInVision;
+  iMaxRange := 5;
+  if not aInVision then iMaxRange := 7;
 
-  for iC in NewArea( aCoord, 1 ) do
-    if FArea.Contains( iC ) then
-      if isEmpty( iC, aEmptyFlags ) then
-        iList.Add( iC, Distance( aCoord, iC ) );
+  repeat
+    for iRange := 1 to iMaxRange do
+    begin
+      iArea := NewArea( aCoord, iRange );
+      for iC in iArea do
+        if FArea.Contains( iC ) then
+          if iArea.isEdge( iC ) then
+            if isEmpty( iC, aEmptyFlags ) then
+              if (not iCheckEye) or isEyeContact( aCoord, iC ) then
+                iList.Add( iC, Distance( aCoord, iC ) );
+      if not iList.IsEmpty then Break;
+    end;
 
-  if iList.IsEmpty then
-    for iC in NewArea( aCoord, 5 ) do
-      if FArea.Contains( iC ) then
-        if isEmpty( iC, aEmptyFlags ) then
-          iList.Add( iC, Distance( aCoord, iC ) );
+    if iList.IsEmpty and iCheckEye then
+    begin
+      iCheckEye := False;
+      iMaxRange := 7;
+    end
+    else
+      Break;
+  until False;
 
   if iList.IsEmpty then raise EPlacementException.CreateFmt('TLuaMapNode.DropCoord(%d,%d) failed!',[aCoord.x, aCoord.y]);
 
@@ -770,13 +788,7 @@ function lua_map_node_get_light_flag(L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init(L);
-  if iState.IsNil(3) then
-  begin
-    lua_pushstring( L, '__coord' );
-    lua_rawget( L, 1 );
-    iState.Push( iState.Map.LightFlag[ iState.ToPosition(-1), iState.ToInteger(2) ] )
-  end
-  else iState.Push( iState.Map.LightFlag[ iState.ToPosition(2), iState.ToInteger(3) ] );
+  iState.Push( iState.Map.LightFlag[ iState.ToPosition(2), iState.ToInteger(3) ] );
   Result := 1;
 end;
 
@@ -784,82 +796,27 @@ function lua_map_node_set_light_flag(L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
     iCoord : TCoord2D;
     iArea  : TArea;
-    iFlag  : Integer;
-    iValue : Boolean;
-begin
-  iState.Init(L);
-  if iState.IsNil(4) then
-  begin
-    lua_pushstring( L, '__coord' );
-    lua_rawget( L, 1 );
-    if lua_isnil( L, -1 ) then
-    begin
-      lua_pushstring( L, '__area' );
-      lua_rawget( L, 1 );
-      iArea  := vlua_toarea( L, lua_absindex(L,-1) );
-      iFlag  := iState.ToInteger(2);
-      iValue := iState.ToBoolean(3);
-      for iCoord in iArea do
-        iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
-      Exit(0);
-    end;
-    iState.Map.LightFlag[ iState.ToCoord(-1), iState.ToInteger(2) ] := iState.ToBoolean(3)
-  end
-  else
-  begin
-    if iState.IsCoord(2) then
-      iState.Map.LightFlag[ iState.ToCoord(2), iState.ToInteger(3) ] := iState.ToBoolean(4)
-    else
-    begin
-      iArea  := iState.ToArea(2);
-      iFlag  := iState.ToInteger(3);
-      iValue := iState.ToBoolean(4);
-      for iCoord in iArea do
-        iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
-    end;
-  end;
-  Result := 0;
-end;
-
-function lua_map_node_light_index(L: Plua_State): Integer; cdecl;
-var iState : TLuaMapState;
-begin
-  iState.Init(L);
-  lua_settop( L, 2 );
-  lua_createtable( L, 0, 2 );
-    lua_pushstring( L, '__ptr');
-    lua_pushlightuserdata( L, iState.Map );
-    lua_rawset( L, -3 );
-
-    if vlua_iscoord( L, 2 ) then
-      lua_pushstring( L, '__coord')
-    else if vlua_isarea( L, 2 ) then
-      lua_pushstring( L, '__area')
-    else luaL_argerror( L, 2, 'Coord or area expected' );
-    lua_pushvalue( L, 2 );
-    lua_rawset( L, -3 );
-
-    lua_createtable( L, 0, 2 );
-      lua_pushcfunction( L, @lua_map_node_get_light_flag );
-      lua_setfield( L, -2, '__index' );
-      lua_pushcfunction( L, @lua_map_node_set_light_flag );
-      lua_setfield( L, -2, '__newindex' );
-    lua_setmetatable( L, -2 );
-
-  Result := 1;
-end;
-
-function lua_map_node_light_newindex(L: Plua_State): Integer; cdecl;
-var iState : TLuaMapState;
-    iCoord : TCoord2D;
     iFlag  : Byte;
     iValue : Boolean;
 begin
   iState.Init(L);
-  iFlag  := iState.ToInteger(2);
-  iValue := iState.ToBoolean(3);
-  for iCoord in iState.Map.Area do
-    iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
+  if vlua_iscoord( L, 2 ) then
+    iState.Map.LightFlag[ iState.ToPosition(2), iState.ToInteger(3) ] := iState.ToBoolean(4)
+  else if vlua_isarea( L, 2 ) then
+  begin
+    iArea  := iState.ToArea(2);
+    iFlag  := iState.ToInteger(3);
+    iValue := iState.ToBoolean(4);
+    for iCoord in iArea do
+      iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
+  end
+  else
+  begin
+    iFlag  := iState.ToInteger(2);
+    iValue := iState.ToBoolean(3);
+    for iCoord in iState.Map.Area do
+      iState.Map.LightFlag[ iCoord, iFlag ] := iValue;
+  end;
   Result := 0;
 end;
 
@@ -1041,7 +998,8 @@ begin
       end;
     end;
   until iMap.GetCell( iCoord^ ) = iCell;
-  vlua_pushcoord( L, iCoord^ );
+  // push modified coord
+  lua_pushvalue( L, lua_upvalueindex( 2 ) );
   Exit( 1 );
 end;
 
@@ -1259,7 +1217,7 @@ begin
   iState.Init( L );
   iCoord := iState.ToPosition( 2 );
   try
-    vlua_pushcoord( L, iState.Map.DropCoord( iCoord, iState.ToFlags32( 3 ) ) );
+    vlua_pushcoord( L, iState.Map.DropCoord( iCoord, iState.ToFlags32( 3 ), iState.ToBoolean( 4, False ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -1401,7 +1359,6 @@ const lua_map_node_lib : array[0..34] of luaL_Reg = (
 class procedure TLuaMapNode.RegisterLuaAPI ( const aTableName : AnsiString ) ;
 begin
   LuaSystem.Register( aTableName, lua_map_node_lib );
-  LuaSystem.RegisterMetaTable( aTableName, 'light', @lua_map_node_light_index, @lua_map_node_light_newindex );
   LuaSystem.RegisterMetaTable( aTableName, 'map',   @lua_map_node_get_cell,    @lua_map_node_set_cell );
   LuaSystem.RegisterMetaTable( aTableName, 'hp',    @lua_map_node_get_hp,      @lua_map_node_set_hp );
 end;
