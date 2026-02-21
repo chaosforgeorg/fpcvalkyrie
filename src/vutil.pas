@@ -124,21 +124,10 @@ procedure Pad( var aString : AnsiString; aLength : byte; aPadChar : Char = ' ' )
 // @param( aPadChar Padding character, space by default )
 function Padded( const aString : AnsiString; aLength : byte; aPadChar : Char = ' ' ) : AnsiString;
 
-// Returns the string with the first letter capitalized.
-// Deprecated, use Capitalized instead.
-function CapLet(const s : Ansistring):Ansistring; deprecated;
-
 // Produces a time string of the format DD.MM.YY HH:MM.
 //
 // @returns( DateTimeToStr( Now ) )
 function TimeStamp : string;
-
-// Formats the string the Valkyrie way -- replacing @1..@X with the passed
-// parameters. Supports conversion for integers and floats.
-//
-// @param( aString String to be formated )
-// @param( aParams Parameters to be converted and injected into the string )
-function VFormat( const aString : Ansistring; const aParams : array of Const ) : Ansistring; deprecated;
 
 // Returns the string with the first letter capitalized.
 //
@@ -233,7 +222,7 @@ const PointNegUnit : TPoint = ( x : -1; y : -1; );
 function Max( a, b : TPoint ) : TPoint; overload;
 function Min( a, b : TPoint ) : TPoint; overload;
 
-// Valkyrie's base exception class. Allows construction via VFormat.
+// Valkyrie's base exception class. Allows construction via Format.
 type EException = class(Exception)
   // Create the exception, just a override of Exception.Create
   constructor Create( const aMessage : AnsiString );
@@ -582,23 +571,6 @@ begin
   Exit( Format('(%d,%d)',[x,y]) );
 end;
 
-function VFormat( const aString : Ansistring; const aParams : array of Const) : Ansistring;
-var iCount : DWord;
-begin
-  VFormat := aString;
-  for iCount := 1 to High( aParams ) + 1 do
-  begin
-    case aParams[ iCount - 1 ].vtype of
-      vtInt64      : VFormat := AnsiReplaceStr( VFormat, '@' + IntToStr( iCount ), IntToStr( aParams[iCount-1].VInt64^ ) );
-      vtQWord      : VFormat := AnsiReplaceStr( VFormat, '@' + IntToStr( iCount ), IntToStr( aParams[iCount-1].VQWord^ ) );
-      vtInteger    : VFormat := AnsiReplaceStr( VFormat, '@' + IntToStr( iCount ), IntToStr( aParams[iCount-1].vinteger ) );
-      vtString     : VFormat := AnsiReplaceStr( VFormat, '@' + IntToStr( iCount ), aParams[iCount-1].vstring^ );
-      vtExtended   : VFormat := AnsiReplaceStr( VFormat, '@' + IntToStr( iCount ), FloatToStr( aParams[iCount-1].vextended^ ) );
-      vtAnsiString : VFormat := AnsiReplaceStr( VFormat, '@' + IntToStr( iCount ), AnsiString( aParams[iCount-1].vansistring ) );
-    end;
-  end;
-end;
-
 function Capitalized( const aString: Ansistring ): Ansistring;
 begin
   Capitalized    := aString;
@@ -671,11 +643,6 @@ function Padded( const aString : AnsiString; aLength : Byte; aPadChar : Char = '
 begin
   Padded := aString;
   Pad( Padded, aLength, aPadChar );
-end;
-
-function CapLet(const s : Ansistring):Ansistring;
-begin
-  Exit( Capitalized( s ) );
 end;
 
 function StrToBool( const aString : AnsiString ) : Boolean;

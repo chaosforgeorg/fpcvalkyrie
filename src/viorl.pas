@@ -29,7 +29,7 @@ type
   // Messages
   // Adds a message for the message buffer
   procedure Msg( const aMessage : Ansistring); virtual;
-  // Adds a message for the message buffer
+  // Adds a message for the message buffer (params passed to Format)
   procedure Msg( const aMessage : Ansistring; const aParams : array of Const );
   // Kills last message from the message buffer.
   procedure MsgKill;
@@ -134,9 +134,9 @@ begin
     FMessages.Add(aMessage);
 end;
 
-procedure TIORL.Msg ( const aMessage : Ansistring; const aParams : array of const ) ;
+procedure TIORL.Msg( const aMessage : Ansistring; const aParams : array of const ) ;
 begin
-  Msg( VFormat( aMessage, aParams ) );
+  Msg( Format( aMessage, aParams ) );
 end;
 
 procedure TIORL.MsgKill;
@@ -340,31 +340,21 @@ begin
 end;
 
 function lua_iorl_msg(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
-    iMsg  : AnsiString;
+var iState : TLuaState;
 begin
   if IORL = nil then Exit(0);
-  State.Init(L);
-  case State.StackSize of
-    0 : Exit(0);
-    1 : iMsg := State.ToString(1);
-    2 : iMsg := VFormat( State.ToString(1), [ State.ToString(2) ] );
-    3 : iMsg := VFormat( State.ToString(1), [ State.ToString(2), State.ToString(3)] );
-    4 : iMsg := VFormat( State.ToString(1), [ State.ToString(2), State.ToString(3), State.ToString(4) ] );
-  else
-    Exit(0);
-  end;
-  IORL.Msg( Capitalized( iMsg ) );
+  iState.Init(L);
+  if iState.StackSize < 1 then Exit( 0 );
+  IORL.Msg( Capitalized( iState.ToString(1) ) );
   Result := 0;
 end;
 
 function lua_iorl_msg_enter(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
-    iMsg  : AnsiString;
+var iState : TLuaState;
 begin
   if IORL = nil then Exit(0);
-  State.Init(L);
-  IORL.Msg( State.ToString(1) + ' Press <@<Enter@>>...' );
+  iState.Init(L);
+  IORL.Msg( iState.ToString(1) + ' Press <@<Enter@>>...' );
   IORL.WaitForKey( [ VKEY_ENTER ] );
   IORL.MsgUpdate;
   Result := 0;

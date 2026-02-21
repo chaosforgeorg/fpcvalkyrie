@@ -49,9 +49,9 @@ TVObject = class( TObject )
      procedure   Log( const aLogString : Ansistring ); virtual;
      // TVObject Interface for @link(grdebug.Log).
      procedure   Log( aLevel : TLogLevel; const aLogString : Ansistring ); virtual;
-     // TVObject Interface for @link(grdebug.Log), VFormat version.
+     // TVObject Interface for @link(grdebug.Log), Formatted version.
      procedure   Log( const aLogString : Ansistring; const aParam : array of Const );
-     // TVObject Interface for @link(grdebug.Log), VFormat version.
+     // TVObject Interface for @link(grdebug.Log), Formatted version.
      procedure   Log( aLevel : TLogLevel; const aLogString       : Ansistring; const aParam : array of Const );
      // Returns wether the object has a parent -- in case of TVObject it's always false
      function hasParent : boolean; virtual;
