@@ -10,6 +10,8 @@ type TIOPoint         = TPoint;
 type TIOStringArray   = specialize TGArray<AnsiString>;
 type TIOStringBuffer  = specialize TGRingBuffer<AnsiString>;
 
+// TEMPORARY, move to vtextmap later
+type TTextExplosionArray = array of record Color : TIOColor; Time : DWord; end;
 
 type TIOLayer = class
   procedure Update( aDTime : Integer; aActive : Boolean ); virtual; abstract;

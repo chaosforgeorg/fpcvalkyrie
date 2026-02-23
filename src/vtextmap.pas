@@ -90,8 +90,6 @@ type TTextClearMarkAnimation = class(TTextAnimation)
   destructor Destroy; override;
 end;
 
-type TTextExplosionArray = array of record Color : TIOColor; Time : DWord; end;
-
 type TTextExplosionAnimation = class(TTextAnimation)
   constructor Create( aWhere : TCoord2D; aChar : Char; const aArray : TTextExplosionArray; aDelay : DWord = 0 );
   procedure OnDraw; override;
