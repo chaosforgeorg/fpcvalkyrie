@@ -7,6 +7,9 @@ type TIOColor         = DWord;
 type TIOCursorType    = ( VIO_CURSOR_SMALL, VIO_CURSOR_HALF, VIO_CURSOR_BLOCK );
 type TIORect          = TRectangle;
 type TIOPoint         = TPoint;
+type TIOStringArray   = specialize TGArray<AnsiString>;
+type TIOStringBuffer  = specialize TGRingBuffer<AnsiString>;
+
 
 type TIOLayer = class
   procedure Update( aDTime : Integer; aActive : Boolean ); virtual; abstract;
@@ -172,6 +175,7 @@ const ColorCodes : array[0..15] of Char =
 
 function IOGylph( aChar : Char; aColor : TIOColor ) : TIOGylph;
 function IOColor( aR, aG, aB : Byte; aA : Byte = 255 ) : TIOColor;
+function TextFileToIOStringArray( const aPath : AnsiString ) : TIOStringArray;
 
 implementation
 
@@ -252,7 +256,19 @@ begin
   Exit( False );
 end;
 
-
+function TextFileToIOStringArray ( const aPath : AnsiString ) : TIOStringArray;
+var iText   : Text;
+    iString : AnsiString;
+begin
+  Result := TIOStringArray.Create;
+  AssignFile( iText, aPath );
+  Reset( iText );
+  repeat
+    Readln( iText, iString );
+    Result.Push( iString );
+  until EOF( iText );
+  Close( iText );
+end;
 
 end.
 
