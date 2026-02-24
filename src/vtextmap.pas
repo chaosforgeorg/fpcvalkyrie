@@ -8,6 +8,7 @@ type ITextMap = interface
 end;
 
 type TTextMap = class;
+type TTextExplosionArray = viotypes.TTextExplosionArray;
 
 type TTextAnimation = class( TAnimation )
   constructor Create( aDuration : DWord; aDelay : DWord );
