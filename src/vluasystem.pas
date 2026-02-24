@@ -636,13 +636,13 @@ begin
   lua_rawseti( L, -2, 2 );
   // blueprint[func_name] = spec
   lua_setfield( L, -2, lua_tolstring( L, INAME, nil ) );
-  lua_pop( L, 3 );
+  lua_pop( L, 2 ); // pop blueprint table and blueprints table, keep core
   // append func_name to core.callbacks array
   lua_getfield( L, -1, 'callbacks' );
   idx := lua_objlen( L, -1 ) + 1;
   lua_pushvalue( L, INAME );
   lua_rawseti( L, -2, idx );
-  lua_pop( L, 2 );
+  lua_pop( L, 2 ); // pop callbacks and core
 end;
 
 function lua_core_register_callback(L: Plua_State): Integer; cdecl;
