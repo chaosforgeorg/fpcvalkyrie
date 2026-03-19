@@ -26,7 +26,7 @@
 
 unit vrltools;
 interface
-uses SysUtils, Classes, vmath, vutil, vnode, vvector, vgenerics;
+uses SysUtils, Classes, vmath, vutil, vnode, vvector, vcolor, vgenerics;
 
 const DIR_NONE      = 0;
       DIR_DOWNLEFT  = 1;
@@ -52,6 +52,36 @@ type TByteRange = object
 end;
 
 function NewByteRange( const min, max : Byte ) : TByteRange;
+
+type TFloatRange = packed object
+  Min, Max : Single;
+  procedure Create( const aMin, aMax : Single );
+  function Diff : Single;
+  function Contains( const aValue : Single ) : Boolean;
+  function Random : Single;
+end;
+
+function NewFloatRange( const aMin, aMax : Single ) : TFloatRange;
+
+type TVec3fRange = packed object
+  Min, Max : TVec3f;
+  procedure Create( const aMin, aMax : TVec3f );
+  function Diff : TVec3f;
+  function Contains( const aValue : TVec3f ) : Boolean;
+  function Random : TVec3f;
+end;
+
+function NewVec3fRange( const aMin, aMax : TVec3f ) : TVec3fRange;
+
+type TColorRange = packed object
+  ColorA, ColorB : TColor;
+  procedure Create( const aA, aB : TColor );
+  function Diff : TColor;
+  function Contains( const aValue : TColor ) : Boolean;
+  function Random : TColor;
+end;
+
+function NewColorRange( const aA, aB : TColor ) : TColorRange;
 
 
 type TDiceRoll = object
@@ -758,6 +788,105 @@ function NewByteRange(const min, max: Byte): TByteRange;
 begin
   NewByteRange.Min := min;
   NewByteRange.Max := max;
+end;
+
+{ TFloatRange }
+
+procedure TFloatRange.Create( const aMin, aMax : Single );
+begin
+  Min := aMin;
+  Max := aMax;
+end;
+
+function TFloatRange.Diff : Single;
+begin
+  Exit( Max - Min );
+end;
+
+function TFloatRange.Contains( const aValue : Single ) : Boolean;
+begin
+  Exit( ( aValue >= Min ) and ( aValue <= Max ) );
+end;
+
+function TFloatRange.Random : Single;
+begin
+  Exit( Min + System.Random * ( Max - Min ) );
+end;
+
+function NewFloatRange( const aMin, aMax : Single ) : TFloatRange;
+begin
+  Result.Min := aMin;
+  Result.Max := aMax;
+end;
+
+{ TVec3fRange }
+
+procedure TVec3fRange.Create( const aMin, aMax : TVec3f );
+begin
+  Min := aMin;
+  Max := aMax;
+end;
+
+function TVec3fRange.Diff : TVec3f;
+begin
+  Result.X := Max.X - Min.X;
+  Result.Y := Max.Y - Min.Y;
+  Result.Z := Max.Z - Min.Z;
+end;
+
+function TVec3fRange.Contains( const aValue : TVec3f ) : Boolean;
+begin
+  Exit( ( aValue.X >= Min.X ) and ( aValue.X <= Max.X )
+    and ( aValue.Y >= Min.Y ) and ( aValue.Y <= Max.Y )
+    and ( aValue.Z >= Min.Z ) and ( aValue.Z <= Max.Z ) );
+end;
+
+function TVec3fRange.Random : TVec3f;
+begin
+  Result.X := Min.X + System.Random * ( Max.X - Min.X );
+  Result.Y := Min.Y + System.Random * ( Max.Y - Min.Y );
+  Result.Z := Min.Z + System.Random * ( Max.Z - Min.Z );
+end;
+
+function NewVec3fRange( const aMin, aMax : TVec3f ) : TVec3fRange;
+begin
+  Result.Min := aMin;
+  Result.Max := aMax;
+end;
+
+{ TColorRange }
+
+procedure TColorRange.Create( const aA, aB : TColor );
+begin
+  ColorA := aA;
+  ColorB := aB;
+end;
+
+function TColorRange.Diff : TColor;
+begin
+  Result := NewColor( Abs(SmallInt(ColorB.R) - SmallInt(ColorA.R)),
+                      Abs(SmallInt(ColorB.G) - SmallInt(ColorA.G)),
+                      Abs(SmallInt(ColorB.B) - SmallInt(ColorA.B)),
+                      Abs(SmallInt(ColorB.A) - SmallInt(ColorA.A)) );
+end;
+
+function TColorRange.Contains( const aValue : TColor ) : Boolean;
+begin
+  Exit( (aValue.R >= ColorA.R) and (aValue.R <= ColorB.R)
+    and (aValue.G >= ColorA.G) and (aValue.G <= ColorB.G)
+    and (aValue.B >= ColorA.B) and (aValue.B <= ColorB.B)
+    and (aValue.A >= ColorA.A) and (aValue.A <= ColorB.A) );
+end;
+
+function TColorRange.Random : TColor;
+begin
+  Exit( ColorLerp( ColorA, ColorB, System.Random ) );
+end;
+
+function NewColorRange( const aA, aB : TColor ) : TColorRange;
+begin
+  Result.ColorA := aA;
+  Result.ColorB := aB;
 end;
 
 function RandomRange(Min, Max: LongInt): LongInt;
