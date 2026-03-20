@@ -91,11 +91,11 @@ type
 { TParticleEngine }
 
   TParticleEngine = class
-    constructor Create( aSpriteEngine : TSpriteEngine; aMaxParticles : Integer = PARTICLE_MAX_DEFAULT );
+    constructor Create( aMaxParticles : Integer = PARTICLE_MAX_DEFAULT );
     destructor Destroy; override;
     procedure Clear;
     procedure Update( aDeltaSec : Single );
-    procedure Render;
+    procedure Render( aSpriteEngine : TSpriteEngine );
     function  EmitStart( aData : PParticleEmitterData; const aPos : TVec3f ) : Integer;
     procedure EmitStop( aIndex : Integer );
     procedure EmitKill( aIndex : Integer );
@@ -110,7 +110,6 @@ type
     FEmitterCount  : Integer;
     FMaxParticles  : Integer;
     FMaxEmitters   : Integer;
-    FSpriteEngine  : TSpriteEngine;
     FDecalCallback : TParticleDecalCallback;
     function  AllocParticle : Integer;
     function  AllocEmitter : Integer;
@@ -118,7 +117,7 @@ type
     procedure EmitFromEmitter( aIndex : Integer; aDeltaSec : Single );
     procedure SpawnFromEmitter( aIndex : Integer );
     procedure KillParticle( aIndex : Integer );
-    procedure RenderParticle( aIndex : Integer );
+    procedure RenderParticle( aIndex : Integer; aSpriteEngine : TSpriteEngine );
     function  RandomDirection( const aDir : TVec3f; aSpreadAngle : Single ) : TVec3f;
     function  RandomPointInShape( const aPos : TVec3f; aData : PParticleEmitterData ) : TVec3f;
   public
@@ -131,10 +130,9 @@ implementation
 
 { TParticleEngine }
 
-constructor TParticleEngine.Create( aSpriteEngine : TSpriteEngine; aMaxParticles : Integer );
+constructor TParticleEngine.Create( aMaxParticles : Integer );
 begin
   inherited Create;
-  FSpriteEngine  := aSpriteEngine;
   FDecalCallback := nil;
   FMaxParticles  := aMaxParticles;
   FMaxEmitters   := 128;
@@ -440,7 +438,7 @@ begin
   end;
 end;
 
-procedure TParticleEngine.RenderParticle( aIndex : Integer );
+procedure TParticleEngine.RenderParticle( aIndex : Integer; aSpriteEngine : TSpriteEngine );
 var iP         : ^TParticle;
     iT         : Single;
     iColor     : TColor;
@@ -484,8 +482,8 @@ begin
   // Resolve sprite layer
   iLayerIdx := iP^.SpriteID div 100000;
   iSpriteID := iP^.SpriteID mod 100000;
-  if Integer(iLayerIdx) >= FSpriteEngine.Layers.Size then Exit;
-  iLayer := FSpriteEngine.Layers[iLayerIdx];
+  if Integer(iLayerIdx) >= aSpriteEngine.Layers.Size then Exit;
+  iLayer := aSpriteEngine.Layers[iLayerIdx];
 
   // Sub-sprite tex coords: half-sprite within the full sprite cell
   iSubCol := iP^.SubID mod 2;
@@ -497,9 +495,9 @@ begin
   iTexB.Y := ( iTexPos.Y + ( iSubRow + 1 ) * 0.5 ) * iLayer.TexUnit.Y;
 
   // Screen position from base coords (Z subtracts from Y for fake-3D rise)
-  iScreenPos.X := Round( iP^.Position.X * FSpriteEngine.Scale );
-  iScreenPos.Y := Round( ( iP^.Position.Y - iP^.Position.Z ) * FSpriteEngine.Scale );
-  iHalf := Round( FSpriteEngine.Grid.X * iP^.Scale * 0.5 );
+  iScreenPos.X := Round( iP^.Position.X * aSpriteEngine.Scale );
+  iScreenPos.Y := Round( ( iP^.Position.Y - iP^.Position.Z ) * aSpriteEngine.Scale );
+  iHalf := Round( aSpriteEngine.Grid.X * iP^.Scale * 0.5 );
 
   // Z-order: Y-row sorting + depth from Z
   iZ := Round( iP^.Position.Y / 32 ) * 10 + 4000 + Round( iP^.Position.Z * 0.1 );
@@ -533,11 +531,11 @@ begin
   iLayer.Push( @iCoord, @iTex, @iQColor, iCosColor, ColorZero, ColorZero, iZ );
 end;
 
-procedure TParticleEngine.Render;
+procedure TParticleEngine.Render( aSpriteEngine : TSpriteEngine );
 var i : Integer;
 begin
   for i := 0 to FParticleCount - 1 do
-    RenderParticle( i );
+    RenderParticle( i, aSpriteEngine );
 end;
 
 function TParticleEngine.EmitStart( aData : PParticleEmitterData; const aPos : TVec3f ) : Integer;
