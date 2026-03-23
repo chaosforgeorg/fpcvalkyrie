@@ -50,6 +50,7 @@ type
     Flags           : TEmitterFlags;
     Shape           : TEmitterShape;
     ShapeParams     : TVec3f;
+    PositionOffset  : TVec3f;
     Direction       : TVec3f;
     SpreadAngle     : Single;
     SpeedRange      : TFloatRange;
@@ -182,60 +183,38 @@ begin
 end;
 
 function TParticleEngine.RandomDirection( const aDir : TVec3f; aSpreadAngle : Single ) : TVec3f;
-var iAngle, iPhi : Single;
-    iLen         : Single;
-    iSin, iCos   : Single;
+var iAngle : Double;
 begin
   if aSpreadAngle <= 0 then
     Exit( aDir );
-  iLen := aDir.Length;
-  if iLen < 0.001 then
-  begin
-    // Random sphere direction
-    iPhi   := Random * 2 * PI;
-    iAngle := Random * aSpreadAngle * PI / 180;
-    SinCos( iAngle, iSin, iCos );
-    Result.X := iSin * Cos( iPhi );
-    Result.Y := iSin * Sin( iPhi );
-    Result.Z := iCos;
-    Exit;
-  end;
-  // Perturb direction within cone
-  iPhi   := Random * 2 * PI;
-  iAngle := Random * aSpreadAngle * PI / 180;
-  SinCos( iAngle, iSin, iCos );
-  // Simple cone perturbation around direction
-  Result.X := aDir.X / iLen * iCos + iSin * Cos( iPhi );
-  Result.Y := aDir.Y / iLen * iCos + iSin * Sin( iPhi );
-  Result.Z := aDir.Z / iLen * iCos + iSin * Cos( iPhi + PI / 2 );
-  iLen := Result.Length;
-  if iLen > 0.001 then
-  begin
-    Result.X := Result.X / iLen;
-    Result.Y := Result.Y / iLen;
-    Result.Z := Result.Z / iLen;
-  end;
+  if ( Abs( aDir.X ) < 0.001 ) and ( Abs( aDir.Y ) < 0.001 ) then
+    iAngle := Random * 2.0 * PI
+  else
+    iAngle := ArcTan2( aDir.Y, aDir.X ) + ( Random * 2.0 - 1.0 ) * aSpreadAngle * PI / 180.0;
+  Result.Init( Cos( iAngle ), Sin( iAngle ), 0 );
 end;
 
 function TParticleEngine.RandomPointInShape( const aPos : TVec3f; aData : PParticleEmitterData ) : TVec3f;
 var iAngle, iRadius : Single;
+    iBase : TVec3f;
 begin
+  iBase := aPos + aData^.PositionOffset;
   case aData^.Shape of
     ES_POINT:
-      Result := aPos;
+      Result := iBase;
     ES_SPHERE:
     begin
       iAngle := Random * 2 * PI;
       iRadius := aData^.ShapeParams.X;
-      Result.X := aPos.X + Cos( iAngle ) * iRadius * ( 0.5 + Random * 0.5 );
-      Result.Y := aPos.Y + Sin( iAngle ) * iRadius * ( 0.5 + Random * 0.5 );
-      Result.Z := aPos.Z + ( Random - 0.5 ) * iRadius;
+      Result.X := iBase.X + Cos( iAngle ) * iRadius * ( 0.5 + Random * 0.5 );
+      Result.Y := iBase.Y + Sin( iAngle ) * iRadius * ( 0.5 + Random * 0.5 );
+      Result.Z := iBase.Z + ( Random - 0.5 ) * iRadius;
     end;
     ES_BASE_RING:
     begin
       iAngle := Random * 2 * PI;
-      Result.X := aPos.X + Cos( iAngle ) * aData^.ShapeParams.X;
-      Result.Y := aPos.Y + Sin( iAngle ) * aData^.ShapeParams.Y;
+      Result.X := iBase.X + Cos( iAngle ) * aData^.ShapeParams.X;
+      Result.Y := iBase.Y + Sin( iAngle ) * aData^.ShapeParams.Y;
       // Z varies for depth: bottom of ring is positive (behind), top is negative (in front)
       Result.Z := Sin( iAngle ) * aData^.ShapeParams.Z;
     end;
@@ -381,8 +360,8 @@ begin
   end;
 
   // Euler integration
-  iP^.Velocity := iP^.Velocity + iP^.Acceleration.ScaledF( aDeltaSec );
-  iP^.Position := iP^.Position + iP^.Velocity.ScaledF( aDeltaSec );
+  iP^.Velocity := iP^.Velocity + iP^.Acceleration.Scaled( aDeltaSec );
+  iP^.Position := iP^.Position + iP^.Velocity.Scaled( aDeltaSec );
 
   // Ground collision (Z <= 0 means ground hit)
   if iP^.Position.Z < 0 then
@@ -497,20 +476,25 @@ begin
   // Screen position from base coords (Z subtracts from Y for fake-3D rise)
   iScreenPos.X := Round( iP^.Position.X * aSpriteEngine.Scale );
   iScreenPos.Y := Round( ( iP^.Position.Y - iP^.Position.Z ) * aSpriteEngine.Scale );
-  iHalf := Round( aSpriteEngine.Grid.X * iP^.Scale * 0.5 );
+  iHalf := Round( aSpriteEngine.Grid.X * iP^.Scale * 0.25 );
 
   // Z-order: Y-row sorting + depth from Z
   iZ := Round( iP^.Position.Y / 32 ) * 10 + 4000 + Round( iP^.Position.Z * 0.1 );
 
-  // Cos color for cosplay channel
+  // Color channels: cosplay sprites use additive cos_color, others use vertex color tinting
   if PF_COSPLAY in iP^.Flags then
-    iCosColor := iColor
+  begin
+    iCosColor := iColor;
+    iQColor.FillAll( 255 );
+  end
   else
+  begin
     iCosColor := ColorZero;
+    iQColor.SetAll( TVec3b.Create( iColor.R, iColor.G, iColor.B ) );
+  end;
 
   // Build quad via raw Push API
   iTex.Init( iTexA, iTexB );
-  iQColor.FillAll( 255 );
 
   if PF_ROTATE in iP^.Flags then
   begin
@@ -528,7 +512,7 @@ begin
     iCoord.Data[3].Init( iScreenPos.X + iHalf, iScreenPos.Y - iHalf );
   end;
 
-  iLayer.Push( @iCoord, @iTex, @iQColor, iCosColor, ColorZero, ColorZero, iZ );
+  iLayer.Push( @iCoord, @iTex, @iQColor, iCosColor, ColorZero, iCosColor, iZ );
 end;
 
 procedure TParticleEngine.Render( aSpriteEngine : TSpriteEngine );
