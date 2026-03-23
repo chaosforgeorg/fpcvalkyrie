@@ -37,7 +37,8 @@ type
   TEmitterShape = (
     ES_POINT,
     ES_SPHERE,
-    ES_BASE_RING
+    ES_BASE_RING,
+    ES_BASE_ELLIPSE
   );
 
   TEmitterFlag = (
@@ -217,6 +218,14 @@ begin
       Result.Y := iBase.Y + Sin( iAngle ) * aData^.ShapeParams.Y;
       // Z varies for depth: bottom of ring is positive (behind), top is negative (in front)
       Result.Z := Sin( iAngle ) * aData^.ShapeParams.Z;
+    end;
+    ES_BASE_ELLIPSE:
+    begin
+      iAngle := Random * 2 * PI;
+      iRadius := Sqrt( Random );  // uniform disc distribution
+      Result.X := iBase.X + Cos( iAngle ) * aData^.ShapeParams.X * iRadius;
+      Result.Y := iBase.Y + Sin( iAngle ) * aData^.ShapeParams.Y * iRadius;
+      Result.Z := Sin( iAngle ) * aData^.ShapeParams.Z * iRadius;
     end;
   end;
 end;
