@@ -317,6 +317,9 @@ begin
       iE^.HasBurst := True;
       for i := 1 to iD^.BurstCount do
         SpawnFromEmitter( aIndex );
+      // Non-looping burst: deactivate immediately, auto-drain frees slot
+      if not ( EF_LOOPING in iD^.Flags ) then
+        iE^.Active := False;
     end;
     Exit;
   end;
