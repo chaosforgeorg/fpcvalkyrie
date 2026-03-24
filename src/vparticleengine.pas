@@ -416,7 +416,7 @@ begin
   // Animation frame advance
   if iP^.AnimFrames > 1 then
   begin
-    iFrame := Floor( ( 1.0 - iP^.Life / iP^.LifeMax ) * iP^.AnimFrames );
+    iFrame := Floor( ( iP^.LifeMax - iP^.Life ) * 1000 / Max( iP^.AnimFrameTime, 1 ) );
     if PF_NOLOOP in iP^.Flags then
       iP^.SubID := Min( Byte( iFrame ), iP^.AnimFrames - 1 )
     else
