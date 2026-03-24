@@ -9,7 +9,7 @@ type
   TParticleSubID = 0..3;  // Quadrant: 0=TL, 1=TR, 2=BL, 3=BR
 
   TParticleFlag = (
-    PF_ACTIVE, PF_DEAD, PF_ANIMATE, PF_LOOP, PF_ROTATE,
+    PF_ACTIVE, PF_DEAD, PF_NOLOOP, PF_ROTATE,
     PF_BOUNCE, PF_DECAL_ON_GROUND, PF_FADE_ALPHA, PF_COSPLAY
   );
   TParticleFlags = set of TParticleFlag;
@@ -96,6 +96,7 @@ type
     constructor Create( aMaxParticles : Integer = PARTICLE_MAX_DEFAULT );
     destructor Destroy; override;
     procedure Clear;
+    procedure ClearParticles;
     procedure Update( aDeltaSec : Single );
     procedure Render( aSpriteEngine : TSpriteEngine );
     function  EmitStart( aData : PParticleEmitterData; const aPos : TVec3f ) : Integer;
@@ -103,6 +104,7 @@ type
     procedure EmitKill( aIndex : Integer );
     procedure EmitSetPosition( aIndex : Integer; const aPos : TVec3f );
     procedure EmitSetDirection( aIndex : Integer; const aDir : TVec3f );
+    function  IsEmitterUsed( aIndex : Integer ) : Boolean;
     function  SpawnParticle( const aParticle : TParticle ) : Integer;
     procedure SpawnBurst( aData : PParticleEmitterData; const aPos, aDir : TVec3f; aCount : Word );
   private
@@ -155,6 +157,18 @@ begin
   FEmitterCount  := 0;
   for i := 0 to FMaxEmitters - 1 do
     FEmitters[i].Used := False;
+end;
+
+procedure TParticleEngine.ClearParticles;
+var i : Integer;
+begin
+  FParticleCount := 0;
+  for i := 0 to FMaxEmitters - 1 do
+    if FEmitters[i].Used then
+    begin
+      FEmitters[i].ActiveCount  := 0;
+      FEmitters[i].TimeSinceEmit := 0;
+    end;
 end;
 
 function TParticleEngine.AllocParticle : Integer;
@@ -360,7 +374,8 @@ begin
 end;
 
 procedure TParticleEngine.UpdateParticle( aIndex : Integer; aDeltaSec : Single );
-var iP : ^TParticle;
+var iP     : ^TParticle;
+    iFrame : Integer;
 begin
   iP := @FParticles[aIndex];
 
@@ -399,10 +414,13 @@ begin
     iP^.Rotation += iP^.RotationSpeed * aDeltaSec;
 
   // Animation frame advance
-  if ( PF_ANIMATE in iP^.Flags ) and ( iP^.AnimFrames > 1 ) then
+  if iP^.AnimFrames > 1 then
   begin
-    // SubID cycles through frames based on lifetime
-    iP^.SubID := Byte( Floor( ( 1.0 - iP^.Life / iP^.LifeMax ) * iP^.AnimFrames ) ) mod iP^.AnimFrames;
+    iFrame := Floor( ( 1.0 - iP^.Life / iP^.LifeMax ) * iP^.AnimFrames );
+    if PF_NOLOOP in iP^.Flags then
+      iP^.SubID := Min( Byte( iFrame ), iP^.AnimFrames - 1 )
+    else
+      iP^.SubID := Byte( iFrame ) mod iP^.AnimFrames;
   end;
 end;
 
@@ -587,6 +605,12 @@ procedure TParticleEngine.EmitSetDirection( aIndex : Integer; const aDir : TVec3
 begin
   if ( aIndex < 0 ) or ( aIndex >= FMaxEmitters ) then Exit;
   FEmitters[aIndex].Direction := aDir;
+end;
+
+function TParticleEngine.IsEmitterUsed( aIndex : Integer ) : Boolean;
+begin
+  if ( aIndex < 0 ) or ( aIndex >= FMaxEmitters ) then Exit( False );
+  Result := FEmitters[aIndex].Used;
 end;
 
 function TParticleEngine.SpawnParticle( const aParticle : TParticle ) : Integer;
