@@ -10,16 +10,17 @@ type
 
   TParticleFlag = (
     PF_ACTIVE, PF_DEAD, PF_NOLOOP, PF_ROTATE,
-    PF_BOUNCE, PF_DECAL_ON_GROUND, PF_FADE_ALPHA, PF_COSPLAY
+    PF_BOUNCE, PF_DECAL_ON_GROUND, PF_FADE_ALPHA, PF_COSPLAY,
+    PF_RAND_OFFSET
   );
   TParticleFlags = set of TParticleFlag;
 
   TParticle = packed record
-    Position      : TVec3f;
-    Velocity      : TVec3f;
-    Acceleration  : TVec3f;
-    ColorStart    : TColor;
-    ColorEnd      : TColor;
+    Position       : TVec3f;
+    Velocity       : TVec3f;
+    Acceleration   : TVec3f;
+    ColorStart     : TColor;
+    ColorEnd       : TColor;
     SpriteID       : DWord;
     SubID          : Byte;
     AnimFrames     : Byte;
@@ -32,7 +33,7 @@ type
     Scale          : Single;
     DecalSprite    : DWord;
     Flags          : TParticleFlags;
-    EmitterIndex   : SmallInt;
+    EmitterIndex   : Integer;
   end;
 
   TEmitterShape = (
@@ -86,7 +87,7 @@ type
     TimeAlive     : Single;
     TimeSinceEmit : Single;
     ActiveCount   : Word;
-    PoolIndex     : SmallInt;
+    PoolIndex     : Integer;
   end;
 
   TParticleDecalCallback = procedure( const aPosition : TVec3f; aDecalSprite : DWord );
@@ -280,7 +281,7 @@ begin
     SubID         := iD^.SubID;
     AnimFrames    := iD^.AnimFrames;
     AnimFrameTime := iD^.AnimFrameTime;
-    if AnimFrames > 1 then
+    if ( AnimFrames > 1 ) and ( PF_RAND_OFFSET in iD^.ParticleFlags ) then
       AnimTimeOffset := Random * AnimFrameTime * AnimFrames
     else
       AnimTimeOffset := 0;
@@ -359,7 +360,7 @@ begin
 end;
 
 procedure TParticleEngine.KillParticle( aIndex : Integer );
-var iEI : SmallInt;
+var iEI : Integer;
 begin
   iEI := FParticles[aIndex].EmitterIndex;
   if ( iEI >= 0 ) and ( iEI < FMaxEmitters ) then
@@ -666,7 +667,7 @@ begin
     iP^.SubID         := aData^.SubID;
     iP^.AnimFrames    := aData^.AnimFrames;
     iP^.AnimFrameTime := aData^.AnimFrameTime;
-    if aData^.AnimFrames > 1 then
+    if ( aData^.AnimFrames > 1 ) and ( PF_RAND_OFFSET in aData^.ParticleFlags ) then
       iP^.AnimTimeOffset := Random * aData^.AnimFrameTime * aData^.AnimFrames
     else
       iP^.AnimTimeOffset := 0;
