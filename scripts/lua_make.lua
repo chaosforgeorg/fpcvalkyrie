@@ -86,6 +86,16 @@ function os.pwd()
 	return result
 end
 
+-- Lua 5.1 on POSIX: os.execute returns raw waitpid status (exit_code * 256)
+-- Normalize to actual exit code to avoid os.exit(256) wrapping to 0
+function os.exit_on_error( result )
+	if result ~= 0 then
+		if OS ~= "WINDOWS" then result = math.floor(result / 256) end
+		if result == 0 then result = 1 end
+		os.exit(result)
+	end
+end
+
 function os.execute_in_dir( filename, dir )
 	local result
 	if OS == "WINDOWS" then
@@ -93,7 +103,7 @@ function os.execute_in_dir( filename, dir )
 	else
 		result = os.execute("cd "..dir.." && ./"..filename.." && cd ..")
 	end
-	if result ~= 0 then os.exit(result) end
+	os.exit_on_error(result)
 end
 
 make = {}
@@ -115,7 +125,7 @@ function make.fpc( file, ... )
 	local cmd = FPC_CMD or "fpc"	
 
 	local result = os.execute(cmd.." "..file..option_string)
-	if result ~= 0 then os.exit(result) end
+	os.exit_on_error(result)
 end
 
 function make.clean_fpc( dir )
