@@ -2,7 +2,7 @@
 unit vluatable;
 interface
 uses sysutils, classes, variants, vlualibrary,
-     vluavalue, vrltools, vutil, vvector, vnode;
+     vluavalue, vrltools, vutil, vvector, vnode, vcolor;
 
 const
   LuaKeyField  = -2;
@@ -198,6 +198,13 @@ TLuaTable = class(TVObject)
   function GetVec2b( const aKey : AnsiString ) : TVec2b; overload;
   function GetVec3b( const aKey : AnsiString ) : TVec3b; overload;
   function GetVec4b( const aKey : AnsiString ) : TVec4b; overload;
+
+  function GetFloatRange( const aKey : AnsiString ) : TFloatRange;
+  function GetFloatRange( const aKey : AnsiString; const aDefault : TFloatRange ) : TFloatRange;
+  function GetVec3fRange( const aKey : AnsiString ) : TVec3fRange;
+  function GetVec3fRange( const aKey : AnsiString; const aDefault : TVec3fRange ) : TVec3fRange;
+  function GetColorRange( const aKey : AnsiString ) : TColorRange;
+  function GetColorRange( const aKey : AnsiString; const aDefault : TColorRange ) : TColorRange;
 
   function GetObject( const aKey : AnsiString ) : TObject;
   function GetObjectOrNil( const aKey : AnsiString ) : TObject;
@@ -1022,6 +1029,136 @@ begin
   Push;
   RunGetField( aKey );
   Result := vlua_tovec4b( FState, -1 );
+  Reset;
+end;
+
+function TLuaTable.GetFloatRange( const aKey : AnsiString ) : TFloatRange;
+begin
+  Push;
+  RunGetField( aKey );
+  if lua_isnumber( FState, -1 ) then
+  begin
+    Result.Min := lua_tonumber( FState, -1 );
+    Result.Max := Result.Min;
+  end
+  else
+  begin
+    lua_rawgeti( FState, -1, 1 );
+    Result.Min := lua_tonumber( FState, -1 );
+    lua_pop( FState, 1 );
+    lua_rawgeti( FState, -1, 2 );
+    Result.Max := lua_tonumber( FState, -1 );
+    lua_pop( FState, 1 );
+  end;
+  Reset;
+end;
+
+function TLuaTable.GetFloatRange( const aKey : AnsiString; const aDefault : TFloatRange ) : TFloatRange;
+begin
+  Push;
+  if not TryGetField( aKey ) then begin Reset; Exit( aDefault ); end;
+  if lua_isnumber( FState, -1 ) then
+  begin
+    Result.Min := lua_tonumber( FState, -1 );
+    Result.Max := Result.Min;
+  end
+  else
+  begin
+    lua_rawgeti( FState, -1, 1 );
+    Result.Min := lua_tonumber( FState, -1 );
+    lua_pop( FState, 1 );
+    lua_rawgeti( FState, -1, 2 );
+    Result.Max := lua_tonumber( FState, -1 );
+    lua_pop( FState, 1 );
+  end;
+  Reset;
+end;
+
+function TLuaTable.GetVec3fRange( const aKey : AnsiString ) : TVec3fRange;
+begin
+  Push;
+  RunGetField( aKey );
+  lua_rawgeti( FState, -1, 1 );
+  if lua_istable( FState, -1 ) then
+  begin
+    Result.Min := vlua_tovec3f( FState, -1 );
+    lua_pop( FState, 1 );
+    lua_rawgeti( FState, -1, 2 );
+    Result.Max := vlua_tovec3f( FState, -1 );
+    lua_pop( FState, 1 );
+  end
+  else
+  begin
+    lua_pop( FState, 1 );
+    Result.Min := vlua_tovec3f( FState, -1 );
+    Result.Max := Result.Min;
+  end;
+  Reset;
+end;
+
+function TLuaTable.GetVec3fRange( const aKey : AnsiString; const aDefault : TVec3fRange ) : TVec3fRange;
+begin
+  Push;
+  if not TryGetField( aKey ) then begin Reset; Exit( aDefault ); end;
+  lua_rawgeti( FState, -1, 1 );
+  if lua_istable( FState, -1 ) then
+  begin
+    Result.Min := vlua_tovec3f( FState, -1 );
+    lua_pop( FState, 1 );
+    lua_rawgeti( FState, -1, 2 );
+    Result.Max := vlua_tovec3f( FState, -1 );
+    lua_pop( FState, 1 );
+  end
+  else
+  begin
+    lua_pop( FState, 1 );
+    Result.Min := vlua_tovec3f( FState, -1 );
+    Result.Max := Result.Min;
+  end;
+  Reset;
+end;
+
+function TLuaTable.GetColorRange( const aKey : AnsiString ) : TColorRange;
+begin
+  Push;
+  RunGetField( aKey );
+  lua_rawgeti( FState, -1, 1 );
+  if lua_istable( FState, -1 ) then
+  begin
+    Result.ColorA := NewColor( vlua_tovec3b( FState, -1 ) );
+    lua_pop( FState, 1 );
+    lua_rawgeti( FState, -1, 2 );
+    Result.ColorB := NewColor( vlua_tovec3b( FState, -1 ) );
+    lua_pop( FState, 1 );
+  end
+  else
+  begin
+    lua_pop( FState, 1 );
+    Result.ColorA := NewColor( vlua_tovec3b( FState, -1 ) );
+    Result.ColorB := Result.ColorA;
+  end;
+  Reset;
+end;
+
+function TLuaTable.GetColorRange( const aKey : AnsiString; const aDefault : TColorRange ) : TColorRange;
+begin
+  Push;
+  if not TryGetField( aKey ) then begin Reset; Exit( aDefault ); end;
+  lua_rawgeti( FState, -1, 1 );
+  if lua_istable( FState, -1 ) then
+  begin
+    Result.ColorA := NewColor( vlua_tovec3b( FState, -1 ) );
+    lua_pop( FState, 1 );
+    lua_rawgeti( FState, -1, 2 );
+    Result.ColorB := NewColor( vlua_tovec3b( FState, -1 ) );
+    lua_pop( FState, 1 );
+  end
+  else
+  begin
+    lua_pop( FState, 1 );
+    Result.ColorA := NewColor( vlua_tovec3b( FState, -1 ) );
+    Result.ColorB := Result.ColorA;
+  end;
   Reset;
 end;
 

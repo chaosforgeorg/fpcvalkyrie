@@ -16,6 +16,7 @@ TSpriteDataSet = class
   procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; aCosColor, aGlowColor, aEmissive : TColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
   procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor, aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer = 0; aScale : Single = 1.0 );
   procedure Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer = 0 );
+  procedure Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aColor, aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer = 0 );
   procedure PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer; aTa, aTb : TVec2f );
   destructor Destroy; override;
 private
@@ -272,6 +273,25 @@ begin
       NewColor( aQColor^.Data[3] ).toVec43f
     ),
     aCosColor.toVec43f,
+    aGlowColor.toVec4f,
+    aEmissive.toVec4f,
+    aQTex^.Data[0], aQTex^.Data[2]
+  );
+end;
+
+procedure TSpriteDataSet.Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aColor, aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer = 0);
+var iColorVec : TGLVec4f;
+begin
+  iColorVec := aColor.toVec4f;
+  FData.PushQuad(
+    TGLQVec3i.Create(
+      TVec3i.CreateFrom( aQCoord^.Data[0], aZ ),
+      TVec3i.CreateFrom( aQCoord^.Data[1], aZ ),
+      TVec3i.CreateFrom( aQCoord^.Data[2], aZ ),
+      TVec3i.CreateFrom( aQCoord^.Data[3], aZ )
+    ),
+    TGLQVec4f.Create( iColorVec, iColorVec, iColorVec, iColorVec ),
+    aCosColor.toVec4f,
     aGlowColor.toVec4f,
     aEmissive.toVec4f,
     aQTex^.Data[0], aQTex^.Data[2]
