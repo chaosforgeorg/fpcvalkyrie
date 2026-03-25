@@ -20,18 +20,19 @@ type
     Acceleration  : TVec3f;
     ColorStart    : TColor;
     ColorEnd      : TColor;
-    SpriteID      : DWord;
-    SubID         : Byte;
-    AnimFrames    : Byte;
-    AnimFrameTime : Word;
-    Rotation      : Single;
-    RotationSpeed : Single;
-    Life          : Single;
-    LifeMax       : Single;
-    Scale         : Single;
-    DecalSprite   : DWord;
-    Flags         : TParticleFlags;
-    EmitterIndex  : SmallInt;
+    SpriteID       : DWord;
+    SubID          : Byte;
+    AnimFrames     : Byte;
+    AnimFrameTime  : Single;
+    AnimTimeOffset : Single;
+    Rotation       : Single;
+    RotationSpeed  : Single;
+    Life           : Single;
+    LifeMax        : Single;
+    Scale          : Single;
+    DecalSprite    : DWord;
+    Flags          : TParticleFlags;
+    EmitterIndex   : SmallInt;
   end;
 
   TEmitterShape = (
@@ -65,7 +66,7 @@ type
     SpriteID        : DWord;
     SubID           : Byte;
     AnimFrames      : Byte;
-    AnimFrameTime   : Word;
+    AnimFrameTime   : Single;
     DecalSprite     : DWord;
     ParticleFlags   : TParticleFlags;
     Rate            : Single;
@@ -104,6 +105,7 @@ type
     procedure EmitKill( aIndex : Integer );
     procedure EmitSetPosition( aIndex : Integer; const aPos : TVec3f );
     procedure EmitSetDirection( aIndex : Integer; const aDir : TVec3f );
+    procedure EmitSetSpriteRotation( aIndex : Integer; aDegrees : Single );
     function  IsEmitterUsed( aIndex : Integer ) : Boolean;
     function  SpawnParticle( const aParticle : TParticle ) : Integer;
     procedure SpawnBurst( aData : PParticleEmitterData; const aPos, aDir : TVec3f; aCount : Word );
@@ -278,6 +280,10 @@ begin
     SubID         := iD^.SubID;
     AnimFrames    := iD^.AnimFrames;
     AnimFrameTime := iD^.AnimFrameTime;
+    if AnimFrames > 1 then
+      AnimTimeOffset := Random * AnimFrameTime * AnimFrames
+    else
+      AnimTimeOffset := 0;
     DecalSprite   := iD^.DecalSprite;
     Flags         := iD^.ParticleFlags + [PF_ACTIVE];
     EmitterIndex  := aIndex;
@@ -416,7 +422,7 @@ begin
   // Animation frame advance
   if iP^.AnimFrames > 1 then
   begin
-    iFrame := Floor( ( iP^.LifeMax - iP^.Life ) * 1000 / Max( iP^.AnimFrameTime, 1 ) );
+    iFrame := Floor( ( iP^.LifeMax - iP^.Life + iP^.AnimTimeOffset ) / Max( iP^.AnimFrameTime, 0.001 ) );
     if PF_NOLOOP in iP^.Flags then
       iP^.SubID := Min( Byte( iFrame ), iP^.AnimFrames - 1 )
     else
@@ -465,7 +471,6 @@ var iP         : ^TParticle;
     iCosColor  : TColor;
     iCoord     : TGLRawQCoord;
     iTex       : TGLRawQTexCoord;
-    iQColor    : TGLRawQColor;
     iSin, iCos : Single;
     function Rotated( pX, pY : Single ) : TVec2i;
     begin
@@ -515,13 +520,10 @@ begin
   if PF_COSPLAY in iP^.Flags then
   begin
     iCosColor := iColor;
-    iQColor.FillAll( 255 );
+    iColor    := NewColor( 255, 255, 255, iColor.A );
   end
   else
-  begin
     iCosColor := ColorZero;
-    iQColor.SetAll( TVec3b.Create( iColor.R, iColor.G, iColor.B ) );
-  end;
 
   // Build quad via raw Push API
   iTex.Init( iTexA, iTexB );
@@ -542,7 +544,7 @@ begin
     iCoord.Data[3].Init( iScreenPos.X + iHalf, iScreenPos.Y - iHalf );
   end;
 
-  iLayer.Push( @iCoord, @iTex, @iQColor, iCosColor, ColorZero, iCosColor, iZ );
+  iLayer.Push( @iCoord, @iTex, iColor, iCosColor, ColorZero, iCosColor, iZ );
 end;
 
 procedure TParticleEngine.Render( aSpriteEngine : TSpriteEngine );
@@ -582,12 +584,13 @@ var i : Integer;
 begin
   if ( aIndex < 0 ) or ( aIndex >= FMaxEmitters ) then Exit;
   // Kill all particles belonging to this emitter
-  i := FParticleCount - 1;
-  while i >= 0 do
+  i := 0;
+  while i < FParticleCount do
   begin
     if FParticles[i].EmitterIndex = aIndex then
-      KillParticle( i );
-    Dec( i );
+      KillParticle( i )
+    else
+      Inc( i );
   end;
   FEmitters[aIndex].Used := False;
   FEmitters[aIndex].Active := False;
@@ -605,6 +608,15 @@ procedure TParticleEngine.EmitSetDirection( aIndex : Integer; const aDir : TVec3
 begin
   if ( aIndex < 0 ) or ( aIndex >= FMaxEmitters ) then Exit;
   FEmitters[aIndex].Direction := aDir;
+end;
+
+procedure TParticleEngine.EmitSetSpriteRotation( aIndex : Integer; aDegrees : Single );
+var i : Integer;
+begin
+  if ( aIndex < 0 ) or ( aIndex >= FMaxEmitters ) then Exit;
+  for i := 0 to FParticleCount - 1 do
+    if FParticles[i].EmitterIndex = aIndex then
+      FParticles[i].Rotation := aDegrees;
 end;
 
 function TParticleEngine.IsEmitterUsed( aIndex : Integer ) : Boolean;
@@ -654,6 +666,10 @@ begin
     iP^.SubID         := aData^.SubID;
     iP^.AnimFrames    := aData^.AnimFrames;
     iP^.AnimFrameTime := aData^.AnimFrameTime;
+    if aData^.AnimFrames > 1 then
+      iP^.AnimTimeOffset := Random * aData^.AnimFrameTime * aData^.AnimFrames
+    else
+      iP^.AnimTimeOffset := 0;
     iP^.DecalSprite   := aData^.DecalSprite;
     iP^.Flags         := aData^.ParticleFlags + [PF_ACTIVE];
     iP^.EmitterIndex  := -1;
