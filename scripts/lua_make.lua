@@ -87,11 +87,13 @@ function os.pwd()
 end
 
 function os.execute_in_dir( filename, dir )
+	local result
 	if OS == "WINDOWS" then
-		os.execute("cd "..dir.." && "..filename.." && cd ..")
+		result = os.execute("cd "..dir.." && "..filename.." && cd ..")
 	else
-		os.execute("cd "..dir.." && ./"..filename.." && cd ..")
+		result = os.execute("cd "..dir.." && ./"..filename.." && cd ..")
 	end
+	if result ~= 0 then os.exit(result) end
 end
 
 make = {}
