@@ -11,7 +11,7 @@ type
   TParticleFlag = (
     PF_ACTIVE, PF_DEAD, PF_NOLOOP, PF_ROTATE,
     PF_BOUNCE, PF_DECAL_ON_GROUND, PF_FADE_ALPHA, PF_COSPLAY,
-    PF_RAND_OFFSET
+    PF_RAND_OFFSET, PF_NO_EMISSIVE
   );
   TParticleFlags = set of TParticleFlag;
 
@@ -545,7 +545,9 @@ begin
     iCoord.Data[3].Init( iScreenPos.X + iHalf, iScreenPos.Y - iHalf );
   end;
 
-  iLayer.Push( @iCoord, @iTex, iColor, iCosColor, ColorZero, iCosColor, iZ );
+  if PF_NO_EMISSIVE in iP^.Flags
+    then iLayer.Push( @iCoord, @iTex, iColor, iCosColor, ColorZero, NewColor( iCosColor.R, iCosColor.G, iCosColor.B, 0 ), iZ )
+    else iLayer.Push( @iCoord, @iTex, iColor, iCosColor, ColorZero, iCosColor, iZ );
 end;
 
 procedure TParticleEngine.Render( aSpriteEngine : TSpriteEngine );

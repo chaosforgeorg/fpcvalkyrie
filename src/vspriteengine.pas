@@ -144,7 +144,7 @@ VSpriteFragmentShader : Ansistring =
 '  if ( oglow_color.w < 0.2 ) out_color.xyz = oglow_color.xyz * outline;'+#10+
 '  emissive_color = vec4( oglow_color.xyz, emissive > 0.0 ? 1.0 : 0.0 );'+#10+
 '} else'+#10+
-'  emissive_color = vec4( emissive * out_color.xyz, 1.0 );'+#10+
+'  emissive_color = vec4( emissive * out_color.xyz * oemissive_color.w, 1.0 );'+#10+
 'if ( out_color.w < 0.1 ) discard;'+#10+
 'frag_color     = out_color;'+#10+
 '}'+#10;
