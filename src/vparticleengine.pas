@@ -11,7 +11,7 @@ type
   TParticleFlag = (
     PF_ACTIVE, PF_DEAD, PF_NOLOOP, PF_ROTATE,
     PF_BOUNCE, PF_DECAL_ON_GROUND, PF_FADE_ALPHA, PF_COSPLAY,
-    PF_RAND_OFFSET, PF_NO_EMISSIVE
+    PF_RAND_OFFSET, PF_NO_EMISSIVE, PF_ALWAYS_VISIBLE
   );
   TParticleFlags = set of TParticleFlag;
 
@@ -81,6 +81,7 @@ type
     Used          : Boolean;
     Active        : Boolean;
     HasBurst      : Boolean;
+    Visible       : Boolean;
     Position      : TVec3f;
     Direction     : TVec3f;
     Data          : PParticleEmitterData;
@@ -107,6 +108,7 @@ type
     procedure EmitSetPosition( aIndex : Integer; const aPos : TVec3f );
     procedure EmitSetDirection( aIndex : Integer; const aDir : TVec3f );
     procedure EmitSetSpriteRotation( aIndex : Integer; aDegrees : Single );
+    procedure EmitSetVisible( aIndex : Integer; aVisible : Boolean );
     function  IsEmitterUsed( aIndex : Integer ) : Boolean;
     function  SpawnParticle( const aParticle : TParticle ) : Integer;
     procedure SpawnBurst( aData : PParticleEmitterData; const aPos, aDir : TVec3f; aCount : Word );
@@ -256,6 +258,7 @@ var iP    : Integer;
 begin
   iE := @FEmitters[aIndex];
   iD := iE^.Data;
+  if not iE^.Visible then Exit;
   if iE^.ActiveCount >= iD^.MaxParticles then Exit;
 
   iP := AllocParticle;
@@ -564,6 +567,7 @@ begin
   if iIdx < 0 then Exit( -1 );
   FEmitters[iIdx].Used          := True;
   FEmitters[iIdx].Active        := True;
+  FEmitters[iIdx].Visible       := True;
   FEmitters[iIdx].Position      := aPos;
   FEmitters[iIdx].Direction     := aData^.Direction;
   FEmitters[iIdx].Data          := aData;
@@ -620,6 +624,13 @@ begin
   for i := 0 to FParticleCount - 1 do
     if FParticles[i].EmitterIndex = aIndex then
       FParticles[i].Rotation := aDegrees;
+end;
+
+procedure TParticleEngine.EmitSetVisible( aIndex : Integer; aVisible : Boolean );
+begin
+  if ( aIndex < 0 ) or ( aIndex >= FMaxEmitters ) then Exit;
+  if PF_ALWAYS_VISIBLE in FEmitters[aIndex].Data^.ParticleFlags then Exit;
+  FEmitters[aIndex].Visible := aVisible;
 end;
 
 function TParticleEngine.IsEmitterUsed( aIndex : Integer ) : Boolean;
