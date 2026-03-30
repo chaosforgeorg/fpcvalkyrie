@@ -16,6 +16,7 @@ TSpriteDataSet = class
   procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColor : PGLRawQColor; aCosColor, aGlowColor, aEmissive : TColor; TShiftX : Single = 0; TShiftY : Single = 0; aZ : Integer = 0 );
   procedure PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor, aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer = 0; aScale : Single = 1.0 );
   procedure Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer = 0 );
+  procedure Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aColor, aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer = 0 );
   procedure PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer; aTa, aTb : TVec2f );
   destructor Destroy; override;
 private
@@ -143,7 +144,7 @@ VSpriteFragmentShader : Ansistring =
 '  if ( oglow_color.w < 0.2 ) out_color.xyz = oglow_color.xyz * outline;'+#10+
 '  emissive_color = vec4( oglow_color.xyz, emissive > 0.0 ? 1.0 : 0.0 );'+#10+
 '} else'+#10+
-'  emissive_color = vec4( emissive * out_color.xyz, 1.0 );'+#10+
+'  emissive_color = vec4( emissive * out_color.xyz * oemissive_color.w, 1.0 );'+#10+
 'if ( out_color.w < 0.1 ) discard;'+#10+
 'frag_color     = out_color;'+#10+
 '}'+#10;
@@ -272,6 +273,25 @@ begin
       NewColor( aQColor^.Data[3] ).toVec43f
     ),
     aCosColor.toVec43f,
+    aGlowColor.toVec4f,
+    aEmissive.toVec4f,
+    aQTex^.Data[0], aQTex^.Data[2]
+  );
+end;
+
+procedure TSpriteDataSet.Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aColor, aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer = 0);
+var iColorVec : TGLVec4f;
+begin
+  iColorVec := aColor.toVec4f;
+  FData.PushQuad(
+    TGLQVec3i.Create(
+      TVec3i.CreateFrom( aQCoord^.Data[0], aZ ),
+      TVec3i.CreateFrom( aQCoord^.Data[1], aZ ),
+      TVec3i.CreateFrom( aQCoord^.Data[2], aZ ),
+      TVec3i.CreateFrom( aQCoord^.Data[3], aZ )
+    ),
+    TGLQVec4f.Create( iColorVec, iColorVec, iColorVec, iColorVec ),
+    aCosColor.toVec4f,
     aGlowColor.toVec4f,
     aEmissive.toVec4f,
     aQTex^.Data[0], aQTex^.Data[2]

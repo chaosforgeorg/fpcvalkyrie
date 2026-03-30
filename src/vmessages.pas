@@ -19,6 +19,7 @@ type TMessages = class
   procedure Update;
   procedure Clear;
   procedure Reset;
+  procedure Pop;
   function Size : DWord;
   procedure AddHighlightCallback( aKey, aValue : Variant );
   destructor Destroy; override;
@@ -185,6 +186,14 @@ begin
   FLast      := '';
   for iCount := 1 to FVisible do
     FContent.PushBack( '' );
+end;
+
+procedure TMessages.Pop;
+begin
+  if FContent.Size > 0 then
+    FContent.PopBack;
+  if FActive > 0 then
+    Dec( FActive );
 end;
 
 function TMessages.Size : DWord;

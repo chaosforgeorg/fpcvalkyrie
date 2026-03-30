@@ -56,6 +56,7 @@ procedure vlua_push( L : Plua_State; const Args: array of const );
 function LuaCoord( const aCoord : TCoord2D ) : TLuaType;
 function LuaCoord( aX,aY : Integer ) : TLuaType;
 function LuaArea( const aArea : TArea ) : TLuaType;
+function LuaStackRef( aL : Plua_State; aIndex : Integer ) : TLuaType;
 
 implementation
 
@@ -215,6 +216,38 @@ end;
 function LuaArea( const aArea : TArea ) : TLuaType;
 begin
   Exit( TLuaArea.Create( aArea ) );
+end;
+
+type TLuaStackRef = class( TLuaType )
+  constructor Create( aL : Plua_State; aIndex : Integer );
+  destructor Destroy; override;
+  procedure Push( aL : Plua_State ); override;
+private
+  FRef   : Integer;
+  FState : Plua_State;
+end;
+
+constructor TLuaStackRef.Create( aL : Plua_State; aIndex : Integer );
+begin
+  FState := aL;
+  lua_pushvalue( aL, aIndex );
+  FRef := luaL_ref( aL, LUA_REGISTRYINDEX );
+end;
+
+destructor TLuaStackRef.Destroy;
+begin
+  luaL_unref( FState, LUA_REGISTRYINDEX, FRef );
+  inherited Destroy;
+end;
+
+procedure TLuaStackRef.Push( aL : Plua_State );
+begin
+  lua_rawgeti( aL, LUA_REGISTRYINDEX, FRef );
+end;
+
+function LuaStackRef( aL : Plua_State; aIndex : Integer ) : TLuaType;
+begin
+  Exit( TLuaStackRef.Create( aL, aIndex ) );
 end;
 
 // -------- Helper functions ------------------------------------------ //

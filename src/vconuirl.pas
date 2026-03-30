@@ -147,7 +147,7 @@ type TConUIClearMarkAnimation = class(TConUIAnimation)
   procedure OnDraw; override;
 end;
 
-type TConUIExplosionArray = array of record Color : TIOColor; Time : DWord; end;
+type TConUIExplosionArray = TTextExplosionArray;
 type
 
 { TConUIExplosionAnimation }

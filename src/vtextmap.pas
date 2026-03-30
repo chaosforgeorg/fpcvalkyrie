@@ -8,6 +8,7 @@ type ITextMap = interface
 end;
 
 type TTextMap = class;
+type TTextExplosionArray = viotypes.TTextExplosionArray;
 
 type TTextAnimation = class( TAnimation )
   constructor Create( aDuration : DWord; aDelay : DWord );
@@ -89,8 +90,6 @@ type TTextClearMarkAnimation = class(TTextAnimation)
   constructor Create( aDelay : DWord = 0 );
   destructor Destroy; override;
 end;
-
-type TTextExplosionArray = array of record Color : TIOColor; Time : DWord; end;
 
 type TTextExplosionAnimation = class(TTextAnimation)
   constructor Create( aWhere : TCoord2D; aChar : Char; const aArray : TTextExplosionArray; aDelay : DWord = 0 );

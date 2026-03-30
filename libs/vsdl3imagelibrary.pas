@@ -14,7 +14,7 @@ const
   {$IFDEF DARWIN}
   SDL3ImageDefaultPath = 'SDL3_image.framework/SDL_image';
   {$ELSE}
-  SDL3ImageDefaultPath = 'libSDL3_image.so';
+  SDL3ImageDefaultPath = 'libSDL3_image.so.0.4.0';
   {$ENDIF}
 {$ENDIF}
 

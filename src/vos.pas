@@ -15,6 +15,17 @@ procedure RestoreAccessibilityShortcuts;
 
 implementation
 
+{$IFDEF Darwin}
+uses
+  MacOSAll;
+
+const OSXBundleResourcesDirectory  = '/Contents/Resources/';
+      OSXBundleFrameworksDirectory = '/Contents/Frameworks/';
+      OSXFrameworksDirectory       = '/Library/Frameworks/';
+
+var OSXBundlePath : AnsiString = '';
+{$ENDIF}
+
 {$IFDEF WINDOWS}
 uses Windows;
 
@@ -120,17 +131,6 @@ begin
   GAccessibilitySettingsSaved := False;
 {$ENDIF}
 end;
-
-{$IFDEF Darwin}
-uses
-  MacOSAll;
-
-const OSXBundleResourcesDirectory  = '/Contents/Resources/';
-      OSXBundleFrameworksDirectory = '/Contents/Frameworks/';
-      OSXFrameworksDirectory       = '/Library/Frameworks/';
-
-var OSXBundlePath : AnsiString = '';
-{$ENDIF}
 
 function GetResourcesPath() : AnsiString;
 begin

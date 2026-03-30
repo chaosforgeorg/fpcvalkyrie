@@ -112,10 +112,11 @@ begin
   iResult   := luaL_loadfile( iState, PChar(aFileName) );
   if iResult <> 0 then
   begin
-    Writeln( lua_tostring( iState, -1 ) );
-    Log( LOGERROR, lua_tostring( iState, -1 ) );
+    iError := lua_tostring( iState, -1 );
+    Writeln( iError );
+    Log( LOGERROR, iError );
     lua_close( iState );
-    Exit;
+    raise EFOpenError.Create( 'Lua compilation failed: ' + iError );
   end;
   iStream := TFileStream.Create( iCompiled, fmCreate );
   try

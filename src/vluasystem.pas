@@ -620,6 +620,54 @@ begin
   Result := 1;
 end;
 
+procedure lua_core_register_callback_impl( L: Plua_State; INAME : Integer; const aBlueprintName : PChar );
+var idx : Integer;
+begin
+  lua_getglobal( L, 'core' );
+  lua_getfield( L, -1, 'blueprints' );
+  lua_getfield( L, -1, aBlueprintName );
+  if not lua_istable( L, -1 ) then
+    luaL_error( L, 'core.register_callback - blueprint "%s" doesn''t exist!', aBlueprintName );
+  // create spec table { false, LUA_TFUNCTION }
+  lua_createtable( L, 2, 0 );
+  lua_pushboolean( L, false );
+  lua_rawseti( L, -2, 1 );
+  lua_pushinteger( L, LUA_TFUNCTION );
+  lua_rawseti( L, -2, 2 );
+  // blueprint[func_name] = spec
+  lua_setfield( L, -2, lua_tolstring( L, INAME, nil ) );
+  lua_pop( L, 2 ); // pop blueprint table and blueprints table, keep core
+  // append func_name to core.callbacks array
+  lua_getfield( L, -1, 'callbacks' );
+  idx := lua_objlen( L, -1 ) + 1;
+  lua_pushvalue( L, INAME );
+  lua_rawseti( L, -2, idx );
+  lua_pop( L, 2 ); // pop callbacks and core
+end;
+
+function lua_core_register_callback(L: Plua_State): Integer; cdecl;
+var i, n : Integer;
+begin
+  luaL_checktype( L, 1, LUA_TSTRING );
+  if lua_type( L, 2 ) = LUA_TSTRING then
+    lua_core_register_callback_impl( L, 1, lua_tolstring( L, 2, nil ) )
+  else if lua_type( L, 2 ) = LUA_TTABLE then
+  begin
+    n := lua_objlen( L, 2 );
+    for i := 1 to n do
+    begin
+      lua_rawgeti( L, 2, i );
+      if lua_type( L, -1 ) <> LUA_TSTRING then
+        luaL_error( L, 'core.register_callback - blueprint array entry %d is not a string!', i );
+      lua_core_register_callback_impl( L, 1, lua_tolstring( L, -1, nil ) );
+      lua_pop( L, 1 );
+    end;
+  end
+  else
+    luaL_error( L, 'core.register_callback - second parameter must be a string or array of strings!' );
+  Result := 0;
+end;
+
 function lua_core_register(L: Plua_State): Integer; cdecl; forward;
 
 function lua_core_create_constructor_impl(L: Plua_State): Integer; cdecl;
@@ -1282,7 +1330,7 @@ begin
   Exit( 1 );
 end;
 
-const lua_core_lib : array[0..30] of luaL_Reg = (
+const lua_core_lib : array[0..31] of luaL_Reg = (
     ( name : 'TID';                      func : @lua_core_type_id),
     ( name : 'TNID';                     func : @lua_core_type_nid),
     ( name : 'TFLAGS';                   func : @lua_core_type_flags),
@@ -1314,6 +1362,7 @@ const lua_core_lib : array[0..30] of luaL_Reg = (
 
     ( name : 'apply_blueprint';          func : @lua_core_apply_blueprint ),
     ( name : 'apply_blueprint_values';   func : @lua_core_apply_blueprint_values ),
+    ( name : 'register_callback';        func : @lua_core_register_callback ),
     ( name : nil;              func : nil; )
 );
 
@@ -1382,6 +1431,8 @@ begin
   end;
   lua_newtable( FState );
   lua_setfield( FState, -2, 'blueprints');
+  lua_newtable( FState );
+  lua_setfield( FState, -2, 'callbacks');
   lua_pop( FState, 1 );
 end;
 

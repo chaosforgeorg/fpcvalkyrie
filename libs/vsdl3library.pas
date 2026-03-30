@@ -29,7 +29,7 @@ const
     {$linkframework SDL}
     {$PASCALMAINNAME SDL_main}
   {$ELSE}
-  SDL3DefaultPath = 'libSDL3-3.0.so.0';
+  SDL3DefaultPath = 'libSDL3.so.0.4.0';
   {$ENDIF}
 {$ENDIF}
 
