@@ -14,7 +14,7 @@ end;
 type TTIGWindowDC = class
   constructor Create;
   procedure BeginGroup( aSize : Integer = -1; aVertical : Boolean = false );
-  procedure EndGroup;
+  procedure EndGroup( aPadding : Integer );
 //private
 public
   FContent        : TIORect;
@@ -133,7 +133,7 @@ begin
   end;
 end;
 
-procedure TTIGWindowDC.EndGroup;
+procedure TTIGWindowDC.EndGroup( aPadding : Integer );
 var iGroup : ^TTIGGroupInfo;
 begin
   iGroup := @( FGroupStack[ FGroupStackSize - 1 ] );
@@ -148,8 +148,8 @@ begin
   end
   else
   begin
-    FContent.Pos.X += iGroup^.Size + 2;
-    FContent.Dim.X -= iGroup^.Size + 2;
+    FContent.Pos.X += iGroup^.Size + aPadding;
+    FContent.Dim.X -= iGroup^.Size + aPadding;
     FCursor := FContent.Pos;
   end;
   Dec( FGroupStackSize );

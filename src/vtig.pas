@@ -323,7 +323,7 @@ begin
       iPos       := i;
       iSpaceLeft := aClip.x2 - aCurrentX + 1;
 
-      while iPos <= Length(aText) do
+      while iPos < Length(aText) do
       begin
         if aText[iPos] = ' ' then
           iLastSpace := iWidth;
@@ -770,17 +770,19 @@ var iWindow : TTIGWindow;
     iHeight : Integer;
     iCmd    : TTIGDrawCommand;
     iFrame  : AnsiString;
+    iPad    : TIOPoint;
 begin
   iWindow := GCtx.Current;
   if (not aVertical) and (aSize <> -1) and ( GCtx.Style^.Frame[ VTIG_GROUP_FRAME ] <> '' )then
   begin
-    iHeight := iWindow.FClipContent.Y2 - (iWindow.DC.FCursor.y - 1);
+    iPad := GCtx.Style^.Padding[ VTIG_GROUP_FRAME_PADDING ];
+    iHeight := iWindow.FClipContent.Y2 - (iWindow.DC.FCursor.y - 1 );
     if aMaxHeight >= 0 then
       iHeight := Min( aMaxHeight, iHeight );
     iCmd.CType := VTIG_CMD_RULER;
     iCmd.Area  := Rectangle(
-      Point( iWindow.DC.FCursor.X + aSize, iWindow.DC.FCursor.Y - 1 ),
-      Point( 1, iHeight + 1 )
+      Point( iWindow.DC.FCursor.X + aSize, iWindow.DC.FCursor.Y - 1 + iPad.Y ),
+      Point( 1, iHeight + 1 - iPad.Y * 2 )
     );
     ClampTo( iCmd.Area, iWindow.DC.FClip );
     iCmd.FG := GCtx.Style^.Color[ VTIG_FRAME_COLOR ];
@@ -794,7 +796,7 @@ end;
 
 procedure VTIG_EndGroup( aVertical : Boolean = False );
 begin
-  GCtx.Current.DC.EndGroup;
+  GCtx.Current.DC.EndGroup( GCtx.Style^.Padding[ VTIG_GROUP_PADDING ].X );
   if aVertical then
   begin
     GCtx.Current.DC.FCursor.Y -= 2;
