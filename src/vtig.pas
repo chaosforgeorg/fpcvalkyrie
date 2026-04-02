@@ -217,14 +217,12 @@ var iWindow        : TTIGWindow;
           begin
             iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
             VTIG_RenderTextSegment( iParamStr, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
-            Dec( aCurrentX );
           end;
         vtInteger:
         begin
           Str( aParameters[aParameterIndex].VInteger, iBuffer );
           iBuffer[Length(iBuffer)+1] := #0;
           VTIG_RenderTextSegment( @iBuffer[1], aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
-          Dec( aCurrentX );
         end;
 
         // Add handling for other parameter types if needed
@@ -290,7 +288,6 @@ begin
                   begin
                     iValue := GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) );
                     VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
-                    Dec( aCurrentX );
                     iLineContent := True;
                   end;
                   Inc(i, iNamePos + 1);
