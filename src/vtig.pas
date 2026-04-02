@@ -548,6 +548,7 @@ procedure VTIG_NewFrame;
 var iWindow : TTIGWindow;
     iTime   : DWord;
     iLast   : Integer;
+    iPage   : Integer;
     iES     : TIOEventState;
 begin
   GCtx.Size := GCtx.Io.Size;
@@ -589,7 +590,15 @@ begin
   begin
     iWindow.FFocusInfo.Current := (iWindow.FFocusInfo.Current + iWindow.FFocusInfo.Count) mod iWindow.FFocusInfo.Count;
     if iWindow.FFocusInfo.Current <> iLast then
+    begin
       GCtx.IO.PlaySound( VTIG_SOUND_CHANGE );
+      iLast := iWindow.FSelectScroll + iWindow.FFocusInfo.Current;
+      if iWindow.FScroll > iLast then
+        iWindow.FScroll := Max( 0, iLast );
+      iPage := Max( 1, iWindow.FClipContent.Dim.Y - 1 );
+      if iLast - iWindow.FScroll >= iPage then
+        iWindow.FScroll := iLast - iPage + 1;
+    end;
   end;
 
   iWindow.FFocusInfo.Count := 0;
@@ -658,7 +667,6 @@ begin
   if iFirst then
   begin
     iWindow.FScroll       := 0;
-    iWindow.FSelectScroll := 0;
     iWindow.FMaxSize      := Point( -1, -1 );
     iWindow.FColor        := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
   end;
@@ -845,12 +853,8 @@ begin
   iWindow := GCtx.Current;
 
   Inc( iWindow.FFocusInfo.Count );
-  if ( iWindow.FFocusInfo.Count = 1 ) and ( iWindow.FSelectScroll > 0 ) then
-  begin
-    iWindow.DC.FContent.Pos.Y -= iWindow.FSelectScroll;
-    iWindow.DC.FContent.Dim.Y += iWindow.FSelectScroll;
-    iWindow.DC.FCursor.Y      -= iWindow.FSelectScroll;
-  end;
+  if iWindow.FFocusInfo.Count = 1 then
+    iWindow.FSelectScroll := iWindow.DC.FCursor.Y - iWindow.DC.FContent.Pos.Y;
 
   iWidth := iWindow.DC.FContent.x2 - iWindow.DC.FCursor.X;
   if iWidth < 0 then
@@ -973,14 +977,18 @@ begin
   iMaxScroll := iLines - iHeight;
   iPage      := Max( 1, iHeight );
 
-  if GCtx.Io.EventState.Activated( VTIG_IE_HOME, true )              then iWindow.FScroll := 0;
-  if GCtx.Io.EventState.Activated( VTIG_IE_END, true ) or aScrollMax then iWindow.FScroll := iMaxScroll;
+  if iWindow.FFocusInfo.Count = 0 then
+  begin
+    // no selectables: direct keyboard/mouse scroll
+    if GCtx.Io.EventState.Activated( VTIG_IE_HOME, true )              then iWindow.FScroll := 0;
+    if GCtx.Io.EventState.Activated( VTIG_IE_END, true ) or aScrollMax then iWindow.FScroll := iMaxScroll;
 
-  if GCtx.Io.EventState.Activated( VTIG_IE_PGUP, true )   then iWindow.FScroll := Max( iWindow.FScroll - iPage, 0 );
-  if GCtx.Io.EventState.Activated( VTIG_IE_PGDOWN, true ) then iWindow.FScroll := Min( iWindow.FScroll + iPage, iMaxScroll );
+    if GCtx.Io.EventState.Activated( VTIG_IE_PGUP, true )   then iWindow.FScroll := Max( iWindow.FScroll - iPage, 0 );
+    if GCtx.Io.EventState.Activated( VTIG_IE_PGDOWN, true ) then iWindow.FScroll := Min( iWindow.FScroll + iPage, iMaxScroll );
 
-  if GCtx.Io.EventState.Activated( VTIG_IE_UP, true )   and ( iWindow.FScroll > 0 )          then Dec( iWindow.FScroll );
-  if GCtx.Io.EventState.Activated( VTIG_IE_DOWN, true ) and ( iWindow.FScroll < iMaxScroll ) then Inc( iWindow.FScroll );
+    if GCtx.Io.EventState.Activated( VTIG_IE_UP, true )   and ( iWindow.FScroll > 0 )          then Dec( iWindow.FScroll );
+    if GCtx.Io.EventState.Activated( VTIG_IE_DOWN, true ) and ( iWindow.FScroll < iMaxScroll ) then Inc( iWindow.FScroll );
+  end;
 
   if ( GCtx.Io.MouseState.Position <> PointNegUnit ) and VTIG_MouseInLastWindow then
   begin
@@ -996,6 +1004,9 @@ begin
     Point( iWindow.DC.FClip.x2+1, iWindow.DC.FClip.Y ),
     Point( 1, iWindow.DC.FClip.Dim.Y )
   );
+  GCtx.Color   := GCtx.Style^.Color[ VTIG_SCROLL_COLOR ];
+  GCtx.BGColor := GCtx.Style^.Color[ VTIG_WINDOW_BACKGROUND_COLOR ];
+
   iCmd.FG    := GCtx.Color;
   iCmd.BG    := GCtx.BGColor;
   iCmd.XC    := GCtx.Style^.Color[ VTIG_SCROLL_COLOR ];
@@ -1003,7 +1014,7 @@ begin
   iCmd.Text   := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
   iWindow.DrawList.Push( iCmd );
 
-  iPosition := Float( iWindow.FScroll ) / Float( iLines - iHeight );
+  iPosition := Float( iWindow.FScroll ) / Float( iMaxScroll );
   iYPos     := Floor( Float( iCmd.Area.Dim.Y - 3 ) * iPosition );
   VTIG_RenderChar( iFrame[4], Point(iWindow.DC.FClip.X2 + 1, iWindow.DC.FClip.Y + iYpos) );
 end;
@@ -1083,7 +1094,6 @@ var iWindow : TTIGWindow;
 begin
   iWindow := GCtx.Current;
   Result := iWindow.DC.FContent;
-  Result.Dim.Y := iWindow.FClipContent.Dim.Y;
   ClampTo( Result, iWindow.DC.FClip );
 end;
 
