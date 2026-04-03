@@ -1151,21 +1151,21 @@ procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor; aBGCo
 begin
   GCtx.Color   := aColor;
   GCtx.BGColor := aBGColor;
-  VTIG_RenderChar( aChar, aPos );
+  VTIG_RenderChar( aChar, VTIG_PositionResolve( aPos ) );
 end;
 
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor );
 begin
   GCtx.Color   := aColor;
   GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
-  VTIG_RenderChar( aChar, aPos );
+  VTIG_RenderChar( aChar, VTIG_PositionResolve( aPos ) );
 end;
 
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint );
 begin
   GCtx.Color   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
   GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
-  VTIG_RenderChar( aChar, aPos );
+  VTIG_RenderChar( aChar, VTIG_PositionResolve( aPos ) );
 end;
 
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
