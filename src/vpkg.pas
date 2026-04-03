@@ -26,7 +26,7 @@ TVDataCreator = class(TVObject)
     destructor Destroy; override;
   private
     procedure Add( const aDir, aMask : AnsiString; aFileType : DWord; aFlags : TVDFClumpFlags = []; const aPackageName : AnsiString = '');
-    function FileSize(FileName : AnsiString) : DWord;
+    function FileSize( aFileName : AnsiString ) : DWord;
     procedure Flush;
     function FileToStream( aFileHead : TVDFClumpHeader; aStream : TStream ) : DWord;
     function IsTempFileName( const aFileName : AnsiString ) : Boolean;
@@ -82,13 +82,15 @@ begin
   FWriters[aID] := aWriter;
 end;
 
-function TVDataCreator.FileSize(FileName : AnsiString) : DWord;
-var TF : File of byte;
+function TVDataCreator.FileSize( aFileName : AnsiString ) : DWord;
+var iStream : TFileStream;
 begin
-  Assign(TF,FileName);
-  Reset(TF);
-  FileSize := System.FileSize(TF);
-  Close(TF);
+  iStream := TFileStream.Create( aFileName, fmOpenRead or fmShareDenyNone );
+  try
+    Result := iStream.Size;
+  finally
+    iStream.Free;
+  end;
 end;
 
 function LuaStreamWriter(L : Plua_State; const p : Pointer; sz : LongWord; ud : Pointer) : Integer; cdecl;
