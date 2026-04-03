@@ -12,7 +12,8 @@
 // Unit auto-initializes, and auto-deinitializes the logger variable.
 unit vlog;
 interface
-uses Classes, SysUtils, vutil, vgenerics;
+uses Classes, SysUtils, vutil, vgenerics
+  {$IFDEF WINDOWS}, Windows {$ELSE}, BaseUnix {$ENDIF};
 
 type
   // Log callback type for TCallbackLogSink.
@@ -170,19 +171,16 @@ type
 
     procedure Flush;
   protected
-    // Text file - TODO: move to FileOpen
-    FText       : Text;
-    // Flush and append flag
+    FStream     : TFileStream;
     FFlush      : Boolean;
-    // File name
     FFileName   : AnsiString;
+    FValid      : Boolean;
 
   protected
-    // Implementation of the text file logging
     procedure LogImpl( aLevel : TLogLevel; const aMessage : AnsiString); override;
   public
-    // Public property for reading the file name
     property FileName : AnsiString read FFileName;
+    property Valid    : Boolean    read FValid;
   end;
 
 
@@ -274,14 +272,6 @@ procedure LogSystemInfo();
 
 implementation
 
-{$IFDEF WINDOWS}
-uses
-// Include windows for console coloring
-Windows;
-{$ELSE}
-// probably not needed
-{$ENDIF}
-
 { TLogSink }
 
 constructor TLogSink.Create( aLevel : TLogLevel );
@@ -364,45 +354,79 @@ end;
 { TTextFileLogSink }
 
 constructor TTextFileLogSink.Create ( aLevel : TLogLevel; const aFileName : AnsiString; aFlush : Boolean ) ;
+var iRetry : Integer;
 begin
   inherited Create( aLevel );
 
-  // Set filename
-  FFileName   := aFileName;
-  // Set flush mode
-  FFlush      := aFlush;
+  FFileName := aFileName;
+  FFlush    := aFlush;
+  FValid    := False;
+  FStream   := nil;
 
-  Assign( FText, FFileName );
-
-  {$I-}
-  Rewrite( FText );
-  if IOResult <> 0 then
+  for iRetry := 0 to 19 do
   begin
-    FText := StdErr;
-    LogImpl( LOGERROR, 'CAN''T OPEN LOG FILE '+aFileName+'!');
+    try
+      FStream := TFileStream.Create( FFileName, fmCreate );
+      FValid  := True;
+      Break;
+    except
+      on e : Exception do
+      begin
+        FreeAndNil( FStream );
+        if iRetry < 19 then
+          Sleep( 50 );
+      end;
+    end;
+  end;
+
+  if not FValid then
+  begin
+    WriteLn( StdErr, 'WARNING: Can''t open log file ' + aFileName );
     Exit;
   end;
-  {$I+}
 
   LogImpl( LOGINFO, '--- Logging start : '+TimeStamp+' ---' );
 end;
 
 destructor TTextFileLogSink.Destroy;
 begin
-  Flush;
-  Close( FText );
+  if FValid then
+  begin
+    LogImpl( LOGINFO, '--- Logging end   : '+TimeStamp+' ---' );
+    Flush;
+  end;
+  FreeAndNil( FStream );
   inherited Destroy;
 end;
 
 procedure TTextFileLogSink.Flush;
 begin
-  System.Flush( FText );
+  if not FValid then Exit;
+  try
+    {$IFDEF WINDOWS}
+    FlushFileBuffers( FStream.Handle );
+    {$ELSE}
+    FpFsync( FStream.Handle );
+    {$ENDIF}
+  except
+  end;
 end;
 
 procedure TTextFileLogSink.LogImpl ( aLevel : TLogLevel; const aMessage : AnsiString ) ;
+var iLine : AnsiString;
 begin
-  WriteLn( FText, TimeToStr(now)+' : '+LogLevelNamePad[aLevel] + ' : ' + aMessage );
-  if FFlush then Flush;
+  if not FValid then Exit;
+  try
+    iLine := TimeToStr(Now)+' : '+LogLevelNamePad[aLevel] + ' : ' + aMessage + sLineBreak;
+    FStream.Write( iLine[1], Length( iLine ) );
+    if FFlush then Flush;
+  except
+    on e : Exception do
+    begin
+      FValid := False;
+      WriteLn( StdErr, 'WARNING: Log file write failed: ' + e.Message );
+    end;
+  end;
 end;
 
 { TLogger }
@@ -512,10 +536,7 @@ initialization
 finalization
 
   if Assigned( Logger ) then
-  begin
-    Logger.Log( LOGINFO, '--- Logging end   : '+TimeStamp+' ---' );
     FreeAndNil( Logger );
-  end;
 
 end.
 
