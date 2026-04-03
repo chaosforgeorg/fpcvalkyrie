@@ -259,17 +259,18 @@ begin
 end;
 
 function TextFileToIOStringArray ( const aPath : AnsiString ) : TIOStringArray;
-var iText   : Text;
-    iString : AnsiString;
+var iLines : TStringList;
+    i      : Integer;
 begin
   Result := TIOStringArray.Create;
-  AssignFile( iText, aPath );
-  Reset( iText );
-  repeat
-    Readln( iText, iString );
-    Result.Push( iString );
-  until EOF( iText );
-  Close( iText );
+  iLines := TStringList.Create;
+  try
+    iLines.LoadFromFile( aPath );
+    for i := 0 to iLines.Count - 1 do
+      Result.Push( iLines[i] );
+  finally
+    iLines.Free;
+  end;
 end;
 
 end.

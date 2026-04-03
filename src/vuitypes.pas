@@ -74,17 +74,18 @@ begin
 end;
 
 function TextFileToUIStringArray ( const aPath : AnsiString ) : TUIStringArray;
-var T : Text;
-    S : AnsiString;
+var iLines : TStringList;
+    i      : Integer;
 begin
   Result := TUIStringArray.Create;
-  AssignFile( T, aPath );
-  Reset( T );
-  repeat
-    Readln( T, S );
-    Result.Push( S );
-  until EOF( T );
-  Close( T );
+  iLines := TStringList.Create;
+  try
+    iLines.LoadFromFile( aPath );
+    for i := 0 to iLines.Count - 1 do
+      Result.Push( iLines[i] );
+  finally
+    iLines.Free;
+  end;
 end;
 
 end.
