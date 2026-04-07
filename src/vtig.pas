@@ -71,6 +71,7 @@ procedure VTIG_EventClear;
 procedure VTIG_PushStyle( aStyle : PTIGStyle );
 procedure VTIG_PopStyle;
 procedure VTIG_SetMaxCharacters( aMaxCharacters : Integer );
+procedure VTIG_SetAlignment( aAlignment : TTIGAlignment );
 
 function VTIG_GetIOState : TTIGIOState;
 
@@ -1183,6 +1184,10 @@ begin
   iClip  := VTIG_GetClipRect;
   iStart := GCtx.Current.DC.FCursor;
   if ( iStart.X > iClip.x2 ) then Exit;
+  case GCtx.Alignment of
+    VTIG_ALIGN_CENTER : iStart.X := GCtx.Current.DC.FContent.X + Max( 0, (GCtx.Current.DC.FContent.Dim.X - VTIG_Length( aText, aParams )) div 2 );
+    VTIG_ALIGN_RIGHT  : iStart.X := GCtx.Current.DC.FContent.X + Max( 0, GCtx.Current.DC.FContent.Dim.X - VTIG_Length( aText, aParams ) );
+  end;
   iCoord := VTIG_RenderText( aText, iStart, iClip, aParams );
   GCtx.Current.Advance( iCoord - iStart + Point(1,1) );
 end;
@@ -1207,6 +1212,10 @@ begin
   iClip  := VTIG_GetClipRect;
   iStart := GCtx.Current.DC.FCursor;
   if ( iStart.X > iClip.x2 ) then Exit;
+  case GCtx.Alignment of
+    VTIG_ALIGN_CENTER : iStart.X := GCtx.Current.DC.FContent.X + Max( 0, (GCtx.Current.DC.FContent.Dim.X - VTIG_Length( aText )) div 2 );
+    VTIG_ALIGN_RIGHT  : iStart.X := GCtx.Current.DC.FContent.X + Max( 0, GCtx.Current.DC.FContent.Dim.X - VTIG_Length( aText ) );
+  end;
   
   // Adjust clip rectangle to limit output to aMaxSize from cursor position
   if aMaxSize.X > 0 then
@@ -1509,6 +1518,11 @@ end;
 procedure VTIG_SetMaxCharacters( aMaxCharacters : Integer );
 begin
   GCtx.MaxCharacters := aMaxCharacters;
+end;
+
+procedure VTIG_SetAlignment( aAlignment : TTIGAlignment );
+begin
+  GCtx.Alignment := aAlignment;
 end;
 
 function VTIG_GetIOState : TTIGIOState;

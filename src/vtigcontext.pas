@@ -86,6 +86,7 @@ type TTIGContext = class
   Color              : TIOColor;
   BGColor            : TIOColor;
   SubCallback        : TTIGSubCallback;
+  Alignment          : TTIGAlignment;
 
   constructor Create;
   procedure Reset;
@@ -226,6 +227,7 @@ begin
   Color              := 0;
   BGColor            := 0;
   SubCallback        := nil;
+  Alignment          := VTIG_ALIGN_LEFT;
 end;
 
 destructor TTIGContext.Destroy;

@@ -25,6 +25,12 @@ type TTIGSoundEvent = (
   VTIG_SOUND_ACCEPT
 );
 
+type TTIGAlignment = (
+  VTIG_ALIGN_LEFT,
+  VTIG_ALIGN_CENTER,
+  VTIG_ALIGN_RIGHT
+);
+
 const
   VTIG_IE_UNUSED    = 128;
   VTIG_IE_UP        = 129;
