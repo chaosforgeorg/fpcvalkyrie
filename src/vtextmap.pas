@@ -22,6 +22,7 @@ type TTextMap = class
   constructor Create( aConsole : TIOConsoleRenderer; aArea : TIORect; aMap : ITextMap = nil );
   destructor Destroy; override;
   procedure SetCenter( aCoord : TCoord2D );
+  procedure SetArea( aArea : TIORect );
   procedure SetMap( aMap : ITextMap );
   procedure Mark( aCoord : TCoord2D; aSign : char; aColor : TIOColor );
   procedure FreezeMarks;
@@ -134,6 +135,12 @@ procedure TTextMap.SetCenter( aCoord : TCoord2D ) ;
 begin
   FShift.X := aCoord.X - FArea.w div 2;
   FShift.Y := aCoord.Y - FArea.h div 2;
+end;
+
+procedure TTextMap.SetArea( aArea : TIORect ) ;
+begin
+  FArea := aArea;
+  ClearMarks;
 end;
 
 procedure TTextMap.SetMap( aMap : ITextMap ) ;
