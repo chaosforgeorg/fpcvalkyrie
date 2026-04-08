@@ -272,6 +272,8 @@ procedure LogSystemInfo();
 
 implementation
 
+{$IFNDEF WINDOWS}uses Unix;{$ENDIF}
+
 { TLogSink }
 
 constructor TLogSink.Create( aLevel : TLogLevel );
