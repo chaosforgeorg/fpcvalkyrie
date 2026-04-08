@@ -8,17 +8,14 @@ type TTIGStringRing = specialize TGRingBuffer<AnsiString>;
 type TTIGConsoleView = class( TIOLayer )
   constructor Create;
   procedure Update( aDTime : Integer; aActive : Boolean ); override;
-  function IsFinished : Boolean; override;
   function IsModal : Boolean; override;
   procedure Writeln( const aText : Ansistring );
-  procedure Finish;
   procedure LoadHistory( const aFileName : AnsiString );
   procedure SaveHistory( const aFileName : AnsiString );
   destructor Destroy; override;
 protected
   procedure Execute( const aLine : Ansistring );
 protected
-  FFinished : Boolean;
   FHPos     : LongInt;
   FText     : TTIGStringRing;
   FHistory  : TTIGStringRing;
@@ -34,7 +31,6 @@ const TIG_CONSOLE_LINES = 16;
 constructor TTIGConsoleView.Create;
 begin
   FHistory  := nil;
-  FFinished := False;
   FText     := TTIGStringRing.Create( TIG_CONSOLE_LINES );
   FInput[0] := #0;
   if LuaSystem <> nil then
@@ -87,19 +83,9 @@ begin
   end;
 end;
 
-function TTIGConsoleView.IsFinished : Boolean;
-begin
-  Exit( FFinished );
-end;
-
 function TTIGConsoleView.IsModal : Boolean;
 begin
   Exit( True );
-end;
-
-procedure TTIGConsoleView.Finish;
-begin
-  FFinished := True;
 end;
 
 procedure TTIGConsoleView.LoadHistory ( const aFileName : AnsiString ) ;

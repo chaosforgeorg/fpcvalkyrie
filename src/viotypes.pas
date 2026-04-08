@@ -15,10 +15,13 @@ type TTextExplosionArray = array of record Color : TIOColor; Time : DWord; end;
 
 type TIOLayer = class
   procedure Update( aDTime : Integer; aActive : Boolean ); virtual; abstract;
-  function IsFinished : Boolean; virtual; abstract;
+  procedure Finish; virtual;
+  function IsFinished : Boolean; virtual;
   function IsModal : Boolean; virtual;
   function HandleEvent( const aEvent : TIOEvent ) : Boolean; virtual;
   function HandleInput( aInput : Integer ) : Boolean; virtual;
+protected
+  FFinished : Boolean;
 end;
 
 type TIOLayerStack = specialize TGArray<TIOLayer>;
@@ -180,6 +183,16 @@ function IOColor( aR, aG, aB : Byte; aA : Byte = 255 ) : TIOColor;
 function TextFileToIOStringArray( const aPath : AnsiString ) : TIOStringArray;
 
 implementation
+
+procedure TIOLayer.Finish;
+begin
+  FFinished := True;
+end;
+
+function TIOLayer.IsFinished : Boolean;
+begin
+  Exit( FFinished );
+end;
 
 function TIOLayer.IsModal : Boolean;
 begin
