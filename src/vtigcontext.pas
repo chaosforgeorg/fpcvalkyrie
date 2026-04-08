@@ -20,6 +20,7 @@ public
   FContent        : TIORect;
   FClip           : TIORect;
   FCursor         : TIOPoint;
+  FLastAdvanceX   : Integer;
 private
   FGroupStackSize : Integer;
   FGroupStack     : array of TTIGGroupInfo;
@@ -176,6 +177,7 @@ end;
 
 procedure TTIGWindow.Advance( aSize : TIOPoint );
 begin
+  FDC.FLastAdvanceX  := FDC.FCursor.X + aSize.X;
   FDC.FCursor        := Point( FDC.FContent.X, FDC.FCursor.Y + aSize.Y );
   FDC.FContent.Dim.Y := Max( FDC.FCursor.Y - FDC.FContent.Y + 1, FDC.FContent.Dim.Y );
   FMaxSize           := Max( FMaxSize, FDC.FCursor - FDC.FContent.Pos );

@@ -21,6 +21,7 @@ procedure VTIG_BringToTop( aName : Ansistring );
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
 procedure VTIG_EndGroup( aVertical : Boolean = False );
 procedure VTIG_Ruler( aPosition : Integer = -1 );
+procedure VTIG_SameLine;
 
 function VTIG_Selectable( aText : Ansistring; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
@@ -837,6 +838,14 @@ begin
     iWindow.DrawList.Push( iCmd );
   end;
   iWindow.DC.FCursor.Y += 3;
+end;
+
+procedure VTIG_SameLine;
+var iWindow : TTIGWindow;
+begin
+  iWindow := GCtx.Current;
+  iWindow.DC.FCursor.X := iWindow.DC.FLastAdvanceX;
+  iWindow.DC.FCursor.Y -= 1;
 end;
 
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
