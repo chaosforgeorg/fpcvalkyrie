@@ -219,7 +219,6 @@ begin
   Exit( iEvent.Key.Code );
 end;
 
-
 function TIORL.WaitForKeyEvent ( out aEvent : TIOEvent ) : Boolean;
 var iEndLoop : TIOEventTypeSet;
 begin
@@ -231,6 +230,7 @@ begin
       FIODriver.Sleep(10);
     until FIODriver.EventPending and FIODriver.PollEvent( aEvent );
     if FUIRoot.OnEvent( aEvent ) then aEvent.EType := VEVENT_KEYUP;
+    if FTIGActive then if OnEvent( aEvent ) then aEvent.EType := VEVENT_KEYUP;
     if (aEvent.EType = VEVENT_SYSTEM) and (aEvent.System.Code = VIO_SYSEVENT_QUIT) then Exit( True );
     if FBreakLoop then Exit( False );
   until aEvent.EType in iEndLoop;
