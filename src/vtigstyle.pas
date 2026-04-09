@@ -31,6 +31,7 @@ type TTIGStyleFrameEntry = (
 
 type TTIGStylePaddingEntry = (
   VTIG_WINDOW_PADDING,
+  VTIG_WINDOW_PADDING_OFFSET,
   VTIG_SELECTABLE_PADDING,
   VTIG_GROUP_PADDING,
   VTIG_GROUP_FRAME_PADDING
@@ -74,9 +75,10 @@ VTIGDefaultStyle.Frame[ VTIG_RULER_FRAME ]  := #196+#179;
 VTIGDefaultStyle.Frame[ VTIG_GROUP_FRAME ]  := #196+#179;
 VTIGDefaultStyle.Frame[ VTIG_SCROLL_FRAME ] := #193+#194+#177+#178;
 
-VTIGDefaultStyle.Padding[ VTIG_WINDOW_PADDING ]     := Point( 1,1 );
-VTIGDefaultStyle.Padding[ VTIG_SELECTABLE_PADDING ] := Point( 1,0 );
-VTIGDefaultStyle.Padding[ VTIG_GROUP_PADDING ]      := Point( 2,0 );
-VTIGDefaultStyle.Padding[ VTIG_GROUP_FRAME_PADDING ]:= Point( 0,0 );
+VTIGDefaultStyle.Padding[ VTIG_WINDOW_PADDING ]       := Point( 1,1 );
+VTIGDefaultStyle.Padding[ VTIG_WINDOW_PADDING_OFFSET ]:= Point( 0,0 );
+VTIGDefaultStyle.Padding[ VTIG_SELECTABLE_PADDING ]   := Point( 1,0 );
+VTIGDefaultStyle.Padding[ VTIG_GROUP_PADDING ]        := Point( 2,0 );
+VTIGDefaultStyle.Padding[ VTIG_GROUP_FRAME_PADDING ]  := Point( 0,0 );
 end.
 

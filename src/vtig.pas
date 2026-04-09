@@ -696,6 +696,11 @@ begin
     else iWindow.DC.FClip := iFClip.Shrinked(1);
   iPadding := GCtx.Style^.Padding[ VTIG_WINDOW_PADDING ];
   iWindow.FClipContent := iWindow.DC.FClip.Shrinked( iPadding.X, iPadding.Y );
+  iPadding := GCtx.Style^.Padding[ VTIG_WINDOW_PADDING_OFFSET ];
+  Inc( iWindow.FClipContent.Pos.X, iPadding.X );
+  Inc( iWindow.FClipContent.Pos.Y, iPadding.Y );
+  Dec( iWindow.FClipContent.Dim.X, iPadding.X );
+  Dec( iWindow.FClipContent.Dim.Y, iPadding.Y );
 
   Inc( iWindow.FClipContent.Dim.Y );
 
