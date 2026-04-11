@@ -736,6 +736,14 @@ begin
   Exit( 1 );
 end;
 
+function lua_map_node_is_los_blocking( L: Plua_State ): Integer; cdecl;
+var iState : TLuaMapState;
+begin
+  iState.Init(L);
+  iState.Push( iState.Map.blocksVision( iState.ToPosition( 2 ) ) );
+  Exit( 1 );
+end;
+
 function lua_map_node_is_passable( L: Plua_State ): Integer; cdecl;
 var iState : TLuaMapState;
 begin
@@ -1318,7 +1326,7 @@ begin
 end;
 
 
-const lua_map_node_lib : array[0..34] of luaL_Reg = (
+const lua_map_node_lib : array[0..35] of luaL_Reg = (
   ( name : 'get_area';                func : @lua_map_node_get_area ),
   ( name : 'set_hp';                  func : @lua_map_node_set_hp ),
   ( name : 'get_hp';                  func : @lua_map_node_get_hp ),
@@ -1329,6 +1337,7 @@ const lua_map_node_lib : array[0..34] of luaL_Reg = (
   ( name : 'cross_around';            func : @lua_map_node_cross_around ),
   ( name : 'eye_contact';             func : @lua_map_node_eye_contact ),
   ( name : 'is_visible';              func : @lua_map_node_is_visible ),
+  ( name : 'is_los_blocking';         func : @lua_map_node_is_los_blocking ),
   ( name : 'is_passable';             func : @lua_map_node_is_passable ),
   ( name : 'is_empty';                func : @lua_map_node_is_empty ),
   ( name : 'is_empty_area';           func : @lua_map_node_is_empty_area ),
