@@ -21,6 +21,7 @@ procedure VTIG_BringToTop( aName : Ansistring );
 procedure VTIG_BeginGroup( aSize : Integer = -1; aVertical : Boolean = False; aMaxHeight : Integer = -1 );
 procedure VTIG_EndGroup( aVertical : Boolean = False );
 procedure VTIG_Ruler( aPosition : Integer = -1 );
+procedure VTIG_SameLine;
 
 function VTIG_Selectable( aText : Ansistring; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
@@ -71,6 +72,7 @@ procedure VTIG_EventClear;
 procedure VTIG_PushStyle( aStyle : PTIGStyle );
 procedure VTIG_PopStyle;
 procedure VTIG_SetMaxCharacters( aMaxCharacters : Integer );
+procedure VTIG_SetAlignment( aAlignment : TTIGAlignment );
 
 function VTIG_GetIOState : TTIGIOState;
 
@@ -217,14 +219,12 @@ var iWindow        : TTIGWindow;
           begin
             iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
             VTIG_RenderTextSegment( iParamStr, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
-            Dec( aCurrentX );
           end;
         vtInteger:
         begin
           Str( aParameters[aParameterIndex].VInteger, iBuffer );
           iBuffer[Length(iBuffer)+1] := #0;
           VTIG_RenderTextSegment( @iBuffer[1], aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
-          Dec( aCurrentX );
         end;
 
         // Add handling for other parameter types if needed
@@ -290,7 +290,6 @@ begin
                   begin
                     iValue := GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) );
                     VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
-                    Dec( aCurrentX );
                     iLineContent := True;
                   end;
                   Inc(i, iNamePos + 1);
@@ -323,7 +322,7 @@ begin
       iPos       := i;
       iSpaceLeft := aClip.x2 - aCurrentX + 1;
 
-      while iPos <= Length(aText) do
+      while iPos < Length(aText) do
       begin
         if aText[iPos] = ' ' then
           iLastSpace := iWidth;
@@ -548,6 +547,7 @@ procedure VTIG_NewFrame;
 var iWindow : TTIGWindow;
     iTime   : DWord;
     iLast   : Integer;
+    iPage   : Integer;
     iES     : TIOEventState;
 begin
   GCtx.Size := GCtx.Io.Size;
@@ -589,7 +589,15 @@ begin
   begin
     iWindow.FFocusInfo.Current := (iWindow.FFocusInfo.Current + iWindow.FFocusInfo.Count) mod iWindow.FFocusInfo.Count;
     if iWindow.FFocusInfo.Current <> iLast then
+    begin
       GCtx.IO.PlaySound( VTIG_SOUND_CHANGE );
+      iLast := iWindow.FSelectScroll + iWindow.FFocusInfo.Current;
+      if iWindow.FScroll > iLast then
+        iWindow.FScroll := Max( 0, iLast );
+      iPage := Max( 1, iWindow.FClipContent.Dim.Y - 1 );
+      if iLast - iWindow.FScroll >= iPage then
+        iWindow.FScroll := iLast - iPage + 1;
+    end;
   end;
 
   iWindow.FFocusInfo.Count := 0;
@@ -658,7 +666,6 @@ begin
   if iFirst then
   begin
     iWindow.FScroll       := 0;
-    iWindow.FSelectScroll := 0;
     iWindow.FMaxSize      := Point( -1, -1 );
     iWindow.FColor        := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
   end;
@@ -689,6 +696,11 @@ begin
     else iWindow.DC.FClip := iFClip.Shrinked(1);
   iPadding := GCtx.Style^.Padding[ VTIG_WINDOW_PADDING ];
   iWindow.FClipContent := iWindow.DC.FClip.Shrinked( iPadding.X, iPadding.Y );
+  iPadding := GCtx.Style^.Padding[ VTIG_WINDOW_PADDING_OFFSET ];
+  Inc( iWindow.FClipContent.Pos.X, iPadding.X );
+  Inc( iWindow.FClipContent.Pos.Y, iPadding.Y );
+  Dec( iWindow.FClipContent.Dim.X, iPadding.X );
+  Dec( iWindow.FClipContent.Dim.Y, iPadding.Y );
 
   Inc( iWindow.FClipContent.Dim.Y );
 
@@ -770,17 +782,19 @@ var iWindow : TTIGWindow;
     iHeight : Integer;
     iCmd    : TTIGDrawCommand;
     iFrame  : AnsiString;
+    iPad    : TIOPoint;
 begin
   iWindow := GCtx.Current;
   if (not aVertical) and (aSize <> -1) and ( GCtx.Style^.Frame[ VTIG_GROUP_FRAME ] <> '' )then
   begin
-    iHeight := iWindow.FClipContent.Y2 - (iWindow.DC.FCursor.y - 1);
+    iPad := GCtx.Style^.Padding[ VTIG_GROUP_FRAME_PADDING ];
+    iHeight := iWindow.FClipContent.Y2 - (iWindow.DC.FCursor.y - 1 );
     if aMaxHeight >= 0 then
       iHeight := Min( aMaxHeight, iHeight );
     iCmd.CType := VTIG_CMD_RULER;
     iCmd.Area  := Rectangle(
-      Point( iWindow.DC.FCursor.X + aSize, iWindow.DC.FCursor.Y - 1 ),
-      Point( 1, iHeight + 1 )
+      Point( iWindow.DC.FCursor.X + aSize, iWindow.DC.FCursor.Y - 1 + iPad.Y ),
+      Point( 1, iHeight + 1 - iPad.Y * 2 )
     );
     ClampTo( iCmd.Area, iWindow.DC.FClip );
     iCmd.FG := GCtx.Style^.Color[ VTIG_FRAME_COLOR ];
@@ -794,7 +808,7 @@ end;
 
 procedure VTIG_EndGroup( aVertical : Boolean = False );
 begin
-  GCtx.Current.DC.EndGroup;
+  GCtx.Current.DC.EndGroup( GCtx.Style^.Padding[ VTIG_GROUP_PADDING ].X );
   if aVertical then
   begin
     GCtx.Current.DC.FCursor.Y -= 2;
@@ -831,6 +845,14 @@ begin
   iWindow.DC.FCursor.Y += 3;
 end;
 
+procedure VTIG_SameLine;
+var iWindow : TTIGWindow;
+begin
+  iWindow := GCtx.Current;
+  iWindow.DC.FCursor.X := iWindow.DC.FLastAdvanceX;
+  iWindow.DC.FCursor.Y -= 1;
+end;
+
 function VTIG_Selectable( aText : Ansistring; aParams : array of const; aValid : Boolean = true; aColor : TIOColor = 0 ) : Boolean;
 var iWindow   : TTIGWindow;
     iClear    : TIORect;
@@ -843,12 +865,8 @@ begin
   iWindow := GCtx.Current;
 
   Inc( iWindow.FFocusInfo.Count );
-  if ( iWindow.FFocusInfo.Count = 1 ) and ( iWindow.FSelectScroll > 0 ) then
-  begin
-    iWindow.DC.FContent.Pos.Y -= iWindow.FSelectScroll;
-    iWindow.DC.FContent.Dim.Y += iWindow.FSelectScroll;
-    iWindow.DC.FCursor.Y      -= iWindow.FSelectScroll;
-  end;
+  if iWindow.FFocusInfo.Count = 1 then
+    iWindow.FSelectScroll := iWindow.DC.FCursor.Y - iWindow.DC.FContent.Pos.Y;
 
   iWidth := iWindow.DC.FContent.x2 - iWindow.DC.FCursor.X;
   if iWidth < 0 then
@@ -971,14 +989,18 @@ begin
   iMaxScroll := iLines - iHeight;
   iPage      := Max( 1, iHeight );
 
-  if GCtx.Io.EventState.Activated( VTIG_IE_HOME, true )              then iWindow.FScroll := 0;
-  if GCtx.Io.EventState.Activated( VTIG_IE_END, true ) or aScrollMax then iWindow.FScroll := iMaxScroll;
+  if iWindow.FFocusInfo.Count = 0 then
+  begin
+    // no selectables: direct keyboard/mouse scroll
+    if GCtx.Io.EventState.Activated( VTIG_IE_HOME, true )              then iWindow.FScroll := 0;
+    if GCtx.Io.EventState.Activated( VTIG_IE_END, true ) or aScrollMax then iWindow.FScroll := iMaxScroll;
 
-  if GCtx.Io.EventState.Activated( VTIG_IE_PGUP, true )   then iWindow.FScroll := Max( iWindow.FScroll - iPage, 0 );
-  if GCtx.Io.EventState.Activated( VTIG_IE_PGDOWN, true ) then iWindow.FScroll := Min( iWindow.FScroll + iPage, iMaxScroll );
+    if GCtx.Io.EventState.Activated( VTIG_IE_PGUP, true )   then iWindow.FScroll := Max( iWindow.FScroll - iPage, 0 );
+    if GCtx.Io.EventState.Activated( VTIG_IE_PGDOWN, true ) then iWindow.FScroll := Min( iWindow.FScroll + iPage, iMaxScroll );
 
-  if GCtx.Io.EventState.Activated( VTIG_IE_UP, true )   and ( iWindow.FScroll > 0 )          then Dec( iWindow.FScroll );
-  if GCtx.Io.EventState.Activated( VTIG_IE_DOWN, true ) and ( iWindow.FScroll < iMaxScroll ) then Inc( iWindow.FScroll );
+    if GCtx.Io.EventState.Activated( VTIG_IE_UP, true )   and ( iWindow.FScroll > 0 )          then Dec( iWindow.FScroll );
+    if GCtx.Io.EventState.Activated( VTIG_IE_DOWN, true ) and ( iWindow.FScroll < iMaxScroll ) then Inc( iWindow.FScroll );
+  end;
 
   if ( GCtx.Io.MouseState.Position <> PointNegUnit ) and VTIG_MouseInLastWindow then
   begin
@@ -994,6 +1016,9 @@ begin
     Point( iWindow.DC.FClip.x2+1, iWindow.DC.FClip.Y ),
     Point( 1, iWindow.DC.FClip.Dim.Y )
   );
+  GCtx.Color   := GCtx.Style^.Color[ VTIG_SCROLL_COLOR ];
+  GCtx.BGColor := GCtx.Style^.Color[ VTIG_WINDOW_BACKGROUND_COLOR ];
+
   iCmd.FG    := GCtx.Color;
   iCmd.BG    := GCtx.BGColor;
   iCmd.XC    := GCtx.Style^.Color[ VTIG_SCROLL_COLOR ];
@@ -1001,7 +1026,7 @@ begin
   iCmd.Text   := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
   iWindow.DrawList.Push( iCmd );
 
-  iPosition := Float( iWindow.FScroll ) / Float( iLines - iHeight );
+  iPosition := Float( iWindow.FScroll ) / Float( iMaxScroll );
   iYPos     := Floor( Float( iCmd.Area.Dim.Y - 3 ) * iPosition );
   VTIG_RenderChar( iFrame[4], Point(iWindow.DC.FClip.X2 + 1, iWindow.DC.FClip.Y + iYpos) );
 end;
@@ -1081,7 +1106,6 @@ var iWindow : TTIGWindow;
 begin
   iWindow := GCtx.Current;
   Result := iWindow.DC.FContent;
-  Result.Dim.Y := iWindow.FClipContent.Dim.Y;
   ClampTo( Result, iWindow.DC.FClip );
 end;
 
@@ -1142,21 +1166,21 @@ procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor; aBGCo
 begin
   GCtx.Color   := aColor;
   GCtx.BGColor := aBGColor;
-  VTIG_RenderChar( aChar, aPos );
+  VTIG_RenderChar( aChar, VTIG_PositionResolve( aPos ) );
 end;
 
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor );
 begin
   GCtx.Color   := aColor;
   GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
-  VTIG_RenderChar( aChar, aPos );
+  VTIG_RenderChar( aChar, VTIG_PositionResolve( aPos ) );
 end;
 
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint );
 begin
   GCtx.Color   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
   GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ];
-  VTIG_RenderChar( aChar, aPos );
+  VTIG_RenderChar( aChar, VTIG_PositionResolve( aPos ) );
 end;
 
 procedure VTIG_Text( aText : Ansistring; aParams : array of const; aColor : TIOColor = 0; aBGColor : TIOColor = 0 );
@@ -1174,6 +1198,10 @@ begin
   iClip  := VTIG_GetClipRect;
   iStart := GCtx.Current.DC.FCursor;
   if ( iStart.X > iClip.x2 ) then Exit;
+  case GCtx.Alignment of
+    VTIG_ALIGN_CENTER : iStart.X := GCtx.Current.DC.FContent.X + Max( 0, (GCtx.Current.DC.FContent.Dim.X - VTIG_Length( aText, aParams )) div 2 );
+    VTIG_ALIGN_RIGHT  : iStart.X := GCtx.Current.DC.FContent.X + Max( 0, GCtx.Current.DC.FContent.Dim.X - VTIG_Length( aText, aParams ) );
+  end;
   iCoord := VTIG_RenderText( aText, iStart, iClip, aParams );
   GCtx.Current.Advance( iCoord - iStart + Point(1,1) );
 end;
@@ -1198,6 +1226,10 @@ begin
   iClip  := VTIG_GetClipRect;
   iStart := GCtx.Current.DC.FCursor;
   if ( iStart.X > iClip.x2 ) then Exit;
+  case GCtx.Alignment of
+    VTIG_ALIGN_CENTER : iStart.X := GCtx.Current.DC.FContent.X + Max( 0, (GCtx.Current.DC.FContent.Dim.X - VTIG_Length( aText )) div 2 );
+    VTIG_ALIGN_RIGHT  : iStart.X := GCtx.Current.DC.FContent.X + Max( 0, GCtx.Current.DC.FContent.Dim.X - VTIG_Length( aText ) );
+  end;
   
   // Adjust clip rectangle to limit output to aMaxSize from cursor position
   if aMaxSize.X > 0 then
@@ -1500,6 +1532,11 @@ end;
 procedure VTIG_SetMaxCharacters( aMaxCharacters : Integer );
 begin
   GCtx.MaxCharacters := aMaxCharacters;
+end;
+
+procedure VTIG_SetAlignment( aAlignment : TTIGAlignment );
+begin
+  GCtx.Alignment := aAlignment;
 end;
 
 function VTIG_GetIOState : TTIGIOState;

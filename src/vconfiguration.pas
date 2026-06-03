@@ -132,7 +132,7 @@ end;
 
 implementation
 
-uses sysutils, vutil;
+uses classes, sysutils, vutil;
 
 { TConfigurationEntry }
 
@@ -460,41 +460,31 @@ begin
 end;
 
 function TConfigurationManager.Write( aFileName : Ansistring ) : Boolean;
-var iText  : Text;
+var iLines : TStringList;
     iGroup : TConfigurationGroup;
     iEntry : TConfigurationEntry;
 begin
   Result := True;
   Log( 'Writing configuration to '+aFileName+' ...');
 
-  AssignFile( iText, aFileName );
+  iLines := TStringList.Create;
   try
-    Rewrite( iText );
-    Writeln( iText, '-- this file is auto-generated, edit at own risk' );
-    Writeln( iText, 'configuration = {' );
+    iLines.Add( '-- this file is auto-generated, edit at own risk' );
+    iLines.Add( 'configuration = {' );
     for iGroup in FGroups do
       for iEntry in iGroup.FEntries do
-        Writeln( iText, '  '+iEntry.ID+ ' = ' +iEntry.ToLuaString + ',' );
-    Writeln( iText, '}' );
-  except
-    on E: Exception do
-    begin
-      Log( LOGERROR, 'An unexpected error occurred: ' + E.Message );
-      Result := False;
-    end;
-  end;
-
-  try
-    CloseFile( iText );
+        iLines.Add( '  ' + iEntry.ID + ' = ' + iEntry.ToLuaString + ',' );
+    iLines.Add( '}' );
+    iLines.SaveToFile( aFileName );
     Log( 'Configuration saved to '+aFileName );
   except
     on E: Exception do
     begin
-      Log( LOGERROR, 'Error closing the file: ' + E.Message );
+      Log( LOGERROR, 'Error writing configuration: ' + E.Message );
       Result := False;
     end;
   end;
-
+  FreeAndNil( iLines );
 end;
 
 end.

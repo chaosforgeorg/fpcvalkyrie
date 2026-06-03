@@ -1,8 +1,8 @@
 # fpcvalkyrie
 FPC Valkyrie library
-Version 0.10.0
+Version 0.10.9
 
-Copyright (c) 2002-2025 Kornel Kisielewicz
+Copyright (c) 2002-2026 Kornel Kisielewicz
 
 For usage/compilation, see one of the projects that uses FPC Valkyrie:
 

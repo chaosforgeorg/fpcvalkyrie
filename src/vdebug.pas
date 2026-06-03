@@ -1,14 +1,10 @@
 {$INCLUDE valkyrie.inc}
-// @abstract(Debugging unit for Valkyrie)
+// @abstract(Debugging utilities for Valkyrie)
 // @author(Kornel Kisielewicz <epyon@chaosforge.org>)
 // @created(May 7, 2004)
 //
-// Core debuging engine for Valkyrie. Used by almost all
-// files in the Valkyrie library. Implements Logging, Errors,
-// and Warnings. All debug data is written to log.txt.
-//
-// vdebug also defines the @link(Debug) boolean constant. If set to
-// True a lot of additional Log informations are generated.
+// Provides error logging, debug-to-string conversions, unhandled exception
+// handler, and a diagnostic stream wrapper (TDebugStream).
 //
 //  @html <div class="license">
 //  This library is free software; you can redistribute it and/or modify it
@@ -30,17 +26,10 @@ unit vdebug;
 interface
 uses classes, sysutils, vutil;
 
-type TWritelnFunction = procedure ( const Message : AnsiString );
-
 
 const
-// The global Debug
-    Debug : Boolean = True;
 // Error log file name
     ErrorLogFileName : AnsiString = 'error.log';
-// Console write function, set to something (or nil) different on GUI systems.
-// By default set to Writeln in initialization.
-    DebugWriteln : TWritelnFunction = nil;
 
 // Logs a string into the logfile.
 procedure Log( const aLogString : Ansistring );
@@ -54,11 +43,11 @@ procedure Log( aLevel : TLogLevel; const aLogString       : Ansistring );
 procedure Log( aLevel : TLogLevel; const aLogString       : Ansistring; const aParam : array of Const );
 
 // Error log open
-procedure ErrorLogOpen( const Severity, Message : String );
+procedure ErrorLogOpen( const aSeverity, aMessage : String );
 // Error log write line (formatted)
-procedure ErrorLogWriteln( const Text : String; const Fmt : array of const );
+procedure ErrorLogWriteln( const aText : String; const aFmt : array of const );
 // Error log write line
-procedure ErrorLogWriteln( const Text : String );
+procedure ErrorLogWriteln( const aText : String );
 // Error log close
 procedure ErrorLogClose;
 
@@ -89,48 +78,7 @@ type TDebugStream = class( TStream )
 implementation
 uses math, variants,vlog;
 
-var LogFile   : Text;
-    ErrorFile : Text;
-
-//const LogName : array[TLogLevel] of string = (
-//  'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'TRACE'
-//);
-
-procedure DefaultDebugWriteln( const Message: AnsiString );
-begin
-  Writeln( Message );
-end;
-
-procedure DoWriteln( const Message: AnsiString );
-begin
-  if Assigned( DebugWriteln ) then
-    DebugWriteln( Message );
-end;
-
-procedure CritError(const CritErrorString : Ansistring);
-begin
-  Writeln(LogFile,'Critical Error: ',CritErrorString);
-  DoWriteln('Critical Error: '+CritErrorString);
-  Flush(LogFile);
-  Readln;
-  Halt(0);
-end;
-
-procedure Warning  (const WarningString   : Ansistring);
-begin
-  Writeln(LogFile,'Warning: ',WarningString);
-{  if Console <> nil then
-  begin
-    Console.Print('Warning: '+WarningString);
-    Console.Call;
-  end
-  else
-  begin}
-    DoWriteln('Warning: '+WarningString);
-    Readln;
-  //end;
-  Flush(LogFile);
-end;
+var ErrorStream : TFileStream;
 
 procedure Log( const aLogString : Ansistring);
 begin
@@ -144,7 +92,6 @@ end;
 
 procedure Log( aLevel : TLogLevel; const aLogString       : Ansistring);
 begin
-  //if Console <> nil then Console.Print(LogString);
   Logger.Log( aLevel, aLogString );
 end;
 
@@ -153,34 +100,58 @@ begin
   Log( aLevel, Format( aLogString,aParam ) );
 end;
 
-procedure ErrorLogOpen(const Severity, Message: String);
+procedure ErrorLogOpen( const aSeverity, aMessage : String );
+var iLine : AnsiString;
 begin
-  Assign( ErrorFile, ErrorLogFileName );
-  if FileExists( ErrorLogFileName )
-    then Append( ErrorFile )
-    else Rewrite( ErrorFile );
-  Writeln( ErrorFile, '----------------------------------------------------------------------' );
-  Writeln( ErrorFile, 'Timestamp   : ', DateTimeToStr(Now) );
-  Writeln( ErrorFile, 'Error level : ', Severity );
-  Writeln( ErrorFile, 'Message     : ', Message );
-  Writeln( ErrorFile );
+  try
+    if FileExists( ErrorLogFileName ) then
+    begin
+      ErrorStream := TFileStream.Create( ErrorLogFileName, fmOpenWrite );
+      ErrorStream.Seek( 0, soFromEnd );
+    end
+    else
+      ErrorStream := TFileStream.Create( ErrorLogFileName, fmCreate );
+    iLine := '----------------------------------------------------------------------' + sLineBreak +
+             'Timestamp   : ' + DateTimeToStr(Now) + sLineBreak +
+             'Error level : ' + aSeverity + sLineBreak +
+             'Message     : ' + aMessage + sLineBreak +
+             sLineBreak;
+    ErrorStream.Write( iLine[1], Length( iLine ) );
+  except
+    on e : Exception do
+    begin
+      FreeAndNil( ErrorStream );
+      WriteLn( StdErr, 'WARNING: Can''t open error log: ' + e.Message );
+    end;
+  end;
 end;
 
-procedure ErrorLogWriteln(const Text: String; const Fmt: array of const);
+procedure ErrorLogWriteln( const aText : String; const aFmt : array of const );
 begin
-  Writeln( ErrorFile, Format( Text, Fmt ) );
+  ErrorLogWriteln( Format( aText, aFmt ) );
 end;
 
-procedure ErrorLogWriteln(const Text: String);
+procedure ErrorLogWriteln( const aText : String );
+var iLine : AnsiString;
 begin
-  Writeln( ErrorFile, Text );
+  if ErrorStream = nil then Exit;
+  try
+    iLine := aText + sLineBreak;
+    ErrorStream.Write( iLine[1], Length( iLine ) );
+  except
+  end;
 end;
 
 procedure ErrorLogClose;
+var iLine : AnsiString;
 begin
-  Writeln( ErrorFile, '----------------------------------------------------------------------' );
-  Writeln( ErrorFile );
-  Close( ErrorFile );
+  if ErrorStream = nil then Exit;
+  try
+    iLine := '----------------------------------------------------------------------' + sLineBreak + sLineBreak;
+    ErrorStream.Write( iLine[1], Length( iLine ) );
+  except
+  end;
+  FreeAndNil( ErrorStream );
 end;
 
 function DebugToString(VT: PVarRec): AnsiString;
@@ -251,32 +222,26 @@ procedure UnhandledExceptionHandler(Obj : TObject; Addr: Pointer; FrameCount: Lo
 var
   Message : String;
   i       : longint;
-
-  procedure Dump( Msg : String );
-  begin
-    DoWriteln(Msg);
-    ErrorLogWriteln(Msg);
-  end;
-
 begin
+  if Assigned( Logger ) then Logger.Flush;
   ErrorLogOpen( 'FATAL EXCEPTION', 'Fatal exception encountered' );
   {$HINTS OFF}
-  Dump('An unhandled exception occurred at $'+HexStr(PtrUInt(Addr),sizeof(PtrUInt)*2)+' :');
+  ErrorLogWriteln('An unhandled exception occurred at $'+HexStr(PtrUInt(Addr),sizeof(PtrUInt)*2)+' :');
   {$HINTS ON}
   if Obj is exception then
    begin
      Message:=Exception(Obj).ClassName+' : '+Exception(Obj).Message;
-     Dump(Message);
+     ErrorLogWriteln(Message);
    end
   else
-   Dump('Exception object '+Obj.ClassName+' is not of class Exception.');
-  Dump(BackTraceStrFunc(Addr));
+   ErrorLogWriteln('Exception object '+Obj.ClassName+' is not of class Exception.');
+  ErrorLogWriteln(BackTraceStrFunc(Addr));
   if (FrameCount>0) then
     begin
       for i:=0 to FrameCount-1 do
-        Dump(BackTraceStrFunc(Frames[i]));
+        ErrorLogWriteln(BackTraceStrFunc(Frames[i]));
     end;
-  Dump('');
+  ErrorLogWriteln('');
   ErrorLogClose;
 end;
 
@@ -342,7 +307,7 @@ end;
 initialization
 
 exceptproc := @UnhandledExceptionHandler;
-DebugWriteln := @DefaultDebugWriteln;
+ErrorStream := nil;
 
 end.
 
