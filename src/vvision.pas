@@ -1,12 +1,7 @@
 {$INCLUDE valkyrie.inc}
-// @abstract(Roguelike Toolkit for Valkyrie)
+// @abstract(Vision/LoS for Valkyrie)
 // @author(Kornel Kisielewicz <epyon@chaosforge.org>)
 // @created(Jan 12, 2008)
-// @cvs($Author: chaos-dev $)
-// @cvs($Date: 2008-10-14 19:45:46 +0200 (Tue, 14 Oct 2008) $)
-//
-// Gathers some useful functions for roguelike development in Valkyrie.
-// As for the current state it's experimental.
 //
 //  @html <div class="license">
 //  This library is free software; you can redistribute it and/or modify it
@@ -30,54 +25,53 @@ interface
 uses Classes, SysUtils, vrltools;
 
 type IVisionQuery = interface
-  function blocksVision( const Coord : TCoord2D ) : boolean;
+  function blocksVision( const aCoord : TCoord2D ) : boolean;
 end;
 
 
 type TVision = class
-  constructor Create( newMap : IVisionQuery );
-  procedure ChangeSource( newMap : IVisionQuery ); virtual;
-  procedure Run( Coord : TCoord2D; Radius : LongInt ); virtual; abstract;
-  function isVisible( Coord : TCoord2D ) : boolean;
-  function getLight( Coord : TCoord2D ) : Byte; virtual; abstract;
-//  function isLoS(sX,sY,tX,tY : LongInt) : boolean; virtual; abstract;
-  protected
-  Map : IVisionQuery;
+  constructor Create( aMap : IVisionQuery );
+  procedure ChangeSource( aMap : IVisionQuery ); virtual;
+  procedure Run( aCoord : TCoord2D; aRadius : LongInt ); virtual; abstract;
+  function isVisible( aCoord : TCoord2D ) : boolean;
+  function getLight( aCoord : TCoord2D ) : Byte; virtual; abstract;
+protected
+  FMap : IVisionQuery;
 end;
 
 type TIsaacVision = class (TVision)
-  constructor Create( newMap : IVisionQuery; newMaxRadius : DWord );
-  procedure Run( Coord : TCoord2D; Radius : LongInt ); override;
-  function getLight( Coord : TCoord2D ) : Byte; override;
-//  function isLoS(sX,sY,tX,tY : LongInt) : boolean; override;
-  protected
-  procedure Clear(Value : Byte = 0);
-  procedure setLight( Coord : TCoord2D; Value : LongInt);
-  protected
-  Source    : TCoord2D;
-  Light     : array of array of Word;
-  MaxRadius : LongInt;
+  constructor Create( aMap : IVisionQuery; aMaxRadius : DWord );
+  procedure Run( aCoord : TCoord2D; aRadius : LongInt ); override;
+  function getLight( aCoord : TCoord2D ) : Byte; override;
+protected
+  procedure Clear( aValue : Byte = 0 );
+  procedure setLight( aCoord : TCoord2D; aValue : LongInt );
+protected
+  FSource    : TCoord2D;
+  FLight     : array of array of Word;
+  FMaxRadius : LongInt;
 end;
 
 type TBresenhamRay = object
-  Done   : Boolean;
-  cnt    : Word;
-  Xsign  : Integer;
-  Ysign  : Integer;
-  public
-  procedure Init(nx1,ny1,nx2,ny2 : integer);
-  procedure Init(c1,c2 : TCoord2D);
+  procedure Init( aX1, aY1, aX2, aY2 : integer );
+  procedure Init( aCoord1, aCoord2 : TCoord2D );
   procedure Next;
-  function GetX : Integer;
-  function GetY : Integer;
-  function GetC : TCoord2D;
-  private
-  Orto   : Boolean;
-  dx,dy  : Integer;
-  bx,by  : Integer;
-  tx,ty  : Integer;
-  p      : Integer;
-  c1,c2  : Integer;
+private
+  FDone     : Boolean;
+  FCnt      : Integer;
+  FXSign    : Integer;
+  FYSign    : Integer;
+  FOrto     : Boolean;
+  FDX, FDY  : Integer;
+  FBX, FBY  : Integer;
+  FTX, FTY  : Integer;
+  FP        : Integer;
+  FC1, FC2  : Integer;
+  FCoord    : TCoord2D;
+public 
+  property Steps    : Integer      read FCnt;
+  property Current  : TCoord2D     read FCoord;
+  property Done     : Boolean      read FDone;
 end;
 
 type
@@ -85,129 +79,130 @@ type
 { TVisionRay }
 
 TVisionRay = object
-  Done   : Boolean;
-  Xsign  : Integer;
-  Ysign  : Integer;
-  Map    : IVisionQuery;
-  cnt    : DWord;
-  coord  : TCoord2D;
-  prev   : TCoord2D;
-  public
-  procedure Init(newMap : IVisionQuery; nx1,ny1,nx2,ny2 : integer; precision : Single = 0.6);
-  procedure Init(newMap : IVisionQuery; c1,c2 : TCoord2D; precision : Single = 0.6);
+public
+  procedure Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aPrecision : Single = 0.6 );
+  procedure Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aPrecision : Single = 0.6 );
   procedure Next;
-  function GetPrev : TCoord2D;
-  function GetX : Integer;
-  function GetY : Integer;
-  function GetC : TCoord2D;
-  function GetSource : TCoord2D;
-  function GetTarget : TCoord2D;
-  private
-  dcnt    : DWord;
-  fdx,fdy : Single;
-  fx,fy   : Single;
-  tx,ty   : Integer;
-  sx,sy   : Integer;
+private
+  FDone     : Boolean;
+  FXSign    : Integer;
+  FYSign    : Integer;
+  FMap      : IVisionQuery;
+  FCnt      : Integer;
+  FCoord    : TCoord2D;
+  FPrev     : TCoord2D;
+  FTarget   : TCoord2D;
+  FSource   : TCoord2D;
+  FDCnt     : Integer;
+  FDX, FDY  : Single;
+  FX, FY    : Single;
+public 
+  property Map      : IVisionQuery read FMap;
+  property Steps    : Integer      read FCnt;
+  property Previous : TCoord2D     read FPrev;
+  property Current  : TCoord2D     read FCoord;
+  property Source   : TCoord2D     read FSource;
+  property Target   : TCoord2D     read FTarget;
+  property Done     : Boolean      read FDone;
 end;
 
 implementation
 uses vmath,math;
 
-constructor TVision.Create(newMap: IVisionQuery);
+constructor TVision.Create( aMap : IVisionQuery );
 begin
-  Map := newMap;
+  FMap := aMap;
 end;
 
-procedure TVision.ChangeSource(newMap: IVisionQuery);
+procedure TVision.ChangeSource( aMap : IVisionQuery );
 begin
-  Map := newMap;
+  FMap := aMap;
 end;
 
-function TVision.isVisible( Coord : TCoord2D ): boolean;
+function TVision.isVisible( aCoord : TCoord2D ) : boolean;
 begin
-  Exit( getLight( Coord ) > 0 );
+  Exit( getLight( aCoord ) > 0 );
 end;
 
 { TIsaacVision }
 
-constructor TIsaacVision.Create(newMap: IVisionQuery; newMaxRadius: DWord);
-var Count : DWord;
+constructor TIsaacVision.Create( aMap : IVisionQuery; aMaxRadius : DWord );
+var iCount : DWord;
 begin
-  inherited Create(newMap);
-  MaxRadius := newMaxRadius;
-  SetLength(Light,maxRadius*2+4);
-  for Count := 0 to maxRadius*2+3 do
-    SetLength(Light[Count],maxRadius*2+4);
+  inherited Create( aMap );
+  FMaxRadius := aMaxRadius;
+  SetLength( FLight, FMaxRadius*2+4 );
+  for iCount := 0 to FMaxRadius*2+3 do
+    SetLength( FLight[iCount], FMaxRadius*2+4 );
 end;
 
-function TIsaacVision.getLight( Coord : TCoord2D ): byte;
-var Translated : TCoord2D;
+function TIsaacVision.getLight( aCoord : TCoord2D ) : byte;
+var iTranslated : TCoord2D;
 begin
-  Translated.X := Coord.X - source.X + maxRadius + 1;
-  Translated.Y := Coord.Y - source.Y + maxRadius + 1;
-  if (Translated.x < 0) or (Translated.y < 0) or
-     (Translated.x > maxRadius*2+3) or (Translated.y > maxRadius*2+3) then Exit(0);
-  Exit( Light[Translated.x,Translated.y] );
+  iTranslated.X := aCoord.X - FSource.X + FMaxRadius + 1;
+  iTranslated.Y := aCoord.Y - FSource.Y + FMaxRadius + 1;
+  if (iTranslated.x < 0) or (iTranslated.y < 0) or
+     (iTranslated.x > FMaxRadius*2+3) or (iTranslated.y > FMaxRadius*2+3) then Exit( 0 );
+  Exit( FLight[iTranslated.x,iTranslated.y] );
 end;
 
-procedure TIsaacVision.setLight( Coord : TCoord2D; Value : LongInt );
-var tX,tY : LongInt;
+procedure TIsaacVision.setLight( aCoord : TCoord2D; aValue : LongInt );
+var iX, iY : LongInt;
 begin
-  tX := Coord.X - source.X + maxRadius + 1;
-  tY := Coord.Y - source.Y + maxRadius + 1;
-  Light[tx,ty] := Max(Value,0);
+  iX := aCoord.X - FSource.X + FMaxRadius + 1;
+  iY := aCoord.Y - FSource.Y + FMaxRadius + 1;
+  FLight[iX,iY] := Max( aValue, 0 );
 end;
 
-procedure TIsaacVision.Clear(Value : Byte = 0);
-var x,y : LongInt;
+procedure TIsaacVision.Clear( aValue : Byte = 0 );
+var iX, iY : LongInt;
 begin
-  for x := 0 to maxRadius*2+3 do
-    for y := 0 to maxRadius*2+3 do
-      Light[x,y] := Value;
+  for iX := 0 to FMaxRadius*2+3 do
+    for iY := 0 to FMaxRadius*2+3 do
+      FLight[iX,iY] := aValue;
 end;
 
 
 // Special thanks for this procedure goes to Isaac Kuo. This beamcasting
 // algorithm is a ported to FreePascal modified version of his algorithm
 // posted on http://www.roguelikedevelopment.org
-
-procedure TIsaacVision.Run( Coord : TCoord2D; Radius : LongInt );
-var t : TCoord2D;
-    mini, maxi, cor, u, v : LongInt;
-    quad, slope, l : Byte;
-const quads : array[1..4] of array[1..2] of ShortInt =
+procedure TIsaacVision.Run( aCoord : TCoord2D; aRadius : LongInt );
+var iTarget : TCoord2D;
+    iMini, iMaxi, iCor, iU, iV : LongInt;
+    iQuad, iSlope, iLight : Byte;
+const CQuads : array[1..4] of array[1..2] of ShortInt =
       ((1,1),(-1,-1),(-1,+1),(+1,-1));
-      odir : array[1..4] of array[1..2] of ShortInt =
+      CODir : array[1..4] of array[1..2] of ShortInt =
       ((1,0),(-1,0),(0,1),(0,-1));
-      RayNumber          = 32; // It's effective to keep this number a power of 2.
-      RayWidthCorrection = 8; // Must be smaller then RayNumber/2 ;-)
+      CRayNumber          = 32; // It's effective to keep this number a power of 2.
+      CRayWidthCorrection = 8; // Must be smaller then CRayNumber/2 ;-)
 
 begin
-  if Radius > maxRadius then Radius := maxRadius;
+  if aRadius > FMaxRadius then aRadius := FMaxRadius;
 
-  Source := Coord;
+  FSource := aCoord;
 
   Clear;
 
   // Set 0,0 to be visible even if the player is
   // standing on something opaque
-  setLight(Coord,Radius);
+  setLight( aCoord, aRadius );
   
-  l := 0;
+  iLight := 0;
 
   // Check the orthogonal directions
-  for quad := 1 to 4 do
-    for l := 1 to Radius do
+  for iQuad := 1 to 4 do
+    for iLight := 1 to aRadius do
     begin
-      t := coord.ifInc( l * odir[quad,1], l * odir[quad,2] );
-      setLight( t , Radius - l + 1 );
-      if Map.blocksVision( t ) then break;
+      iTarget := aCoord.ifInc( iLight * CODir[iQuad,1], iLight * CODir[iQuad,2] );
+      setLight( iTarget, aRadius - iLight + 1 );
+      if FMap.blocksVision( iTarget ) then break;
     end;
 
   // Loop through the quadrants
-  for quad := 1 to 4 do
+  for iQuad := 1 to 4 do
   // Now loop on the diagonal directions
-  for slope := 1 to RayNumber-1 do
+  for iSlope := 1 to CRayNumber-1 do
   begin
     // initialize the v coordinate and set the beam size
     // to maximum--mini and maxi store the beam\'s current
@@ -216,268 +211,210 @@ begin
     // When mini=maxi, the beam is a thin line.
     // When mini>maxi, the beam has been blocked.
 
-    v := slope; u := 0;
-    mini := RayWidthCorrection; maxi := RayNumber-RayWidthCorrection;
+    iV := iSlope; iU := 0;
+    iMini := CRayWidthCorrection; iMaxi := CRayNumber-CRayWidthCorrection;
     repeat
-      Inc(u);
-      t.y:= v div RayNumber;
-      t.x:= u - t.y;  //Do the transform
+      Inc( iU );
+      iTarget.y:= iV div CRayNumber;
+      iTarget.x:= iU - iTarget.y;  //Do the transform
       
-      cor:= RayNumber-(v mod RayNumber);         //calculate the position of block corner within beam
+      iCor:= CRayNumber-(iV mod CRayNumber);         //calculate the position of block corner within beam
       
-      if mini < cor then begin //beam is low enough to hit (x,y) block
-        if Map.blocksVision( coord.ifInc( quads[quad][1]*t.x,quads[quad][2]*t.y) ) then mini := cor; //beam was partially blocked
-        l := Distance(t.x,t.y,0,0);
-        if l > Radius then Break;
-        Light[quads[quad][1]*t.x+maxRadius+1,quads[quad][2]*t.y+maxRadius+1] := Radius-l+1;
+      if iMini < iCor then begin //beam is low enough to hit (x,y) block
+        if FMap.blocksVision( aCoord.ifInc( CQuads[iQuad][1]*iTarget.x, CQuads[iQuad][2]*iTarget.y ) ) then iMini := iCor; //beam was partially blocked
+        iLight := Distance( iTarget.x, iTarget.y, 0, 0 );
+        if iLight > aRadius then Break;
+        FLight[CQuads[iQuad][1]*iTarget.x+FMaxRadius+1,CQuads[iQuad][2]*iTarget.y+FMaxRadius+1] := aRadius-iLight+1;
       end;
-      if maxi > cor then begin //beam is high enough to hit (x-1,y+1) block
-        if Map.blocksVision( coord.ifInc( quads[quad][1]*(t.x-1), quads[quad][2]*(t.y+1) ) ) then maxi := cor; //beam was partially blocked
-        l := Distance(t.x-1,t.y+1,0,0);
-        if l > Radius then Break;
-        Light[quads[quad][1]*(t.x-1)+maxRadius+1,quads[quad][2]*(t.y+1)+maxRadius+1] := Radius-l+1;
+      if iMaxi > iCor then begin //beam is high enough to hit (x-1,y+1) block
+        if FMap.blocksVision( aCoord.ifInc( CQuads[iQuad][1]*(iTarget.x-1), CQuads[iQuad][2]*(iTarget.y+1) ) ) then iMaxi := iCor; //beam was partially blocked
+        iLight := Distance( iTarget.x-1, iTarget.y+1, 0, 0 );
+        if iLight > aRadius then Break;
+        FLight[CQuads[iQuad][1]*(iTarget.x-1)+FMaxRadius+1,CQuads[iQuad][2]*(iTarget.y+1)+FMaxRadius+1] := aRadius-iLight+1;
       end;
-      v := v + slope;  //increment the beam\'s v coordinate
-    until (mini > maxi);
+      iV := iV + iSlope;  //increment the beam\'s v coordinate
+    until (iMini > iMaxi);
   end;
 end;
 
 
-procedure TBresenhamRay.Init(nx1,ny1,nx2,ny2 : integer);
+procedure TBresenhamRay.Init( aX1, aY1, aX2, aY2 : integer );
 begin
-  Done := False;
-  cnt := 0;
-  bx := nx1;
-  by := ny1;
-  tx := nx2;
-  ty := ny2;
+  FDone := False;
+  FCnt := 0;
+  FBX := aX1;
+  FBY := aY1;
+  FTX := aX2;
+  FTY := aY2;
   
-  dx := tx - bx;
-  dy := ty - by;
+  FDX := FTX - FBX;
+  FDY := FTY - FBY;
 
-  Orto := (dx*dy = 0);
-  xsign := Sgn(dx);
-  ysign := Sgn(dy);
+  FOrto := (FDX*FDY = 0);
+  FXSign := Sgn( FDX );
+  FYSign := Sgn( FDY );
 
-  dx := Abs(dx);
-  dy := Abs(dy);
-  if (dx < dy) then
+  FDX := Abs( FDX );
+  FDY := Abs( FDY );
+  if (FDX < FDY) then
   begin
-    p  := 2*dx - dy;
-    c1 := 2*dx;
-    c2 := 2*dx-2*dy;
+    FP  := 2*FDX - FDY;
+    FC1 := 2*FDX;
+    FC2 := 2*FDX-2*FDY;
   end
   else
   begin
-    p  := 2*dy - dx;
-    c1 := 2*dy;
-    c2 := 2*dy-2*dx;
+    FP  := 2*FDY - FDX;
+    FC1 := 2*FDY;
+    FC2 := 2*FDY-2*FDX;
   end;
+  FCoord.Create( FBX, FBY );
 end;
 
-procedure TBresenhamRay.Init(c1,c2 : TCoord2D);
+procedure TBresenhamRay.Init( aCoord1, aCoord2 : TCoord2D );
 begin
-  Init(c1.x,c1.y,c2.x,c2.y);
+  Init( aCoord1.x, aCoord1.y, aCoord2.x, aCoord2.y );
 end;
 
 procedure TBresenhamRay.Next;
 begin
-  Inc(cnt);
-  if Orto then
+  Inc( FCnt );
+  if FOrto then
   begin
-    if (dy = 0) then bx += xsign
-                else by += ysign;
+    if (FDY = 0) then FBX += FXSign
+                 else FBY += FYSign;
   end
   else
-    if (dx < dy) then
+    if (FDX < FDY) then
     begin
-      by += ysign;
-      if (p < 0) then p += c1 else
+      FBY += FYSign;
+      if (FP < 0) then FP += FC1 else
       begin
-        p += c2;
-        bx += xsign;
+        FP += FC2;
+        FBX += FXSign;
       end;
     end
     else
     begin
-      bx += xsign;
-      if (p < 0) then p += c1 else
+      FBX += FXSign;
+      if (FP < 0) then FP += FC1 else
       begin
-        p += c2;
-        by += ysign;
+        FP += FC2;
+        FBY += FYSign;
       end;
     end;
 
 
-  if (bx = tx) and (by = ty) then Done := True;
-
+  if (FBX = FTX) and (FBY = FTY) then FDone := True;
+  FCoord.Create( FBX, FBY );
 end;
-
-function TBresenhamRay.GetX: Integer;
-begin
-  Exit(bx);
-end;
-
-function TBresenhamRay.GetY : Integer;
-begin
-  Exit(by);
-end;
-
-function TBresenhamRay.GetC: TCoord2D;
-begin
-  Exit(NewCoord2D(bx,by));
-end;
-
 
 { TVision2Ray }
 
-procedure TVisionRay.Init(newMap: IVisionQuery; nx1, ny1, nx2, ny2 : integer; precision : Single = 0.6);
-var dx,dy   : Integer;
-    shx,shy : Float;
-    shift   : Float;
-    YSigned : Boolean;
+procedure TVisionRay.Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aPrecision : Single = 0.6 );
+var iDX, iDY     : Integer;
+    iShiftX, iShiftY : Float;
+    iShift       : Float;
+    iYSigned     : Boolean;
 begin
-  Prev.Create(nx1, ny1);
-  Coord.Create(nx1, ny1);
-  Done   := false;
-  Map    := newMap;
-  cnt    := 0;
+  FPrev.Create( aX1, aY1 );
+  FCoord.Create( aX1, aY1 );
+  FDone := false;
+  FMap  := aMap;
+  FCnt  := 0;
   
-  sx := nx1;
-  sy := ny1;
-  tx := nx2;
-  ty := ny2;
+  FSource.Create( aX1, aY1 );
+  FTarget.Create( aX2, aY2 );
 
+  iDX := aX2-aX1;
+  iDY := aY2-aY1;
+  FXSign := sgn( iDX );
+  FYSign := sgn( iDY );
+  FX := aX1+0.5;
+  FY := aY1+0.5;
 
-  dx := nx2-nx1;
-  dy := ny2-ny1;
-  xsign := sgn(dx);
-  ysign := sgn(dy);
-  fx := nx1+0.5;
-  fy := ny1+0.5;
-
-  if xsign*ysign = 0 then
+  if FXSign*FYSign = 0 then
   begin
-    fdx := xsign;
-    fdy := ysign;
-    dcnt := Abs(dy+dx);
+    FDX := FXSign;
+    FDY := FYSign;
+    FDCnt := Abs( iDY+iDX );
     Exit;
   end;
-  YSigned := Abs(dx) < Abs(dy);
+  iYSigned := Abs( iDX ) < Abs( iDY );
   {$PUSH}
   {$HINTS OFF}
-  if YSigned then
+  if iYSigned then
   begin
-    fdy := ysign;
-    fdx := xsign*abs(dx/dy);
-    dcnt := Abs(dy);
+    FDY := FYSign;
+    FDX := FXSign*abs( iDX/iDY );
+    FDCnt := Abs( iDY );
   end
   else
   begin
-    fdx := xsign;
-    fdy := ysign*abs(dy/dx);
-    dcnt := Abs(dx);
+    FDX := FXSign;
+    FDY := FYSign*abs( iDY/iDX );
+    FDCnt := Abs( iDX );
   end;
   {$POP} {restore $HINTS}
 
-  shx := 0;
-  shy := 0;
+  iShiftX := 0;
+  iShiftY := 0;
 
   repeat
-    Inc(cnt);
-    if cnt = dcnt then Break;
-    fx += fdx;
-    fy += fdy;
-    if not (Map.blocksVision( NewCoord2D( Round(fx-0.5),(Round(fy-0.5))))) then Continue;
-    shift := 0;
-    if YSigned then
+    Inc( FCnt );
+    if FCnt = FDCnt then Break;
+    FX += FDX;
+    FY += FDY;
+    if not (FMap.blocksVision( NewCoord2D( Round( FX-0.5 ), (Round( FY-0.5 )) ) )) then Continue;
+    iShift := 0;
+    if iYSigned then
     begin
-      if Map.blocksVision( NewCoord2D( Round(fx-0.4+precision),(Round(fy-0.5)))) then shift := shift-precision;
-      if Map.blocksVision( NewCoord2D( Round(fx-0.6-precision),(Round(fy-0.5)))) then shift := shift+precision;
-      if shift <> 0 then
+      if FMap.blocksVision( NewCoord2D( Round( FX-0.4+aPrecision ), (Round( FY-0.5 )) ) ) then iShift := iShift-aPrecision;
+      if FMap.blocksVision( NewCoord2D( Round( FX-0.6-aPrecision ), (Round( FY-0.5 )) ) ) then iShift := iShift+aPrecision;
+      if iShift <> 0 then
       begin
-        shx := shift;
+        iShiftX := iShift;
         Break;
       end
     end else
     begin
-      if Map.blocksVision( NewCoord2D( Round(fx-0.5),(Round(fy-0.4+precision)))) then shift := shift-precision;
-      if Map.blocksVision( NewCoord2D( Round(fx-0.5),(Round(fy-0.6-precision)))) then shift := shift+precision;
+      if FMap.blocksVision( NewCoord2D( Round( FX-0.5 ), (Round( FY-0.4+aPrecision )) ) ) then iShift := iShift-aPrecision;
+      if FMap.blocksVision( NewCoord2D( Round( FX-0.5 ), (Round( FY-0.6-aPrecision )) ) ) then iShift := iShift+aPrecision;
     end;
-    if shift <> 0 then
+    if iShift <> 0 then
     begin
-      shy := shift;
+      iShiftY := iShift;
       Break;
     end
-  until cnt >= dcnt;
+  until FCnt >= FDCnt;
 
-  cnt := 0;
-  fx := nx1+0.5+shx;
-  fy := ny1+0.5+shy;
+  FCnt := 0;
+  FX := aX1+0.5+iShiftX;
+  FY := aY1+0.5+iShiftY;
 end;
 
-procedure TVisionRay.Init(newMap : IVisionQuery; c1,c2 : TCoord2D; precision : Single = 0.6);
+procedure TVisionRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aPrecision : Single = 0.6 );
 begin
-  Init( newMap, c1.x, c1.y, c2.x, c2.y, precision );
+  Init( aMap, aCoord1.x, aCoord1.y, aCoord2.x, aCoord2.y, aPrecision );
 end;
 
 procedure TVisionRay.Next;
 begin
-  Prev := Coord;
-  Inc(cnt);
-  fx += fdx;
-  fy += fdy;
-  if cnt = dcnt then
+  FPrev := FCoord;
+  Inc( FCnt );
+  FX += FDX;
+  FY += FDY;
+  if FCnt = FDCnt then
   begin
-    Coord.Create(tx,ty);
-    Done := True;
+    FCoord := FTarget;
+    FDone := True;
   end
   else
   begin
-    Coord.Create(Round(fx-0.5),Round(fy-0.5));
-    if xsign < 0 then Coord.X := Min(Coord.X,sx) else Coord.X := Max(Coord.X,sx);
-    if ysign < 0 then Coord.Y := Min(Coord.Y,sy) else Coord.Y := Max(Coord.Y,sy);
+    FCoord.Create( Round( FX-0.5 ), Round( FY-0.5 ) );
+    if FXSign < 0 then FCoord.X := Min( FCoord.X, FSource.X ) else FCoord.X := Max( FCoord.X, FSource.X );
+    if FYSign < 0 then FCoord.Y := Min( FCoord.Y, FSource.Y ) else FCoord.Y := Max( FCoord.Y, FSource.Y );
   end;
 end;
 
-function TVisionRay.GetPrev: TCoord2D;
-begin
-  Exit( Prev );
-end;
-
-function TVisionRay.GetX: Integer;
-begin
-  Exit( Coord.X );
-end;
-
-function TVisionRay.GetY: Integer;
-begin
-  Exit( Coord.Y );
-end;
-
-function TVisionRay.GetC: TCoord2D;
-begin
-  Exit( Coord );
-end;
-
-function TVisionRay.GetSource: TCoord2D;
-begin
-  GetSource.x := sx;
-  GetSource.y := sy;
-end;
-
-function TVisionRay.GetTarget: TCoord2D;
-begin
-  GetTarget.x := tx;
-  GetTarget.y := ty;
-end;
-
-
 end.
-
-
-// Modified      : $Date: 2008-10-14 19:45:46 +0200 (Tue, 14 Oct 2008) $
-// Last revision : $Revision: 227 $
-// Last author   : $Author: chaos-dev $
-// Last commit   : $Log$
-// Head URL      : $HeadURL: https://libvalkyrie.svn.sourceforge.net/svnroot/libvalkyrie/fp/src/vvision.pas $

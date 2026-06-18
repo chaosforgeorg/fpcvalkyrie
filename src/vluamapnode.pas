@@ -303,7 +303,7 @@ begin
     Inc( iCount );
     iEyeRay.Next;
     if iEyeRay.Done then Exit( True );
-    if blocksVision( iEyeRay.GetC ) then Exit( False );
+    if blocksVision( iEyeRay.Current ) then Exit( False );
   until iCount > iDist+1;
   Exit( False );
 end;
