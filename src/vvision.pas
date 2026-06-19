@@ -28,6 +28,11 @@ type IVisionQuery = interface
   function blocksVision( const aCoord : TCoord2D ) : boolean;
 end;
 
+const CIsaacRayNumber          = 32;  // It's effective to keep this number a power of 2.
+      CIsaacRayWidthCorrection = 8;   // Must be smaller then CIsaacRayNumber/2 ;-)
+      CIsaacRayMaxPath         = 128;
+
+type TIsaacRayPath = array[0..CIsaacRayMaxPath] of TCoord2D;
 
 type TVision = class
   constructor Create( aMap : IVisionQuery );
@@ -76,6 +81,47 @@ end;
 
 type
 
+{ TIsaacRay }
+
+TIsaacRay = object
+public
+  procedure Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aRange : Word = 0; aVisionRange : Word = 0 );
+  procedure Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange : Word = 0; aVisionRange : Word = 0 );
+  procedure Next;
+private
+  function AddPathStep( const aCoord : TCoord2D ) : Boolean;
+  function AppendBresenhamPath( const aFrom, aTarget : TCoord2D ) : Boolean;
+  function BuildDirectPathTo( const aTarget : TCoord2D ) : Boolean;
+  function BuildDirectPrefixTo( const aTarget : TCoord2D ) : Boolean;
+  function IsIsaacLit( const aCoord : TCoord2D ) : Boolean;
+  function RayExtensionTarget : TCoord2D;
+  procedure ResetPath;
+private
+  FDone       : Boolean;
+  FMap        : IVisionQuery;
+  FCnt        : Integer;
+  FCoord      : TCoord2D;
+  FPrev       : TCoord2D;
+  FTarget     : TCoord2D;
+  FSource     : TCoord2D;
+  FRange      : Integer;
+  FVisionRange: Integer;
+  FBallisticFallback : Boolean;
+  FPath       : TIsaacRayPath;
+  FPathIndex  : Integer;
+  FPathLast   : Integer;
+public
+  property Map      : IVisionQuery read FMap;
+  property Steps    : Integer      read FCnt;
+  property Previous : TCoord2D     read FPrev;
+  property Current  : TCoord2D     read FCoord;
+  property Source   : TCoord2D     read FSource;
+  property Target   : TCoord2D     read FTarget;
+  property Done     : Boolean      read FDone;
+end;
+
+type
+
 { TVisionRay }
 
 TVisionRay = object
@@ -108,6 +154,11 @@ end;
 
 implementation
 uses vmath,math;
+
+const CIsaacQuads : array[1..4] of array[1..2] of ShortInt =
+      ((1,1),(-1,-1),(-1,+1),(+1,-1));
+      CIsaacODir : array[1..4] of array[1..2] of ShortInt =
+      ((1,0),(-1,0),(0,1),(0,-1));
 
 constructor TVision.Create( aMap : IVisionQuery );
 begin
@@ -170,13 +221,6 @@ procedure TIsaacVision.Run( aCoord : TCoord2D; aRadius : LongInt );
 var iTarget : TCoord2D;
     iMini, iMaxi, iCor, iU, iV : LongInt;
     iQuad, iSlope, iLight : Byte;
-const CQuads : array[1..4] of array[1..2] of ShortInt =
-      ((1,1),(-1,-1),(-1,+1),(+1,-1));
-      CODir : array[1..4] of array[1..2] of ShortInt =
-      ((1,0),(-1,0),(0,1),(0,-1));
-      CRayNumber          = 32; // It's effective to keep this number a power of 2.
-      CRayWidthCorrection = 8; // Must be smaller then CRayNumber/2 ;-)
-
 begin
   if aRadius > FMaxRadius then aRadius := FMaxRadius;
 
@@ -194,7 +238,7 @@ begin
   for iQuad := 1 to 4 do
     for iLight := 1 to aRadius do
     begin
-      iTarget := aCoord.ifInc( iLight * CODir[iQuad,1], iLight * CODir[iQuad,2] );
+      iTarget := aCoord.ifInc( iLight * CIsaacODir[iQuad,1], iLight * CIsaacODir[iQuad,2] );
       setLight( iTarget, aRadius - iLight + 1 );
       if FMap.blocksVision( iTarget ) then break;
     end;
@@ -202,7 +246,7 @@ begin
   // Loop through the quadrants
   for iQuad := 1 to 4 do
   // Now loop on the diagonal directions
-  for iSlope := 1 to CRayNumber-1 do
+  for iSlope := 1 to CIsaacRayNumber-1 do
   begin
     // initialize the v coordinate and set the beam size
     // to maximum--mini and maxi store the beam\'s current
@@ -212,29 +256,363 @@ begin
     // When mini>maxi, the beam has been blocked.
 
     iV := iSlope; iU := 0;
-    iMini := CRayWidthCorrection; iMaxi := CRayNumber-CRayWidthCorrection;
+    iMini := CIsaacRayWidthCorrection; iMaxi := CIsaacRayNumber-CIsaacRayWidthCorrection;
     repeat
       Inc( iU );
-      iTarget.y:= iV div CRayNumber;
+      iTarget.y:= iV div CIsaacRayNumber;
       iTarget.x:= iU - iTarget.y;  //Do the transform
       
-      iCor:= CRayNumber-(iV mod CRayNumber);         //calculate the position of block corner within beam
+      iCor:= CIsaacRayNumber-(iV mod CIsaacRayNumber);         //calculate the position of block corner within beam
       
       if iMini < iCor then begin //beam is low enough to hit (x,y) block
-        if FMap.blocksVision( aCoord.ifInc( CQuads[iQuad][1]*iTarget.x, CQuads[iQuad][2]*iTarget.y ) ) then iMini := iCor; //beam was partially blocked
+        if FMap.blocksVision( aCoord.ifInc( CIsaacQuads[iQuad][1]*iTarget.x, CIsaacQuads[iQuad][2]*iTarget.y ) ) then iMini := iCor; //beam was partially blocked
         iLight := Distance( iTarget.x, iTarget.y, 0, 0 );
         if iLight > aRadius then Break;
-        FLight[CQuads[iQuad][1]*iTarget.x+FMaxRadius+1,CQuads[iQuad][2]*iTarget.y+FMaxRadius+1] := aRadius-iLight+1;
+        FLight[CIsaacQuads[iQuad][1]*iTarget.x+FMaxRadius+1,CIsaacQuads[iQuad][2]*iTarget.y+FMaxRadius+1] := aRadius-iLight+1;
       end;
       if iMaxi > iCor then begin //beam is high enough to hit (x-1,y+1) block
-        if FMap.blocksVision( aCoord.ifInc( CQuads[iQuad][1]*(iTarget.x-1), CQuads[iQuad][2]*(iTarget.y+1) ) ) then iMaxi := iCor; //beam was partially blocked
+        if FMap.blocksVision( aCoord.ifInc( CIsaacQuads[iQuad][1]*(iTarget.x-1), CIsaacQuads[iQuad][2]*(iTarget.y+1) ) ) then iMaxi := iCor; //beam was partially blocked
         iLight := Distance( iTarget.x-1, iTarget.y+1, 0, 0 );
         if iLight > aRadius then Break;
-        FLight[CQuads[iQuad][1]*(iTarget.x-1)+FMaxRadius+1,CQuads[iQuad][2]*(iTarget.y+1)+FMaxRadius+1] := aRadius-iLight+1;
+        FLight[CIsaacQuads[iQuad][1]*(iTarget.x-1)+FMaxRadius+1,CIsaacQuads[iQuad][2]*(iTarget.y+1)+FMaxRadius+1] := aRadius-iLight+1;
       end;
       iV := iV + iSlope;  //increment the beam\'s v coordinate
     until (iMini > iMaxi);
   end;
+end;
+
+{ TIsaacRay }
+
+procedure TIsaacRay.Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aRange : Word = 0; aVisionRange : Word = 0 );
+var iEndTarget : TCoord2D;
+begin
+  FMap := aMap;
+  FSource.Create( aX1, aY1 );
+  FTarget.Create( aX2, aY2 );
+  FPrev := FSource;
+  FCoord := FSource;
+  FCnt := 0;
+  FPathIndex := 0;
+  ResetPath;
+  FBallisticFallback := aRange <> 0;
+  if aRange = 0
+    then FRange := Distance( FSource, FTarget )
+    else FRange := aRange;
+  if aVisionRange = 0
+    then FVisionRange := FRange
+    else FVisionRange := aVisionRange;
+
+  if FSource = FTarget then
+  begin
+    FDone := True;
+    Exit;
+  end;
+
+  if IsIsaacLit( FTarget ) then
+  begin
+    if not BuildDirectPathTo( FTarget ) then
+      BuildDirectPrefixTo( FTarget );
+  end
+  else
+    BuildDirectPrefixTo( FTarget );
+
+  iEndTarget := RayExtensionTarget;
+  if FBallisticFallback and (FPathLast > 0) and (FPath[FPathLast] = FTarget) and (FPath[FPathLast] <> iEndTarget) then
+    AppendBresenhamPath( FPath[FPathLast], iEndTarget );
+
+  FDone := FPathLast = 0;
+end;
+
+procedure TIsaacRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange : Word = 0; aVisionRange : Word = 0 );
+begin
+  Init( aMap, aCoord1.x, aCoord1.y, aCoord2.x, aCoord2.y, aRange, aVisionRange );
+end;
+
+function TIsaacRay.AddPathStep( const aCoord : TCoord2D ) : Boolean;
+begin
+  if FPathLast >= CIsaacRayMaxPath then Exit( False );
+  Inc( FPathLast );
+  FPath[ FPathLast ] := aCoord;
+  Exit( True );
+end;
+
+procedure TIsaacRay.ResetPath;
+begin
+  FPathLast := 0;
+  FPath[0] := FSource;
+end;
+
+function TIsaacRay.AppendBresenhamPath( const aFrom, aTarget : TCoord2D ) : Boolean;
+var iRay : TBresenhamRay;
+begin
+  if aFrom = aTarget then Exit( True );
+  iRay.Init( aFrom, aTarget );
+  repeat
+    iRay.Next;
+    if not AddPathStep( iRay.Current ) then Exit( False );
+  until iRay.Done;
+  Exit( True );
+end;
+
+function TIsaacRay.RayExtensionTarget : TCoord2D;
+var iDiff : TCoord2D;
+    iDist : Integer;
+begin
+  iDiff := FTarget - FSource;
+  iDist := Distance( FSource, FTarget );
+  if (iDist = 0) or (FRange <= iDist) then Exit( FTarget );
+  Result.Create(
+    FSource.X + Round( iDiff.X * FRange / iDist ),
+    FSource.Y + Round( iDiff.Y * FRange / iDist )
+  );
+end;
+
+function TIsaacRay.IsIsaacLit( const aCoord : TCoord2D ) : Boolean;
+var iDX, iDY     : Integer;
+    iLocalX      : Integer;
+    iLocalY      : Integer;
+    iQuad        : Byte;
+    iSlope       : Byte;
+    iMini, iMaxi : LongInt;
+    iCor, iU, iV : LongInt;
+    iTarget      : TCoord2D;
+    iCheck       : TCoord2D;
+    iLight       : DWord;
+begin
+  if aCoord = FSource then Exit( True );
+  if Distance( FSource, aCoord ) > FVisionRange then Exit( False );
+
+  iDX := aCoord.X - FSource.X;
+  iDY := aCoord.Y - FSource.Y;
+
+  if iDX * iDY = 0 then
+  begin
+    if iDX > 0 then iQuad := 1
+    else if iDX < 0 then iQuad := 2
+    else if iDY > 0 then iQuad := 3
+    else iQuad := 4;
+    for iLight := 1 to FVisionRange do
+    begin
+      iCheck := FSource.ifInc( iLight * CIsaacODir[iQuad,1], iLight * CIsaacODir[iQuad,2] );
+      if iCheck = aCoord then Exit( True );
+      if FMap.blocksVision( iCheck ) then Break;
+    end;
+    Exit( False );
+  end;
+
+  if (iDX > 0) and (iDY > 0) then iQuad := 1
+  else if (iDX < 0) and (iDY < 0) then iQuad := 2
+  else if (iDX < 0) and (iDY > 0) then iQuad := 3
+  else iQuad := 4;
+
+  iLocalX := Abs( iDX );
+  iLocalY := Abs( iDY );
+
+  for iSlope := 1 to CIsaacRayNumber-1 do
+  begin
+    iV := iSlope; iU := 0;
+    iMini := CIsaacRayWidthCorrection;
+    iMaxi := CIsaacRayNumber-CIsaacRayWidthCorrection;
+    repeat
+      Inc( iU );
+      iTarget.y := iV div CIsaacRayNumber;
+      iTarget.x := iU - iTarget.y;
+      iCor := CIsaacRayNumber-(iV mod CIsaacRayNumber);
+
+      if iMini < iCor then
+      begin
+        iCheck := FSource.ifInc( CIsaacQuads[iQuad][1]*iTarget.x, CIsaacQuads[iQuad][2]*iTarget.y );
+        if FMap.blocksVision( iCheck ) then iMini := iCor;
+        iLight := Distance( iTarget.x, iTarget.y, 0, 0 );
+        if iLight > DWord(FVisionRange) then Break;
+        if (iTarget.x = iLocalX) and (iTarget.y = iLocalY) then Exit( True );
+      end;
+      if iMaxi > iCor then
+      begin
+        iCheck := FSource.ifInc( CIsaacQuads[iQuad][1]*(iTarget.x-1), CIsaacQuads[iQuad][2]*(iTarget.y+1) );
+        if FMap.blocksVision( iCheck ) then iMaxi := iCor;
+        iLight := Distance( iTarget.x-1, iTarget.y+1, 0, 0 );
+        if iLight > DWord(FVisionRange) then Break;
+        if (iTarget.x-1 = iLocalX) and (iTarget.y+1 = iLocalY) then Exit( True );
+      end;
+      iV := iV + iSlope;
+    until (iMini > iMaxi);
+  end;
+  Exit( False );
+end;
+
+function TIsaacRay.BuildDirectPathTo( const aTarget : TCoord2D ) : Boolean;
+var iDiff       : TCoord2D;
+    iSign       : TCoord2D;
+    iAbsX       : Integer;
+    iAbsY       : Integer;
+    iLocalX     : Integer;
+    iLocalY     : Integer;
+    iMoveX      : Integer;
+    iMoveY      : Integer;
+    iNextX      : Integer;
+    iNextY      : Integer;
+    iBestX      : Integer;
+    iBestY      : Integer;
+    iScore      : Int64;
+    iBestScore  : Int64;
+    iCandidate  : TCoord2D;
+begin
+  ResetPath;
+
+  iDiff := aTarget - FSource;
+  iSign := iDiff.Sign;
+  iAbsX := Abs( iDiff.X );
+  iAbsY := Abs( iDiff.Y );
+
+  if iAbsX * iAbsY = 0 then
+  begin
+    if not AppendBresenhamPath( FSource, aTarget ) then
+    begin
+      ResetPath;
+      Exit( False );
+    end;
+    Exit( FPathLast > 0 );
+  end;
+
+  iLocalX := 0;
+  iLocalY := 0;
+  repeat
+    iBestX := -1;
+    iBestY := -1;
+    iBestScore := High( Int64 );
+    for iMoveX := 0 to 1 do
+      for iMoveY := 0 to 1 do
+      begin
+        if iMoveX + iMoveY = 0 then Continue;
+        iNextX := iLocalX + iMoveX;
+        iNextY := iLocalY + iMoveY;
+        if (iNextX > iAbsX) or (iNextY > iAbsY) then Continue;
+        iCandidate := FSource.ifInc( iSign.X * iNextX, iSign.Y * iNextY );
+        if iCandidate <> aTarget then
+        begin
+          if FMap.blocksVision( iCandidate ) then Continue;
+          if not IsIsaacLit( iCandidate ) then Continue;
+        end;
+        iScore := Sqr( Int64( iAbsY ) * iNextX - Int64( iAbsX ) * iNextY ) * 16 + 2 - iMoveX - iMoveY;
+        if iScore < iBestScore then
+        begin
+          iBestScore := iScore;
+          iBestX := iNextX;
+          iBestY := iNextY;
+        end;
+      end;
+    if iBestX < 0 then
+    begin
+      ResetPath;
+      Exit( False );
+    end;
+    iLocalX := iBestX;
+    iLocalY := iBestY;
+    iCandidate := FSource.ifInc( iSign.X * iLocalX, iSign.Y * iLocalY );
+    if not AddPathStep( iCandidate ) then
+    begin
+      ResetPath;
+      Exit( False );
+    end;
+  until (iLocalX = iAbsX) and (iLocalY = iAbsY);
+
+  Exit( FPathLast > 0 );
+end;
+
+function TIsaacRay.BuildDirectPrefixTo( const aTarget : TCoord2D ) : Boolean;
+var iCurrent  : TCoord2D;
+    iImpact   : TCoord2D;
+    iDiff     : TCoord2D;
+    iSign     : TCoord2D;
+    iAbsX     : Integer;
+    iAbsY     : Integer;
+    iStepX    : Integer;
+    iStepY    : Integer;
+    iCrossX   : Int64;
+    iCrossY   : Int64;
+    iContinue : Boolean;
+    iBlocks   : Boolean;
+begin
+  ResetPath;
+  iContinue := False;
+  iCurrent := FSource;
+  iDiff    := aTarget - FSource;
+  iSign    := iDiff.Sign;
+  iAbsX    := Abs( iDiff.X );
+  iAbsY    := Abs( iDiff.Y );
+  iStepX   := 0;
+  iStepY   := 0;
+  iImpact  := aTarget;
+  repeat
+    if iAbsX = 0 then
+    begin
+      iCurrent.Y += iSign.Y;
+      Inc( iStepY );
+    end
+    else if iAbsY = 0 then
+    begin
+      iCurrent.X += iSign.X;
+      Inc( iStepX );
+    end
+    else
+    begin
+      iCrossX := Int64( 2 * iStepX + 1 ) * iAbsY;
+      iCrossY := Int64( 2 * iStepY + 1 ) * iAbsX;
+      if iCrossX < iCrossY then
+      begin
+        iCurrent.X += iSign.X;
+        Inc( iStepX );
+      end
+      else if iCrossY < iCrossX then
+      begin
+        iCurrent.Y += iSign.Y;
+        Inc( iStepY );
+      end
+      else
+      begin
+        iCurrent.X += iSign.X;
+        iCurrent.Y += iSign.Y;
+        Inc( iStepX );
+        Inc( iStepY );
+      end;
+    end;
+    iBlocks := FMap.blocksVision( iCurrent );
+    if (not IsIsaacLit( iCurrent )) and (not iBlocks) then
+    begin
+      iImpact := iCurrent;
+      iContinue := True;
+      Break;
+    end;
+    if iBlocks then
+    begin
+      iImpact := iCurrent;
+      iContinue := True;
+      Break;
+    end;
+  until iCurrent = aTarget;
+  if not AppendBresenhamPath( FSource, iImpact ) then
+  begin
+    ResetPath;
+    Exit( False );
+  end;
+  if FBallisticFallback and iContinue and (iImpact <> aTarget) then
+    if not AppendBresenhamPath( iImpact, aTarget ) then
+    begin
+      ResetPath;
+      Exit( False );
+    end;
+  Exit( FPathLast > 0 );
+end;
+
+procedure TIsaacRay.Next;
+begin
+  if FDone then Exit;
+  FPrev := FCoord;
+  Inc( FPathIndex );
+  FCoord := FPath[ FPathIndex ];
+  FCnt := FPathIndex;
+  if FPathIndex >= FPathLast then FDone := True;
 end;
 
 
