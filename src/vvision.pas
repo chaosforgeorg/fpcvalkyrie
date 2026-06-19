@@ -95,6 +95,7 @@ private
   function BuildDirectPrefixTo( const aTarget : TCoord2D ) : Boolean;
   function IsIsaacLit( const aCoord : TCoord2D ) : Boolean;
   function RayExtensionTarget : TCoord2D;
+  procedure ResetPath;
 private
   FDone       : Boolean;
   FMap        : IVisionQuery;
@@ -292,8 +293,7 @@ begin
   FCoord := FSource;
   FCnt := 0;
   FPathIndex := 0;
-  FPathLast := 0;
-  FPath[0] := FSource;
+  ResetPath;
   FBallisticFallback := aRange <> 0;
   if aRange = 0
     then FRange := Distance( FSource, FTarget )
@@ -334,6 +334,12 @@ begin
   Inc( FPathLast );
   FPath[ FPathLast ] := aCoord;
   Exit( True );
+end;
+
+procedure TIsaacRay.ResetPath;
+begin
+  FPathLast := 0;
+  FPath[0] := FSource;
 end;
 
 function TIsaacRay.AppendBresenhamPath( const aFrom, aTarget : TCoord2D ) : Boolean;
@@ -442,8 +448,8 @@ var iDiff       : TCoord2D;
     iAbsY       : Integer;
     iLocalX     : Integer;
     iLocalY     : Integer;
-    iStepX      : Integer;
-    iStepY      : Integer;
+    iMoveX      : Integer;
+    iMoveY      : Integer;
     iNextX      : Integer;
     iNextY      : Integer;
     iBestX      : Integer;
@@ -452,8 +458,7 @@ var iDiff       : TCoord2D;
     iBestScore  : Int64;
     iCandidate  : TCoord2D;
 begin
-  FPathLast := 0;
-  FPath[0] := FSource;
+  ResetPath;
 
   iDiff := aTarget - FSource;
   iSign := iDiff.Sign;
@@ -464,7 +469,7 @@ begin
   begin
     if not AppendBresenhamPath( FSource, aTarget ) then
     begin
-      FPathLast := 0;
+      ResetPath;
       Exit( False );
     end;
     Exit( FPathLast > 0 );
@@ -473,16 +478,15 @@ begin
   iLocalX := 0;
   iLocalY := 0;
   repeat
-  begin
     iBestX := -1;
     iBestY := -1;
     iBestScore := High( Int64 );
-    for iStepX := 0 to 1 do
-      for iStepY := 0 to 1 do
+    for iMoveX := 0 to 1 do
+      for iMoveY := 0 to 1 do
       begin
-        if iStepX + iStepY = 0 then Continue;
-        iNextX := iLocalX + iStepX;
-        iNextY := iLocalY + iStepY;
+        if iMoveX + iMoveY = 0 then Continue;
+        iNextX := iLocalX + iMoveX;
+        iNextY := iLocalY + iMoveY;
         if (iNextX > iAbsX) or (iNextY > iAbsY) then Continue;
         iCandidate := FSource.ifInc( iSign.X * iNextX, iSign.Y * iNextY );
         if iCandidate <> aTarget then
@@ -490,7 +494,7 @@ begin
           if FMap.blocksVision( iCandidate ) then Continue;
           if not IsIsaacLit( iCandidate ) then Continue;
         end;
-        iScore := Sqr( Int64( iAbsY ) * iNextX - Int64( iAbsX ) * iNextY ) * 16 + 2 - iStepX - iStepY;
+        iScore := Sqr( Int64( iAbsY ) * iNextX - Int64( iAbsX ) * iNextY ) * 16 + 2 - iMoveX - iMoveY;
         if iScore < iBestScore then
         begin
           iBestScore := iScore;
@@ -500,7 +504,7 @@ begin
       end;
     if iBestX < 0 then
     begin
-      FPathLast := 0;
+      ResetPath;
       Exit( False );
     end;
     iLocalX := iBestX;
@@ -508,10 +512,9 @@ begin
     iCandidate := FSource.ifInc( iSign.X * iLocalX, iSign.Y * iLocalY );
     if not AddPathStep( iCandidate ) then
     begin
-      FPathLast := 0;
+      ResetPath;
       Exit( False );
     end;
-  end
   until (iLocalX = iAbsX) and (iLocalY = iAbsY);
 
   Exit( FPathLast > 0 );
@@ -531,8 +534,7 @@ var iCurrent  : TCoord2D;
     iContinue : Boolean;
     iBlocks   : Boolean;
 begin
-  FPathLast := 0;
-  FPath[0] := FSource;
+  ResetPath;
   iContinue := False;
   iCurrent := FSource;
   iDiff    := aTarget - FSource;
@@ -591,13 +593,13 @@ begin
   until iCurrent = aTarget;
   if not AppendBresenhamPath( FSource, iImpact ) then
   begin
-    FPathLast := 0;
+    ResetPath;
     Exit( False );
   end;
   if FBallisticFallback and iContinue and (iImpact <> aTarget) then
     if not AppendBresenhamPath( iImpact, aTarget ) then
     begin
-      FPathLast := 0;
+      ResetPath;
       Exit( False );
     end;
   Exit( FPathLast > 0 );
