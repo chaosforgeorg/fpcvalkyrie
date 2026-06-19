@@ -442,21 +442,79 @@ begin
 end;
 
 function TIsaacRay.BuildDirectPathTo( const aTarget : TCoord2D ) : Boolean;
-var iDiff       : TCoord2D;
-    iSign       : TCoord2D;
-    iAbsX       : Integer;
-    iAbsY       : Integer;
-    iLocalX     : Integer;
-    iLocalY     : Integer;
-    iMoveX      : Integer;
-    iMoveY      : Integer;
-    iNextX      : Integer;
-    iNextY      : Integer;
-    iBestX      : Integer;
-    iBestY      : Integer;
-    iScore      : Int64;
-    iBestScore  : Int64;
-    iCandidate  : TCoord2D;
+type TMoveCandidate = record
+       X     : Integer;
+       Y     : Integer;
+       Coord : TCoord2D;
+       Score : Int64;
+       Valid : Boolean;
+     end;
+var iDiff   : TCoord2D;
+    iSign   : TCoord2D;
+    iAbsX   : Integer;
+    iAbsY   : Integer;
+    iX      : Integer;
+    iY      : Integer;
+    iFailed : array[0..CIsaacRayMaxPath,0..CIsaacRayMaxPath] of Boolean;
+
+  function CandidateScore( aX, aY, aMoveX, aMoveY : Integer ) : Int64;
+  begin
+    Exit( Sqr( Int64( iAbsY ) * aX - Int64( iAbsX ) * aY ) * 16 + 2 - aMoveX - aMoveY );
+  end;
+
+  function CandidateValid( aX, aY : Integer; const aCoord : TCoord2D ) : Boolean;
+  begin
+    if (aX > iAbsX) or (aY > iAbsY) then Exit( False );
+    if (aX > CIsaacRayMaxPath) or (aY > CIsaacRayMaxPath) then Exit( False );
+    if iFailed[aX,aY] then Exit( False );
+    if aCoord = aTarget then Exit( True );
+    if FMap.blocksVision( aCoord ) then Exit( False );
+    if not IsIsaacLit( aCoord ) then Exit( False );
+    Exit( True );
+  end;
+
+  function MakeCandidate( aX, aY, aMoveX, aMoveY : Integer ) : TMoveCandidate;
+  begin
+    Result.X     := aX;
+    Result.Y     := aY;
+    Result.Coord := FSource.ifInc( iSign.X * aX, iSign.Y * aY );
+    Result.Score := CandidateScore( aX, aY, aMoveX, aMoveY );
+    Result.Valid := CandidateValid( aX, aY, Result.Coord );
+  end;
+
+  function TryPath( aX, aY : Integer ) : Boolean;
+  var iCandidates : array[0..2] of TMoveCandidate;
+      iIndex      : Integer;
+      iBest       : Integer;
+      iBestScore  : Int64;
+  begin
+    if (aX = iAbsX) and (aY = iAbsY) then Exit( True );
+
+    iCandidates[0] := MakeCandidate( aX + 1, aY + 1, 1, 1 );
+    iCandidates[1] := MakeCandidate( aX + 1, aY,     1, 0 );
+    iCandidates[2] := MakeCandidate( aX,     aY + 1, 0, 1 );
+
+    repeat
+      iBest := -1;
+      iBestScore := High( Int64 );
+      for iIndex := 0 to 2 do
+        if iCandidates[iIndex].Valid and (iCandidates[iIndex].Score < iBestScore) then
+        begin
+          iBest := iIndex;
+          iBestScore := iCandidates[iIndex].Score;
+        end;
+      if iBest < 0 then Break;
+
+      iCandidates[iBest].Valid := False;
+      if not AddPathStep( iCandidates[iBest].Coord ) then Break;
+      if TryPath( iCandidates[iBest].X, iCandidates[iBest].Y ) then Exit( True );
+      Dec( FPathLast );
+    until False;
+
+    if (aX <= CIsaacRayMaxPath) and (aY <= CIsaacRayMaxPath) then
+      iFailed[aX,aY] := True;
+    Exit( False );
+  end;
 begin
   ResetPath;
 
@@ -475,47 +533,15 @@ begin
     Exit( FPathLast > 0 );
   end;
 
-  iLocalX := 0;
-  iLocalY := 0;
-  repeat
-    iBestX := -1;
-    iBestY := -1;
-    iBestScore := High( Int64 );
-    for iMoveX := 0 to 1 do
-      for iMoveY := 0 to 1 do
-      begin
-        if iMoveX + iMoveY = 0 then Continue;
-        iNextX := iLocalX + iMoveX;
-        iNextY := iLocalY + iMoveY;
-        if (iNextX > iAbsX) or (iNextY > iAbsY) then Continue;
-        iCandidate := FSource.ifInc( iSign.X * iNextX, iSign.Y * iNextY );
-        if iCandidate <> aTarget then
-        begin
-          if FMap.blocksVision( iCandidate ) then Continue;
-          if not IsIsaacLit( iCandidate ) then Continue;
-        end;
-        iScore := Sqr( Int64( iAbsY ) * iNextX - Int64( iAbsX ) * iNextY ) * 16 + 2 - iMoveX - iMoveY;
-        if iScore < iBestScore then
-        begin
-          iBestScore := iScore;
-          iBestX := iNextX;
-          iBestY := iNextY;
-        end;
-      end;
-    if iBestX < 0 then
-    begin
-      ResetPath;
-      Exit( False );
-    end;
-    iLocalX := iBestX;
-    iLocalY := iBestY;
-    iCandidate := FSource.ifInc( iSign.X * iLocalX, iSign.Y * iLocalY );
-    if not AddPathStep( iCandidate ) then
-    begin
-      ResetPath;
-      Exit( False );
-    end;
-  until (iLocalX = iAbsX) and (iLocalY = iAbsY);
+  if (iAbsX > CIsaacRayMaxPath) or (iAbsY > CIsaacRayMaxPath) then Exit( False );
+  for iX := 0 to iAbsX do
+    for iY := 0 to iAbsY do
+      iFailed[iX,iY] := False;
+  if not TryPath( 0, 0 ) then
+  begin
+    ResetPath;
+    Exit( False );
+  end;
 
   Exit( FPathLast > 0 );
 end;
