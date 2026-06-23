@@ -81,36 +81,20 @@ end;
 
 type
 
-{ TIsaacRay }
+{ TVisionRayBase }
 
-TIsaacRay = object
+TVisionRayBase = object
+protected
+  FDone   : Boolean;
+  FMap    : IVisionQuery;
+  FCnt    : Integer;
+  FCoord  : TCoord2D;
+  FPrev   : TCoord2D;
+  FTarget : TCoord2D;
+  FSource : TCoord2D;
 public
-  procedure Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aRange : Word = 0; aVisionRange : Word = 0 );
-  procedure Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange : Word = 0; aVisionRange : Word = 0 );
-  procedure Next;
-private
-  function AddPathStep( const aCoord : TCoord2D ) : Boolean;
-  function AppendBresenhamPath( const aFrom, aTarget : TCoord2D ) : Boolean;
-  function BuildDirectPathTo( const aTarget : TCoord2D ) : Boolean;
-  function BuildDirectPrefixTo( const aTarget : TCoord2D ) : Boolean;
-  function IsIsaacLit( const aCoord : TCoord2D ) : Boolean;
-  function RayExtensionTarget : TCoord2D;
-  procedure ResetPath;
-private
-  FDone       : Boolean;
-  FMap        : IVisionQuery;
-  FCnt        : Integer;
-  FCoord      : TCoord2D;
-  FPrev       : TCoord2D;
-  FTarget     : TCoord2D;
-  FSource     : TCoord2D;
-  FRange      : Integer;
-  FVisionRange: Integer;
-  FBallisticFallback : Boolean;
-  FPath       : TIsaacRayPath;
-  FPathIndex  : Integer;
-  FPathLast   : Integer;
-public
+  constructor Initialize( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : Integer );
+  procedure Next; virtual; abstract;
   property Map      : IVisionQuery read FMap;
   property Steps    : Integer      read FCnt;
   property Previous : TCoord2D     read FPrev;
@@ -120,36 +104,79 @@ public
   property Done     : Boolean      read FDone;
 end;
 
+type PVisionRayBase = ^TVisionRayBase;
+
+type
+
+{ TIsaacRay }
+
+TIsaacRay = object( TVisionRayBase )
+public
+  constructor Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aRange : Word = 0; aVisionRange : Word = 0 );
+  constructor Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange : Word = 0; aVisionRange : Word = 0 );
+  procedure Next; virtual;
+private
+  function AddPathStep( const aCoord : TCoord2D ) : Boolean;
+  function AppendBresenhamPath( const aFrom, aTarget : TCoord2D ) : Boolean;
+  function BuildDirectPathTo( const aTarget : TCoord2D ) : Boolean;
+  function BuildDirectPrefixTo( const aTarget : TCoord2D ) : Boolean;
+  function IsIsaacLit( const aCoord : TCoord2D ) : Boolean;
+  function RayExtensionTarget : TCoord2D;
+  procedure ResetPath;
+private
+  FRange      : Integer;
+  FVisionRange: Integer;
+  FBallisticFallback : Boolean;
+  FPath       : TIsaacRayPath;
+  FPathIndex  : Integer;
+  FPathLast   : Integer;
+end;
+
 type
 
 { TVisionRay }
 
-TVisionRay = object
+TVisionRay = object( TVisionRayBase )
 public
-  procedure Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aPrecision : Single = 0.6 );
-  procedure Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aPrecision : Single = 0.6 );
-  procedure Next;
+  constructor Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aPrecision : Single = 0.6 );
+  constructor Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aPrecision : Single = 0.6 );
+  procedure Next; virtual;
 private
-  FDone     : Boolean;
   FXSign    : Integer;
   FYSign    : Integer;
-  FMap      : IVisionQuery;
-  FCnt      : Integer;
-  FCoord    : TCoord2D;
-  FPrev     : TCoord2D;
-  FTarget   : TCoord2D;
-  FSource   : TCoord2D;
   FDCnt     : Integer;
   FDX, FDY  : Single;
   FX, FY    : Single;
-public 
-  property Map      : IVisionQuery read FMap;
-  property Steps    : Integer      read FCnt;
-  property Previous : TCoord2D     read FPrev;
-  property Current  : TCoord2D     read FCoord;
-  property Source   : TCoord2D     read FSource;
-  property Target   : TCoord2D     read FTarget;
-  property Done     : Boolean      read FDone;
+end;
+
+type
+
+{ TAssistedRay }
+
+TAssistedRay = object
+public
+  constructor Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange, aVisionRange : Word; aVision : TIsaacVision; aSkipLosHack : Boolean = True );
+  procedure Next;
+private
+  function GetMap : IVisionQuery;
+  function GetSteps : Integer;
+  function GetPrevious : TCoord2D;
+  function GetCurrent : TCoord2D;
+  function GetSource : TCoord2D;
+  function GetTarget : TCoord2D;
+  function GetDone : Boolean;
+private
+  FIsaacRay  : TIsaacRay;
+  FVisionRay : TVisionRay;
+  FBase      : PVisionRayBase;
+public
+  property Map      : IVisionQuery read GetMap;
+  property Steps    : Integer      read GetSteps;
+  property Previous : TCoord2D     read GetPrevious;
+  property Current  : TCoord2D     read GetCurrent;
+  property Source   : TCoord2D     read GetSource;
+  property Target   : TCoord2D     read GetTarget;
+  property Done     : Boolean      read GetDone;
 end;
 
 implementation
@@ -173,6 +200,19 @@ end;
 function TVision.isVisible( aCoord : TCoord2D ) : boolean;
 begin
   Exit( getLight( aCoord ) > 0 );
+end;
+
+{ TVisionRayBase }
+
+constructor TVisionRayBase.Initialize( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : Integer );
+begin
+  FMap := aMap;
+  FSource.Create( aX1, aY1 );
+  FTarget.Create( aX2, aY2 );
+  FPrev := FSource;
+  FCoord := FSource;
+  FCnt := 0;
+  FDone := False;
 end;
 
 { TIsaacVision }
@@ -283,15 +323,10 @@ end;
 
 { TIsaacRay }
 
-procedure TIsaacRay.Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aRange : Word = 0; aVisionRange : Word = 0 );
+constructor TIsaacRay.Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aRange : Word = 0; aVisionRange : Word = 0 );
 var iEndTarget : TCoord2D;
 begin
-  FMap := aMap;
-  FSource.Create( aX1, aY1 );
-  FTarget.Create( aX2, aY2 );
-  FPrev := FSource;
-  FCoord := FSource;
-  FCnt := 0;
+  Initialize( aMap, aX1, aY1, aX2, aY2 );
   FPathIndex := 0;
   ResetPath;
   FBallisticFallback := aRange <> 0;
@@ -323,7 +358,7 @@ begin
   FDone := FPathLast = 0;
 end;
 
-procedure TIsaacRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange : Word = 0; aVisionRange : Word = 0 );
+constructor TIsaacRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange : Word = 0; aVisionRange : Word = 0 );
 begin
   Init( aMap, aCoord1.x, aCoord1.y, aCoord2.x, aCoord2.y, aRange, aVisionRange );
 end;
@@ -715,20 +750,13 @@ end;
 
 { TVision2Ray }
 
-procedure TVisionRay.Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aPrecision : Single = 0.6 );
+constructor TVisionRay.Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aPrecision : Single = 0.6 );
 var iDX, iDY     : Integer;
     iShiftX, iShiftY : Float;
     iShift       : Float;
     iYSigned     : Boolean;
 begin
-  FPrev.Create( aX1, aY1 );
-  FCoord.Create( aX1, aY1 );
-  FDone := false;
-  FMap  := aMap;
-  FCnt  := 0;
-  
-  FSource.Create( aX1, aY1 );
-  FTarget.Create( aX2, aY2 );
+  Initialize( aMap, aX1, aY1, aX2, aY2 );
 
   iDX := aX2-aX1;
   iDY := aY2-aY1;
@@ -797,7 +825,7 @@ begin
   FY := aY1+0.5+iShiftY;
 end;
 
-procedure TVisionRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aPrecision : Single = 0.6 );
+constructor TVisionRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aPrecision : Single = 0.6 );
 begin
   Init( aMap, aCoord1.x, aCoord1.y, aCoord2.x, aCoord2.y, aPrecision );
 end;
@@ -819,6 +847,67 @@ begin
     if FXSign < 0 then FCoord.X := Min( FCoord.X, FSource.X ) else FCoord.X := Max( FCoord.X, FSource.X );
     if FYSign < 0 then FCoord.Y := Min( FCoord.Y, FSource.Y ) else FCoord.Y := Max( FCoord.Y, FSource.Y );
   end;
+end;
+
+{ TAssistedRay }
+
+constructor TAssistedRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange, aVisionRange : Word; aVision : TIsaacVision; aSkipLosHack : Boolean );
+var iUseIsaac : Boolean;
+begin
+  iUseIsaac := False;
+  if aVision <> nil then
+    iUseIsaac := aSkipLosHack or aVision.isVisible( aCoord2 );
+
+  if iUseIsaac then
+  begin
+    FIsaacRay.Init( aMap, aCoord1, aCoord2, aRange, aVisionRange );
+    FBase := PVisionRayBase( @FIsaacRay );
+  end
+  else
+  begin
+    FVisionRay.Init( aMap, aCoord1, aCoord2, 0.4 );
+    FBase := PVisionRayBase( @FVisionRay );
+  end;
+end;
+
+procedure TAssistedRay.Next;
+begin
+  FBase^.Next;
+end;
+
+function TAssistedRay.GetMap : IVisionQuery;
+begin
+  Exit( FBase^.Map );
+end;
+
+function TAssistedRay.GetSteps : Integer;
+begin
+  Exit( FBase^.Steps );
+end;
+
+function TAssistedRay.GetPrevious : TCoord2D;
+begin
+  Exit( FBase^.Previous );
+end;
+
+function TAssistedRay.GetCurrent : TCoord2D;
+begin
+  Exit( FBase^.Current );
+end;
+
+function TAssistedRay.GetSource : TCoord2D;
+begin
+  Exit( FBase^.Source );
+end;
+
+function TAssistedRay.GetTarget : TCoord2D;
+begin
+  Exit( FBase^.Target );
+end;
+
+function TAssistedRay.GetDone : Boolean;
+begin
+  Exit( FBase^.Done );
 end;
 
 end.
