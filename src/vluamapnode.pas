@@ -77,6 +77,12 @@ type TLuaMapNode = class( TNode, IVisionQuery )
   // Returns wether there is an unobstructed line of sight between the
   // points (ax,ay) and (bx,by).
   function isEyeContact( const a, b : TCoord2D ) : boolean; virtual;
+  // Returns wether there is an unobstructed line of sight between the
+  // position of a and (bx,by).
+  function isEyeContact( const a : TLuaEntityNode; b : TCoord2D ) : boolean; virtual;
+  // Returns wether there is an unobstructed line of sight between the
+  // position of a and b.
+  function isEyeContact( const a, b : TLuaEntityNode ) : boolean; virtual;
   // Returns true if a coord is visible, false otherwise
   function isVisible( const aCoord : TCoord2D ) : boolean; virtual;
   // Returns true if cell is explored
@@ -306,6 +312,16 @@ begin
     if blocksVision( iEyeRay.Current ) then Exit( False );
   until iCount > iDist+1;
   Exit( False );
+end;
+
+function TLuaMapNode.isEyeContact( const a : TLuaEntityNode; b : TCoord2D ) : boolean;
+begin
+  Exit( isEyeContact( a.Position, b ) );
+end;
+
+function TLuaMapNode.isEyeContact( const a, b : TLuaEntityNode ) : boolean;
+begin
+  Exit( isEyeContact( a.Position, b.Position ) );
 end;
 
 function TLuaMapNode.isVisible ( const aCoord : TCoord2D ) : boolean;
@@ -708,7 +724,12 @@ function lua_map_node_eye_contact(L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init(L);
-  iState.Push( iState.Map.isEyeContact( iState.ToPosition( 2 ), iState.ToPosition( 3 ) ) );
+  if iState.IsCoord( 2 ) then
+    iState.Push( iState.Map.isEyeContact( iState.ToPosition( 2 ), iState.ToPosition( 3 ) ) )
+  else if iState.IsCoord( 3 ) then
+    iState.Push( iState.Map.isEyeContact( iState.ToNode( 2 ), iState.ToPosition( 3 ) ) )
+  else  
+    iState.Push( iState.Map.isEyeContact( iState.ToNode( 2 ), iState.ToNode( 3 ) ) );
   Result := 1;
 end;
 

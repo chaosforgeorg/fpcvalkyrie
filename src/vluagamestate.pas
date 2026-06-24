@@ -21,17 +21,18 @@
 unit vluagamestate;
 interface
 
-uses Classes, SysUtils, vluastate, vrltools, vutil;
+uses Classes, SysUtils, vluastate, vrltools, vutil, vluaentitynode;
 
 type TLuaGameState = object( TLuaState )
   function ToPosition( aIndex : Integer ) : TCoord2D;
+  function ToNode( aIndex : Integer ) : TLuaEntityNode;
   function ToID( aIndex : Integer ) : DWord;
   function ToCellSet( aIndex : Integer ) : TFlags;
 end;
 
 implementation
 
-uses vlualibrary, vluasystem, vluaentitynode;
+uses vlualibrary, vluasystem;
 
 { TLuaGameState }
 
@@ -42,6 +43,14 @@ begin
   iObject := ToObject( aIndex );
   if iObject is TLuaEntityNode then Exit( TLuaEntityNode(iObject).Position );
   Error( 'Position expected at index '+IntToStr(aIndex)+'!' );
+end;
+
+function TLuaGameState.ToNode( aIndex : Integer ) : TLuaEntityNode;
+var iObject : TObject;
+begin
+  iObject := ToObject( aIndex );
+  if iObject is TLuaEntityNode then Exit( TLuaEntityNode(iObject) );
+  Error( 'Node expected at index '+IntToStr(aIndex)+'!' );
 end;
 
 function TLuaGameState.ToID ( aIndex : Integer ) : DWord;
