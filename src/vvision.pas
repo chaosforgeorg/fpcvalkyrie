@@ -155,7 +155,7 @@ type
 
 TAssistedRay = object
 public
-  constructor Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange, aVisionRange : Word; aVision : TIsaacVision; aSkipLosHack : Boolean = True );
+  constructor Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange, aVisionRange : Word; aVision : TVision; aSkipLosHack : Boolean = True );
   procedure Next;
 private
   function GetMap : IVisionQuery;
@@ -851,7 +851,7 @@ end;
 
 { TAssistedRay }
 
-constructor TAssistedRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange, aVisionRange : Word; aVision : TIsaacVision; aSkipLosHack : Boolean );
+constructor TAssistedRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange, aVisionRange : Word; aVision : TVision; aSkipLosHack : Boolean );
 var iUseIsaac : Boolean;
 begin
   iUseIsaac := False;

@@ -76,7 +76,7 @@ type TLuaMapNode = class( TNode, IVisionQuery )
   function blocksVision( const Coord : TCoord2D ) : boolean; virtual; abstract;
   // Returns wether there is an unobstructed line of sight between the
   // points (ax,ay) and (bx,by).
-  function isEyeContact( const a, b : TCoord2D ) : boolean;
+  function isEyeContact( const a, b : TCoord2D ) : boolean; virtual;
   // Returns true if a coord is visible, false otherwise
   function isVisible( const aCoord : TCoord2D ) : boolean; virtual;
   // Returns true if cell is explored
