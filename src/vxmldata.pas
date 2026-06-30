@@ -195,14 +195,57 @@ begin
 end;
 
 procedure TVXMLDataFile.Save;
-var iStream : TGZFileStream;
+var iStream  : TGZFileStream;
+    iTmpPath : AnsiString;
+    iCounter : Integer;
 begin
   if FXML = nil then Exit;
   if FKey1 <> '' then
     FXML.DocumentElement.SetAttribute('crc', XML.CRC( FKey1, FKey2 ) );
-  iStream := TGZFileStream.Create( FFilePath, gzOpenWrite );
-  WriteXMLFile( XML, iStream );
-  FreeAndNil( iStream );
+
+  // Write to a temporary file first so a transient open/write failure
+  // (anti-virus, cloud sync, etc.) can never crash the game or corrupt
+  // the existing file by truncating it before a successful write.
+  iTmpPath := FFilePath + '.tmp';
+  iStream  := nil;
+  iCounter := 0;
+  repeat
+    try
+      iStream := TGZFileStream.Create( iTmpPath, gzOpenWrite );
+    except
+      on e : Exception do
+      begin
+        iStream := nil;
+        Inc( iCounter );
+        if iCounter > 20 then
+        begin
+          Log( LOGERROR, 'Could not write '+FFilePath+' : '+ e.message );
+          Exit;
+        end;
+        Sleep( 50 );
+      end;
+    end;
+  until iStream <> nil;
+
+  try
+    WriteXMLFile( XML, iStream );
+  finally
+    FreeAndNil( iStream );
+  end;
+
+  // Atomically replace the original file with the freshly written one.
+  iCounter := 0;
+  repeat
+    DeleteFile( FFilePath );
+    if RenameFile( iTmpPath, FFilePath ) then Exit;
+    Inc( iCounter );
+    if iCounter > 20 then
+    begin
+      Log( LOGERROR, 'Could not replace '+FFilePath+' with temp save!' );
+      Exit;
+    end;
+    Sleep( 50 );
+  until False;
 end;
 
 procedure TVXMLDataFile.CreateNew;
