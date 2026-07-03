@@ -56,18 +56,23 @@ begin
 
   if iLine = '' then
   begin
-    if VTIG_GetIOState.EventState.Activated( VTIG_IE_UP, true )   then
+    if Assigned( FHistory ) then
     begin
-      Inc( FHPos );
-      StrPLCopy(@FInput[0], FHistory.Get( -FHPos ), High(FInput));
-      VTIG_ResetInput('tig_console');
-    end;
-    if VTIG_GetIOState.EventState.Activated( VTIG_IE_DOWN, true ) then
-    begin
-      Dec( FHPos );
-      StrPLCopy(@FInput[0], FHistory.Get( -FHPos ), High(FInput));
-      VTIG_ResetInput('tig_console');
-    end;
+      if ( FHPos < FHistory.Size ) and VTIG_GetIOState.EventState.Activated( VTIG_IE_UP, true ) then
+      begin
+        Inc( FHPos );
+        StrPLCopy(@FInput[0], FHistory.Get( -FHPos ), High(FInput));
+        VTIG_ResetInput('tig_console');
+      end;
+      if ( FHPos > 0 ) and VTIG_GetIOState.EventState.Activated( VTIG_IE_DOWN, true ) then
+      begin
+        Dec( FHPos );
+        if FHPos > 0
+          then StrPLCopy(@FInput[0], FHistory.Get( -FHPos ), High(FInput))
+          else FInput[0] := #0;
+        VTIG_ResetInput('tig_console');
+      end;
+    end
   end
   else Execute( iLine );
 end;
@@ -138,4 +143,3 @@ begin
 end;
 
 end.
-
