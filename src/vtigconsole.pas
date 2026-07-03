@@ -32,6 +32,7 @@ constructor TTIGConsoleView.Create;
 begin
   FHistory  := nil;
   FText     := TTIGStringRing.Create( TIG_CONSOLE_LINES );
+  FHPos     := 0;
   FInput[0] := #0;
   if LuaSystem <> nil then
      LuaSystem.SetPrintFunction( @Writeln );
@@ -96,6 +97,7 @@ end;
 procedure TTIGConsoleView.LoadHistory ( const aFileName : AnsiString ) ;
 var iStream : TStream;
 begin
+  FHPos := 0;
   FreeAndNil( FHistory );
   if FileExists( aFileName ) then
   begin
