@@ -59,7 +59,7 @@ begin
   if not LoadFMOD then
     raise EAudioException.Create('Unable to load FMOD');
   Check( FMOD_System_Create(@FSystem, FMOD_VERSION) );
-  Check( FMOD_System_Init(FSystem, 128, FMOD_INIT_NORMAL, nil) );
+  Check( FMOD_System_Init(FSystem, 64, FMOD_INIT_NORMAL, nil) );
   Check( FMOD_System_CreateChannelGroup(FSystem, 'sound', @FSoundGroup) );
   Check( FMOD_System_CreateChannelGroup(FSystem, 'music', @FMusicGroup) );
 end;
@@ -99,7 +99,7 @@ begin
   FillChar( iAsset^, SizeOf(iAsset^), 0 );
   GetMem( iAsset^.Memory, aSize );
   iAsset^.Size := aSize;
-  aStream.Read( iAsset^.Memory^, aSize );
+  aStream.ReadBuffer( iAsset^.Memory^, aSize );
   FillChar( iInfo, SizeOf(iInfo), 0 );
   iInfo.cbsize := SizeOf(iInfo);
   iInfo.length := aSize;
