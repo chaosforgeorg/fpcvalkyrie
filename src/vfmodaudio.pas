@@ -40,10 +40,17 @@ type TFMODAudio = class( TAudio )
 
 implementation
 
+uses vutil;
+
 procedure TFMODAudio.Check( aResult : FMOD_RESULT );
+var iError : AnsiString;
 begin
   if aResult <> FMOD_OK then 
-    raise EAudioException.Create( FMOD_ErrorString(aResult) );
+  begin
+    iError := FMOD_ErrorString( aResult );
+    Log( LOGERROR, 'FMOD error: ' + iError );
+    raise EAudioException.Create( iError );
+  end;
 end;
 
 constructor TFMODAudio.Create;
@@ -52,7 +59,7 @@ begin
   if not LoadFMOD then
     raise EAudioException.Create('Unable to load FMOD');
   Check( FMOD_System_Create(@FSystem, FMOD_VERSION) );
-  Check( FMOD_System_Init(FSystem, 64, FMOD_INIT_NORMAL, nil) );
+  Check( FMOD_System_Init(FSystem, 128, FMOD_INIT_NORMAL, nil) );
   Check( FMOD_System_CreateChannelGroup(FSystem, 'sound', @FSoundGroup) );
   Check( FMOD_System_CreateChannelGroup(FSystem, 'music', @FMusicGroup) );
 end;
