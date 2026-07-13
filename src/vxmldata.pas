@@ -260,11 +260,17 @@ end;
 function TVXMLDataFile.Load : Boolean;
 var iCRC, iReadCRC : AnsiString;
     iFilePath      : AnsiString;
+    iTmpPath       : AnsiString;
     iStream        : TGZFileStream;
     iDocument      : TXMLDocument;
     iSecondTry     : Boolean;
 begin
   FreeAndNil( FXML );
+  iTmpPath := FFilePath + '.tmp';
+  if (not FileExists( FFilePath )) and FileExists( iTmpPath ) then
+    if not RenameFile( iTmpPath, FFilePath ) then
+      Log( LOGERROR, 'Could not recover '+FFilePath+' from temp save!' );
+
   if not FileExists( FFilePath ) then
   begin
     CreateNew;
