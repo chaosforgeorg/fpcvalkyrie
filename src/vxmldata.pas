@@ -228,9 +228,19 @@ begin
   until iStream <> nil;
 
   try
-    WriteXMLFile( XML, iStream );
-  finally
-    FreeAndNil( iStream );
+    try
+      WriteXMLFile( XML, iStream );
+    finally
+      FreeAndNil( iStream );
+    end;
+  except
+    on e : Exception do
+    begin
+      Log( LOGERROR, 'Could not write '+FFilePath+' temp save : '+e.message );
+      if FileExists( iTmpPath ) and (not DeleteFile( iTmpPath )) then
+        Log( LOGERROR, 'Could not remove incomplete temp save '+iTmpPath+'!' );
+      Exit;
+    end;
   end;
 
   // Atomically replace the original file with the freshly written one.
