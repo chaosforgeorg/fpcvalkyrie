@@ -59,7 +59,7 @@ begin
   if not LoadFMOD then
     raise EAudioException.Create('Unable to load FMOD');
   Check( FMOD_System_Create(@FSystem, FMOD_VERSION) );
-  Check( FMOD_System_Init(FSystem, 64, FMOD_INIT_NORMAL, nil) );
+  Check( FMOD_System_Init(FSystem, 128, FMOD_INIT_NORMAL, nil) );
   Check( FMOD_System_CreateChannelGroup(FSystem, 'sound', @FSoundGroup) );
   Check( FMOD_System_CreateChannelGroup(FSystem, 'music', @FMusicGroup) );
 end;
@@ -128,6 +128,7 @@ begin
   iChannel := nil;
   if aMusic then Check(FMOD_System_PlaySound(FSystem, iAsset^.Sound, FMusicGroup, 1, @iChannel))
             else Check(FMOD_System_PlaySound(FSystem, iAsset^.Sound, FSoundGroup, 1, @iChannel));
+  if aMusic then Check( FMOD_Channel_SetPriority(iChannel, 0) );
   if aLoop then
   begin
     Check( FMOD_Channel_SetMode(iChannel, FMOD_LOOP_NORMAL) );
