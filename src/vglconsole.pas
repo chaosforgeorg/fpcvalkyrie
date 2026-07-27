@@ -131,14 +131,14 @@ GLConsoleFragmentShader : AnsiString =
 '' + #10 +
 '    int glyph = int( data_sample.b ) - usheet_offset;' + #10 +
 '    ivec2 gxy = ivec2( glyph % usheet_size.x, glyph / usheet_size.x );' + #10 +
-'    vec2 gpos = vec2( ( float( gxy.x ) + tc.x ) / float( usheet_size.x ), ( float( gxy.y ) + tc.y ) / float( usheet_size.y ) );' + #10 +
-'    vec4 tt = texelFetch( udiffuse, ivec2( gpos * vec2( ts ) ), 0 );' + #10 +
+'    ivec2 glyph_size = ts / usheet_size;' + #10 +
+'    ivec2 local_texel = ivec2( tc * vec2( glyph_size ) );' + #10 +
+'    vec4 tt = texelFetch( udiffuse, gxy * glyph_size + local_texel, 0 );' + #10 +
 '' + #10 +
 '    if ( int( coord.x ) == ucursor.x && int( coord.y ) == ucursor.y ) {' + #10 +
 '      int cglyph = ucursor.z - usheet_offset;' + #10 +
 '      ivec2 cgxy = ivec2( cglyph % usheet_size.x, cglyph / usheet_size.x );' + #10 +
-'      vec2 cgpos = vec2( ( float( cgxy.x ) + tc.x ) / float( usheet_size.x ), ( float( cgxy.y ) + tc.y ) / float( usheet_size.y ) );' + #10 +
-'      vec4 ctt = texelFetch( udiffuse, ivec2( cgpos * vec2( ts ) ), 0 );' + #10 +
+'      vec4 ctt = texelFetch( udiffuse, cgxy * glyph_size + local_texel, 0 );' + #10 +
 '      tt.x = max( ctt.x, tt.x );' + #10 +
 '    }' + #10 +
 '    if ( tc.y < 0 || tc.y > 1.0 )' + #10 +

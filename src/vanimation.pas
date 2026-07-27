@@ -192,15 +192,19 @@ begin
 end;
 
 function TAnimations.UIDDuration(aUID: TUID): DWord;
-var iCount : DWord;
+var iCount     : DWord;
+    iRemaining : DWord;
 begin
   if FAnimations.Size = 0 then Exit( 0 );
   UIDDuration := 0;
-  if FAnimations.Size > 0 then
   for iCount := FAnimations.Size-1 downto 0 do
     with FAnimations[ iCount ] do
       if FUID = aUID then
-        UIDDuration := Max( UIDDuration, FDelay + ( FDuration - FTime ) );
+      begin
+        iRemaining := 0;
+        if FDuration > FTime then iRemaining := FDuration - FTime;
+        UIDDuration := Max( UIDDuration, FDelay + iRemaining );
+      end;
 end;
 
 

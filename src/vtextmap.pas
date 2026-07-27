@@ -298,7 +298,7 @@ var iRatio : Single;
     iPoint : TIOPoint;
 begin
   if FDuration = 0 then Exit;
-  if (FRange > 0) and (Distance( FRay.GetSource, FRay.GetC ) > FRange) then
+  if (FRange > 0) and (Distance( FRay.Source, FRay.Current ) > FRange) then
   begin
     FTime := FDuration;
     Exit;
@@ -310,10 +310,10 @@ begin
     if not FRay.Done then FRay.Next;
   end;
   iChar := FGylph.ASCII;
-  if iChar = '-' then iChar := NewDirection(FRay.GetPrev,FRay.GetC).Picture;
-  if not FRay.Map.blocksVision( FRay.GetC ) then
+  if iChar = '-' then iChar := NewDirection(FRay.Previous,FRay.Current).Picture;
+  if not FRay.Map.blocksVision( FRay.Current ) then
   begin
-    iPoint := FMap.Screen( FRay.GetC );
+    iPoint := FMap.Screen( FRay.Current );
     FMap.Console.OutputChar( iPoint.X, iPoint.Y, FGylph.Color, iChar );
   end;
 end;
@@ -342,12 +342,12 @@ begin
   begin
     iRay.Next;
     Inc( iDist );
-    if FMapQuery.blocksVision( iRay.GetC ) then Break;
+    if FMapQuery.blocksVision( iRay.Current ) then Break;
     if iDist > FMaxDist then Break;
-    if (FRange > 0) and (Distance( FSource, iRay.GetC ) > FRange) then Break;
+    if (FRange > 0) and (Distance( FSource, iRay.Current ) > FRange) then Break;
     iChar := FGylph.ASCII;
-    if iChar = '-' then iChar := NewDirection(iRay.GetPrev,iRay.GetC).Picture;
-    iPoint := FMap.Screen( iRay.GetC );
+    if iChar = '-' then iChar := NewDirection(iRay.Previous,iRay.Current).Picture;
+    iPoint := FMap.Screen( iRay.Current );
     FMap.Console.OutputChar( iPoint.X, iPoint.Y, FGylph.Color, iChar );
   end;
 end;

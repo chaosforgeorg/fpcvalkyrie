@@ -211,7 +211,7 @@ begin
     iAngle := Random * 2.0 * PI
   else
     iAngle := ArcTan2( aDir.Y, aDir.X ) + ( Random * 2.0 - 1.0 ) * aSpreadAngle * PI / 180.0;
-  Result.Init( Cos( iAngle ), Sin( iAngle ), 0 );
+  Result.Init( Cos( iAngle ), Sin( iAngle ), aDir.Z );
 end;
 
 function TParticleEngine.RandomPointInShape( const aPos : TVec3f; aData : PParticleEmitterData ) : TVec3f;

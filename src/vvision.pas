@@ -1,12 +1,7 @@
 {$INCLUDE valkyrie.inc}
-// @abstract(Roguelike Toolkit for Valkyrie)
+// @abstract(Vision/LoS for Valkyrie)
 // @author(Kornel Kisielewicz <epyon@chaosforge.org>)
 // @created(Jan 12, 2008)
-// @cvs($Author: chaos-dev $)
-// @cvs($Date: 2008-10-14 19:45:46 +0200 (Tue, 14 Oct 2008) $)
-//
-// Gathers some useful functions for roguelike development in Valkyrie.
-// As for the current state it's experimental.
 //
 //  @html <div class="license">
 //  This library is free software; you can redistribute it and/or modify it
@@ -30,184 +25,268 @@ interface
 uses Classes, SysUtils, vrltools;
 
 type IVisionQuery = interface
-  function blocksVision( const Coord : TCoord2D ) : boolean;
+  function blocksVision( const aCoord : TCoord2D ) : boolean;
 end;
 
+const CIsaacRayNumber          = 32;  // It's effective to keep this number a power of 2.
+      CIsaacRayWidthCorrection = 8;   // Must be smaller then CIsaacRayNumber/2 ;-)
+      CIsaacRayMaxPath         = 128;
+
+type TIsaacRayPath = array[0..CIsaacRayMaxPath] of TCoord2D;
 
 type TVision = class
-  constructor Create( newMap : IVisionQuery );
-  procedure ChangeSource( newMap : IVisionQuery ); virtual;
-  procedure Run( Coord : TCoord2D; Radius : LongInt ); virtual; abstract;
-  function isVisible( Coord : TCoord2D ) : boolean;
-  function getLight( Coord : TCoord2D ) : Byte; virtual; abstract;
-//  function isLoS(sX,sY,tX,tY : LongInt) : boolean; virtual; abstract;
-  protected
-  Map : IVisionQuery;
+  constructor Create( aMap : IVisionQuery );
+  procedure ChangeSource( aMap : IVisionQuery ); virtual;
+  procedure Run( aCoord : TCoord2D; aRadius : LongInt ); virtual; abstract;
+  function isVisible( aCoord : TCoord2D ) : boolean;
+  function getLight( aCoord : TCoord2D ) : Byte; virtual; abstract;
+protected
+  FMap : IVisionQuery;
 end;
 
 type TIsaacVision = class (TVision)
-  constructor Create( newMap : IVisionQuery; newMaxRadius : DWord );
-  procedure Run( Coord : TCoord2D; Radius : LongInt ); override;
-  function getLight( Coord : TCoord2D ) : Byte; override;
-//  function isLoS(sX,sY,tX,tY : LongInt) : boolean; override;
-  protected
-  procedure Clear(Value : Byte = 0);
-  procedure setLight( Coord : TCoord2D; Value : LongInt);
-  protected
-  Source    : TCoord2D;
-  Light     : array of array of Word;
-  MaxRadius : LongInt;
+  constructor Create( aMap : IVisionQuery; aMaxRadius : DWord );
+  procedure Run( aCoord : TCoord2D; aRadius : LongInt ); override;
+  function getLight( aCoord : TCoord2D ) : Byte; override;
+protected
+  procedure Clear( aValue : Byte = 0 );
+  procedure setLight( aCoord : TCoord2D; aValue : LongInt );
+protected
+  FSource    : TCoord2D;
+  FLight     : array of array of Word;
+  FMaxRadius : LongInt;
 end;
 
 type TBresenhamRay = object
-  Done   : Boolean;
-  cnt    : Word;
-  Xsign  : Integer;
-  Ysign  : Integer;
-  public
-  procedure Init(nx1,ny1,nx2,ny2 : integer);
-  procedure Init(c1,c2 : TCoord2D);
+  procedure Init( aX1, aY1, aX2, aY2 : integer );
+  procedure Init( aCoord1, aCoord2 : TCoord2D );
   procedure Next;
-  function GetX : Integer;
-  function GetY : Integer;
-  function GetC : TCoord2D;
-  private
-  Orto   : Boolean;
-  dx,dy  : Integer;
-  bx,by  : Integer;
-  tx,ty  : Integer;
-  p      : Integer;
-  c1,c2  : Integer;
+private
+  FDone     : Boolean;
+  FCnt      : Integer;
+  FXSign    : Integer;
+  FYSign    : Integer;
+  FOrto     : Boolean;
+  FDX, FDY  : Integer;
+  FBX, FBY  : Integer;
+  FTX, FTY  : Integer;
+  FP        : Integer;
+  FC1, FC2  : Integer;
+  FCoord    : TCoord2D;
+public 
+  property Steps    : Integer      read FCnt;
+  property Current  : TCoord2D     read FCoord;
+  property Done     : Boolean      read FDone;
+end;
+
+type
+
+{ TVisionRayBase }
+
+TVisionRayBase = object
+protected
+  FDone   : Boolean;
+  FMap    : IVisionQuery;
+  FCnt    : Integer;
+  FCoord  : TCoord2D;
+  FPrev   : TCoord2D;
+  FTarget : TCoord2D;
+  FSource : TCoord2D;
+public
+  constructor Initialize( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : Integer );
+  procedure Next; virtual; abstract;
+  property Map      : IVisionQuery read FMap;
+  property Steps    : Integer      read FCnt;
+  property Previous : TCoord2D     read FPrev;
+  property Current  : TCoord2D     read FCoord;
+  property Source   : TCoord2D     read FSource;
+  property Target   : TCoord2D     read FTarget;
+  property Done     : Boolean      read FDone;
+end;
+
+type PVisionRayBase = ^TVisionRayBase;
+
+type
+
+{ TIsaacRay }
+
+TIsaacRay = object( TVisionRayBase )
+public
+  constructor Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aRange : Word = 0; aVisionRange : Word = 0 );
+  constructor Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange : Word = 0; aVisionRange : Word = 0 );
+  procedure Next; virtual;
+private
+  function AddPathStep( const aCoord : TCoord2D ) : Boolean;
+  function AppendBresenhamPath( const aFrom, aTarget : TCoord2D ) : Boolean;
+  function BuildDirectPathTo( const aTarget : TCoord2D ) : Boolean;
+  function BuildDirectPrefixTo( const aTarget : TCoord2D ) : Boolean;
+  function IsIsaacLit( const aCoord : TCoord2D ) : Boolean;
+  function RayExtensionTarget : TCoord2D;
+  procedure ResetPath;
+private
+  FRange      : Integer;
+  FVisionRange: Integer;
+  FBallisticFallback : Boolean;
+  FPath       : TIsaacRayPath;
+  FPathIndex  : Integer;
+  FPathLast   : Integer;
 end;
 
 type
 
 { TVisionRay }
 
-TVisionRay = object
-  Done   : Boolean;
-  Xsign  : Integer;
-  Ysign  : Integer;
-  Map    : IVisionQuery;
-  cnt    : DWord;
-  coord  : TCoord2D;
-  prev   : TCoord2D;
-  public
-  procedure Init(newMap : IVisionQuery; nx1,ny1,nx2,ny2 : integer; precision : Single = 0.6);
-  procedure Init(newMap : IVisionQuery; c1,c2 : TCoord2D; precision : Single = 0.6);
+TVisionRay = object( TVisionRayBase )
+public
+  constructor Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aPrecision : Single = 0.6 );
+  constructor Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aPrecision : Single = 0.6 );
+  procedure Next; virtual;
+private
+  FXSign    : Integer;
+  FYSign    : Integer;
+  FDCnt     : Integer;
+  FDX, FDY  : Single;
+  FX, FY    : Single;
+end;
+
+type
+
+{ TAssistedRay }
+
+TAssistedRay = object
+public
+  constructor Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange, aVisionRange : Word; aVision : TVision; aSkipLosHack : Boolean = True );
   procedure Next;
-  function GetPrev : TCoord2D;
-  function GetX : Integer;
-  function GetY : Integer;
-  function GetC : TCoord2D;
+private
+  function GetMap : IVisionQuery;
+  function GetSteps : Integer;
+  function GetPrevious : TCoord2D;
+  function GetCurrent : TCoord2D;
   function GetSource : TCoord2D;
   function GetTarget : TCoord2D;
-  private
-  dcnt    : DWord;
-  fdx,fdy : Single;
-  fx,fy   : Single;
-  tx,ty   : Integer;
-  sx,sy   : Integer;
+  function GetDone : Boolean;
+private
+  FIsaacRay  : TIsaacRay;
+  FVisionRay : TVisionRay;
+  FBase      : PVisionRayBase;
+public
+  property Map      : IVisionQuery read GetMap;
+  property Steps    : Integer      read GetSteps;
+  property Previous : TCoord2D     read GetPrevious;
+  property Current  : TCoord2D     read GetCurrent;
+  property Source   : TCoord2D     read GetSource;
+  property Target   : TCoord2D     read GetTarget;
+  property Done     : Boolean      read GetDone;
 end;
 
 implementation
 uses vmath,math;
 
-constructor TVision.Create(newMap: IVisionQuery);
+const CIsaacQuads : array[1..4] of array[1..2] of ShortInt =
+      ((1,1),(-1,-1),(-1,+1),(+1,-1));
+      CIsaacODir : array[1..4] of array[1..2] of ShortInt =
+      ((1,0),(-1,0),(0,1),(0,-1));
+
+constructor TVision.Create( aMap : IVisionQuery );
 begin
-  Map := newMap;
+  FMap := aMap;
 end;
 
-procedure TVision.ChangeSource(newMap: IVisionQuery);
+procedure TVision.ChangeSource( aMap : IVisionQuery );
 begin
-  Map := newMap;
+  FMap := aMap;
 end;
 
-function TVision.isVisible( Coord : TCoord2D ): boolean;
+function TVision.isVisible( aCoord : TCoord2D ) : boolean;
 begin
-  Exit( getLight( Coord ) > 0 );
+  Exit( getLight( aCoord ) > 0 );
+end;
+
+{ TVisionRayBase }
+
+constructor TVisionRayBase.Initialize( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : Integer );
+begin
+  FMap := aMap;
+  FSource.Create( aX1, aY1 );
+  FTarget.Create( aX2, aY2 );
+  FPrev := FSource;
+  FCoord := FSource;
+  FCnt := 0;
+  FDone := False;
 end;
 
 { TIsaacVision }
 
-constructor TIsaacVision.Create(newMap: IVisionQuery; newMaxRadius: DWord);
-var Count : DWord;
+constructor TIsaacVision.Create( aMap : IVisionQuery; aMaxRadius : DWord );
+var iCount : DWord;
 begin
-  inherited Create(newMap);
-  MaxRadius := newMaxRadius;
-  SetLength(Light,maxRadius*2+4);
-  for Count := 0 to maxRadius*2+3 do
-    SetLength(Light[Count],maxRadius*2+4);
+  inherited Create( aMap );
+  FMaxRadius := aMaxRadius;
+  SetLength( FLight, FMaxRadius*2+4 );
+  for iCount := 0 to FMaxRadius*2+3 do
+    SetLength( FLight[iCount], FMaxRadius*2+4 );
 end;
 
-function TIsaacVision.getLight( Coord : TCoord2D ): byte;
-var Translated : TCoord2D;
+function TIsaacVision.getLight( aCoord : TCoord2D ) : byte;
+var iTranslated : TCoord2D;
 begin
-  Translated.X := Coord.X - source.X + maxRadius + 1;
-  Translated.Y := Coord.Y - source.Y + maxRadius + 1;
-  if (Translated.x < 0) or (Translated.y < 0) or
-     (Translated.x > maxRadius*2+3) or (Translated.y > maxRadius*2+3) then Exit(0);
-  Exit( Light[Translated.x,Translated.y] );
+  iTranslated.X := aCoord.X - FSource.X + FMaxRadius + 1;
+  iTranslated.Y := aCoord.Y - FSource.Y + FMaxRadius + 1;
+  if (iTranslated.x < 0) or (iTranslated.y < 0) or
+     (iTranslated.x > FMaxRadius*2+3) or (iTranslated.y > FMaxRadius*2+3) then Exit( 0 );
+  Exit( FLight[iTranslated.x,iTranslated.y] );
 end;
 
-procedure TIsaacVision.setLight( Coord : TCoord2D; Value : LongInt );
-var tX,tY : LongInt;
+procedure TIsaacVision.setLight( aCoord : TCoord2D; aValue : LongInt );
+var iX, iY : LongInt;
 begin
-  tX := Coord.X - source.X + maxRadius + 1;
-  tY := Coord.Y - source.Y + maxRadius + 1;
-  Light[tx,ty] := Max(Value,0);
+  iX := aCoord.X - FSource.X + FMaxRadius + 1;
+  iY := aCoord.Y - FSource.Y + FMaxRadius + 1;
+  FLight[iX,iY] := Max( aValue, 0 );
 end;
 
-procedure TIsaacVision.Clear(Value : Byte = 0);
-var x,y : LongInt;
+procedure TIsaacVision.Clear( aValue : Byte = 0 );
+var iX, iY : LongInt;
 begin
-  for x := 0 to maxRadius*2+3 do
-    for y := 0 to maxRadius*2+3 do
-      Light[x,y] := Value;
+  for iX := 0 to FMaxRadius*2+3 do
+    for iY := 0 to FMaxRadius*2+3 do
+      FLight[iX,iY] := aValue;
 end;
 
 
 // Special thanks for this procedure goes to Isaac Kuo. This beamcasting
 // algorithm is a ported to FreePascal modified version of his algorithm
 // posted on http://www.roguelikedevelopment.org
-
-procedure TIsaacVision.Run( Coord : TCoord2D; Radius : LongInt );
-var t : TCoord2D;
-    mini, maxi, cor, u, v : LongInt;
-    quad, slope, l : Byte;
-const quads : array[1..4] of array[1..2] of ShortInt =
-      ((1,1),(-1,-1),(-1,+1),(+1,-1));
-      odir : array[1..4] of array[1..2] of ShortInt =
-      ((1,0),(-1,0),(0,1),(0,-1));
-      RayNumber          = 32; // It's effective to keep this number a power of 2.
-      RayWidthCorrection = 8; // Must be smaller then RayNumber/2 ;-)
-
+procedure TIsaacVision.Run( aCoord : TCoord2D; aRadius : LongInt );
+var iTarget : TCoord2D;
+    iMini, iMaxi, iCor, iU, iV : LongInt;
+    iQuad, iSlope, iLight : Byte;
 begin
-  if Radius > maxRadius then Radius := maxRadius;
+  if aRadius > FMaxRadius then aRadius := FMaxRadius;
 
-  Source := Coord;
+  FSource := aCoord;
 
   Clear;
 
   // Set 0,0 to be visible even if the player is
   // standing on something opaque
-  setLight(Coord,Radius);
+  setLight( aCoord, aRadius );
   
-  l := 0;
+  iLight := 0;
 
   // Check the orthogonal directions
-  for quad := 1 to 4 do
-    for l := 1 to Radius do
+  for iQuad := 1 to 4 do
+    for iLight := 1 to aRadius do
     begin
-      t := coord.ifInc( l * odir[quad,1], l * odir[quad,2] );
-      setLight( t , Radius - l + 1 );
-      if Map.blocksVision( t ) then break;
+      iTarget := aCoord.ifInc( iLight * CIsaacODir[iQuad,1], iLight * CIsaacODir[iQuad,2] );
+      setLight( iTarget, aRadius - iLight + 1 );
+      if FMap.blocksVision( iTarget ) then break;
     end;
 
   // Loop through the quadrants
-  for quad := 1 to 4 do
+  for iQuad := 1 to 4 do
   // Now loop on the diagonal directions
-  for slope := 1 to RayNumber-1 do
+  for iSlope := 1 to CIsaacRayNumber-1 do
   begin
     // initialize the v coordinate and set the beam size
     // to maximum--mini and maxi store the beam\'s current
@@ -216,268 +295,619 @@ begin
     // When mini=maxi, the beam is a thin line.
     // When mini>maxi, the beam has been blocked.
 
-    v := slope; u := 0;
-    mini := RayWidthCorrection; maxi := RayNumber-RayWidthCorrection;
+    iV := iSlope; iU := 0;
+    iMini := CIsaacRayWidthCorrection; iMaxi := CIsaacRayNumber-CIsaacRayWidthCorrection;
     repeat
-      Inc(u);
-      t.y:= v div RayNumber;
-      t.x:= u - t.y;  //Do the transform
+      Inc( iU );
+      iTarget.y:= iV div CIsaacRayNumber;
+      iTarget.x:= iU - iTarget.y;  //Do the transform
       
-      cor:= RayNumber-(v mod RayNumber);         //calculate the position of block corner within beam
+      iCor:= CIsaacRayNumber-(iV mod CIsaacRayNumber);         //calculate the position of block corner within beam
       
-      if mini < cor then begin //beam is low enough to hit (x,y) block
-        if Map.blocksVision( coord.ifInc( quads[quad][1]*t.x,quads[quad][2]*t.y) ) then mini := cor; //beam was partially blocked
-        l := Distance(t.x,t.y,0,0);
-        if l > Radius then Break;
-        Light[quads[quad][1]*t.x+maxRadius+1,quads[quad][2]*t.y+maxRadius+1] := Radius-l+1;
+      if iMini < iCor then begin //beam is low enough to hit (x,y) block
+        if FMap.blocksVision( aCoord.ifInc( CIsaacQuads[iQuad][1]*iTarget.x, CIsaacQuads[iQuad][2]*iTarget.y ) ) then iMini := iCor; //beam was partially blocked
+        iLight := Distance( iTarget.x, iTarget.y, 0, 0 );
+        if iLight > aRadius then Break;
+        FLight[CIsaacQuads[iQuad][1]*iTarget.x+FMaxRadius+1,CIsaacQuads[iQuad][2]*iTarget.y+FMaxRadius+1] := aRadius-iLight+1;
       end;
-      if maxi > cor then begin //beam is high enough to hit (x-1,y+1) block
-        if Map.blocksVision( coord.ifInc( quads[quad][1]*(t.x-1), quads[quad][2]*(t.y+1) ) ) then maxi := cor; //beam was partially blocked
-        l := Distance(t.x-1,t.y+1,0,0);
-        if l > Radius then Break;
-        Light[quads[quad][1]*(t.x-1)+maxRadius+1,quads[quad][2]*(t.y+1)+maxRadius+1] := Radius-l+1;
+      if iMaxi > iCor then begin //beam is high enough to hit (x-1,y+1) block
+        if FMap.blocksVision( aCoord.ifInc( CIsaacQuads[iQuad][1]*(iTarget.x-1), CIsaacQuads[iQuad][2]*(iTarget.y+1) ) ) then iMaxi := iCor; //beam was partially blocked
+        iLight := Distance( iTarget.x-1, iTarget.y+1, 0, 0 );
+        if iLight > aRadius then Break;
+        FLight[CIsaacQuads[iQuad][1]*(iTarget.x-1)+FMaxRadius+1,CIsaacQuads[iQuad][2]*(iTarget.y+1)+FMaxRadius+1] := aRadius-iLight+1;
       end;
-      v := v + slope;  //increment the beam\'s v coordinate
-    until (mini > maxi);
+      iV := iV + iSlope;  //increment the beam\'s v coordinate
+    until (iMini > iMaxi);
   end;
 end;
 
+{ TIsaacRay }
 
-procedure TBresenhamRay.Init(nx1,ny1,nx2,ny2 : integer);
+constructor TIsaacRay.Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aRange : Word = 0; aVisionRange : Word = 0 );
+var iEndTarget : TCoord2D;
 begin
-  Done := False;
-  cnt := 0;
-  bx := nx1;
-  by := ny1;
-  tx := nx2;
-  ty := ny2;
-  
-  dx := tx - bx;
-  dy := ty - by;
+  Initialize( aMap, aX1, aY1, aX2, aY2 );
+  FPathIndex := 0;
+  ResetPath;
+  FBallisticFallback := aRange <> 0;
+  if aRange = 0
+    then FRange := Distance( FSource, FTarget )
+    else FRange := aRange;
+  if aVisionRange = 0
+    then FVisionRange := FRange
+    else FVisionRange := aVisionRange;
 
-  Orto := (dx*dy = 0);
-  xsign := Sgn(dx);
-  ysign := Sgn(dy);
-
-  dx := Abs(dx);
-  dy := Abs(dy);
-  if (dx < dy) then
+  if FSource = FTarget then
   begin
-    p  := 2*dx - dy;
-    c1 := 2*dx;
-    c2 := 2*dx-2*dy;
+    FDone := True;
+    Exit;
+  end;
+
+  if IsIsaacLit( FTarget ) then
+  begin
+    if not BuildDirectPathTo( FTarget ) then
+      BuildDirectPrefixTo( FTarget );
+  end
+  else
+    BuildDirectPrefixTo( FTarget );
+
+  iEndTarget := RayExtensionTarget;
+  if FBallisticFallback and (FPathLast > 0) and (FPath[FPathLast] = FTarget) and (FPath[FPathLast] <> iEndTarget) then
+    AppendBresenhamPath( FPath[FPathLast], iEndTarget );
+
+  FDone := FPathLast = 0;
+end;
+
+constructor TIsaacRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange : Word = 0; aVisionRange : Word = 0 );
+begin
+  Init( aMap, aCoord1.x, aCoord1.y, aCoord2.x, aCoord2.y, aRange, aVisionRange );
+end;
+
+function TIsaacRay.AddPathStep( const aCoord : TCoord2D ) : Boolean;
+begin
+  if FPathLast >= CIsaacRayMaxPath then Exit( False );
+  Inc( FPathLast );
+  FPath[ FPathLast ] := aCoord;
+  Exit( True );
+end;
+
+procedure TIsaacRay.ResetPath;
+begin
+  FPathLast := 0;
+  FPath[0] := FSource;
+end;
+
+function TIsaacRay.AppendBresenhamPath( const aFrom, aTarget : TCoord2D ) : Boolean;
+var iRay : TBresenhamRay;
+begin
+  if aFrom = aTarget then Exit( True );
+  iRay.Init( aFrom, aTarget );
+  repeat
+    iRay.Next;
+    if not AddPathStep( iRay.Current ) then Exit( False );
+  until iRay.Done;
+  Exit( True );
+end;
+
+function TIsaacRay.RayExtensionTarget : TCoord2D;
+var iDiff : TCoord2D;
+    iDist : Integer;
+begin
+  iDiff := FTarget - FSource;
+  iDist := Distance( FSource, FTarget );
+  if (iDist = 0) or (FRange <= iDist) then Exit( FTarget );
+  Result.Create(
+    FSource.X + Round( iDiff.X * FRange / iDist ),
+    FSource.Y + Round( iDiff.Y * FRange / iDist )
+  );
+end;
+
+function TIsaacRay.IsIsaacLit( const aCoord : TCoord2D ) : Boolean;
+var iDX, iDY     : Integer;
+    iLocalX      : Integer;
+    iLocalY      : Integer;
+    iQuad        : Byte;
+    iSlope       : Byte;
+    iMini, iMaxi : LongInt;
+    iCor, iU, iV : LongInt;
+    iTarget      : TCoord2D;
+    iCheck       : TCoord2D;
+    iLight       : DWord;
+begin
+  if aCoord = FSource then Exit( True );
+  if Distance( FSource, aCoord ) > FVisionRange then Exit( False );
+
+  iDX := aCoord.X - FSource.X;
+  iDY := aCoord.Y - FSource.Y;
+
+  if iDX * iDY = 0 then
+  begin
+    if iDX > 0 then iQuad := 1
+    else if iDX < 0 then iQuad := 2
+    else if iDY > 0 then iQuad := 3
+    else iQuad := 4;
+    for iLight := 1 to FVisionRange do
+    begin
+      iCheck := FSource.ifInc( iLight * CIsaacODir[iQuad,1], iLight * CIsaacODir[iQuad,2] );
+      if iCheck = aCoord then Exit( True );
+      if FMap.blocksVision( iCheck ) then Break;
+    end;
+    Exit( False );
+  end;
+
+  if (iDX > 0) and (iDY > 0) then iQuad := 1
+  else if (iDX < 0) and (iDY < 0) then iQuad := 2
+  else if (iDX < 0) and (iDY > 0) then iQuad := 3
+  else iQuad := 4;
+
+  iLocalX := Abs( iDX );
+  iLocalY := Abs( iDY );
+
+  for iSlope := 1 to CIsaacRayNumber-1 do
+  begin
+    iV := iSlope; iU := 0;
+    iMini := CIsaacRayWidthCorrection;
+    iMaxi := CIsaacRayNumber-CIsaacRayWidthCorrection;
+    repeat
+      Inc( iU );
+      iTarget.y := iV div CIsaacRayNumber;
+      iTarget.x := iU - iTarget.y;
+      iCor := CIsaacRayNumber-(iV mod CIsaacRayNumber);
+
+      if iMini < iCor then
+      begin
+        iCheck := FSource.ifInc( CIsaacQuads[iQuad][1]*iTarget.x, CIsaacQuads[iQuad][2]*iTarget.y );
+        if FMap.blocksVision( iCheck ) then iMini := iCor;
+        iLight := Distance( iTarget.x, iTarget.y, 0, 0 );
+        if iLight > DWord(FVisionRange) then Break;
+        if (iTarget.x = iLocalX) and (iTarget.y = iLocalY) then Exit( True );
+      end;
+      if iMaxi > iCor then
+      begin
+        iCheck := FSource.ifInc( CIsaacQuads[iQuad][1]*(iTarget.x-1), CIsaacQuads[iQuad][2]*(iTarget.y+1) );
+        if FMap.blocksVision( iCheck ) then iMaxi := iCor;
+        iLight := Distance( iTarget.x-1, iTarget.y+1, 0, 0 );
+        if iLight > DWord(FVisionRange) then Break;
+        if (iTarget.x-1 = iLocalX) and (iTarget.y+1 = iLocalY) then Exit( True );
+      end;
+      iV := iV + iSlope;
+    until (iMini > iMaxi);
+  end;
+  Exit( False );
+end;
+
+function TIsaacRay.BuildDirectPathTo( const aTarget : TCoord2D ) : Boolean;
+type TMoveCandidate = record
+       X     : Integer;
+       Y     : Integer;
+       Coord : TCoord2D;
+       Score : Int64;
+       Valid : Boolean;
+     end;
+var iDiff   : TCoord2D;
+    iSign   : TCoord2D;
+    iAbsX   : Integer;
+    iAbsY   : Integer;
+    iX      : Integer;
+    iY      : Integer;
+    iFailed : array[0..CIsaacRayMaxPath,0..CIsaacRayMaxPath] of Boolean;
+
+  function CandidateScore( aX, aY, aMoveX, aMoveY : Integer ) : Int64;
+  begin
+    Exit( Sqr( Int64( iAbsY ) * aX - Int64( iAbsX ) * aY ) * 16 + 2 - aMoveX - aMoveY );
+  end;
+
+  function CandidateValid( aX, aY : Integer; const aCoord : TCoord2D ) : Boolean;
+  begin
+    if (aX > iAbsX) or (aY > iAbsY) then Exit( False );
+    if (aX > CIsaacRayMaxPath) or (aY > CIsaacRayMaxPath) then Exit( False );
+    if iFailed[aX,aY] then Exit( False );
+    if aCoord = aTarget then Exit( True );
+    if FMap.blocksVision( aCoord ) then Exit( False );
+    if not IsIsaacLit( aCoord ) then Exit( False );
+    Exit( True );
+  end;
+
+  function MakeCandidate( aX, aY, aMoveX, aMoveY : Integer ) : TMoveCandidate;
+  begin
+    Result.X     := aX;
+    Result.Y     := aY;
+    Result.Coord := FSource.ifInc( iSign.X * aX, iSign.Y * aY );
+    Result.Score := CandidateScore( aX, aY, aMoveX, aMoveY );
+    Result.Valid := CandidateValid( aX, aY, Result.Coord );
+  end;
+
+  function TryPath( aX, aY : Integer ) : Boolean;
+  var iCandidates : array[0..2] of TMoveCandidate;
+      iIndex      : Integer;
+      iBest       : Integer;
+      iBestScore  : Int64;
+  begin
+    if (aX = iAbsX) and (aY = iAbsY) then Exit( True );
+
+    iCandidates[0] := MakeCandidate( aX + 1, aY + 1, 1, 1 );
+    iCandidates[1] := MakeCandidate( aX + 1, aY,     1, 0 );
+    iCandidates[2] := MakeCandidate( aX,     aY + 1, 0, 1 );
+
+    repeat
+      iBest := -1;
+      iBestScore := High( Int64 );
+      for iIndex := 0 to 2 do
+        if iCandidates[iIndex].Valid and (iCandidates[iIndex].Score < iBestScore) then
+        begin
+          iBest := iIndex;
+          iBestScore := iCandidates[iIndex].Score;
+        end;
+      if iBest < 0 then Break;
+
+      iCandidates[iBest].Valid := False;
+      if not AddPathStep( iCandidates[iBest].Coord ) then Break;
+      if TryPath( iCandidates[iBest].X, iCandidates[iBest].Y ) then Exit( True );
+      Dec( FPathLast );
+    until False;
+
+    if (aX <= CIsaacRayMaxPath) and (aY <= CIsaacRayMaxPath) then
+      iFailed[aX,aY] := True;
+    Exit( False );
+  end;
+begin
+  ResetPath;
+
+  iDiff := aTarget - FSource;
+  iSign := iDiff.Sign;
+  iAbsX := Abs( iDiff.X );
+  iAbsY := Abs( iDiff.Y );
+
+  if iAbsX * iAbsY = 0 then
+  begin
+    if not AppendBresenhamPath( FSource, aTarget ) then
+    begin
+      ResetPath;
+      Exit( False );
+    end;
+    Exit( FPathLast > 0 );
+  end;
+
+  if (iAbsX > CIsaacRayMaxPath) or (iAbsY > CIsaacRayMaxPath) then Exit( False );
+  for iX := 0 to iAbsX do
+    for iY := 0 to iAbsY do
+      iFailed[iX,iY] := False;
+  if not TryPath( 0, 0 ) then
+  begin
+    ResetPath;
+    Exit( False );
+  end;
+
+  Exit( FPathLast > 0 );
+end;
+
+function TIsaacRay.BuildDirectPrefixTo( const aTarget : TCoord2D ) : Boolean;
+var iCurrent  : TCoord2D;
+    iImpact   : TCoord2D;
+    iDiff     : TCoord2D;
+    iSign     : TCoord2D;
+    iAbsX     : Integer;
+    iAbsY     : Integer;
+    iStepX    : Integer;
+    iStepY    : Integer;
+    iCrossX   : Int64;
+    iCrossY   : Int64;
+    iContinue : Boolean;
+    iBlocks   : Boolean;
+begin
+  ResetPath;
+  iContinue := False;
+  iCurrent := FSource;
+  iDiff    := aTarget - FSource;
+  iSign    := iDiff.Sign;
+  iAbsX    := Abs( iDiff.X );
+  iAbsY    := Abs( iDiff.Y );
+  iStepX   := 0;
+  iStepY   := 0;
+  iImpact  := aTarget;
+  repeat
+    if iAbsX = 0 then
+    begin
+      iCurrent.Y += iSign.Y;
+      Inc( iStepY );
+    end
+    else if iAbsY = 0 then
+    begin
+      iCurrent.X += iSign.X;
+      Inc( iStepX );
+    end
+    else
+    begin
+      iCrossX := Int64( 2 * iStepX + 1 ) * iAbsY;
+      iCrossY := Int64( 2 * iStepY + 1 ) * iAbsX;
+      if iCrossX < iCrossY then
+      begin
+        iCurrent.X += iSign.X;
+        Inc( iStepX );
+      end
+      else if iCrossY < iCrossX then
+      begin
+        iCurrent.Y += iSign.Y;
+        Inc( iStepY );
+      end
+      else
+      begin
+        iCurrent.X += iSign.X;
+        iCurrent.Y += iSign.Y;
+        Inc( iStepX );
+        Inc( iStepY );
+      end;
+    end;
+    iBlocks := FMap.blocksVision( iCurrent );
+    if (not IsIsaacLit( iCurrent )) and (not iBlocks) then
+    begin
+      iImpact := iCurrent;
+      iContinue := True;
+      Break;
+    end;
+    if iBlocks then
+    begin
+      iImpact := iCurrent;
+      iContinue := True;
+      Break;
+    end;
+  until iCurrent = aTarget;
+  if not AppendBresenhamPath( FSource, iImpact ) then
+  begin
+    ResetPath;
+    Exit( False );
+  end;
+  if FBallisticFallback and iContinue and (iImpact <> aTarget) then
+    if not AppendBresenhamPath( iImpact, aTarget ) then
+    begin
+      ResetPath;
+      Exit( False );
+    end;
+  Exit( FPathLast > 0 );
+end;
+
+procedure TIsaacRay.Next;
+begin
+  if FDone then Exit;
+  FPrev := FCoord;
+  Inc( FPathIndex );
+  FCoord := FPath[ FPathIndex ];
+  FCnt := FPathIndex;
+  if FPathIndex >= FPathLast then FDone := True;
+end;
+
+
+procedure TBresenhamRay.Init( aX1, aY1, aX2, aY2 : integer );
+begin
+  FDone := False;
+  FCnt := 0;
+  FBX := aX1;
+  FBY := aY1;
+  FTX := aX2;
+  FTY := aY2;
+  
+  FDX := FTX - FBX;
+  FDY := FTY - FBY;
+
+  FOrto := (FDX*FDY = 0);
+  FXSign := Sgn( FDX );
+  FYSign := Sgn( FDY );
+
+  FDX := Abs( FDX );
+  FDY := Abs( FDY );
+  if (FDX < FDY) then
+  begin
+    FP  := 2*FDX - FDY;
+    FC1 := 2*FDX;
+    FC2 := 2*FDX-2*FDY;
   end
   else
   begin
-    p  := 2*dy - dx;
-    c1 := 2*dy;
-    c2 := 2*dy-2*dx;
+    FP  := 2*FDY - FDX;
+    FC1 := 2*FDY;
+    FC2 := 2*FDY-2*FDX;
   end;
+  FCoord.Create( FBX, FBY );
 end;
 
-procedure TBresenhamRay.Init(c1,c2 : TCoord2D);
+procedure TBresenhamRay.Init( aCoord1, aCoord2 : TCoord2D );
 begin
-  Init(c1.x,c1.y,c2.x,c2.y);
+  Init( aCoord1.x, aCoord1.y, aCoord2.x, aCoord2.y );
 end;
 
 procedure TBresenhamRay.Next;
 begin
-  Inc(cnt);
-  if Orto then
+  Inc( FCnt );
+  if FOrto then
   begin
-    if (dy = 0) then bx += xsign
-                else by += ysign;
+    if (FDY = 0) then FBX += FXSign
+                 else FBY += FYSign;
   end
   else
-    if (dx < dy) then
+    if (FDX < FDY) then
     begin
-      by += ysign;
-      if (p < 0) then p += c1 else
+      FBY += FYSign;
+      if (FP < 0) then FP += FC1 else
       begin
-        p += c2;
-        bx += xsign;
+        FP += FC2;
+        FBX += FXSign;
       end;
     end
     else
     begin
-      bx += xsign;
-      if (p < 0) then p += c1 else
+      FBX += FXSign;
+      if (FP < 0) then FP += FC1 else
       begin
-        p += c2;
-        by += ysign;
+        FP += FC2;
+        FBY += FYSign;
       end;
     end;
 
 
-  if (bx = tx) and (by = ty) then Done := True;
-
+  if (FBX = FTX) and (FBY = FTY) then FDone := True;
+  FCoord.Create( FBX, FBY );
 end;
-
-function TBresenhamRay.GetX: Integer;
-begin
-  Exit(bx);
-end;
-
-function TBresenhamRay.GetY : Integer;
-begin
-  Exit(by);
-end;
-
-function TBresenhamRay.GetC: TCoord2D;
-begin
-  Exit(NewCoord2D(bx,by));
-end;
-
 
 { TVision2Ray }
 
-procedure TVisionRay.Init(newMap: IVisionQuery; nx1, ny1, nx2, ny2 : integer; precision : Single = 0.6);
-var dx,dy   : Integer;
-    shx,shy : Float;
-    shift   : Float;
-    YSigned : Boolean;
+constructor TVisionRay.Init( aMap : IVisionQuery; aX1, aY1, aX2, aY2 : integer; aPrecision : Single = 0.6 );
+var iDX, iDY     : Integer;
+    iShiftX, iShiftY : Float;
+    iShift       : Float;
+    iYSigned     : Boolean;
 begin
-  Prev.Create(nx1, ny1);
-  Coord.Create(nx1, ny1);
-  Done   := false;
-  Map    := newMap;
-  cnt    := 0;
-  
-  sx := nx1;
-  sy := ny1;
-  tx := nx2;
-  ty := ny2;
+  Initialize( aMap, aX1, aY1, aX2, aY2 );
 
+  iDX := aX2-aX1;
+  iDY := aY2-aY1;
+  FXSign := sgn( iDX );
+  FYSign := sgn( iDY );
+  FX := aX1+0.5;
+  FY := aY1+0.5;
 
-  dx := nx2-nx1;
-  dy := ny2-ny1;
-  xsign := sgn(dx);
-  ysign := sgn(dy);
-  fx := nx1+0.5;
-  fy := ny1+0.5;
-
-  if xsign*ysign = 0 then
+  if FXSign*FYSign = 0 then
   begin
-    fdx := xsign;
-    fdy := ysign;
-    dcnt := Abs(dy+dx);
+    FDX := FXSign;
+    FDY := FYSign;
+    FDCnt := Abs( iDY+iDX );
     Exit;
   end;
-  YSigned := Abs(dx) < Abs(dy);
+  iYSigned := Abs( iDX ) < Abs( iDY );
   {$PUSH}
   {$HINTS OFF}
-  if YSigned then
+  if iYSigned then
   begin
-    fdy := ysign;
-    fdx := xsign*abs(dx/dy);
-    dcnt := Abs(dy);
+    FDY := FYSign;
+    FDX := FXSign*abs( iDX/iDY );
+    FDCnt := Abs( iDY );
   end
   else
   begin
-    fdx := xsign;
-    fdy := ysign*abs(dy/dx);
-    dcnt := Abs(dx);
+    FDX := FXSign;
+    FDY := FYSign*abs( iDY/iDX );
+    FDCnt := Abs( iDX );
   end;
   {$POP} {restore $HINTS}
 
-  shx := 0;
-  shy := 0;
+  iShiftX := 0;
+  iShiftY := 0;
 
   repeat
-    Inc(cnt);
-    if cnt = dcnt then Break;
-    fx += fdx;
-    fy += fdy;
-    if not (Map.blocksVision( NewCoord2D( Round(fx-0.5),(Round(fy-0.5))))) then Continue;
-    shift := 0;
-    if YSigned then
+    Inc( FCnt );
+    if FCnt = FDCnt then Break;
+    FX += FDX;
+    FY += FDY;
+    if not (FMap.blocksVision( NewCoord2D( Round( FX-0.5 ), (Round( FY-0.5 )) ) )) then Continue;
+    iShift := 0;
+    if iYSigned then
     begin
-      if Map.blocksVision( NewCoord2D( Round(fx-0.4+precision),(Round(fy-0.5)))) then shift := shift-precision;
-      if Map.blocksVision( NewCoord2D( Round(fx-0.6-precision),(Round(fy-0.5)))) then shift := shift+precision;
-      if shift <> 0 then
+      if FMap.blocksVision( NewCoord2D( Round( FX-0.4+aPrecision ), (Round( FY-0.5 )) ) ) then iShift := iShift-aPrecision;
+      if FMap.blocksVision( NewCoord2D( Round( FX-0.6-aPrecision ), (Round( FY-0.5 )) ) ) then iShift := iShift+aPrecision;
+      if iShift <> 0 then
       begin
-        shx := shift;
+        iShiftX := iShift;
         Break;
       end
     end else
     begin
-      if Map.blocksVision( NewCoord2D( Round(fx-0.5),(Round(fy-0.4+precision)))) then shift := shift-precision;
-      if Map.blocksVision( NewCoord2D( Round(fx-0.5),(Round(fy-0.6-precision)))) then shift := shift+precision;
+      if FMap.blocksVision( NewCoord2D( Round( FX-0.5 ), (Round( FY-0.4+aPrecision )) ) ) then iShift := iShift-aPrecision;
+      if FMap.blocksVision( NewCoord2D( Round( FX-0.5 ), (Round( FY-0.6-aPrecision )) ) ) then iShift := iShift+aPrecision;
     end;
-    if shift <> 0 then
+    if iShift <> 0 then
     begin
-      shy := shift;
+      iShiftY := iShift;
       Break;
     end
-  until cnt >= dcnt;
+  until FCnt >= FDCnt;
 
-  cnt := 0;
-  fx := nx1+0.5+shx;
-  fy := ny1+0.5+shy;
+  FCnt := 0;
+  FX := aX1+0.5+iShiftX;
+  FY := aY1+0.5+iShiftY;
 end;
 
-procedure TVisionRay.Init(newMap : IVisionQuery; c1,c2 : TCoord2D; precision : Single = 0.6);
+constructor TVisionRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aPrecision : Single = 0.6 );
 begin
-  Init( newMap, c1.x, c1.y, c2.x, c2.y, precision );
+  Init( aMap, aCoord1.x, aCoord1.y, aCoord2.x, aCoord2.y, aPrecision );
 end;
 
 procedure TVisionRay.Next;
 begin
-  Prev := Coord;
-  Inc(cnt);
-  fx += fdx;
-  fy += fdy;
-  if cnt = dcnt then
+  FPrev := FCoord;
+  Inc( FCnt );
+  FX += FDX;
+  FY += FDY;
+  if FCnt = FDCnt then
   begin
-    Coord.Create(tx,ty);
-    Done := True;
+    FCoord := FTarget;
+    FDone := True;
   end
   else
   begin
-    Coord.Create(Round(fx-0.5),Round(fy-0.5));
-    if xsign < 0 then Coord.X := Min(Coord.X,sx) else Coord.X := Max(Coord.X,sx);
-    if ysign < 0 then Coord.Y := Min(Coord.Y,sy) else Coord.Y := Max(Coord.Y,sy);
+    FCoord.Create( Round( FX-0.5 ), Round( FY-0.5 ) );
+    if FXSign < 0 then FCoord.X := Min( FCoord.X, FSource.X ) else FCoord.X := Max( FCoord.X, FSource.X );
+    if FYSign < 0 then FCoord.Y := Min( FCoord.Y, FSource.Y ) else FCoord.Y := Max( FCoord.Y, FSource.Y );
   end;
 end;
 
-function TVisionRay.GetPrev: TCoord2D;
+{ TAssistedRay }
+
+constructor TAssistedRay.Init( aMap : IVisionQuery; aCoord1, aCoord2 : TCoord2D; aRange, aVisionRange : Word; aVision : TVision; aSkipLosHack : Boolean );
+var iUseIsaac : Boolean;
 begin
-  Exit( Prev );
+  iUseIsaac := False;
+  if aVision <> nil then
+    iUseIsaac := aSkipLosHack or aVision.isVisible( aCoord2 );
+
+  if iUseIsaac then
+  begin
+    FIsaacRay.Init( aMap, aCoord1, aCoord2, aRange, aVisionRange );
+    FBase := PVisionRayBase( @FIsaacRay );
+  end
+  else
+  begin
+    FVisionRay.Init( aMap, aCoord1, aCoord2, 0.4 );
+    FBase := PVisionRayBase( @FVisionRay );
+  end;
 end;
 
-function TVisionRay.GetX: Integer;
+procedure TAssistedRay.Next;
 begin
-  Exit( Coord.X );
+  FBase^.Next;
 end;
 
-function TVisionRay.GetY: Integer;
+function TAssistedRay.GetMap : IVisionQuery;
 begin
-  Exit( Coord.Y );
+  Exit( FBase^.Map );
 end;
 
-function TVisionRay.GetC: TCoord2D;
+function TAssistedRay.GetSteps : Integer;
 begin
-  Exit( Coord );
+  Exit( FBase^.Steps );
 end;
 
-function TVisionRay.GetSource: TCoord2D;
+function TAssistedRay.GetPrevious : TCoord2D;
 begin
-  GetSource.x := sx;
-  GetSource.y := sy;
+  Exit( FBase^.Previous );
 end;
 
-function TVisionRay.GetTarget: TCoord2D;
+function TAssistedRay.GetCurrent : TCoord2D;
 begin
-  GetTarget.x := tx;
-  GetTarget.y := ty;
+  Exit( FBase^.Current );
 end;
 
+function TAssistedRay.GetSource : TCoord2D;
+begin
+  Exit( FBase^.Source );
+end;
+
+function TAssistedRay.GetTarget : TCoord2D;
+begin
+  Exit( FBase^.Target );
+end;
+
+function TAssistedRay.GetDone : Boolean;
+begin
+  Exit( FBase^.Done );
+end;
 
 end.
-
-
-// Modified      : $Date: 2008-10-14 19:45:46 +0200 (Tue, 14 Oct 2008) $
-// Last revision : $Revision: 227 $
-// Last author   : $Author: chaos-dev $
-// Last commit   : $Log$
-// Head URL      : $HeadURL: https://libvalkyrie.svn.sourceforge.net/svnroot/libvalkyrie/fp/src/vvision.pas $
