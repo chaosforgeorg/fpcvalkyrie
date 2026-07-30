@@ -72,7 +72,7 @@ var SDLIO : TSDLIODriver = nil;
 
 implementation
 
-uses vdebug, vgl3library,
+uses Math, vdebug, vgl3library,
      vsdl3imagelibrary{$IFDEF WINDOWS}, Windows{$ENDIF};
 
 var HackLastMouseX : Integer;
@@ -470,6 +470,9 @@ begin
   {$IFDEF WINDOWS}
   SetDPIAwareness;
   {$ENDIF}
+  {$if defined(cpui386) or defined(cpux86_64)}
+  SetExceptionMask([exInvalidOp, exDenormalized, exZeroDivide, exOverflow, exUnderflow, exPrecision]);
+  {$endif}
   LoadSDL3;
 
   Log('Initializing SDL...');
