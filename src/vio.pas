@@ -333,8 +333,7 @@ end;
 procedure TIO.ClearEventBuffer;
 var iEvent : TIOEvent;
 begin
-  while FIODriver.EventPending do
-    FIODriver.PollEvent( iEvent );
+  while FIODriver.PollEvent( iEvent ) do;
 end;
 
 procedure TIO.Delay( aTime : Integer );

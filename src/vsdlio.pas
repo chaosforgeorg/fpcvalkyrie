@@ -504,6 +504,8 @@ begin
   end;
 
   SDL_SetEventFilter( @SDLIOEventFilter, nil );
+  SDL_SetEventEnabled( SDL_EVENT_JOYSTICK_UPDATE_COMPLETE, False );
+  SDL_SetEventEnabled( SDL_EVENT_GAMEPAD_UPDATE_COMPLETE, False );
 
   if FGamePadSupport then ScanGamepads;
 
@@ -657,17 +659,16 @@ end;
 function TSDLIODriver.PeekEvent ( out aEvent : TIOEvent ) : Boolean;
 var event : SDL_Event;
 begin
-  SDL_PumpEvents();
+  Result := SDL_PollEvent( nil );
+  if not Result then Exit;
   Result := (SDL_PeepEvents( @event, 1, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST ) > 0 );
   if Result then
     aEvent := SDLEventToIOEvent( @event );
 end;
 
 function TSDLIODriver.EventPending : Boolean;
-var event : SDL_Event;
 begin
-  SDL_PumpEvents();
-  Result := (SDL_PeepEvents( @event, 1, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST  ) > 0 );
+  Result := SDL_PollEvent( nil );
 end;
 
 procedure TSDLIODriver.SetEventMask ( aMask : TIOEventType ) ;
