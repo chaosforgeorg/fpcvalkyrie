@@ -95,6 +95,7 @@ begin
   if FConsole = nil then Exit;
   FUIRoot     := TConUIRoot.Create( FConsole, aStyle );
   FUIRoot.Fullscreen := True;
+  FUIRoot.UpdateOnRender := False;
 end;
 
 destructor TIO.Destroy;
@@ -428,4 +429,3 @@ begin
   Exit( aCoord );
 end;
 end.
-
