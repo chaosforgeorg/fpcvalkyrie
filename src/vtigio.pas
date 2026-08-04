@@ -16,6 +16,7 @@ type TTIGDrawCommandType = (
   VTIG_CMD_TEXT,
   VTIG_CMD_CLEAR,
   VTIG_CMD_FRAME,
+  VTIG_CMD_BORDER,
   VTIG_CMD_RULER,
   VTIG_CMD_BAR
 );
@@ -303,9 +304,10 @@ begin
           FRenderer.OutputChar( iCmd.Area.X,  iCmd.Area.Y,  iCmd.FG, iCmd.BG, iBorder[0] );
           FRenderer.OutputChar( iCmd.Area.X2, iCmd.Area.Y2, iCmd.FG, iCmd.BG, iBorder[1] );
         end;
-        VTIG_CMD_FRAME:
+        VTIG_CMD_FRAME, VTIG_CMD_BORDER:
         begin
-          FRenderer.ClearRect( iCmd.Area.X, iCmd.Area.Y, iCmd.Area.X2, iCmd.Area.Y2, iCmd.BG );
+          if iCmd.CType = VTIG_CMD_FRAME then
+            FRenderer.ClearRect( iCmd.Area.X, iCmd.Area.Y, iCmd.Area.X2, iCmd.Area.Y2, iCmd.BG );
           iBorder := PChar(@(iList.FText.Data^[iCmd.Text.X]));
           for iX := 0 to iCmd.Area.w - 1 do
           begin

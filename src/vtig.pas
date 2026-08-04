@@ -3,6 +3,16 @@ unit vtig;
 interface
 uses vutil, viotypes, vtigstyle, vioconsole, vtigio;
 
+type TTIGWindowFlag = (
+  VTIG_WINDOW_NO_CLEAR
+);
+type TTIGWindowFlags = set of TTIGWindowFlag;
+
+type TTIGFreeLabelFlag = (
+  VTIG_FREELABEL_UNRESTRICTED
+);
+type TTIGFreeLabelFlags = set of TTIGFreeLabelFlag;
+
 procedure VTIG_Initialize( aRenderer : TIOConsoleRenderer; aDriver : TIODriver; aClearOnRender : Boolean = True );
 procedure VTIG_Shutdown;
 procedure VTIG_NewFrame;
@@ -10,9 +20,9 @@ procedure VTIG_EndFrame;
 procedure VTIG_Render;
 procedure VTIG_Clear;
 
-procedure VTIG_Begin( aName : Ansistring ); overload;
-procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint ); overload;
-procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_Begin( aName : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 procedure VTIG_End; overload;
 procedure VTIG_End( aFooter : Ansistring ); overload;
 procedure VTIG_Reset( aName : AnsiString );
@@ -31,18 +41,18 @@ procedure VTIG_ResetSelect( aName : AnsiString = ''; aValue : Integer = 0 );
 function VTIG_Scrollbar( aScrollMax : Boolean = False ) : Boolean;
 procedure VTIG_ResetScroll( aName : AnsiString = ''; aValue : Integer = 0 );
 
-procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
-procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint ); overload;
-procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
-procedure VTIG_BeginWindow( aName : Ansistring ); overload;
-procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint ); overload;
-procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 
 function VTIG_PositionResolve( aPos : TIOPoint ) : TIOPoint;
-procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0 ); overload;
-procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0 ); overload;
-procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0 ); overload;
-procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0 ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] ); overload;
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor; aBGColor : TIOColor );
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor );
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint );
@@ -628,17 +638,17 @@ begin
   GCtx.Io.Clear;
 end;
 
-procedure VTIG_Begin( aName : Ansistring ); overload;
+procedure VTIG_Begin( aName : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_Begin( aName, Point( -1, -1 ), Point( -1, -1 ) )
+  VTIG_Begin( aName, Point( -1, -1 ), Point( -1, -1 ), aFlags )
 end;
 
-procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint ); overload;
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_Begin( aName, aSize, Point( -1, -1 ) )
+  VTIG_Begin( aName, aSize, Point( -1, -1 ), aFlags )
 end;
 
-procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 var iParent : TTIGWindow;
     iWindow : TTIGWindow;
     iFirst  : Boolean;
@@ -712,7 +722,8 @@ begin
   GCtx.BGColor := iWindow.FBackground;
   GCtx.Color   := iWindow.FColor;
 
-  if ( aSize.X > -1 ) and ( aSize.Y > -1 ) then
+  if ( aSize.X > -1 ) and ( aSize.Y > -1 )
+    and ( ( iFrame <> '' ) or not ( VTIG_WINDOW_NO_CLEAR in aFlags ) ) then
   begin
     Initialize( iCmd );
     iCmd.CType := VTIG_CMD_CLEAR;
@@ -722,7 +733,9 @@ begin
     iCmd.BG    := GCtx.BGColor;
     if iFrame <> '' then
     begin
-      iCmd.CType  := VTIG_CMD_FRAME;
+      if VTIG_WINDOW_NO_CLEAR in aFlags
+        then iCmd.CType := VTIG_CMD_BORDER
+        else iCmd.CType := VTIG_CMD_FRAME;
       iCmd.Text   := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
     end;
     iWindow.DrawList.Push( iCmd );
@@ -1049,23 +1062,23 @@ begin
   end;
 end;
 
-procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_BeginWindow( aName, aID, Point( -1, -1 ), Point( -1, -1 ) );
+  VTIG_BeginWindow( aName, aID, Point( -1, -1 ), Point( -1, -1 ), aFlags );
 end;
 
-procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_BeginWindow( aName, aID, aSize, Point( -1, -1 ) );
+  VTIG_BeginWindow( aName, aID, aSize, Point( -1, -1 ), aFlags );
 end;
 
-procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 var iClip : TIORect;
     iPos  : TIOPoint;
 begin
   if aID = '' then aID := aName;
   aSize.X := Min( aSize.X, GCtx.Size.X );
-  VTIG_Begin( aID, aSize, aPos );
+  VTIG_Begin( aID, aSize, aPos, aFlags );
   iClip := GCtx.Current.DC.FClip.Expanded( 1 );
   GCtx.Color   := GCtx.Style^.Color[ VTIG_TITLE_COLOR ];
   GCtx.BGColor := GCtx.Current.FBackground;
@@ -1077,19 +1090,19 @@ begin
   GCtx.Color   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
 end;
 
-procedure VTIG_BeginWindow( aName : Ansistring ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_BeginWindow( aName, '', Point( -1, -1 ), Point( -1, -1 ) );
+  VTIG_BeginWindow( aName, '', Point( -1, -1 ), Point( -1, -1 ), aFlags );
 end;
 
-procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_BeginWindow( aName, '', aSize, Point( -1, -1 ) );
+  VTIG_BeginWindow( aName, '', aSize, Point( -1, -1 ), aFlags );
 end;
 
-procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_BeginWindow( aName, '', aSize, aPos );
+  VTIG_BeginWindow( aName, '', aSize, aPos, aFlags );
 end;
 
 function VTIG_PositionResolve( aPos : TIOPoint ) : TIOPoint;
@@ -1119,17 +1132,17 @@ begin
     else Result := iWindow.DC.FClip.Expanded( 1 );
 end;
 
-procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] );
 begin
-  VTIG_FreeLabel( aText, aPos, [], aColor );
+  VTIG_FreeLabel( aText, aPos, [], aColor, aFlags );
 end;
 
-procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] );
 begin
-  VTIG_FreeLabel( aText, aArea, [], aColor );
+  VTIG_FreeLabel( aText, aArea, [], aColor, aFlags );
 end;
 
-procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] );
 var iClip  : TIORect;
     iStart : TIOPoint;
 begin
@@ -1138,16 +1151,19 @@ begin
   if GCtx.WindowStack.Size = 1
     then GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ]
     else GCtx.BGColor := GCtx.Current.FBackground;
-  iClip  := GCtx.Current.DC.FClip;
+  if VTIG_FREELABEL_UNRESTRICTED in aFlags
+    then iClip := Rectangle( Point( 1, 1 ), GCtx.Size )
+    else iClip := GCtx.Current.DC.FClip;
   iStart := VTIG_PositionResolve( aPos );
+  iClip.Dim.X -= ( iStart.X - iClip.Pos.X );
   iClip.Pos.X := iStart.X;
-  iClip.Dim.X -= ( iStart.X - GCtx.Current.DC.FClip.Pos.X );
   if ( iStart.X > iClip.x2 ) or ( iStart.Y > iClip.y2 ) then Exit;
   VTIG_RenderText( aText, iStart, iClip, aParams );
 end;
 
-procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] );
 var iClip  : TIORect;
+    iBounds: TIORect;
     iStart : TIOPoint;
 begin
   if aColor = 0 then aColor := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
@@ -1157,7 +1173,10 @@ begin
     else GCtx.BGColor := GCtx.Current.FBackground;
   iStart := VTIG_PositionResolve( aArea.Pos );
   iClip  := Rectangle( iStart, aArea.Dim );
-  ClampTo( iClip, GCtx.Current.DC.FClip );
+  if VTIG_FREELABEL_UNRESTRICTED in aFlags
+    then iBounds := Rectangle( Point( 1, 1 ), GCtx.Size )
+    else iBounds := GCtx.Current.DC.FClip;
+  ClampTo( iClip, iBounds );
   if ( iStart.X > iClip.x2 ) or ( iStart.Y > iClip.y2 ) then Exit;
   VTIG_RenderText( aText, iStart, iClip, aParams );
 end;
