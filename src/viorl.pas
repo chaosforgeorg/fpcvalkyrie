@@ -28,9 +28,9 @@ type
 
   // Messages
   // Adds a message for the message buffer
-  procedure Msg( const aMessage : Ansistring); virtual;
+  procedure Msg( const aMessage : Ansistring); virtual; overload;
   // Adds a message for the message buffer (params passed to Format)
-  procedure Msg( const aMessage : Ansistring; const aParams : array of Const );
+  procedure Msg( const aMessage : Ansistring; const aParams : array of Const ); overload;
   // Kills last message from the message buffer.
   procedure MsgKill;
   // Update messages
