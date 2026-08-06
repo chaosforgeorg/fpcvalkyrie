@@ -1867,7 +1867,7 @@ procedure TStatistics.Max(const aEntry: AnsiString; aValue: DWord);
 var iCurrent : DWord;
 begin
   iCurrent := FMap.Get( aEntry, 0 );
-  if aValue > iCurrent then FMap[ aEntry ] := iCurrent;
+  if aValue > iCurrent then FMap[ aEntry ] := aValue;
 end;
 
 procedure TStatistics.SetValue(const aEntry: AnsiString; aValue: DWord);
