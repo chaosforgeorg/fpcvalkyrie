@@ -29,7 +29,7 @@ type TIOEventType      = ( VEVENT_SYSTEM, VEVENT_KEYDOWN, VEVENT_KEYUP, VEVENT_M
      TIOMouseButton    = ( VMB_UNKNOWN, VMB_BUTTON_LEFT, VMB_BUTTON_MIDDLE, VMB_BUTTON_RIGHT, VMB_WHEEL_UP, VMB_WHEEL_DOWN );
      TIOMouseButtonSet = set of TIOMouseButton;
      TIOPadAxis        = ( VPAD_AXIS_INVALID := -1, VPAD_AXIS_LEFT_X := 0, VPAD_AXIS_LEFT_Y, VPAD_AXIS_RIGHT_X, VPAD_AXIS_RIGHT_Y, VPAD_AXIS_TRIGGERLEFT, VPAD_AXIS_TRIGGERRIGHT );
-     TIOPadButton      = ( VPAD_BUTTON_INVALID := -1, VPAD_BUTTON_A := 0, VPAD_BUTTON_B, VPAD_BUTTON_X, VPAD_BUTTON_Y, VPAD_BUTTON_BACK, VPAD_BUTTON_GUIDE, VPAD_BUTTON_START, VPAD_BUTTON_LEFTSTICK, VPAD_BUTTON_RIGHTSTICK, VPAD_BUTTON_LEFTSHOULDER, VPAD_BUTTON_RIGHTSHOULDER, VPAD_BUTTON_DPAD_UP, VPAD_BUTTON_DPAD_DOWN, VPAD_BUTTON_DPAD_LEFT, VPAD_BUTTON_DPAD_RIGHT );
+     TIOPadButton      = ( VPAD_BUTTON_INVALID := -1, VPAD_BUTTON_A := 0, VPAD_BUTTON_B, VPAD_BUTTON_X, VPAD_BUTTON_Y, VPAD_BUTTON_BACK, VPAD_BUTTON_GUIDE, VPAD_BUTTON_START, VPAD_BUTTON_LEFTSTICK, VPAD_BUTTON_RIGHTSTICK, VPAD_BUTTON_LEFTSHOULDER, VPAD_BUTTON_RIGHTSHOULDER, VPAD_BUTTON_DPAD_UP, VPAD_BUTTON_DPAD_DOWN, VPAD_BUTTON_DPAD_LEFT, VPAD_BUTTON_DPAD_RIGHT, VPAD_BUTTON_MISC1, VPAD_BUTTON_RIGHTPADDLE1, VPAD_BUTTON_LEFTPADDLE1, VPAD_BUTTON_RIGHTPADDLE2, VPAD_BUTTON_LEFTPADDLE2, VPAD_BUTTON_TOUCHPAD, VPAD_BUTTON_MISC2, VPAD_BUTTON_MISC3, VPAD_BUTTON_MISC4, VPAD_BUTTON_MISC5, VPAD_BUTTON_MISC6, VPAD_BUTTON_LEFTTRIGGER, VPAD_BUTTON_RIGHTTRIGGER );
      TIOPadDevice      = ( VPAD_ADDED, VPAD_REMOVED, VPAD_REMAPPED );
      TIOKeyEvent       = record Code : Byte; ASCII : Char; ModState : TIOModKeySet; Pressed : Boolean; Repeated : Boolean; end;
      TIOMouseEvent     = record Button : TIOMouseButton; Pos : TPoint; Pressed : Boolean; end;
@@ -55,7 +55,13 @@ const IOPadAxisNames : array[TIOPadAxis] of AnsiString =
   ( 'INVALID', 'LEFT_X', 'LEFT_Y', 'RIGHT_X', 'RIGHT_Y', 'TRIGGERLEFT', 'TRIGGERRIGHT' );
 
 const IOPadButtonNames : array[TIOPadButton] of AnsiString =
-  ( 'INVALID', 'A', 'B', 'X', 'Y', 'BACK', 'GUIDE', 'START', 'LEFTSTICK', 'RIGHTSTICK', 'LEFTSHOULDER', 'RIGHTSHOULDER', 'DPAD_UP', 'DPAD_DOWN', 'DPAD_LEFT', 'DPAD_RIGHT' );
+  ( 'INVALID', 'A', 'B', 'X', 'Y', 'BACK', 'GUIDE', 'START', 'LEFTSTICK', 'RIGHTSTICK', 'LEFTSHOULDER', 'RIGHTSHOULDER', 'DPAD_UP', 'DPAD_DOWN', 'DPAD_LEFT', 'DPAD_RIGHT', 'MISC1', 'RIGHTPADDLE1', 'LEFTPADDLE1', 'RIGHTPADDLE2', 'LEFTPADDLE2', 'TOUCHPAD', 'MISC2', 'MISC3', 'MISC4', 'MISC5', 'MISC6', 'LEFTTRIGGER', 'RIGHTTRIGGER' );
+
+const IOPadButtonDisplayNames : array[TIOPadButton] of AnsiString =
+  ( 'Invalid', 'A', 'B', 'X', 'Y', 'Back', 'Guide', 'Start', 'Left Stick', 'Right Stick', 'Left Bumper', 'Right Bumper', 'D-pad Up', 'D-pad Down', 'D-pad Left', 'D-pad Right', 'Misc 1', 'Right Paddle 1', 'Left Paddle 1', 'Right Paddle 2', 'Left Paddle 2', 'Touchpad', 'Misc 2', 'Misc 3', 'Misc 4', 'Misc 5', 'Misc 6', 'Left Trigger', 'Right Trigger' );
+
+const IOPadButtonShortNames : array[TIOPadButton] of AnsiString =
+  ( 'none', 'A', 'B', 'X', 'Y', 'Back', 'Guide', 'Start', 'LS', 'RS', 'LB', 'RB', 'D^', 'Dv', 'D<', 'D>', 'M1', 'RP1', 'LP1', 'RP2', 'LP2', 'TP', 'M2', 'M3', 'M4', 'M5', 'M6', 'LT', 'RT' );
 
 const IOPadDeviceNames : array[TIOPadDevice] of AnsiString =
   ( 'ADDED', 'REMOVED', 'REMAPPED' );
@@ -100,6 +106,8 @@ function VMBToString( aMB : TIOMouseButton ) : AnsiString;
 function VMBSetToString( aMB : TIOMouseButtonSet ) : AnsiString;
 function VPadAxisToString( aPA : TIOPadAxis ) : AnsiString;
 function VPadButtonToString( aPB : TIOPadButton ) : AnsiString;
+function VPadButtonToStringShort( aPB : TIOPadButton ) : AnsiString;
+function VPadButtonToDisplayString( aPB : TIOPadButton ) : AnsiString;
 function VPadDeviceToString( aPD : TIOPadDevice ) : AnsiString;
 
 function StringToVKey( const aCode : AnsiString ) : Byte;
@@ -315,6 +323,20 @@ begin
   if ( Ord(aPB) >= Ord(Low(IOPadButtonNames)) ) and ( Ord(aPB) <= Ord(High(IOPadButtonNames)) ) then
     Exit( IOPadButtonNames[ aPB ] );
   Exit('ERROR!');
+end;
+
+function VPadButtonToStringShort( aPB : TIOPadButton ) : AnsiString;
+begin
+  if ( Ord(aPB) >= Ord(Low(IOPadButtonShortNames)) ) and ( Ord(aPB) <= Ord(High(IOPadButtonShortNames)) ) then
+    Exit( IOPadButtonShortNames[ aPB ] );
+  Exit( 'Error' );
+end;
+
+function VPadButtonToDisplayString( aPB : TIOPadButton ) : AnsiString;
+begin
+  if ( Ord(aPB) >= Ord(Low(IOPadButtonDisplayNames)) ) and ( Ord(aPB) <= Ord(High(IOPadButtonDisplayNames)) ) then
+    Exit( IOPadButtonDisplayNames[ aPB ] );
+  Exit( 'Error' );
 end;
 
 function VPadDeviceToString( aPD : TIOPadDevice ) : AnsiString;
