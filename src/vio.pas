@@ -2,7 +2,7 @@
 unit vio;
 interface
 uses Classes, SysUtils, vsystem, vgenerics,
-     vioevent, viotypes, vtigconsole, vioconsole;
+     vioevent, viopadstate, viotypes, vtigconsole, vioconsole;
 
 type TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer  ); reintroduce;
@@ -34,6 +34,7 @@ protected
   FConsole        : TIOConsoleRenderer;
   FTIGConsoleView : TTIGConsoleView;
   FLayers         : TIOLayerStack;
+  FPadState       : TIOPadState;
   FLastUpdate     : DWord;
 
   FMouseLast      : TIOPoint;
@@ -41,6 +42,7 @@ protected
 public
   property Driver    : TIODriver  read FIODriver;
   property Console   : TIOConsoleRenderer read FConsole;
+  property PadState  : TIOPadState read FPadState;
 end;
 
 var IO : TIO;
@@ -60,6 +62,7 @@ begin
   FLastUpdate      := FIODriver.GetMs;
   FTIGConsoleView  := nil;
   FLayers          := TIOLayerStack.Create;
+  FPadState        := TIOPadState.Create;
   FMouseLast       := Point(-1,-1);
   FMouse           := Point(-1,-1);
 
@@ -82,6 +85,7 @@ begin
   for iLayer in FLayers do
     iLayer.Free;
   FreeAndNil( FLayers );
+  FreeAndNil( FPadState );
   VTIG_Shutdown;
 
   FreeAndNil( FConsole );
@@ -125,6 +129,7 @@ begin
   for iLayer in FLayers do
     iLayer.Free;
   FLayers.Clear;
+  FPadState.Clear;
   FMouseLast := Point(-1,-1);
   FMouse     := Point(-1,-1);
 end;
@@ -165,6 +170,8 @@ var i, iInput : Integer;
     iEvent    : TIOEvent;
     iWide     : WideString;
 begin
+  FPadState.HandleEvent( aEvent );
+
   if ( aEvent.EType in [ VEVENT_MOUSEMOVE ] ) then
     FMouse := DeviceCoordToConsoleCoord( aEvent.MouseMove.Pos );
 
@@ -268,7 +275,8 @@ end;
 procedure TIO.ClearEventBuffer;
 var iEvent : TIOEvent;
 begin
-  while FIODriver.PollEvent( iEvent ) do;
+  while FIODriver.PollEvent( iEvent ) do
+    FPadState.HandleEvent( iEvent );
 end;
 
 procedure TIO.Delay( aTime : Integer );

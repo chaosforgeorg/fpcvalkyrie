@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vsdlio;
 interface
-uses Classes, SysUtils, vutil, viotypes, vsdl3library, vioevent;
+uses Classes, SysUtils, vutil, viotypes, vsdl3library, vioevent, viopadstate;
 
 type TSDLIOFlag  = ( SDLIO_OpenGL, SDLIO_FullScreen, SDLIO_Resizable, SDLIO_Gamepad );
      TSDLIOFlags = set of TSDLIOFlag;
@@ -52,7 +52,12 @@ private
   FGamePadSupport : Boolean;
   FGamePadIndex   : Integer;
   FGamePadHandle  : Pointer;
+  FPadTriggerState    : TIOPadTriggerState;
+  FPendingPadEvent    : TIOEvent;
+  FHasPendingPadEvent : Boolean;
 private
+  procedure ClearPadEventState;
+  procedure ResetPadEventState( aWhich : Int32 );
   procedure ScanDisplayModes;
   function ScanGamepads( aAllowLoop : Boolean = True ) : Boolean;
   procedure SetGamePadSupport( aValue : Boolean  );
@@ -391,7 +396,7 @@ begin
   SDL_EVENT_GAMEPAD_REMOVED,
   SDL_EVENT_GAMEPAD_REMAPPED,
   SDL_EVENT_GAMEPAD_UPDATE_COMPLETE,
-  SDL_EVENT_GAMEPAD_STEAM_HANDLE_UPDATED : if SDLIO.GamePadSupport then Exit(True);
+  SDL_EVENT_GAMEPAD_STEAM_HANDLE_UPDATED : Exit( SDLIO.GamePadSupport );
   SDL_EVENT_GAMEPAD_SENSOR_UPDATE : Exit( False );
   end;
   Exit(True);
@@ -460,6 +465,7 @@ begin
   ClearInterrupts;
   SDLIO := Self;
   inherited Create;
+  ClearPadEventState;
   FWindow    := nil;
   FGLContext := nil;
   FGamePadSupport := SDLIO_Gamepad in aFlags;
@@ -546,6 +552,7 @@ begin
       and ( FSizeX = aWidth )
       and ( FSizeY = aHeight )
           then Exit( True );
+    ResetPadEventState( Int32( FGamePadID ) );
     if iFScreen then
     begin
       if not SDL_GetClosestFullscreenDisplayMode( iCurrent, aWidth, aHeight, 60.0, True, @iClosest) then
@@ -651,14 +658,34 @@ end;
 function TSDLIODriver.PollEvent ( out aEvent : TIOEvent ) : Boolean;
 var event : SDL_Event;
 begin
+  if FHasPendingPadEvent then
+  begin
+    aEvent := FPendingPadEvent;
+    FHasPendingPadEvent := False;
+    Exit( True );
+  end;
+
   Result := SDL_PollEvent( @event );
   if Result then
+  begin
     aEvent := SDLEventToIOEvent( @event );
+    if aEvent.EType = VEVENT_PADAXIS then
+      FHasPendingPadEvent := FPadTriggerState.Update( aEvent.PadAxis, FPendingPadEvent )
+    else
+      if aEvent.EType = VEVENT_PADDEVICE then
+        ClearPadEventState;
+  end;
 end;
 
 function TSDLIODriver.PeekEvent ( out aEvent : TIOEvent ) : Boolean;
 var event : SDL_Event;
 begin
+  if FHasPendingPadEvent then
+  begin
+    aEvent := FPendingPadEvent;
+    Exit( True );
+  end;
+
   Result := SDL_PollEvent( nil );
   if not Result then Exit;
   Result := (SDL_PeepEvents( @event, 1, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST ) > 0 );
@@ -668,7 +695,22 @@ end;
 
 function TSDLIODriver.EventPending : Boolean;
 begin
-  Result := SDL_PollEvent( nil );
+  Result := FHasPendingPadEvent or SDL_PollEvent( nil );
+end;
+
+procedure TSDLIODriver.ClearPadEventState;
+begin
+  FPadTriggerState.Clear;
+  FHasPendingPadEvent := False;
+end;
+
+procedure TSDLIODriver.ResetPadEventState( aWhich : Int32 );
+begin
+  ClearPadEventState;
+  FPendingPadEvent.EType           := VEVENT_PADDEVICE;
+  FPendingPadEvent.PadDevice.Event := VPAD_REMAPPED;
+  FPendingPadEvent.PadDevice.Which := aWhich;
+  FHasPendingPadEvent := True;
 end;
 
 procedure TSDLIODriver.SetEventMask ( aMask : TIOEventType ) ;
@@ -701,6 +743,7 @@ end;
 
 destructor TSDLIODriver.Destroy;
 begin
+  ClearPadEventState;
   if FOpenGL then SDL_GL_DestroyContext( FGLContext );
   SDL_DestroyWindow( FWindow );
   FreeAndNil( FDisplayModes );
@@ -904,6 +947,7 @@ begin
 
   if iNewID <> FGamePadID then
   begin
+    ClearPadEventState;
     if FGamePadHandle <> nil then
       SDL_CloseGamepad(FGamePadHandle);
 
@@ -948,8 +992,19 @@ procedure TSDLIODriver.SetGamePadSupport( aValue : Boolean );
 begin
   if aValue <> FGamePadSupport then
   begin
-    if aValue then ScanGamepads;
+    ClearPadEventState;
     FGamePadSupport := aValue;
+    if aValue then
+      ScanGamepads
+    else
+    begin
+      SDL_PumpEvents;
+      SDL_FlushEvents(
+        SDL_EVENT_GAMEPAD_AXIS_MOTION,
+        SDL_EVENT_GAMEPAD_STEAM_HANDLE_UPDATED
+      );
+    end;
+    ResetPadEventState( Int32( FGamePadID ) );
   end;
 end;
 
@@ -983,4 +1038,3 @@ begin
 end;
 
 end.
-
