@@ -173,23 +173,102 @@ begin
   end;
 end;
 
-procedure VTIG_RenderTextSegment( const aText: PAnsiChar; var aCurrentX, aCurrentY : Integer; aClip: TIORect; var aStyleStack: TTIGStyleStack; aParameters: array of const );
+const VTIG_MAX_SUBWIDTH = 99; // clamp for the {$name|N} / {N|N} width controller
+
+var GPadBuffer : array[0..VTIG_MAX_SUBWIDTH-1] of AnsiChar; // static space buffer, filled once - avoids per-call padding allocations
+
+function VTIG_PLength( const aText: PAnsiChar; aParameters: array of const ) : Integer; forward;
+
+// Parses a width spec such as '10', '-10' (cut-only) or '+10' (pad-only) directly from a pointer range, no allocations.
+function VTIG_ParseWidthSpec( aSpec : PAnsiChar; aSpecLen : Integer; out aWidth : Integer; out aAllowPad, aAllowCut : Boolean ) : Boolean;
+var i : Integer;
+begin
+  aAllowPad := True;
+  aAllowCut := True;
+  aWidth    := 0;
+  Result    := False;
+  if aSpecLen <= 0 then Exit;
+  i := 0;
+  if aSpec[0] = '-' then begin aAllowPad := False; Inc(i); end
+  else if aSpec[0] = '+' then begin aAllowCut := False; Inc(i); end;
+  if i >= aSpecLen then Exit;
+  while i < aSpecLen do
+  begin
+    if not ( aSpec[i] in ['0'..'9'] ) then Exit; // malformed spec, caller degrades to "no width"
+    aWidth := aWidth * 10 + ( Ord(aSpec[i]) - Ord('0') );
+    Inc(i);
+  end;
+  if aWidth > VTIG_MAX_SUBWIDTH then aWidth := VTIG_MAX_SUBWIDTH;
+  Result := aWidth > 0;
+end;
+
+// Final visible length after applying cut then pad - shared by the render and measure paths so they always agree.
+function VTIG_ApplyWidth( aLen, aWidth : Integer; aAllowPad, aAllowCut : Boolean ) : Integer;
+begin
+  Result := aLen;
+  if aAllowCut and ( Result > aWidth ) then Result := aWidth;
+  if aAllowPad and ( Result < aWidth ) then Result := aWidth;
+end;
+
+// Single-pass scan of a self-contained {N...} / {$name...} tag body up to its closing '}', splitting
+// off an optional trailing '|widthspec'. Shared by the digit and '$' branches of both the render and
+// measure walkers, so the "{}"-adjustment-value extraction only exists once.
+// aBodyLen = offset of the closing '}' relative to aBody. aNameLen = offset of '|' (or aBodyLen if none).
+// Returns False if no closing '}' is found before the string ends (malformed tag).
+function VTIG_ScanWidthTag( aBody : PAnsiChar; out aBodyLen, aNameLen, aWidth : Integer; out aAllowPad, aAllowCut : Boolean ) : Boolean;
+var iBarPos : Integer;
+begin
+  aBodyLen := 0;
+  iBarPos  := -1;
+  while (aBody[aBodyLen] <> '}') and (aBody[aBodyLen] <> #0) do
+  begin
+    if (iBarPos < 0) and (aBody[aBodyLen] = '|') then iBarPos := aBodyLen;
+    Inc(aBodyLen);
+  end;
+  Result := aBody[aBodyLen] = '}';
+  if not Result then Exit;
+  if iBarPos >= 0 then
+  begin
+    aNameLen := iBarPos;
+    VTIG_ParseWidthSpec( aBody + iBarPos + 1, aBodyLen - iBarPos - 1, aWidth, aAllowPad, aAllowCut );
+  end
+  else
+  begin
+    aNameLen  := aBodyLen;
+    aWidth    := 0;
+    aAllowPad := True;
+    aAllowCut := True;
+  end;
+end;
+
+procedure VTIG_RenderTextSegment( const aText: PAnsiChar; var aCurrentX, aCurrentY : Integer; aClip: TIORect; var aStyleStack: TTIGStyleStack; aParameters: array of const; aMaxVisible : Integer = -1 );
 var iWindow        : TTIGWindow;
     i, iParamIndex : Integer;
     iPos, iWidth   : Integer;
     iLastSpace     : Integer;
     iSpaceLeft     : Integer;
-    iPNamePtr      : PAnsiChar;
     iNamePos       : Integer;
     iValue         : AnsiString;
     iLineContent   : Boolean;
     iSpecial       : set of Char;
+    iSubWidth      : Integer;
+    iNameLen       : Integer;
+    iAllowPad      : Boolean;
+    iAllowCut      : Boolean;
 
   procedure Render( const aPart : PAnsiChar; aLength : Integer );
-  var iCmd    : TTIGDrawCommand;
-      iLength : Integer;
+  var iCmd     : TTIGDrawCommand;
+      iLength  : Integer;
+      iAdvance : Integer;
   begin
-    iLength := aLength;
+    iLength  := aLength;
+    iAdvance := aLength;
+    if aMaxVisible >= 0 then // local, non-global cut budget for this tag only - advances the cursor by what's actually kept
+    begin
+      if iLength > aMaxVisible then iLength := aMaxVisible;
+      iAdvance := iLength;
+      Dec( aMaxVisible, iLength );
+    end;
     if GCtx.MaxCharacters >= 0 then
     begin
       GCtx.MaxCharacters -= iLength;
@@ -211,10 +290,28 @@ var iWindow        : TTIGWindow;
       iCmd.Text  := iWindow.DrawList.PushText( aPart, iLength );
       iWindow.DrawList.Push( iCmd );
     end;
-    aCurrentX += aLength;
+    aCurrentX += iAdvance;
   end;
 
-  procedure HandleParameter(aParameterIndex: Integer);
+  procedure RenderPadding( aCount : Integer );
+  begin
+    if aCount <= 0 then Exit;
+    if aCount > VTIG_MAX_SUBWIDTH then aCount := VTIG_MAX_SUBWIDTH;
+    Render( @GPadBuffer[0], aCount );
+  end;
+
+  // Applies cut/pad to an already-measured value and renders it - the one place that combines VTIG_ApplyWidth with rendering.
+  procedure RenderSized( aValue : PAnsiChar; aLen, aWidth : Integer; aAllowPad, aAllowCut : Boolean );
+  var iFinalLen : Integer;
+  begin
+    iFinalLen := VTIG_ApplyWidth( aLen, aWidth, aAllowPad, aAllowCut );
+    if iFinalLen < aLen
+      then VTIG_RenderTextSegment( aValue, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters, iFinalLen )
+      else VTIG_RenderTextSegment( aValue, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+    if iFinalLen > aLen then RenderPadding( iFinalLen - aLen );
+  end;
+
+  procedure HandleParameter(aParameterIndex: Integer; aWidth : Integer = 0; aAllowPad : Boolean = True; aAllowCut : Boolean = True);
   var
     iParamStr    : PAnsiChar;
     iBuffer      : shortstring;
@@ -224,17 +321,22 @@ var iWindow        : TTIGWindow;
       case aParameters[aParameterIndex].VType of
         vtChar: begin
             Render( @(aParameters[aParameterIndex].VChar), 1 );
+            if aAllowPad and ( aWidth > 1 ) then RenderPadding( aWidth - 1 );
           end;
         vtAnsiString:
           begin
             iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
-            VTIG_RenderTextSegment( iParamStr, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+            if aWidth <= 0
+              then VTIG_RenderTextSegment( iParamStr, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters )
+              else RenderSized( iParamStr, VTIG_PLength( iParamStr, aParameters ), aWidth, aAllowPad, aAllowCut );
           end;
         vtInteger:
         begin
           Str( aParameters[aParameterIndex].VInteger, iBuffer );
           iBuffer[Length(iBuffer)+1] := #0;
-          VTIG_RenderTextSegment( @iBuffer[1], aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+          if aWidth <= 0
+            then VTIG_RenderTextSegment( @iBuffer[1], aCurrentX, aCurrentY, aClip, aStyleStack, aParameters )
+            else RenderSized( @iBuffer[1], Length(iBuffer), aWidth, aAllowPad, aAllowCut );
         end;
 
         // Add handling for other parameter types if needed
@@ -282,24 +384,24 @@ begin
             '0'..'9':
               begin
                 iParamIndex := Ord(aText[i]) - Ord('0');
-                HandleParameter( iParamIndex );
+                Inc(i); // now right after the digit - '}' (no spec) or '|widthspec}'
+                if VTIG_ScanWidthTag( @aText[i], iNamePos, iNameLen, iSubWidth, iAllowPad, iAllowCut )
+                  then HandleParameter( iParamIndex, iSubWidth, iAllowPad, iAllowCut )
+                  else begin HandleParameter( iParamIndex ); iNamePos := 0; end; // malformed, degrade gracefully
+                i += iNamePos; // now at the tag's closing '}'
                 iLineContent := True;
-                Inc(i);
               end;
 
             '$' :
               begin
-                iPNamePtr := @aText[i+1];
-                iNamePos  := 0;
-                while (iPNamePtr[iNamePos] <> '}') and (iPNamePtr[iNamePos] <> #0) do
-                  Inc(iNamePos);
-
-                if iPNamePtr[iNamePos] = '}' then
+                if VTIG_ScanWidthTag( @aText[i+1], iNamePos, iNameLen, iSubWidth, iAllowPad, iAllowCut ) then
                 begin
                   if Assigned( GCtx.SubCallback ) then
                   begin
-                    iValue := GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) );
-                    VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+                    iValue := GCtx.SubCallback( Copy( PAnsiChar(@aText[i+1]), 0, iNameLen ) );
+                    if iSubWidth > 0
+                      then RenderSized( PAnsiChar(iValue), VTIG_PLength( PAnsiChar(iValue), aParameters ), iSubWidth, iAllowPad, iAllowCut )
+                      else VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
                     iLineContent := True;
                   end;
                   Inc(i, iNamePos + 1);
@@ -398,8 +500,12 @@ end;
 
 function VTIG_PLength( const aText: PAnsiChar; aParameters: array of const ) : Integer;
 var i, iParamIndex : Integer;
-    iPNamePtr      : PAnsiChar;
     iNamePos       : Integer;
+    iNameLen       : Integer;
+    iSubWidth      : Integer;
+    iSubLen        : Integer;
+    iAllowPad      : Boolean;
+    iAllowCut      : Boolean;
 
   function ParameterLength(aParameterIndex: Integer) : Integer;
   var
@@ -431,19 +537,23 @@ begin
         if aText[i] in ['0'..'9'] then
         begin
           iParamIndex := Ord(aText[i]) - Ord('0');
-          Result += ParameterLength( iParamIndex );
+          Inc(i); // now right after the digit - '}' (no spec) or '|widthspec}'
+          if VTIG_ScanWidthTag( @aText[i], iNamePos, iNameLen, iSubWidth, iAllowPad, iAllowCut )
+            then Result += VTIG_ApplyWidth( ParameterLength( iParamIndex ), iSubWidth, iAllowPad, iAllowCut )
+            else begin Result += ParameterLength( iParamIndex ); iNamePos := 0; end; // malformed, degrade gracefully
+          i += iNamePos; // now at the tag's closing '}'
         end;
         if aText[i] = '$' then
         begin
-          iPNamePtr := @aText[i+1];
-          iNamePos  := 0;
-          while (iPNamePtr[iNamePos] <> '}') and (iPNamePtr[iNamePos] <> #0) do
-            Inc(iNamePos);
-
-          if iPNamePtr[iNamePos] = '}' then
+          if VTIG_ScanWidthTag( @aText[i+1], iNamePos, iNameLen, iSubWidth, iAllowPad, iAllowCut ) then
           begin
             if Assigned( GCtx.SubCallback ) then
-              Result += VTIG_PLength( PAnsiChar( GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) ) ), aParameters );
+            begin
+              iSubLen := VTIG_PLength( PAnsiChar( GCtx.SubCallback( Copy( PAnsiChar(@aText[i+1]), 0, iNameLen ) ) ), aParameters );
+              if iSubWidth > 0
+                then Result += VTIG_ApplyWidth( iSubLen, iSubWidth, iAllowPad, iAllowCut )
+                else Result += iSubLen;
+            end;
             Inc(i, iNamePos + 1);
           end
           else
@@ -1565,6 +1675,7 @@ end;
 
 initialization
 
+FillChar( GPadBuffer, SizeOf(GPadBuffer), ' ' );
 GDefaultContext := TTIGContext.Create;
 GCtx            := GDefaultContext;
 
