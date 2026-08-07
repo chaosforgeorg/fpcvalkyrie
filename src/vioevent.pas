@@ -61,7 +61,7 @@ const IOPadButtonDisplayNames : array[TIOPadButton] of AnsiString =
   ( 'Invalid', 'A', 'B', 'X', 'Y', 'Back', 'Guide', 'Start', 'Left Stick', 'Right Stick', 'Left Bumper', 'Right Bumper', 'D-pad Up', 'D-pad Down', 'D-pad Left', 'D-pad Right', 'Misc 1', 'Right Paddle 1', 'Left Paddle 1', 'Right Paddle 2', 'Left Paddle 2', 'Touchpad', 'Misc 2', 'Misc 3', 'Misc 4', 'Misc 5', 'Misc 6', 'Left Trigger', 'Right Trigger' );
 
 const IOPadButtonShortNames : array[TIOPadButton] of AnsiString =
-  ( 'none', 'A', 'B', 'X', 'Y', 'Back', 'Guide', 'Start', 'LS', 'RS', 'LB', 'RB', 'D^', 'Dv', 'D<', 'D>', 'M1', 'RP1', 'LP1', 'RP2', 'LP2', 'TP', 'M2', 'M3', 'M4', 'M5', 'M6', 'LT', 'RT' );
+  ( 'none', 'A', 'B', 'X', 'Y', 'Back', 'Guide', 'Start', 'LStk', 'RStk', 'LB', 'RB', 'D^', 'Dv', 'D<', 'D>', 'M1', 'RP1', 'LP1', 'RP2', 'LP2', 'TP', 'M2', 'M3', 'M4', 'M5', 'M6', 'LT', 'RT' );
 
 const IOPadDeviceNames : array[TIOPadDevice] of AnsiString =
   ( 'ADDED', 'REMOVED', 'REMAPPED' );
