@@ -1881,8 +1881,8 @@ end;
 
 procedure TLuaSystem.SetErrorFunc ( aErrorFunc : TLuaSystemErrorFunc ) ;
 begin
-  FErrorFunc := aErrorFunc;
-  FLua.FErrorFunc :=  aErrorFunc;
+  FErrorFunc     := aErrorFunc;
+  FLua.ErrorFunc := aErrorFunc;
 end;
 
 procedure TLuaSystem.TableToStream ( const aPath : AnsiString; aStream : TStream ) ;

@@ -5,7 +5,8 @@ interface
 uses Classes, SysUtils, vlibrary;
 
 type
-  ELuaException         = class(Exception);
+  ELuaException = class(Exception);
+  TLuaErrorFunc = procedure ( const aErrorString : Ansistring ) of object;
 
 const
 {$IFDEF LUA_DYNAMIC}
