@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vlua;
 interface
-uses Variants, vlualibrary, vnode,vutil,classes,vdf;
+uses Variants, vlualibrary, vnode,vutil,classes,vdf, vrandom;
 
 
 type
@@ -11,6 +11,9 @@ type
 type
   Plua_State    = vlualibrary.Plua_State;
   TLuaErrorFunc = procedure ( const ErrorString : Ansistring ) of object;
+
+var
+  LuaRNG : TRNG = nil;
 
 { TLua }
 
@@ -41,21 +44,21 @@ implementation
 uses SysUtils, vluaext;
 
 function lua_math_random(L: Plua_State): Integer; cdecl;
-var Args : Byte;
-    Arg1 : LongInt;
-    Arg2 : LongInt;
+var iArgs : Byte;
+    iArg1 : LongInt;
+    iArg2 : LongInt;
 begin
-  Args := lua_gettop(L);
-  case Args of
-    0 : lua_pushnumber( L, Random );
-    1 : lua_pushnumber( L, Random( Round(lua_tonumber(L, 1)) ) + 1 );
+  iArgs := lua_gettop(L);
+  case iArgs of
+    0 : lua_pushnumber( L, LuaRNG.RDouble );
+    1 : lua_pushnumber( L, LuaRNG.RLongInt( Round(lua_tonumber(L, 1)) ) + 1 );
     2 : begin
-          Arg1 := Round(lua_tonumber(L, 1));
-          Arg2 := Round(lua_tonumber(L, 2));
-          if Arg2 >= Arg1 then
-            lua_pushnumber( L, Random( Arg2-Arg1+1 ) + Arg1 )
+          iArg1 := Round(lua_tonumber(L, 1));
+          iArg2 := Round(lua_tonumber(L, 2));
+          if iArg2 >= iArg1 then
+            lua_pushnumber( L, LuaRNG.RLongInt( iArg1, iArg2 ) )
           else
-            lua_pushnumber( L, Random( Arg1-Arg2+1 ) + Arg2 )
+            lua_pushnumber( L, LuaRNG.RLongInt( iArg2, iArg1 ) )
         end;
     else Exit(0);
   end;
@@ -63,12 +66,12 @@ begin
 end;
 
 function lua_math_randomseed(L: Plua_State): Integer; cdecl;
-var Args : Byte;
+var iArgs : Byte;
 begin
-  Args := lua_gettop(L);
-  case Args of
-    0 : Randomize();
-    1 : RandSeed := lua_tointeger(L, 1);
+  iArgs := lua_gettop(L);
+  case iArgs of
+    0 : LuaRNG.Randomize;
+    1 : LuaRNG.SetSeed( DWord( lua_tointeger(L, 1) ) );
   end;
   Exit(0);
 end;
@@ -92,6 +95,7 @@ begin
   end;
 
   FErrorFunc  := nil;
+  if LuaRNG = nil then LuaRNG := VRNG;
   lua_getglobal( LuaState, 'math' );
   lua_pushstring( LuaState, 'random' );
   lua_pushcfunction(LuaState, @lua_math_random );
@@ -194,6 +198,9 @@ begin
   end;
   inherited Destroy;
 end;
+
+initialization
+  LuaRNG := nil;
 
 end.
 
