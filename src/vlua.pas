@@ -1,8 +1,8 @@
 {$INCLUDE valkyrie.inc}
 unit vlua;
 interface
-uses Variants, vlualibrary, vnode,vutil,classes,vdf, vrandom;
-
+uses variants, classes,
+     vlualibrary, vnode, vutil, vdf, vrandom;
 
 type ELuaException = vlualibrary.ELuaException;
      Plua_State    = vlualibrary.Plua_State;
@@ -20,9 +20,9 @@ type TLua = class(TVObject)
   procedure LoadStream( aDF : TVDataFile; const aStreamName : AnsiString ); overload;
   procedure LoadStream( aDF : TVDataFile; const aDirName, aFileName : AnsiString ); overload;
 
-  procedure Register(const aName : AnsiString; aProc : lua_CFunction);
-  procedure Register(const aKey, aValue : Variant);
-  procedure Error(const aErrorString : Ansistring); virtual;
+  procedure Register( const aName : AnsiString; aProc : lua_CFunction );
+  procedure Register( const aKey, aValue : Variant );
+  procedure Error( const aErrorString : Ansistring ); virtual;
   destructor Destroy; override;
 
 private
@@ -127,20 +127,20 @@ begin
 end;
 
 procedure TLua.StreamLoader( aIST : TStream; aStreamName : AnsiString; aSize : DWord);
-var Buf  : PByte;
+var iBuf  : PByte;
 begin
   Log('Loading LUA stream -- "'+aStreamName+'" ('+IntToStr(aSize)+'b)');
-  GetMem(Buf,aSize);
+  GetMem(iBuf,aSize);
   Log('Reading "'+aStreamName+'" ('+IntToStr(aIST.Position)+'-'+IntToStr(aIST.Position+aSize)+')');
-  aIST.ReadBuffer(Buf^,aSize);
-  if ( luaL_loadbuffer(FLuaState,PChar(Buf),aSize,PChar(aStreamName)) <> 0 )
+  aIST.ReadBuffer(iBuf^,aSize);
+  if ( luaL_loadbuffer(FLuaState,PChar(iBuf),aSize,PChar(aStreamName)) <> 0 )
   or ( lua_pcall(FLuaState, 0, 0, 0) <> 0 ) then
   begin
     Error(aStreamName+': '+lua_tostring(FLuaState,-1));
     lua_pop(FLuaState,1);
   end;
 
-  FreeMem(Buf);
+  FreeMem(iBuf);
   Log('Loaded "'+aStreamName+'" ('+IntToStr(aSize)+'b)');
 end;
 
@@ -169,14 +169,14 @@ begin
   lua_register(FLuaState, aName, aProc);
 end;
 
-procedure TLua.Register(const aKey, aValue: Variant);
+procedure TLua.Register( const aKey, aValue: Variant );
 begin
   vlua_pushvariant( FLuaState, aKey );
   vlua_pushvariant( FLuaState, aValue );
   lua_rawset_global( FLuaState );
 end;
 
-procedure TLua.Error(const aErrorString: Ansistring);
+procedure TLua.Error( const aErrorString: Ansistring );
 begin
   if Assigned( FErrorFunc ) then
     FErrorFunc( aErrorString )
