@@ -60,7 +60,7 @@ function LuaStackRef( aL : Plua_State; aIndex : Integer ) : TLuaType;
 
 implementation
 
-uses vluastate, vluaext, vuid;
+uses vluastate, vluaext, vuid, vlua;
 
 function vlua_toflags( L : Plua_State; Index : Integer ): TFlags;
 begin
@@ -501,7 +501,7 @@ end;
 function lua_coord_random( L: Plua_State): Integer; cdecl;
 var Coord : TCoord2D;
 begin
-  Coord.Random( vlua_tocoord( L, 1 ), vlua_tocoord( L, 2 ) );
+  Coord.Random( LuaRNG, vlua_tocoord( L, 1 ), vlua_tocoord( L, 2 ) );
   vlua_pushcoord( L, Coord );
   Exit(1);
 end;
@@ -510,7 +510,7 @@ function lua_coord_random_shift( L: Plua_State ): Integer; cdecl;
 var PCoord : PCoord2D;
 begin
   PCoord := vlua_topcoord( L, 1 );
-  PCoord^.RandomShift( lua_tointeger_def( L, 2, 1 ) );
+  PCoord^.RandomShift( LuaRNG, lua_tointeger_def( L, 2, 1 ) );
   Exit(0);
 end;
 
@@ -518,7 +518,7 @@ function lua_coord_random_shifted( L: Plua_State ): Integer; cdecl;
 var Coord : TCoord2D;
 begin
   Coord := vlua_tocoord( L, 1 );
-  Coord.RandomShift( lua_tointeger_def( L, 2, 1 ) );
+  Coord.RandomShift( LuaRNG, lua_tointeger_def( L, 2, 1 ) );
   vlua_pushcoord( L, Coord );
   Exit(1);
 end;
@@ -778,7 +778,7 @@ function lua_area_random_coord( L: Plua_State): Integer; cdecl;
 var Area : PArea;
 begin
   Area := vlua_toparea( L, 1 );
-  vlua_pushcoord( L, Area^.RandomCoord() );
+  vlua_pushcoord( L, Area^.RandomCoord( LuaRNG ) );
   Exit(1);
 end;
 
@@ -786,7 +786,7 @@ function lua_area_random_edge_coord( L: Plua_State): Integer; cdecl;
 var Area : PArea;
 begin
   Area := vlua_toparea( L, 1 );
-  vlua_pushcoord( L, Area^.RandomEdgeCoord() );
+  vlua_pushcoord( L, Area^.RandomEdgeCoord( LuaRNG ) );
   Exit(1);
 end;
 
@@ -794,7 +794,7 @@ function lua_area_random_inner_edge_coord( L: Plua_State): Integer; cdecl;
 var Area : PArea;
 begin
   Area := vlua_toparea( L, 1 );
-  vlua_pushcoord( L, Area^.RandomInnerEdgeCoord() );
+  vlua_pushcoord( L, Area^.RandomInnerEdgeCoord( LuaRNG ) );
   Exit(1);
 end;
 
@@ -929,7 +929,7 @@ var Area : PArea;
 begin
   Area := vlua_toparea( L, 1 );
   Dim  := vlua_topcoord( L, 2 );
-  vlua_pusharea( L, Area^.RandomSubArea( Dim^ ) );
+  vlua_pusharea( L, Area^.RandomSubArea( LuaRNG, Dim^ ) );
   Exit(1);
 end;
 
@@ -1338,7 +1338,7 @@ begin
   luaL_checktype( L, 1, LUA_TTABLE );
   i := lua_objlen( L, 1 );
   if i = 0 then Exit( 0 );
-  lua_rawgeti( L, 1, Random( i ) + 1 );
+  lua_rawgeti( L, 1, LuaRNG.RLongInt( i ) + 1 );
   Exit( 1 );
 end;
 
@@ -1370,7 +1370,7 @@ begin
 
 	while n >= 2 do
   begin
-		k := Random(n)+1;
+		k := LuaRNG.RLongInt( n ) + 1;
     if k <> n then
     begin
       lua_rawgeti( L, 1, n );
@@ -1405,15 +1405,14 @@ begin
 end;
 
 function lua_math_dice( L: Plua_State ): Integer; cdecl;
-var dice, sides, count, res : LongInt;
+var dice, sides : LongInt;
 begin
   dice  := luaL_checkint(L, 1);
   sides := luaL_checkint(L, 2);
-  res   := 0;
   if (dice > 0) and (sides > 0) then
-  for count := 1 to dice do
-    res += Random( sides ) + 1;
-  lua_pushnumber( L, res );
+    lua_pushnumber( L, LuaRNG.Dice( DWord( dice ), DWord( sides ) ) )
+  else
+    lua_pushnumber( L, 0 );
   Result := 1;
 end;
 
@@ -1517,7 +1516,7 @@ begin
   iSize := lua_objlen( L, -1 );
   if iSize = 0 then Exit( 0 );
   lua_getfield( L, 1, '_weight' );
-  iRoll := Random( lua_tointeger( L, -1 ) );
+  iRoll := LuaRNG.RLongInt( lua_tointeger( L, -1 ) );
 
   lua_settop( L, 1 );
 

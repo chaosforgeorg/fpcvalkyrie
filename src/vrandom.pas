@@ -54,6 +54,8 @@ public
   procedure WriteToStream( aStream : TStream ); override;
   procedure SetSeed( aSeed : DWord );
   procedure Randomize;
+  // Rolls aNumber dice with aSides sides
+  function Dice( aNumber, aSides : DWord ) : DWord;
   // Returns every value in 0..2^32-1
   function RDWord : DWord; overload; inline;
   // Returns a value in [0,aRange), or 0 when aRange=0
@@ -179,6 +181,16 @@ begin
   SetSeed( DWord( iEntropy xor ( iEntropy shr 32 ) ) );
 end;
 {$POP}
+
+function TRNG.Dice( aNumber, aSides : DWord ) : DWord;
+var iCount : DWord;
+begin
+  Result := 0;
+  if ( aNumber = 0 ) or ( aSides = 0 ) then Exit;
+  if aSides = 1 then Exit( aNumber );
+  for iCount := 1 to aNumber do
+    Result := Result + RDWord( aSides ) + 1;
+end;
 
 procedure TRNG.Twist;
 var iIndex : Integer;

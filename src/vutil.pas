@@ -84,7 +84,7 @@ function ReadVersion( const aFileName : string ) : string; deprecated;
 // @param( aNumber number of dice to be rolled )
 // @param( aSides number of sides on the dice )
 // @returns( Result of the dice roll )
-function Dice( aNumber : DWord; aSides : DWord ) : DWord;
+function Dice( aNumber : DWord; aSides : DWord ) : DWord; deprecated;
 
 // Converts string to a boolean.
 //

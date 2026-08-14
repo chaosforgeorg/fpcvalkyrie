@@ -26,7 +26,8 @@
 
 unit vrltools;
 interface
-uses SysUtils, Classes, vmath, vutil, vnode, vvector, vcolor, vgenerics;
+uses SysUtils, Classes, vmath, vutil, vnode, vvector, vcolor, vgenerics,
+  vrandom;
 
 const DIR_NONE      = 0;
       DIR_DOWNLEFT  = 1;
@@ -116,9 +117,12 @@ TCoord2D = object
   function ifInc( Horizontal : Boolean; value : integer ) : TCoord2D; overload;
   procedure Inc( Horizontal : Boolean; value : integer = 1); overload;
   procedure Inc( incX,incY : integer ); overload;
-  function RandomShifted( Value : Byte = 1 ) : TCoord2D;
-  procedure RandomShift( Value : Byte = 1 );
-  procedure Random( Min, Max : TCoord2D );
+  function RandomShifted( Value : Byte = 1 ) : TCoord2D; overload; deprecated;
+  function RandomShifted( aRNG : TRNG; aValue : Byte = 1 ) : TCoord2D; overload;
+  procedure RandomShift( Value : Byte = 1 ); overload; deprecated;
+  procedure RandomShift( aRNG : TRNG; aValue : Byte = 1 ); overload;
+  procedure Random( Min, Max : TCoord2D ); overload; deprecated;
+  procedure Random( aRNG : TRNG; aMin, aMax : TCoord2D ); overload;
   function ToVec2i : TVec2i;
   function ToVec2f : TVec2f;
   function ToVec3i( aZ : Integer = 0 ) : TVec3i;
@@ -197,18 +201,26 @@ TArea = object
   function EnclosedArea : Word;
   function Width : Word;
   function Height : Word;
-  function RandomCoord : TCoord2D;
+  function RandomCoord : TCoord2D; overload; deprecated;
+  function RandomCoord( aRNG : TRNG ) : TCoord2D; overload;
   function Center : TCoord2D;
   function NextCoord( var Coord : TCoord2D; Horiz : Boolean = True ) : Boolean;
 
   function isEdge( Coord : TCoord2D ) : boolean;
-  function RandomEdgeCoord : TCoord2D;
-  function RandomInnerEdgeCoord : TCoord2D;
-  function RandomInnerCoord : TCoord2D;
-  function RandomSubArea( aMin, aMax : TCoord2D ) : TArea;
-  function RandomSubArea( aDim : TCoord2D ) : TArea;
-  function RandomSubArea( aWidth, aHeight : TByteRange ) : TArea;
-  function RandomSubArea( aWidth, aHeight : Word ) : TArea;
+  function RandomEdgeCoord : TCoord2D; overload; deprecated;
+  function RandomEdgeCoord( aRNG : TRNG ) : TCoord2D; overload;
+  function RandomInnerEdgeCoord : TCoord2D; overload; deprecated;
+  function RandomInnerEdgeCoord( aRNG : TRNG ) : TCoord2D; overload;
+  function RandomInnerCoord : TCoord2D; overload; deprecated;
+  function RandomInnerCoord( aRNG : TRNG ) : TCoord2D; overload;
+  function RandomSubArea( aMin, aMax : TCoord2D ) : TArea; overload; deprecated;
+  function RandomSubArea( aRNG : TRNG; aMin, aMax : TCoord2D ) : TArea; overload;
+  function RandomSubArea( aDim : TCoord2D ) : TArea; overload; deprecated;
+  function RandomSubArea( aRNG : TRNG; aDim : TCoord2D ) : TArea; overload;
+  function RandomSubArea( aWidth, aHeight : TByteRange ) : TArea; overload; deprecated;
+  function RandomSubArea( aRNG : TRNG; aWidth, aHeight : TByteRange ) : TArea; overload;
+  function RandomSubArea( aWidth, aHeight : Word ) : TArea; overload; deprecated;
+  function RandomSubArea( aRNG : TRNG; aWidth, aHeight : Word ) : TArea; overload;
 
   procedure Clamp( var Coord : TCoord2D );
   procedure Clamp( var aArea : TArea );
@@ -645,10 +657,22 @@ begin
   RandomShifted.y := y + System.Random( 2*Value + 1 ) - Value;
 end;
 
+function TCoord2D.RandomShifted( aRNG : TRNG; aValue : Byte ) : TCoord2D;
+begin
+  Result.X := X + aRNG.RLongInt( 2 * aValue + 1 ) - aValue;
+  Result.Y := Y + aRNG.RLongInt( 2 * aValue + 1 ) - aValue;
+end;
+
 procedure TCoord2D.RandomShift(Value: Byte);
 begin
   x += System.Random( 2*Value + 1 ) - Value;
   y += System.Random( 2*Value + 1 ) - Value;
+end;
+
+procedure TCoord2D.RandomShift( aRNG : TRNG; aValue : Byte );
+begin
+  X := X + aRNG.RLongInt( 2 * aValue + 1 ) - aValue;
+  Y := Y + aRNG.RLongInt( 2 * aValue + 1 ) - aValue;
 end;
 
 procedure TCoord2D.Random(Min, Max: TCoord2D);
@@ -657,6 +681,14 @@ begin
   Diff := Max - Min;
   x := System.Random( Diff.x + 1 ) + Min.x;
   y := System.Random( Diff.y + 1 ) + Min.y;
+end;
+
+procedure TCoord2D.Random( aRNG : TRNG; aMin, aMax : TCoord2D );
+var iDiff : TCoord2D;
+begin
+  iDiff := aMax - aMin;
+  X := aRNG.RLongInt( iDiff.X + 1 ) + aMin.X;
+  Y := aRNG.RLongInt( iDiff.Y + 1 ) + aMin.Y;
 end;
 
 function TCoord2D.ToVec2i: TVec2i;
@@ -1236,6 +1268,11 @@ begin
   RandomCoord.Random( A, B );
 end;
 
+function TArea.RandomCoord( aRNG : TRNG ) : TCoord2D;
+begin
+  Result.Random( aRNG, A, B );
+end;
+
 function TArea.Center: TCoord2D;
 begin
   Center.x := A.x + ( ( B.x - A.x ) div 2 );
@@ -1287,6 +1324,30 @@ begin
   end
 end;
 
+function TArea.RandomEdgeCoord( aRNG : TRNG ) : TCoord2D;
+var iRoll  : Word;
+    iXs,iYs : Word;
+begin
+  iXs := B.X - A.X + 1;
+  iYs := B.Y - A.Y - 1;
+  iRoll := aRNG.RLongInt( 2 * iXs + 2 * iYs );
+  if iRoll < 2 * iXs then
+  begin
+    if iRoll < iXs then
+      Result.Create( iRoll + A.X, A.Y )
+    else
+      Result.Create( iRoll - iXs + A.X, B.Y );
+  end
+  else
+  begin
+    Dec( iRoll, 2 * iXs );
+    if iRoll < iYs then
+      Result.Create( A.X, A.Y + iRoll + 1 )
+    else
+      Result.Create( B.X, A.Y + iRoll - iYs + 1 );
+  end;
+end;
+
 function TArea.RandomInnerEdgeCoord : TCoord2D;
 var Roll  : Word;
     Xs,Ys : Word;
@@ -1311,9 +1372,38 @@ begin
   end
 end;
 
+function TArea.RandomInnerEdgeCoord( aRNG : TRNG ) : TCoord2D;
+var iRoll  : Word;
+    iXs,iYs : Word;
+begin
+  iXs := B.X - A.X - 1;
+  iYs := B.Y - A.Y - 1;
+  iRoll := aRNG.RLongInt( 2 * iXs + 2 * iYs );
+  if iRoll < 2 * iXs then
+  begin
+    if iRoll < iXs then
+      Result.Create( iRoll + A.X + 1, A.Y )
+    else
+      Result.Create( iRoll - iXs + A.X + 1, B.Y );
+  end
+  else
+  begin
+    Dec( iRoll, 2 * iXs );
+    if iRoll < iYs then
+      Result.Create( A.X, A.Y + iRoll + 1 )
+    else
+      Result.Create( B.X, A.Y + iRoll - iYs + 1 );
+  end;
+end;
+
 function TArea.RandomInnerCoord: TCoord2D;
 begin
   RandomInnerCoord.Random( A.ifInc(+1,+1), B.ifInc(-1,-1) );
+end;
+
+function TArea.RandomInnerCoord( aRNG : TRNG ) : TCoord2D;
+begin
+  Result.Random( aRNG, A.ifInc( +1, +1 ), B.ifInc( -1, -1 ) );
 end;
 
 function TArea.RandomSubArea(aMin, aMax: TCoord2D): TArea;
@@ -1323,11 +1413,28 @@ begin
   RandomSubArea := RandomSubArea( iDim );
 end;
 
+function TArea.RandomSubArea(
+  aRNG : TRNG;
+  aMin, aMax : TCoord2D
+) : TArea;
+var iDim : TCoord2D;
+begin
+  iDim.Random( aRNG, aMin, aMax );
+  Result := RandomSubArea( aRNG, iDim );
+end;
+
 function TArea.RandomSubArea(aDim: TCoord2D): TArea;
 var iCoord : TCoord2D;
 begin
   iCoord.Random( A, B - aDim );
   RandomSubArea.Create( iCoord, iCoord + aDim.ifInc(-1,-1) );
+end;
+
+function TArea.RandomSubArea( aRNG : TRNG; aDim : TCoord2D ) : TArea;
+var iCoord : TCoord2D;
+begin
+  iCoord.Random( aRNG, A, B - aDim );
+  Result.Create( iCoord, iCoord + aDim.ifInc( -1, -1 ) );
 end;
 
 {$OPTIMIZATION OFF}
@@ -1338,6 +1445,17 @@ begin
   iHeight := aHeight.Random;
   RandomSubArea := RandomSubArea( iWidth, iHeight );
 end;
+
+function TArea.RandomSubArea(
+  aRNG : TRNG;
+  aWidth, aHeight : TByteRange
+) : TArea;
+var iWidth, iHeight : Byte;
+begin
+  iWidth := aRNG.RLongInt( aWidth.Max - aWidth.Min + 1 ) + aWidth.Min;
+  iHeight := aRNG.RLongInt( aHeight.Max - aHeight.Min + 1 ) + aHeight.Min;
+  Result := RandomSubArea( aRNG, iWidth, iHeight );
+end;
 {$OPTIMIZATION ON}
 
 function TArea.RandomSubArea(aWidth, aHeight: Word): TArea;
@@ -1345,6 +1463,16 @@ var iWH    : TCoord2D;
 begin
   iWH.Create( aWidth, aHeight );
   RandomSubArea := RandomSubArea( iWH );
+end;
+
+function TArea.RandomSubArea(
+  aRNG : TRNG;
+  aWidth, aHeight : Word
+) : TArea;
+var iDim : TCoord2D;
+begin
+  iDim.Create( aWidth, aHeight );
+  Result := RandomSubArea( aRNG, iDim );
 end;
 
 
