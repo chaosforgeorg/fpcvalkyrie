@@ -22,7 +22,7 @@
 unit vluamapnode;
 interface
 uses SysUtils, Classes,
-     vnode, vutil, vvision, vrltools, vluaext, vluagamestate, vluaentitynode, vluastate;
+     vnode, vutil, vvision, vrandom, vrltools, vluaext, vluagamestate, vluaentitynode, vluastate;
 
 const vlfExplored     = 0;
       vlfVisible      = 1;
@@ -48,6 +48,10 @@ end;
 type PMapCell = ^TMapCell;
 
 type TLuaMapNode = class( TNode, IVisionQuery )
+private
+  function DoDrop( aRNG : TRNG; aUseRNG : Boolean; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
+  function DoDropCoord( aRNG : TRNG; aUseRNG : Boolean; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean ) : TCoord2D;
+public
   // Create and setup
   constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte ); reintroduce;
   // Removes given bits from lightMap
@@ -113,9 +117,11 @@ type TLuaMapNode = class( TNode, IVisionQuery )
   // Return Item at position aCoord
   function GetItem( const aCoord : TCoord2D ) : TLuaEntityNode; virtual;
   // Drop something onto the map
-  function Drop( aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 = [] ) : TLuaEntityNode;
+  function Drop( aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 = [] ) : TLuaEntityNode; overload; deprecated;
+  function Drop( aRNG : TRNG; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 = [] ) : TLuaEntityNode; overload;
   // Find a suitable drop coord
-  function DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D;
+  function DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D; overload; deprecated;
+  function DropCoord( aRNG : TRNG; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D; overload;
   // Returns the number of cells in aCells around cell (excluding self)
   function CellsAround( const aWhere : TCoord2D; const aCells : TCellSet; aRange : Byte = 1 ) : Byte;
   // Returns the number of cells in aCells around cell in cardinal dirs (excluding self );
@@ -178,7 +184,7 @@ end;
 
 implementation
 
-uses vluasystem, vgenerics, vmath,
+uses vlua, vluasystem, vgenerics, vmath,
      vluatools, vluatype, vlualibrary, math;
 
 type TMinCoordChoice = specialize TGMinimalChoice<TCoord2D>;
@@ -407,6 +413,16 @@ end;
 
 function TLuaMapNode.Drop ( aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
 begin
+  Exit( DoDrop( nil, False, aWhat, aPosition, aEmptyFlags ) );
+end;
+
+function TLuaMapNode.Drop( aRNG : TRNG; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
+begin
+  Exit( DoDrop( aRNG, True, aWhat, aPosition, aEmptyFlags ) );
+end;
+
+function TLuaMapNode.DoDrop( aRNG : TRNG; aUseRNG : Boolean; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
+begin
   if aWhat = nil then Exit( nil );
   case aWhat.EntityID of
     ENTITY_BEING : if aEmptyFlags = [] then aEmptyFlags := [ EF_NOBLOCK, EF_NOBEINGS ];
@@ -415,7 +431,7 @@ begin
   end;
 
   try
-    aPosition := DropCoord( aPosition, aEmptyFlags, False );
+    aPosition := DoDropCoord( aRNG, aUseRNG, aPosition, aEmptyFlags, False );
     if aWhat.Parent <> Self then Add( aWhat );
     aWhat.Displace( aPosition );
     case aWhat.EntityID of
@@ -429,6 +445,16 @@ begin
 end;
 
 function TLuaMapNode.DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ): TCoord2D;
+begin
+  Exit( DoDropCoord( nil, False, aCoord, aEmptyFlags, aInVision ) );
+end;
+
+function TLuaMapNode.DropCoord( aRNG : TRNG; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D;
+begin
+  Exit( DoDropCoord( aRNG, True, aCoord, aEmptyFlags, aInVision ) );
+end;
+
+function TLuaMapNode.DoDropCoord( aRNG : TRNG; aUseRNG : Boolean; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean ): TCoord2D;
 var iC        : TCoord2D;
     iList     : TMinCoordChoice;
     iRange    : Byte;
@@ -468,7 +494,9 @@ begin
 
   if iList.IsEmpty then raise EPlacementException.CreateFmt('TLuaMapNode.DropCoord(%d,%d) failed!',[aCoord.x, aCoord.y]);
 
-  Result := iList.Return;
+  if aUseRNG
+    then Result := iList.Return( aRNG )
+    else Result := iList.Return;
   FreeAndNil( iList );
 end;
 
@@ -869,7 +897,7 @@ function lua_map_node_drop(L: Plua_State): Integer; cdecl;
 var iState : TLuaMapState;
 begin
   iState.Init( L );
-  iState.Push( iState.Map.Drop( iState.ToObject(2) as TLuaEntityNode, iState.ToPosition(3), iState.ToFlags(4) ) );
+  iState.Push( iState.Map.Drop( LuaRNG, iState.ToObject(2) as TLuaEntityNode, iState.ToPosition(3), iState.ToFlags(4) ) );
   Result := 1;
 end;
 
@@ -1117,7 +1145,7 @@ begin
   iCellSet    := iState.ToCellSet( 2 );
   iArea       := iState.ToOptionalArea( 3 ).Shrinked(1);
   repeat
-    iCoord := iArea.RandomCoord;
+    iCoord := iArea.RandomCoord( LuaRNG );
     if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.CellsAround( iCoord, iCellSet ) = 8 ) then
     begin
       vlua_pushcoord( L, iCoord );
@@ -1148,12 +1176,12 @@ begin
   iType2 := lua_type( L, 2 );
   if iType2 <= LUA_TNIL then
   begin
-    vlua_pushcoord( L, iState.Map.Area.RandomCoord );
+    vlua_pushcoord( L, iState.Map.Area.RandomCoord( LuaRNG ) );
     Exit( 1 );
   end;
   if iType2 = LUA_TUSERDATA then
   begin
-    vlua_pushcoord( L, vlua_toparea( L, 2 )^.RandomCoord );
+    vlua_pushcoord( L, vlua_toparea( L, 2 )^.RandomCoord( LuaRNG ) );
     Exit( 1 );
   end;
   iCellSet := iState.ToCellSet( 2 );
@@ -1161,7 +1189,7 @@ begin
 
   iCount := 0;
   repeat
-    iCoord := iArea.RandomCoord;
+    iCoord := iArea.RandomCoord( LuaRNG );
     if iState.Map.GetCell( iCoord ) in iCellSet then
     begin
       vlua_pushcoord( L, iCoord );
@@ -1198,7 +1226,7 @@ begin
     iArea := iState.ToOptionalArea( 3 );
     iCount := 0;
     repeat
-      iCoord := iArea.RandomCoord;
+      iCoord := iArea.RandomCoord( LuaRNG );
       if iState.Map.isEmpty( iCoord, iFlags ) then
       begin
         vlua_pushcoord( L, iCoord );
@@ -1220,7 +1248,7 @@ begin
   iArea    := iState.ToOptionalArea( 4 );
   iCount   := 0;
   repeat
-    iCoord := iArea.RandomCoord;
+    iCoord := iArea.RandomCoord( LuaRNG );
     if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.isEmpty( iCoord, iFlags ) ) then
     begin
       vlua_pushcoord( L, iCoord );
@@ -1246,7 +1274,7 @@ begin
   iState.Init( L );
   iCoord := iState.ToPosition( 2 );
   try
-    vlua_pushcoord( L, iState.Map.DropCoord( iCoord, iState.ToFlags32( 3 ), iState.ToBoolean( 4, False ) ) );
+    vlua_pushcoord( L, iState.Map.DropCoord( LuaRNG, iCoord, iState.ToFlags32( 3 ), iState.ToBoolean( 4, False ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -1310,7 +1338,7 @@ begin
       if iState.Map.GetCell( iCoord ) in iCells then
         Push( iCoord );
     if IsEmpty then Exit( 0 );
-    iCoord := Items[ Random( Size ) ];
+    iCoord := Items[ LuaRNG.RLongInt( Size ) ];
   finally
     Free
   end;
@@ -1337,7 +1365,7 @@ begin
       if (iState.Map.GetCell( iCoord ) in iCells) and iState.Map.isEmpty( iCoord, iFlags ) then
         Push( iCoord );
     if IsEmpty then Exit( 0 );
-    iCoord := Items[ Random( Size ) ];
+    iCoord := Items[ LuaRNG.RLongInt( Size ) ];
   finally
     Free
   end;
@@ -1394,4 +1422,3 @@ begin
 end;
 
 end.
-

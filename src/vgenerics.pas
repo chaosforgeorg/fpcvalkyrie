@@ -9,7 +9,7 @@
 //       TGBuiltInArray.
 unit vgenerics;
 interface
-uses types, classes, sysutils, vnode, vstream;
+uses types, classes, sysutils, vnode, vstream, vrandom;
 
 type ERangeError       = class(Exception);
      ECollisionError   = class(Exception);
@@ -455,7 +455,8 @@ type
     // then all the ones added before are discarded.
     procedure Add( aValue : T; aPriority : DWord );
     // Returns a random value from the ones with the lowest priority
-    function Return : T;
+    function Return : T; overload; deprecated;
+    function Return( aRNG : TRNG ) : T; overload;
   protected
     procedure CopyItem( aFrom, aTo : Pointer ); override;
     procedure DisposeOf( aItem : Pointer ); override;
@@ -471,7 +472,8 @@ type
     // then all the ones added before are discarded.
     procedure Add( aValue : T; aPriority : DWord );
     // Returns a random value from the ones with the lowest priority
-    function Return : T;
+    function Return : T; overload; deprecated;
+    function Return( aRNG : TRNG ) : T; overload;
   protected
     procedure CopyItem( aFrom, aTo : Pointer ); override;
     procedure DisposeOf( aItem : Pointer ); override;
@@ -2063,6 +2065,12 @@ begin
   Exit(T(InternalGet(Random(FCount))^));
 end;
 
+function TGMinimalChoice.Return( aRNG : TRNG ) : T;
+begin
+  if FCount = 0 then raise ERangeError.Create('Return called on a empty TGMinimalList!');
+  Exit(T(InternalGet(aRNG.RLongInt(FCount))^));
+end;
+
 procedure TGMinimalChoice.CopyItem( aFrom, aTo : Pointer );
 begin
   T(aTo^) := T(aFrom^);
@@ -2094,6 +2102,12 @@ function TGMaximalChoice.Return : T;
 begin
   if FCount = 0 then raise ERangeError.Create('Return called on a empty TGMinimalList!');
   Exit(T(InternalGet(Random(FCount))^));
+end;
+
+function TGMaximalChoice.Return( aRNG : TRNG ) : T;
+begin
+  if FCount = 0 then raise ERangeError.Create('Return called on a empty TGMinimalList!');
+  Exit(T(InternalGet(aRNG.RLongInt(FCount))^));
 end;
 
 procedure TGMaximalChoice.CopyItem( aFrom, aTo : Pointer );

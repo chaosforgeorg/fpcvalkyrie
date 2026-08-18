@@ -9,7 +9,7 @@ procedure RegisterDungenClass( L : Plua_State; ObjectName : AnsiString = '' );
 
 implementation
 
-uses vutil, vluatools, vluaext, strutils;
+uses vutil, vlua, vluatools, vluaext, strutils;
 
 const
   VALKYRIE_DUNGEN      = 'valkyrie.dungen';
@@ -251,7 +251,7 @@ begin
 
     if not ( iState.Map.GetCell( iCoord ) in iIgnore ) then
       iState.Map.PutCell( iCoord, iCell );
-    iCoord.RandomShift( 1 );
+    iCoord.RandomShift( LuaRNG, 1 );
   end;
   Exit( 0 );
 end;
@@ -274,7 +274,7 @@ begin
     else iState.Map.Area.Clamp( iArea );
 
   for iCoord in iArea do
-    if Random < iChance
+    if LuaRNG.RDouble < iChance
       then iState.Map.putCell( iCoord, iFull )
       else iState.Map.putCell( iCoord, iEmpty );
 
@@ -305,7 +305,7 @@ begin
   i := 0;
   repeat
     Inc( i );
-    iCoord := iArea.RandomCoord;
+    iCoord := iArea.RandomCoord( LuaRNG );
     if iStrict then
     begin
       iCell := iState.Map.getCell( iCoord );
@@ -632,7 +632,7 @@ end;
 
 function lua_dungen_tile_flip_random( L : Plua_State ) : Integer; cdecl;
 begin
-  case Random( 4 ) of
+  case LuaRNG.RLongInt( 4 ) of
     0 : ;
     1 : lua_dungen_tile_flip_x( L );
     2 : lua_dungen_tile_flip_y( L );
