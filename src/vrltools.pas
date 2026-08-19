@@ -59,7 +59,8 @@ type TFloatRange = packed object
   procedure Create( const aMin, aMax : Single );
   function Diff : Single;
   function Contains( const aValue : Single ) : Boolean;
-  function Random : Single;
+  function Random : Single; overload; deprecated;
+  function Random( aRNG : TRNG ) : Single; overload;
 end;
 
 function NewFloatRange( const aMin, aMax : Single ) : TFloatRange;
@@ -69,7 +70,7 @@ type TVec3fRange = packed object
   procedure Create( const aMin, aMax : TVec3f );
   function Diff : TVec3f;
   function Contains( const aValue : TVec3f ) : Boolean;
-  function Random : TVec3f;
+  function Random( aRNG : TRNG ) : TVec3f;
 end;
 
 function NewVec3fRange( const aMin, aMax : TVec3f ) : TVec3fRange;
@@ -79,7 +80,7 @@ type TColorRange = packed object
   procedure Create( const aA, aB : TColor );
   function Diff : TColor;
   function Contains( const aValue : TColor ) : Boolean;
-  function Random : TColor;
+  function Random( aRNG : TRNG ) : TColor;
 end;
 
 function NewColorRange( const aA, aB : TColor ) : TColorRange;
@@ -845,6 +846,11 @@ begin
   Exit( Min + System.Random * ( Max - Min ) );
 end;
 
+function TFloatRange.Random( aRNG : TRNG ) : Single;
+begin
+  Exit( Min + aRNG.RFloat * ( Max - Min ) );
+end;
+
 function NewFloatRange( const aMin, aMax : Single ) : TFloatRange;
 begin
   Result.Min := aMin;
@@ -873,11 +879,11 @@ begin
     and ( aValue.Z >= Min.Z ) and ( aValue.Z <= Max.Z ) );
 end;
 
-function TVec3fRange.Random : TVec3f;
+function TVec3fRange.Random( aRNG : TRNG ) : TVec3f;
 begin
-  Result.X := Min.X + System.Random * ( Max.X - Min.X );
-  Result.Y := Min.Y + System.Random * ( Max.Y - Min.Y );
-  Result.Z := Min.Z + System.Random * ( Max.Z - Min.Z );
+  Result.X := Min.X + aRNG.RFloat * ( Max.X - Min.X );
+  Result.Y := Min.Y + aRNG.RFloat * ( Max.Y - Min.Y );
+  Result.Z := Min.Z + aRNG.RFloat * ( Max.Z - Min.Z );
 end;
 
 function NewVec3fRange( const aMin, aMax : TVec3f ) : TVec3fRange;
@@ -910,9 +916,9 @@ begin
     and (aValue.A >= ColorA.A) and (aValue.A <= ColorB.A) );
 end;
 
-function TColorRange.Random : TColor;
+function TColorRange.Random( aRNG : TRNG ) : TColor;
 begin
-  Exit( ColorLerp( ColorA, ColorB, System.Random ) );
+  Exit( ColorLerp( ColorA, ColorB, aRNG.RFloat ) );
 end;
 
 function NewColorRange( const aA, aB : TColor ) : TColorRange;
