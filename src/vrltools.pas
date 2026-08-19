@@ -49,7 +49,7 @@ type TByteRange = object
   procedure Create( const nMin, nMax : Byte );
   function Diff : Byte;
   function Contains( const value : Integer ) : Boolean;
-  function Random : Byte;
+  function Random( aRNG : TRNG ) : Byte;
 end;
 
 function NewByteRange( const min, max : Byte ) : TByteRange;
@@ -94,7 +94,8 @@ type TDiceRoll = object
   procedure Init(const diecode : string);
   procedure Reset;
   function IsZero : Boolean;
-  function Roll : LongInt;
+  function Roll : LongInt; overload; deprecated;
+  function Roll( aRNG : TRNG ) : LongInt; overload;
   function toString : string;
   function fromString( const aDieCode : Ansistring ) : Boolean;
   function max : LongInt;
@@ -174,8 +175,8 @@ TDirection = object
   procedure Create( const x,y : ShortInt );
   procedure Create( const a,b : TCoord2D );
   procedure CreateSmooth( const a,b : TCoord2D );
-  procedure Random;
-  procedure RandomSquare;
+  procedure Random( aRNG : TRNG );
+  procedure RandomSquare( aRNG : TRNG );
   function toCoord : TCoord2D;
   function isSquare : Boolean;
   function isProper : Boolean;
@@ -210,17 +211,12 @@ TArea = object
   function isEdge( Coord : TCoord2D ) : boolean;
   function RandomEdgeCoord : TCoord2D; overload; deprecated;
   function RandomEdgeCoord( aRNG : TRNG ) : TCoord2D; overload;
-  function RandomInnerEdgeCoord : TCoord2D; overload; deprecated;
-  function RandomInnerEdgeCoord( aRNG : TRNG ) : TCoord2D; overload;
+  function RandomInnerEdgeCoord( aRNG : TRNG ) : TCoord2D;
   function RandomInnerCoord : TCoord2D; overload; deprecated;
   function RandomInnerCoord( aRNG : TRNG ) : TCoord2D; overload;
-  function RandomSubArea( aMin, aMax : TCoord2D ) : TArea; overload; deprecated;
   function RandomSubArea( aRNG : TRNG; aMin, aMax : TCoord2D ) : TArea; overload;
-  function RandomSubArea( aDim : TCoord2D ) : TArea; overload; deprecated;
   function RandomSubArea( aRNG : TRNG; aDim : TCoord2D ) : TArea; overload;
-  function RandomSubArea( aWidth, aHeight : TByteRange ) : TArea; overload; deprecated;
   function RandomSubArea( aRNG : TRNG; aWidth, aHeight : TByteRange ) : TArea; overload;
-  function RandomSubArea( aWidth, aHeight : Word ) : TArea; overload; deprecated;
   function RandomSubArea( aRNG : TRNG; aWidth, aHeight : Word ) : TArea; overload;
 
   procedure Clamp( var Coord : TCoord2D );
@@ -297,7 +293,8 @@ operator / (a : TCoord2D; b : Integer) r : TCoord2D; inline;
 operator + (a : TArea; b : TCoord2D) r : TArea; inline;
 operator - (a : TArea; b : TCoord2D) r : TArea; inline;
 
-function RandomRange( Min,Max : LongInt ) : LongInt;
+function RandomRange( Min,Max : LongInt ) : LongInt; overload; deprecated;
+function RandomRange( aRNG : TRNG; aMin, aMax : LongInt ) : LongInt; overload;
 
 // Calculates the distance between x1,y1 and x2,y2 using a fast approximation
 // algorithm instead of the standard triangulation.
@@ -473,15 +470,15 @@ begin
   end;
 end;
 
-procedure TDirection.Random;
+procedure TDirection.Random( aRNG : TRNG );
 begin
-  Code := System.Random(8)+1;
+  Code := aRNG.RLongInt( 8 ) + 1;
   if Code = DIR_CENTER then Inc(Code);
 end;
 
-procedure TDirection.RandomSquare;
+procedure TDirection.RandomSquare( aRNG : TRNG );
 begin
-  case System.Random(4) of
+  case aRNG.RLongInt( 4 ) of
     0 : Code := DIR_UP;
     1 : Code := DIR_DOWN;
     2 : Code := DIR_LEFT;
@@ -932,6 +929,11 @@ begin
   Exit( Min + Random(Max - Min + 1) );
 end;
 
+function RandomRange( aRNG : TRNG; aMin, aMax : LongInt ) : LongInt;
+begin
+  Exit( aRNG.RLongInt( aMin, aMax ) );
+end;
+
 function Distance( const c1, c2 : TCoord2D ): word; {$IFDEF VINLINE} inline; {$ENDIF}
 begin
   Distance := Round(Min(Abs(c2.x-c1.x),Abs(c2.y-c1.y)) div 2) + Max(Abs(c2.x-c1.x),Abs(c2.y-c1.y));
@@ -1139,6 +1141,11 @@ end;
 function TDiceRoll.Roll: LongInt;
 begin
   Exit(LongInt(Dice(amount,sides))+bonus);
+end;
+
+function TDiceRoll.Roll( aRNG : TRNG ) : LongInt;
+begin
+  Exit( LongInt( aRNG.Dice( Amount, Sides ) ) + Bonus );
 end;
 
 function TDiceRoll.toString: string;
@@ -1354,30 +1361,6 @@ begin
   end;
 end;
 
-function TArea.RandomInnerEdgeCoord : TCoord2D;
-var Roll  : Word;
-    Xs,Ys : Word;
-begin
-  Xs := (B.x-A.x-1);
-  Ys := (B.y-A.y-1);
-  Roll := Random(2*Xs+2*Ys);
-  if ( Roll < 2*Xs ) then
-  begin
-    if ( Roll < Xs ) then
-      RandomInnerEdgeCoord.Create(Roll+A.x+1,A.y)
-    else
-      RandomInnerEdgeCoord.Create(Roll-Xs+A.x+1,B.y);
-  end
-  else
-  begin
-    Roll -= 2*Xs;
-    if ( Roll < Ys ) then
-      RandomInnerEdgeCoord.Create(A.x,A.y+Roll+1)
-    else
-      RandomInnerEdgeCoord.Create(B.x,A.y+Roll-Ys+1);
-  end
-end;
-
 function TArea.RandomInnerEdgeCoord( aRNG : TRNG ) : TCoord2D;
 var iRoll  : Word;
     iXs,iYs : Word;
@@ -1412,13 +1395,6 @@ begin
   Result.Random( aRNG, A.ifInc( +1, +1 ), B.ifInc( -1, -1 ) );
 end;
 
-function TArea.RandomSubArea(aMin, aMax: TCoord2D): TArea;
-var iDim : TCoord2D;
-begin
-  iDim.Random( aMin, aMax );
-  RandomSubArea := RandomSubArea( iDim );
-end;
-
 function TArea.RandomSubArea(
   aRNG : TRNG;
   aMin, aMax : TCoord2D
@@ -1429,13 +1405,6 @@ begin
   Result := RandomSubArea( aRNG, iDim );
 end;
 
-function TArea.RandomSubArea(aDim: TCoord2D): TArea;
-var iCoord : TCoord2D;
-begin
-  iCoord.Random( A, B - aDim );
-  RandomSubArea.Create( iCoord, iCoord + aDim.ifInc(-1,-1) );
-end;
-
 function TArea.RandomSubArea( aRNG : TRNG; aDim : TCoord2D ) : TArea;
 var iCoord : TCoord2D;
 begin
@@ -1444,32 +1413,17 @@ begin
 end;
 
 {$OPTIMIZATION OFF}
-function TArea.RandomSubArea( aWidth, aHeight: TByteRange ): TArea;
-var iWidth, iHeight : Byte;
-begin
-  iWidth  := aWidth.Random;
-  iHeight := aHeight.Random;
-  RandomSubArea := RandomSubArea( iWidth, iHeight );
-end;
-
 function TArea.RandomSubArea(
   aRNG : TRNG;
   aWidth, aHeight : TByteRange
 ) : TArea;
 var iWidth, iHeight : Byte;
 begin
-  iWidth := aRNG.RLongInt( aWidth.Max - aWidth.Min + 1 ) + aWidth.Min;
-  iHeight := aRNG.RLongInt( aHeight.Max - aHeight.Min + 1 ) + aHeight.Min;
+  iWidth := aWidth.Random( aRNG );
+  iHeight := aHeight.Random( aRNG );
   Result := RandomSubArea( aRNG, iWidth, iHeight );
 end;
 {$OPTIMIZATION ON}
-
-function TArea.RandomSubArea(aWidth, aHeight: Word): TArea;
-var iWH    : TCoord2D;
-begin
-  iWH.Create( aWidth, aHeight );
-  RandomSubArea := RandomSubArea( iWH );
-end;
 
 function TArea.RandomSubArea(
   aRNG : TRNG;
@@ -1628,9 +1582,9 @@ begin
   Exit( ( value >= min ) and ( value <= max ) );
 end;
 
-function TByteRange.Random: Byte;
+function TByteRange.Random( aRNG : TRNG ) : Byte;
 begin
-  Exit( System.Random( max - min + 1 ) + min );
+  Exit( aRNG.RLongInt( Max - Min + 1 ) + Min );
 end;
 
 { TAreaEnumerator }
