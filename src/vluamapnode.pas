@@ -49,8 +49,8 @@ type PMapCell = ^TMapCell;
 
 type TLuaMapNode = class( TNode, IVisionQuery )
 private
-  function DoDrop( aRNG : TRNG; aUseRNG : Boolean; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
-  function DoDropCoord( aRNG : TRNG; aUseRNG : Boolean; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean ) : TCoord2D;
+  function DoDrop( aRNG : TRNG; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
+  function DoDropCoord( aRNG : TRNG; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean ) : TCoord2D;
 public
   // Create and setup
   constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte ); reintroduce;
@@ -413,15 +413,15 @@ end;
 
 function TLuaMapNode.Drop ( aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
 begin
-  Exit( DoDrop( nil, False, aWhat, aPosition, aEmptyFlags ) );
+  Exit( DoDrop( VRNG, aWhat, aPosition, aEmptyFlags ) );
 end;
 
 function TLuaMapNode.Drop( aRNG : TRNG; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
 begin
-  Exit( DoDrop( aRNG, True, aWhat, aPosition, aEmptyFlags ) );
+  Exit( DoDrop( aRNG, aWhat, aPosition, aEmptyFlags ) );
 end;
 
-function TLuaMapNode.DoDrop( aRNG : TRNG; aUseRNG : Boolean; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
+function TLuaMapNode.DoDrop( aRNG : TRNG; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
 begin
   if aWhat = nil then Exit( nil );
   case aWhat.EntityID of
@@ -431,7 +431,7 @@ begin
   end;
 
   try
-    aPosition := DoDropCoord( aRNG, aUseRNG, aPosition, aEmptyFlags, False );
+    aPosition := DoDropCoord( aRNG, aPosition, aEmptyFlags, False );
     if aWhat.Parent <> Self then Add( aWhat );
     aWhat.Displace( aPosition );
     case aWhat.EntityID of
@@ -446,15 +446,15 @@ end;
 
 function TLuaMapNode.DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ): TCoord2D;
 begin
-  Exit( DoDropCoord( nil, False, aCoord, aEmptyFlags, aInVision ) );
+  Exit( DoDropCoord( VRNG, aCoord, aEmptyFlags, aInVision ) );
 end;
 
 function TLuaMapNode.DropCoord( aRNG : TRNG; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D;
 begin
-  Exit( DoDropCoord( aRNG, True, aCoord, aEmptyFlags, aInVision ) );
+  Exit( DoDropCoord( aRNG, aCoord, aEmptyFlags, aInVision ) );
 end;
 
-function TLuaMapNode.DoDropCoord( aRNG : TRNG; aUseRNG : Boolean; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean ): TCoord2D;
+function TLuaMapNode.DoDropCoord( aRNG : TRNG; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean ): TCoord2D;
 var iC        : TCoord2D;
     iList     : TMinCoordChoice;
     iRange    : Byte;
@@ -494,9 +494,7 @@ begin
 
   if iList.IsEmpty then raise EPlacementException.CreateFmt('TLuaMapNode.DropCoord(%d,%d) failed!',[aCoord.x, aCoord.y]);
 
-  if aUseRNG
-    then Result := iList.Return( aRNG )
-    else Result := iList.Return;
+  Result := iList.Return( aRNG );
   FreeAndNil( iList );
 end;
 

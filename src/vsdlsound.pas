@@ -16,7 +16,7 @@ unit vsdlsound;
 
 interface
 
-uses Classes, SysUtils, vsound, vgenerics, vsdl3mixerlibrary;
+uses Classes, SysUtils, vsound, vgenerics, vsdl3mixerlibrary, vrandom;
 
 // The basic sound class, published as the singleton @link(Sound).
 // Should be initialized and disposed via TSystems.
@@ -29,7 +29,7 @@ TSDLTrackArray = specialize TGArray< PMIX_Track >;
 
 TSDLSound = class(TSound)
        // Initializes the Sound system.
-       constructor Create; override;
+       constructor Create( aRNG : TRNG = nil ); reintroduce;
        // Deinitializes the Sound system.
        destructor Destroy; override;
      protected
@@ -66,6 +66,7 @@ TSDLSound = class(TSound)
        FMixer : PMIX_Mixer;
        FMusic : PMIX_Track;
        FSound : TSDLTrackArray;
+       FRNG   : TRNG;
      end;
 
 implementation
@@ -96,11 +97,13 @@ end;
 
 { TSDLSound }
 
-constructor TSDLSound.Create;
+constructor TSDLSound.Create( aRNG : TRNG );
 var i      : Integer;
     iTrack : PMIX_Track;
 begin
   inherited Create;
+  FRNG := aRNG;
+  if FRNG = nil then FRNG := VRNG;
   FMixer := nil;
   LoadSDL3Mixer;
   Log( LOGINFO, 'Opening SDL_Audio...' );
@@ -269,7 +272,7 @@ begin
     for i := 0 to FSound.Size - 1 do
       if not MIX_TrackPlaying(FSound[i]) then
         Exit( FSound[i] );
-  Exit( FSound[ Random( FSound.Size ) ] );
+  Exit( FSound[ FRNG.RLongInt( FSound.Size ) ] );
 end;
 
 function TSDLSound.IsStreamed( const aType : Ansistring ) : Boolean;

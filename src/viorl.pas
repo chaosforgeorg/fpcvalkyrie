@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit viorl;
 interface
-uses Classes, SysUtils, vio, vrltools, vluaentitynode, vluamapnode,
+uses Classes, SysUtils, vio, vrltools, vluaentitynode, vluamapnode, vrandom,
      vluastate, vluaconfig, vioevent, viotypes, vioconsole, vtextmap, vmessages;
 
 const COMMAND_INVALID = 255;
@@ -15,7 +15,7 @@ type
 { TIORL }
 
  TIORL = class( TIO )
-  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer );
+  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aVisualRNG : TRNG = nil ); reintroduce;
 
   // TIG-version functions
   procedure RunLayer( aLayer : TIOLayer ); virtual;
@@ -73,6 +73,7 @@ type
 private
   function GetMapShift : TIOPoint;
 protected
+  FVisualRNG : TRNG;
   FTMap      : TTextMap;
   FMessages  : TMessages;
   FConfig    : TLuaConfig;
@@ -86,6 +87,7 @@ public
   property MapShift    : TIOPoint read GetMapShift;
   property LastKeyCode : Word read FKeyCode;
   property Messages    : TMessages read FMessages;
+  property VisualRNG   : TRNG read FVisualRNG;
 end;
 
 implementation
@@ -96,7 +98,7 @@ var IORL : TIORL = nil;
 
 { TIORL }
 
-constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer ) ;
+constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aVisualRNG : TRNG = nil ) ;
 begin
   IORL := Self;
   inherited Create( aIODriver, aConsole );
@@ -106,6 +108,8 @@ begin
   FPlayer    := nil;
   FConfig    := nil;
   FBreakLoop := False;
+  FVisualRNG := aVisualRNG;
+  if FVisualRNG = nil then FVisualRNG := VRNG;
 end;
 
 procedure TIORL.RunLayer( aLayer : TIOLayer );

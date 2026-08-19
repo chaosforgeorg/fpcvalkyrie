@@ -9,6 +9,8 @@ type ELuaException = vlualibrary.ELuaException;
 
 var  LuaRNG : TRNG = nil;
 
+function vlua_rng_random( L : Plua_State; aRNG : TRNG ) : Integer;
+
 { TLua }
 
 type TLua = class(TVObject)
@@ -39,21 +41,26 @@ implementation
 uses SysUtils, vluaext;
 
 function lua_math_random(L: Plua_State): Integer; cdecl;
+begin
+  Exit( vlua_rng_random( L, LuaRNG ) );
+end;
+
+function vlua_rng_random( L : Plua_State; aRNG : TRNG ) : Integer;
 var iArgs : Byte;
     iArg1 : LongInt;
     iArg2 : LongInt;
 begin
   iArgs := lua_gettop(L);
   case iArgs of
-    0 : lua_pushnumber( L, LuaRNG.RDouble );
-    1 : lua_pushnumber( L, LuaRNG.RLongInt( Round(lua_tonumber(L, 1)) ) + 1 );
+    0 : lua_pushnumber( L, aRNG.RDouble );
+    1 : lua_pushnumber( L, aRNG.RLongInt( Round(lua_tonumber(L, 1)) ) + 1 );
     2 : begin
           iArg1 := Round(lua_tonumber(L, 1));
           iArg2 := Round(lua_tonumber(L, 2));
           if iArg2 >= iArg1 then
-            lua_pushnumber( L, LuaRNG.RLongInt( iArg1, iArg2 ) )
+            lua_pushnumber( L, aRNG.RLongInt( iArg1, iArg2 ) )
           else
-            lua_pushnumber( L, LuaRNG.RLongInt( iArg2, iArg1 ) )
+            lua_pushnumber( L, aRNG.RLongInt( iArg2, iArg1 ) )
         end;
     else Exit(0);
   end;
