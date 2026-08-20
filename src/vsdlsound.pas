@@ -29,7 +29,7 @@ TSDLTrackArray = specialize TGArray< PMIX_Track >;
 
 TSDLSound = class(TSound)
        // Initializes the Sound system.
-       constructor Create( aRNG : TRNG = nil ); reintroduce;
+       constructor Create( aRNG : TRNG ); reintroduce;
        // Deinitializes the Sound system.
        destructor Destroy; override;
      protected
@@ -102,8 +102,9 @@ var i      : Integer;
     iTrack : PMIX_Track;
 begin
   inherited Create;
+  if aRNG = nil then
+    raise EArgumentException.Create( 'TSDLSound.Create requires an RNG' );
   FRNG := aRNG;
-  if FRNG = nil then FRNG := VRNG;
   FMixer := nil;
   LoadSDL3Mixer;
   Log( LOGINFO, 'Opening SDL_Audio...' );

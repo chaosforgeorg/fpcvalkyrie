@@ -82,9 +82,6 @@ public
   function RInt64 : Int64;
 end;
 
-// Process-wide generator, randomized during unit initialization.
-var VRNG : TRNG = nil;
-
 implementation
 
 const
@@ -369,11 +366,5 @@ begin
   Result := 0;
   Move( iValue, Result, SizeOf( Result ) );
 end;
-
-initialization
-  VRNG := TRNG.Create;
-
-finalization
-  FreeAndNil( VRNG );
 
 end.

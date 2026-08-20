@@ -80,6 +80,8 @@ end;
 
 constructor TLua.Create( aCoverState : Plua_State = nil );
 begin
+  if LuaRNG = nil then
+    raise EArgumentException.Create( 'TLua.Create requires LuaRNG' );
   LoadLua;
   if aCoverState = nil then
   begin
@@ -97,7 +99,6 @@ begin
   end;
 
   FErrorFunc  := nil;
-  if LuaRNG = nil then LuaRNG := VRNG;
   lua_getglobal( FLuaState, 'math' );
   lua_pushstring( FLuaState, 'random' );
   lua_pushcfunction(FLuaState, @lua_math_random );

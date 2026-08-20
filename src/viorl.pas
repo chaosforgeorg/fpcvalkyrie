@@ -15,7 +15,7 @@ type
 { TIORL }
 
  TIORL = class( TIO )
-  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aVisualRNG : TRNG = nil ); reintroduce;
+  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer ); reintroduce;
 
   // TIG-version functions
   procedure RunLayer( aLayer : TIOLayer ); virtual;
@@ -98,7 +98,7 @@ var IORL : TIORL = nil;
 
 { TIORL }
 
-constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aVisualRNG : TRNG = nil ) ;
+constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer ) ;
 begin
   IORL := Self;
   inherited Create( aIODriver, aConsole );
@@ -108,8 +108,7 @@ begin
   FPlayer    := nil;
   FConfig    := nil;
   FBreakLoop := False;
-  FVisualRNG := aVisualRNG;
-  if FVisualRNG = nil then FVisualRNG := VRNG;
+  FVisualRNG := TRNG.Create;
 end;
 
 procedure TIORL.RunLayer( aLayer : TIOLayer );
@@ -334,6 +333,7 @@ end;
 destructor TIORL.Destroy;
 begin
   IORL := nil;
+  FreeAndNil( FVisualRNG );
   inherited Destroy;
 end;
 
