@@ -441,7 +441,6 @@ begin
     ResolvePaths;
     ApplyOptions;
     InitializeDiagnostics;
-    Randomize;
   except
     on E : Exception do
     begin

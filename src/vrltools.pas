@@ -117,10 +117,8 @@ TCoord2D = object
   function ifInc( Horizontal : Boolean; value : integer ) : TCoord2D; overload;
   procedure Inc( Horizontal : Boolean; value : integer = 1); overload;
   procedure Inc( incX,incY : integer ); overload;
-  function RandomShifted( Value : Byte = 1 ) : TCoord2D; overload; deprecated;
-  function RandomShifted( aRNG : TRNG; aValue : Byte = 1 ) : TCoord2D; overload;
-  procedure RandomShift( Value : Byte = 1 ); overload; deprecated;
-  procedure RandomShift( aRNG : TRNG; aValue : Byte = 1 ); overload;
+  function RandomShifted( aRNG : TRNG; aValue : Byte = 1 ) : TCoord2D;
+  procedure RandomShift( aRNG : TRNG; aValue : Byte = 1 );
   procedure Random( aRNG : TRNG; aMin, aMax : TCoord2D );
   function ToVec2i : TVec2i;
   function ToVec2f : TVec2f;
@@ -200,14 +198,12 @@ TArea = object
   function EnclosedArea : Word;
   function Width : Word;
   function Height : Word;
-  function RandomCoord : TCoord2D; overload; deprecated;
-  function RandomCoord( aRNG : TRNG ) : TCoord2D; overload;
+  function RandomCoord( aRNG : TRNG ) : TCoord2D;
   function Center : TCoord2D;
   function NextCoord( var Coord : TCoord2D; Horiz : Boolean = True ) : Boolean;
 
   function isEdge( Coord : TCoord2D ) : boolean;
-  function RandomEdgeCoord : TCoord2D; overload; deprecated;
-  function RandomEdgeCoord( aRNG : TRNG ) : TCoord2D; overload;
+  function RandomEdgeCoord( aRNG : TRNG ) : TCoord2D;
   function RandomInnerEdgeCoord( aRNG : TRNG ) : TCoord2D;
   function RandomInnerCoord( aRNG : TRNG ) : TCoord2D;
   function RandomSubArea( aRNG : TRNG; aMin, aMax : TCoord2D ) : TArea; overload;
@@ -289,8 +285,7 @@ operator / (a : TCoord2D; b : Integer) r : TCoord2D; inline;
 operator + (a : TArea; b : TCoord2D) r : TArea; inline;
 operator - (a : TArea; b : TCoord2D) r : TArea; inline;
 
-function RandomRange( Min,Max : LongInt ) : LongInt; overload; deprecated;
-function RandomRange( aRNG : TRNG; aMin, aMax : LongInt ) : LongInt; overload;
+function RandomRange( aRNG : TRNG; aMin, aMax : LongInt ) : LongInt;
 
 // Calculates the distance between x1,y1 and x2,y2 using a fast approximation
 // algorithm instead of the standard triangulation.
@@ -645,22 +640,10 @@ begin
   y += incY;
 end;
 
-function TCoord2D.RandomShifted(Value: Byte): TCoord2D;
-begin
-  RandomShifted.x := x + System.Random( 2*Value + 1 ) - Value;
-  RandomShifted.y := y + System.Random( 2*Value + 1 ) - Value;
-end;
-
 function TCoord2D.RandomShifted( aRNG : TRNG; aValue : Byte ) : TCoord2D;
 begin
   Result.X := X + aRNG.RLongInt( 2 * aValue + 1 ) - aValue;
   Result.Y := Y + aRNG.RLongInt( 2 * aValue + 1 ) - aValue;
-end;
-
-procedure TCoord2D.RandomShift(Value: Byte);
-begin
-  x += System.Random( 2*Value + 1 ) - Value;
-  y += System.Random( 2*Value + 1 ) - Value;
 end;
 
 procedure TCoord2D.RandomShift( aRNG : TRNG; aValue : Byte );
@@ -905,11 +888,6 @@ function NewColorRange( const aA, aB : TColor ) : TColorRange;
 begin
   Result.ColorA := aA;
   Result.ColorB := aB;
-end;
-
-function RandomRange(Min, Max: LongInt): LongInt;
-begin
-  Exit( Min + Random(Max - Min + 1) );
 end;
 
 function RandomRange( aRNG : TRNG; aMin, aMax : LongInt ) : LongInt;
@@ -1254,12 +1232,6 @@ begin
   Exit( Max( B.y - A.y, 0 ) );
 end;
 
-function TArea.RandomCoord: TCoord2D;
-begin
-  Result.X := System.Random( B.X - A.X + 1 ) + A.X;
-  Result.Y := System.Random( B.Y - A.Y + 1 ) + A.Y;
-end;
-
 function TArea.RandomCoord( aRNG : TRNG ) : TCoord2D;
 begin
   Result.Random( aRNG, A, B );
@@ -1290,30 +1262,6 @@ begin
   if ( ( Coord.x = A.x ) or ( Coord.x = B.x ) ) and ( Coord.y >= A.y ) and ( Coord.y <= B.y ) then Exit(True);
   if ( ( Coord.y = A.y ) or ( Coord.y = B.y ) ) and ( Coord.x >= A.x ) and ( Coord.x <= B.x ) then Exit(True);
   Exit( False );
-end;
-
-function TArea.RandomEdgeCoord : TCoord2D;
-var Roll  : Word;
-    Xs,Ys : Word;
-begin
-  Xs := (B.x-A.x+1);
-  Ys := (B.y-A.y-1);
-  Roll := Random(2*Xs+2*Ys);
-  if ( Roll < 2*Xs ) then
-  begin
-    if ( Roll < Xs ) then
-      RandomEdgeCoord.Create(Roll+A.x,A.y)
-    else
-      RandomEdgeCoord.Create(Roll-Xs+A.x,B.y);
-  end
-  else
-  begin
-    Roll -= 2*Xs;
-    if ( Roll < Ys ) then
-      RandomEdgeCoord.Create(A.x,A.y+Roll+1)
-    else
-      RandomEdgeCoord.Create(B.x,A.y+Roll-Ys+1);
-  end
 end;
 
 function TArea.RandomEdgeCoord( aRNG : TRNG ) : TCoord2D;

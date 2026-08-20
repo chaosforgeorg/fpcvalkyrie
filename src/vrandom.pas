@@ -117,7 +117,7 @@ end;
 constructor TRNG.Create;
 begin
   inherited Create;
-  Randomize;
+  Self.Randomize;
 end;
 
 constructor TRNG.CreateFromStream( aStream : TStream );
