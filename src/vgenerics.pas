@@ -472,8 +472,7 @@ type
     // then all the ones added before are discarded.
     procedure Add( aValue : T; aPriority : DWord );
     // Returns a random value from the ones with the lowest priority
-    function Return : T; overload; deprecated;
-    function Return( aRNG : TRNG ) : T; overload;
+    function Return( aRNG : TRNG ) : T;
   protected
     procedure CopyItem( aFrom, aTo : Pointer ); override;
     procedure DisposeOf( aItem : Pointer ); override;
@@ -2096,12 +2095,6 @@ begin
     Clear;
   end;
   InternalPush( @aValue );
-end;
-
-function TGMaximalChoice.Return : T;
-begin
-  if FCount = 0 then raise ERangeError.Create('Return called on a empty TGMinimalList!');
-  Exit(T(InternalGet(Random(FCount))^));
 end;
 
 function TGMaximalChoice.Return( aRNG : TRNG ) : T;

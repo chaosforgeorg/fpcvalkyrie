@@ -59,8 +59,7 @@ type TFloatRange = packed object
   procedure Create( const aMin, aMax : Single );
   function Diff : Single;
   function Contains( const aValue : Single ) : Boolean;
-  function Random : Single; overload; deprecated;
-  function Random( aRNG : TRNG ) : Single; overload;
+  function Random( aRNG : TRNG ) : Single;
 end;
 
 function NewFloatRange( const aMin, aMax : Single ) : TFloatRange;
@@ -94,8 +93,7 @@ type TDiceRoll = object
   procedure Init(const diecode : string);
   procedure Reset;
   function IsZero : Boolean;
-  function Roll : LongInt; overload; deprecated;
-  function Roll( aRNG : TRNG ) : LongInt; overload;
+  function Roll( aRNG : TRNG ) : LongInt;
   function toString : string;
   function fromString( const aDieCode : Ansistring ) : Boolean;
   function max : LongInt;
@@ -123,8 +121,7 @@ TCoord2D = object
   function RandomShifted( aRNG : TRNG; aValue : Byte = 1 ) : TCoord2D; overload;
   procedure RandomShift( Value : Byte = 1 ); overload; deprecated;
   procedure RandomShift( aRNG : TRNG; aValue : Byte = 1 ); overload;
-  procedure Random( Min, Max : TCoord2D ); overload; deprecated;
-  procedure Random( aRNG : TRNG; aMin, aMax : TCoord2D ); overload;
+  procedure Random( aRNG : TRNG; aMin, aMax : TCoord2D );
   function ToVec2i : TVec2i;
   function ToVec2f : TVec2f;
   function ToVec3i( aZ : Integer = 0 ) : TVec3i;
@@ -212,8 +209,7 @@ TArea = object
   function RandomEdgeCoord : TCoord2D; overload; deprecated;
   function RandomEdgeCoord( aRNG : TRNG ) : TCoord2D; overload;
   function RandomInnerEdgeCoord( aRNG : TRNG ) : TCoord2D;
-  function RandomInnerCoord : TCoord2D; overload; deprecated;
-  function RandomInnerCoord( aRNG : TRNG ) : TCoord2D; overload;
+  function RandomInnerCoord( aRNG : TRNG ) : TCoord2D;
   function RandomSubArea( aRNG : TRNG; aMin, aMax : TCoord2D ) : TArea; overload;
   function RandomSubArea( aRNG : TRNG; aDim : TCoord2D ) : TArea; overload;
   function RandomSubArea( aRNG : TRNG; aWidth, aHeight : TByteRange ) : TArea; overload;
@@ -673,14 +669,6 @@ begin
   Y := Y + aRNG.RLongInt( 2 * aValue + 1 ) - aValue;
 end;
 
-procedure TCoord2D.Random(Min, Max: TCoord2D);
-var Diff : TCoord2D;
-begin
-  Diff := Max - Min;
-  x := System.Random( Diff.x + 1 ) + Min.x;
-  y := System.Random( Diff.y + 1 ) + Min.y;
-end;
-
 procedure TCoord2D.Random( aRNG : TRNG; aMin, aMax : TCoord2D );
 var iDiff : TCoord2D;
 begin
@@ -836,11 +824,6 @@ end;
 function TFloatRange.Contains( const aValue : Single ) : Boolean;
 begin
   Exit( ( aValue >= Min ) and ( aValue <= Max ) );
-end;
-
-function TFloatRange.Random : Single;
-begin
-  Exit( Min + System.Random * ( Max - Min ) );
 end;
 
 function TFloatRange.Random( aRNG : TRNG ) : Single;
@@ -1138,11 +1121,6 @@ begin
   Exit( ( amount = 0 ) and ( sides = 0 ) and ( bonus = 0 ) );
 end;
 
-function TDiceRoll.Roll: LongInt;
-begin
-  Exit(LongInt(Dice(amount,sides))+bonus);
-end;
-
 function TDiceRoll.Roll( aRNG : TRNG ) : LongInt;
 begin
   Exit( LongInt( aRNG.Dice( Amount, Sides ) ) + Bonus );
@@ -1278,7 +1256,8 @@ end;
 
 function TArea.RandomCoord: TCoord2D;
 begin
-  RandomCoord.Random( A, B );
+  Result.X := System.Random( B.X - A.X + 1 ) + A.X;
+  Result.Y := System.Random( B.Y - A.Y + 1 ) + A.Y;
 end;
 
 function TArea.RandomCoord( aRNG : TRNG ) : TCoord2D;
@@ -1383,11 +1362,6 @@ begin
     else
       Result.Create( B.X, A.Y + iRoll - iYs + 1 );
   end;
-end;
-
-function TArea.RandomInnerCoord: TCoord2D;
-begin
-  RandomInnerCoord.Random( A.ifInc(+1,+1), B.ifInc(-1,-1) );
 end;
 
 function TArea.RandomInnerCoord( aRNG : TRNG ) : TCoord2D;
