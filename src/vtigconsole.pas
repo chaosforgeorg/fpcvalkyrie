@@ -50,7 +50,7 @@ begin
   for iLine in FText do
     VTIG_Text( iLine );
   iLine := '';
-  if VTIG_Input(@FInput[0],74,True) then
+  if VTIG_Input(@FInput[0],74,[32..126]) then
     iLine := AnsiString( FInput );
   VTIG_End();
   if not aActive then Exit;

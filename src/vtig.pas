@@ -64,7 +64,7 @@ function VTIG_Length( const aText: AnsiString; aParameters: array of const) : In
 function VTIG_StripTags( const aText : AnsiString ) : AnsiString;
 
 procedure VTIG_ResetInput( const aName : Ansistring = ''; aCaret : Integer = -1 );
-function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
+function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aCharSet : TFlags = [] ) : Boolean;
 function VTIG_EnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
 function VTIG_IntInput( aValue : PInteger; aActive : Boolean; aMin, aMax, aStep : Integer ) : Boolean;
 function VTIG_EnumInput( aValue : PInteger; aActive : Boolean; aOpen : PBoolean; aNames : array of Ansistring ) : Boolean;
@@ -1409,7 +1409,7 @@ begin
   SetLength( Result, iL );
 end;
 
-function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
+function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aCharSet : TFlags = [] ) : Boolean;
 var i, iLength : Word;
     iState     : TIOEventState;
     iChar      : Byte;
@@ -1417,6 +1417,7 @@ var i, iLength : Word;
     iCharSet   : TFlags;
     iCursor    : Integer;
     iText      : Ansistring;
+    iRawInput  : Boolean;
 begin
   iLength := StrLen( aBuffer );
   Result  := VTIG_EventConfirm;
@@ -1425,9 +1426,10 @@ begin
     GCtx.Current.Caret := iLength;
   iCursor := GCtx.Current.Caret;
 
-  if aConsole
-    then iCharSet := [32..126]
-    else iCharSet := [Ord('a')..Ord('z')] + [Ord('A')..Ord('Z')] + [Ord('0')..Ord('9')] + [Ord(''''), Ord(' '), Ord('_')];
+  iRawInput := aCharSet <> [];
+  iCharSet  := aCharSet;
+  if iCharSet = [] then
+    iCharSet := [Ord('a')..Ord('z')] + [Ord('A')..Ord('Z')] + [Ord('0')..Ord('9')] + [Ord(''''), Ord(' '), Ord('_')];
 
   for i := 0 to VIO_MAXINPUT - 1 do
   begin
@@ -1496,7 +1498,7 @@ begin
   iCmd.BG    := GCtx.BGColor;
   GCtx.Current.DrawList.Push( iCmd );
 
-  GRawMode := aConsole;
+  GRawMode := iRawInput;
   VTIG_Text( aBuffer, [], GCtx.Color, GCtx.BGColor );
   GRawMode := False;
 end;
