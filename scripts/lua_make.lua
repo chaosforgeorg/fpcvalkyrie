@@ -139,6 +139,13 @@ function os.copy( from, dest )
 	end
 end
 
+function os.copy_file( source_path, destination_path )
+	os.exit_on_error( os.execute(
+		"cp "..os.quote_argument(source_path)
+		.." "..os.quote_argument(destination_path)
+	) )
+end
+
 function os.pwd()
 	local result = ""
 	if OS == "WINDOWS" then 
