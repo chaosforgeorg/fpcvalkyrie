@@ -1,0 +1,62 @@
+OS = "WINDOWS"
+dofile("lua_make.lua")
+
+assert(os.path_normalize([[../jhc]]) == [[..\jhc]])
+assert(os.path_normalize([[..\jhc]]) == [[..\jhc]])
+assert(os.path_is_absolute([[D:\jhc]]))
+assert(os.path_is_absolute([[\\server\jhc]]))
+assert(not os.path_is_absolute([[\jhc]]))
+assert(not os.path_is_absolute([[..\jhc]]))
+assert(os.path_join([[D:/doomrl]], "bin", "data") ==
+  [[D:\doomrl\bin\data]])
+
+local commands = {}
+local real_execute = os.execute
+os.execute = function(command)
+  commands[#commands + 1] = command
+  return 0
+end
+
+os.execute_in_dir("makewad jhc", "bin")
+assert(commands[1] == "cd bin && makewad jhc && cd ..",
+  "two-argument execution must remain byte-for-byte unchanged")
+
+os.execute_in_dir("makewad", "bin", {
+  "jhc", "--module-path", [[D:\JHC Source]],
+})
+assert(commands[2] ==
+  [[cd bin && makewad "jhc" "--module-path" "D:\JHC Source" && cd ..]],
+  "argument-list execution must quote each argument")
+
+os.copy_file(
+  [[D:\JHC Source\setup\app_build_3126530.vdf]],
+  [[D:\doomrl\drl-win-steam\data\jhc\setup]]
+)
+assert(commands[3] ==
+  [[cp "D:\JHC Source\setup\app_build_3126530.vdf" "D:\doomrl\drl-win-steam\data\jhc\setup"]],
+  "literal file copy must quote Windows source and destination paths")
+
+OS = "LINUX"
+os.path_sep = "/"
+assert(os.path_normalize([[..\jhc]]) == "../jhc")
+assert(os.path_is_absolute([[\jhc]]))
+assert(not os.path_is_absolute([[C:\jhc]]))
+assert(os.path_join("/workspace", "bin", [[..\jhc]]) ==
+  "/workspace/bin/../jhc")
+assert(os.quote_argument("JHC Source") == "'JHC Source'")
+assert(os.quote_argument("JHC's Source") == "'JHC'\\''s Source'")
+os.execute_in_dir("makewad jhc", "bin")
+assert(commands[4] == "cd bin && ./makewad jhc && cd ..",
+  "POSIX two-argument execution must remain byte-for-byte unchanged")
+
+os.copy_file(
+  "/workspace/JHC Source/setup/app_build_3126530.vdf",
+  "/workspace/drl steam/data/jhc/setup"
+)
+assert(commands[5] ==
+  "cp '/workspace/JHC Source/setup/app_build_3126530.vdf' " ..
+  "'/workspace/drl steam/data/jhc/setup'",
+  "literal file copy must quote POSIX source and destination paths")
+
+os.execute = real_execute
+print("lua_make path and argument tests passed")
