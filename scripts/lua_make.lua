@@ -43,6 +43,69 @@ os.exec_ext   = os.os_params[ OS ].exec_ext
 os.pack_ext   = os.os_params[ OS ].pack_ext
 os.short_name = os.os_params[ OS ].short_name
 
+function os.path_normalize(path)
+	path = tostring(path)
+	if os.path_sep == "\\" then
+		return path:gsub("/", "\\")
+	end
+	return path:gsub("\\", "/")
+end
+
+function os.path_is_absolute(path)
+	path = os.path_normalize(path)
+	if OS == "WINDOWS" then
+		return path:match("^%a:\\") ~= nil
+			or path:sub(1, 2) == "\\\\"
+	end
+	return path:sub(1, 1) == "/"
+end
+
+function os.path_join(...)
+	local parts = { ... }
+	local result = os.path_normalize(parts[1] or "")
+	for index = 2, #parts do
+		result = result:gsub("[/\\]+$", "")
+		local part = os.path_normalize(parts[index])
+		part = part:gsub("^[/\\]+", "")
+		result = result..os.path_sep..part
+	end
+	return result
+end
+
+function os.quote_argument(value)
+	value = tostring(value)
+	if value:find("[\r\n]") then
+		error("Command arguments may not contain line breaks")
+	end
+
+	if OS ~= "WINDOWS" then
+		return "'"..value:gsub("'", "'\\''").."'"
+	end
+	if value:find("%%") then
+		error("Windows command arguments may not contain percent signs")
+	end
+
+	local result = { '"' }
+	local backslashes = 0
+	for index = 1, #value do
+		local char = value:sub(index, index)
+		if char == "\\" then
+			backslashes = backslashes + 1
+		elseif char == '"' then
+			result[#result + 1] = string.rep("\\", backslashes * 2 + 1)
+			result[#result + 1] = char
+			backslashes = 0
+		else
+			result[#result + 1] = string.rep("\\", backslashes)
+			result[#result + 1] = char
+			backslashes = 0
+		end
+	end
+	result[#result + 1] = string.rep("\\", backslashes * 2)
+	result[#result + 1] = '"'
+	return table.concat(result)
+end
+
 function os.readsingleline( filename )
 	local f = assert(io.open(filename, "r"))
     local line = f:read()
@@ -96,7 +159,14 @@ function os.exit_on_error( result )
 	end
 end
 
-function os.execute_in_dir( filename, dir )
+function os.execute_in_dir( filename, dir, arguments )
+	if arguments then
+		local command = { filename }
+		for _,argument in ipairs(arguments) do
+			command[#command + 1] = os.quote_argument(argument)
+		end
+		filename = table.concat(command, " ")
+	end
 	local result
 	if OS == "WINDOWS" then
 		result = os.execute("cd "..dir.." && "..filename.." && cd ..")
