@@ -78,6 +78,22 @@ begin
   Exit(0);
 end;
 
+{$PUSH}
+{$Q-}
+{$R-}
+function lua_math_mix_seed( L : Plua_State ) : Integer; cdecl;
+var iValue : DWord;
+begin
+  iValue := DWord( luaL_checkinteger( L, 1 ) ) xor
+    ( DWord( luaL_checkinteger( L, 2 ) ) * DWord( $9E3779B9 ) );
+  iValue := ( iValue xor ( iValue shr 16 ) ) * DWord( $85EBCA6B );
+  iValue := ( iValue xor ( iValue shr 13 ) ) * DWord( $C2B2AE35 );
+  iValue := iValue xor ( iValue shr 16 );
+  lua_pushnumber( L, ( iValue mod DWord( 1000000000 ) ) + 1 );
+  Result := 1;
+end;
+{$POP}
+
 constructor TLua.Create( aCoverState : Plua_State = nil );
 begin
   if LuaRNG = nil then
@@ -102,6 +118,9 @@ begin
   lua_getglobal( FLuaState, 'math' );
   lua_pushstring( FLuaState, 'random' );
   lua_pushcfunction(FLuaState, @lua_math_random );
+  lua_rawset(FLuaState, -3);
+  lua_pushstring( FLuaState, 'mix_seed' );
+  lua_pushcfunction(FLuaState, @lua_math_mix_seed );
   lua_rawset(FLuaState, -3);
   lua_getglobal( FLuaState, 'math' );
   lua_pushstring( FLuaState, 'randomseed' );
