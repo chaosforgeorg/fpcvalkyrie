@@ -7,8 +7,8 @@ assert(os.path_is_absolute([[D:\jhc]]))
 assert(os.path_is_absolute([[\\server\jhc]]))
 assert(not os.path_is_absolute([[\jhc]]))
 assert(not os.path_is_absolute([[..\jhc]]))
-assert(os.path_join([[D:/doomrl]], "bin", "data") ==
-  [[D:\doomrl\bin\data]])
+assert(os.path_join([[D:/drl]], "bin", "data") ==
+  [[D:\drl\bin\data]])
 
 local commands = {}
 local real_execute = os.execute
@@ -30,10 +30,10 @@ assert(commands[2] ==
 
 os.copy_file(
   [[D:\JHC Source\setup\app_build_3126530.vdf]],
-  [[D:\doomrl\drl-win-steam\data\jhc\setup]]
+  [[D:\drl\drl-win-steam\data\jhc\setup]]
 )
 assert(commands[3] ==
-  [[cp "D:\JHC Source\setup\app_build_3126530.vdf" "D:\doomrl\drl-win-steam\data\jhc\setup"]],
+  [[cp "D:\JHC Source\setup\app_build_3126530.vdf" "D:\drl\drl-win-steam\data\jhc\setup"]],
   "literal file copy must quote Windows source and destination paths")
 
 OS = "LINUX"
