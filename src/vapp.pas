@@ -525,8 +525,15 @@ begin
 end;
 
 procedure TValkyrieApplication.HandleException( aSender : TObject );
+var iException : TObject;
 begin
-  inherited HandleException(aSender);
+  iException := ExceptObject;
+  if iException is Exception then
+    DispatchApplicationException(Exception(iException))
+  else if Assigned(Logger) then
+    Logger.Flush;
+  Terminate(1);
+  raise iException;
 end;
 
 end.
