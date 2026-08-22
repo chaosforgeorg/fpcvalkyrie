@@ -452,7 +452,25 @@ end;
 
 procedure TValkyrieApplication.RunDataGeneration( out aResult : TVRunResult );
 begin
-  aResult := VRR_QUIT;
+  InitializeGame;
+  FDataInitialized := True;
+  try
+    try
+      aResult := RunGame;
+    except
+      on E : Exception do
+      begin
+        GameException(E);
+        raise;
+      end;
+    end;
+  finally
+    try
+      ShutdownGame;
+    finally
+      FDataInitialized := False;
+    end;
+  end;
 end;
 
 procedure TValkyrieApplication.DispatchApplicationException( aException : Exception );
@@ -463,17 +481,47 @@ begin
 end;
 
 procedure TValkyrieApplication.DoRun;
+var iResult : TVRunResult;
 begin
-  Terminate(0);
+  if Terminated then Exit;
+  try
+    if ExecuteApplicationCommand then
+    begin
+      Terminate(0);
+      Exit;
+    end;
+
+    CreateGame;
+    repeat
+      RunDataGeneration(iResult);
+      if iResult = VRR_RELOAD_DATA then
+        ResetGame;
+    until iResult = VRR_QUIT;
+    Terminate(0);
+  finally
+    Shutdown;
+  end;
 end;
 
 procedure TValkyrieApplication.Shutdown;
 begin
   if FShutdown then Exit;
   FShutdown := True;
-  FDataInitialized := False;
-  if Assigned(Logger) then
-    Logger.Flush;
+  try
+    if FDataInitialized then
+      try
+        ShutdownGame;
+      finally
+        FDataInitialized := False;
+      end;
+  finally
+    try
+      DestroyGame;
+    finally
+      if Assigned(Logger) then
+        Logger.Flush;
+    end;
+  end;
 end;
 
 procedure TValkyrieApplication.HandleException( aSender : TObject );
