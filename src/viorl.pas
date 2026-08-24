@@ -1,8 +1,8 @@
 {$INCLUDE valkyrie.inc}
 unit viorl;
 interface
-uses Classes, SysUtils, vio, vrltools, vconuirl, vuitypes, vluaentitynode, vluamapnode,
-     vuielement, vconui, vluastate, vluaconfig, vioevent, viotypes, vioconsole, vtextmap, vmessages;
+uses Classes, SysUtils, vio, vrltools, vluaentitynode, vluamapnode, vrandom,
+     vluastate, vluaconfig, vioevent, viotypes, vioconsole, vtextmap, vmessages;
 
 const COMMAND_INVALID = 255;
       COMMAND_SYSQUIT = 253;
@@ -15,7 +15,7 @@ type
 { TIORL }
 
  TIORL = class( TIO )
-  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False );
+  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer ); reintroduce;
 
   // TIG-version functions
   procedure RunLayer( aLayer : TIOLayer ); virtual;
@@ -28,15 +28,15 @@ type
 
   // Messages
   // Adds a message for the message buffer
-  procedure Msg( const aMessage : Ansistring); virtual;
+  procedure Msg( const aMessage : Ansistring); virtual; overload;
   // Adds a message for the message buffer (params passed to Format)
-  procedure Msg( const aMessage : Ansistring; const aParams : array of Const );
+  procedure Msg( const aMessage : Ansistring; const aParams : array of Const ); overload;
   // Kills last message from the message buffer.
   procedure MsgKill;
   // Update messages
   procedure MsgUpdate; virtual;
   // Dump last messages to file.
-  procedure MsgDump( var iTextFile : Text; iLastCount : DWord );
+  procedure MsgDump( var aTextFile : Text; aLastCount : Integer );
 
   // Events
   function GetCommand : Byte;
@@ -71,12 +71,11 @@ type
   // Register Lua API
   class procedure RegisterLuaAPI( State : TLuaState; const aTableName : AnsiString );
 private
-  function GetMapShift : TUIPoint;
+  function GetMapShift : TIOPoint;
 protected
-  FUIMap       : TConUIMapArea;
-  FUIMessages  : TConUIMessages;
-  FTMap        : TTextMap;
-  FTMessages   : TMessages;
+  FVisualRNG : TRNG;
+  FTMap      : TTextMap;
+  FMessages  : TMessages;
   FConfig    : TLuaConfig;
   FKeyCode   : Word;
 
@@ -85,31 +84,31 @@ protected
   FBreakLoop : Boolean;
 public
   property Config      : TLuaConfig read FConfig;
-  property MapShift    : TUIPoint read GetMapShift;
+  property MapShift    : TIOPoint read GetMapShift;
   property LastKeyCode : Word read FKeyCode;
-  property Messages    : TMessages read FTMessages;
+  property Messages    : TMessages read FMessages;
+  property VisualRNG   : TRNG read FVisualRNG;
 end;
 
 implementation
 
-uses variants, vluasystem, vutil, math;
+uses variants, vtig, vluasystem, vutil, math;
 
 var IORL : TIORL = nil;
 
 { TIORL }
 
-constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False ) ;
+constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer ) ;
 begin
   IORL := Self;
-  inherited Create( aIODriver, aConsole, aStyle, aInitTIG );
-  FUIMap       := nil;
-  FUIMessages  := nil;
-  FTMap        := nil;
-  FTMessages   := nil;
+  inherited Create( aIODriver, aConsole );
+  FTMap      := nil;
+  FMessages  := nil;
   FLevel     := nil;
   FPlayer    := nil;
   FConfig    := nil;
   FBreakLoop := False;
+  FVisualRNG := TRNG.Create;
 end;
 
 procedure TIORL.RunLayer( aLayer : TIOLayer );
@@ -135,8 +134,7 @@ end;
 
 procedure TIORL.Msg ( const aMessage : Ansistring ) ;
 begin
-  if FUIMessages <> nil then FUIMessages.Add(aMessage);
-  if FTMessages <> nil then FTMessages.Add(aMessage);
+  if FMessages <> nil then FMessages.Add(aMessage);
 end;
 
 procedure TIORL.Msg( const aMessage : Ansistring; const aParams : array of const ) ;
@@ -146,33 +144,26 @@ end;
 
 procedure TIORL.MsgKill;
 begin
-  if FUIMessages <> nil then FUIMessages.Pop;
-  if FTMessages <> nil then FTMessages.Pop;
+  if FMessages <> nil then FMessages.Pop;
 end;
 
 procedure TIORL.MsgUpdate;
 begin
-  if FUIMessages <> nil then FUIMessages.Update;
-  if FTMessages <> nil then FTMessages.Update;
+  if FMessages <> nil then FMessages.Update;
 end;
 
-procedure TIORL.MsgDump ( var iTextFile : Text; iLastCount : DWord ) ;
-var iCount   : Word;
-    iMessage : AnsiString;
+procedure TIORL.MsgDump ( var aTextFile : Text; aLastCount : Integer ) ;
+var iCount : Word;
+    iText  : AnsiString;
+    iLast  : Integer;
 begin
-  if FUIMessages <> nil then
-  for iCount := Min( iLastCount, FUIMessages.Content.Size ) downto 1 do
+  if ( FMessages = nil ) or ( FMessages.Size = 0 ) then Exit;
+  iLast := aLastCount;
+  if iLast > FMessages.Size then iLast := FMessages.Size;
+  for iCount := iLast downto 1 do
   begin
-    iMessage := ChunkListToString( FUIMessages.Content[-iCount] );
-    if iMessage <> '' then
-      Writeln(iTextFile,' '+iMessage);
-  end;
-  if FTMessages <> nil then
-  for iCount := Min( iLastCount, FTMessages.Size ) downto 1 do
-  begin
-    iMessage := FTMessages.Content[-iCount];
-    if iMessage <> '' then
-      Writeln(iTextFile,' '+iMessage);
+    iText := VTIG_StripTags( FMessages.Content[ -Integer( iCount ) ] );
+    if iText <> '' then Writeln( aTextFile, ' '+iText );
   end;
 end;
 
@@ -229,8 +220,7 @@ begin
       FullUpdate;
       FIODriver.Sleep(10);
     until FIODriver.EventPending and FIODriver.PollEvent( aEvent );
-    if FUIRoot.OnEvent( aEvent ) then aEvent.EType := VEVENT_KEYUP;
-    if FTIGActive then if OnEvent( aEvent ) then aEvent.EType := VEVENT_KEYUP;
+    if OnEvent( aEvent ) then aEvent.EType := VEVENT_KEYUP;
     if (aEvent.EType = VEVENT_SYSTEM) and (aEvent.System.Code = VIO_SYSEVENT_QUIT) then Exit( True );
     if FBreakLoop then Exit( False );
   until aEvent.EType in iEndLoop;
@@ -244,48 +234,36 @@ end;
 
 procedure TIORL.MarkTile ( aCoord : TCoord2D; aSign : char; aColor : byte ) ;
 begin
-  if FUIMap <> nil then FUIMap.Mark( aCoord, aSign, aColor );
   if FTMap <> nil then FTMap.Mark( aCoord, aSign, aColor );
 end;
 
 procedure TIORL.MarkClear;
 begin
-  if FUIMap <> nil then FUIMap.ClearMarks;
   if FTMap <> nil then FTMap.ClearMarks;
 end;
 
 procedure TIORL.AddMarkAnimation ( aCoord : TCoord2D; aSign : char; aColor : TIOColor; aDuration : DWord; aDelay : DWord ) ;
 begin
-  if FUIMap <> nil then FUIMap.AddAnimation( TConUIMarkAnimation.Create( aCoord, IOGylph( aSign, aColor ), aDuration, aDelay ) );
   if FTMap <> nil then FTMap.AddAnimation( TTextMarkAnimation.Create( aCoord, IOGylph( aSign, aColor ), aDuration, aDelay ) );
 end;
 
 procedure TIORL.AddBulletAnimation ( aFrom, aTo : TCoord2D; aSign : char; aColor : TIOColor; aDuration : DWord; aDelay : DWord ) ;
 begin
-  if FUIMap <> nil then FUIMap.AddAnimation( TConUIBulletAnimation.Create( FLevel, aFrom, aTo, IOGylph( aSign, aColor ), aDuration, aDelay ) );
   if FTMap <> nil then FTMap.AddAnimation( TTextBulletAnimation.Create( FLevel, aFrom, aTo, IOGylph( aSign, aColor ), aDuration, aDelay ) );
 end;
 
 procedure TIORL.AddExplodeAnimation ( aCoord : TCoord2D; const aArray : TTextExplosionArray; aDelay : DWord ) ;
 begin
-  if FUIMap <> nil then FUIMap.AddAnimation( TConUIExplosionAnimation.Create( aCoord, '*', aArray, aDelay ) );
   if FTMap <> nil then FTMap.AddAnimation( TTextExplosionAnimation.Create( aCoord, '*', aArray, aDelay ) );
 end;
 
 procedure TIORL.ClearAnimations;
 begin
-  if FUIMap <> nil then FUIMap.ClearAnimations;
   if FTMap <> nil then FTMap.ClearAnimations;
 end;
 
 procedure TIORL.WaitForAnimations;
 begin
-  if FUIMap <> nil then
-  while not FUIMap.AnimationsFinished do
-  begin
-    FIODriver.Sleep(10);
-    FullUpdate;
-  end;
   if FTMap <> nil then
   while not FTMap.AnimationsFinished do
   begin
@@ -300,7 +278,6 @@ var iExpl     : TTextExplosionArray;
     iCoord    : TCoord2D;
     iDistance : DWord;
 begin
-  if FUIMap <> nil then FUIMap.FreezeMarks;
   if FTMap <> nil then FTMap.FreezeMarks;
   SetLength( iExpl, 4 );
   iExpl[0].Time := aDrawDelay;
@@ -324,18 +301,12 @@ begin
     if not FLevel.isEyeContact( iCoord, aWhere ) then Continue;
     AddExplodeAnimation( iCoord, iExpl, iDistance*aDrawDelay+aDelay );
   end;
-  if FUIMap <> nil then FUIMap.AddAnimation( TConUIClearMarkAnimation.Create( aRange*aDrawDelay+aDelay ) );
   if FTMap <> nil then FTMap.AddAnimation( TTextClearMarkAnimation.Create( aRange*aDrawDelay+aDelay ) );
 end;
 
 procedure TIORL.FocusCursor ( aCoord : TCoord2D ) ;
-var iPoint : TUIPoint;
+var iPoint : TIOPoint;
 begin
-  if FUIMap <> nil then
-  begin
-    iPoint := FUIMap.Screen( aCoord );
-    FConsole.MoveCursor( iPoint.X, iPoint.Y );
-  end;
   if FTMap <> nil then
   begin
     iPoint := FTMap.Screen( aCoord );
@@ -362,6 +333,7 @@ end;
 destructor TIORL.Destroy;
 begin
   IORL := nil;
+  FreeAndNil( FVisualRNG );
   inherited Destroy;
 end;
 
@@ -414,9 +386,8 @@ begin
   State.Register( aTableName, lua_iorl_lib );
 end;
 
-function TIORL.GetMapShift : TUIPoint;
+function TIORL.GetMapShift : TIOPoint;
 begin
-  if FUIMap <> nil then Exit( FUIMap.Shift );
   if FTMap <> nil then Exit( FTMap.Shift );
   Exit( Point(0,0) );
 end;

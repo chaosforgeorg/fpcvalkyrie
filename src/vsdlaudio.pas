@@ -22,7 +22,7 @@ type
       const aNameHint : AnsiString; aStreamed : Boolean ) : Pointer; override;
     procedure FreeBackendAsset( aData : Pointer ); override;
     function StartBackend( aAssetData : Pointer; aStream, aLoop : Boolean;
-      aMusic : Boolean ) : Pointer; override;
+      aMusic : Boolean; aGain : Single ) : Pointer; override;
     procedure StopBackend( aInstanceData : Pointer ); override;
     function BackendPlaying( aInstanceData : Pointer ) : Boolean; override;
     procedure SetBackendGain( aInstanceData : Pointer; aGain : Single ); override;
@@ -99,7 +99,7 @@ begin
 end;
 
 function TSDLAudio.StartBackend( aAssetData : Pointer; aStream, aLoop : Boolean;
-  aMusic : Boolean ) : Pointer;
+  aMusic : Boolean; aGain : Single ) : Pointer;
 var iAsset : PSDLAsset;
     iTrack : PMIX_Track;
     iProps : SDL_PropertiesID;
@@ -109,6 +109,7 @@ begin
   if iTrack = nil then Exit( nil );
   if iAsset^.Stream then MIX_SetTrackIOStream( iTrack, iAsset^.IO, False )
                     else MIX_SetTrackAudio( iTrack, iAsset^.Audio );
+  MIX_SetTrackGain( iTrack, aGain );
   iProps := SDL_CreateProperties();
   if aLoop then SDL_SetNumberProperty(iProps, 'SDL_mixer.play.loops', -1);
   if not MIX_PlayTrack( iTrack, iProps ) then

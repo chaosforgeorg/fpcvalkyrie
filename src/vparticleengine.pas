@@ -1,7 +1,7 @@
 unit vparticleengine;
 {$include valkyrie.inc}
 interface
-uses SysUtils, Math, vvector, vcolor, vrltools, vgltypes, vspriteengine;
+uses SysUtils, Math, vvector, vcolor, vrandom, vrltools, vgltypes, vspriteengine;
 
 const PARTICLE_MAX_DEFAULT = 16384;
 
@@ -96,7 +96,7 @@ type
 { TParticleEngine }
 
   TParticleEngine = class
-    constructor Create( aMaxParticles : Integer = PARTICLE_MAX_DEFAULT );
+    constructor Create( aRNG : TRNG; aMaxParticles : Integer = PARTICLE_MAX_DEFAULT );
     destructor Destroy; override;
     procedure Clear;
     procedure ClearParticles;
@@ -120,6 +120,7 @@ type
     FMaxParticles  : Integer;
     FMaxEmitters   : Integer;
     FDecalCallback : TParticleDecalCallback;
+    FRNG            : TRNG;
     function  AllocParticle : Integer;
     function  AllocEmitter : Integer;
     procedure UpdateParticle( aIndex : Integer; aDeltaSec : Single );
@@ -139,12 +140,13 @@ implementation
 
 { TParticleEngine }
 
-constructor TParticleEngine.Create( aMaxParticles : Integer );
+constructor TParticleEngine.Create( aRNG : TRNG; aMaxParticles : Integer );
 begin
   inherited Create;
   FDecalCallback := nil;
   FMaxParticles  := aMaxParticles;
   FMaxEmitters   := 128;
+  FRNG           := aRNG;
   SetLength( FParticles, FMaxParticles );
   SetLength( FEmitters, FMaxEmitters );
   Clear;
@@ -208,9 +210,9 @@ begin
   if aSpreadAngle <= 0 then
     Exit( aDir );
   if ( Abs( aDir.X ) < 0.001 ) and ( Abs( aDir.Y ) < 0.001 ) then
-    iAngle := Random * 2.0 * PI
+    iAngle := FRNG.RFloat * 2.0 * PI
   else
-    iAngle := ArcTan2( aDir.Y, aDir.X ) + ( Random * 2.0 - 1.0 ) * aSpreadAngle * PI / 180.0;
+    iAngle := ArcTan2( aDir.Y, aDir.X ) + ( FRNG.RFloat * 2.0 - 1.0 ) * aSpreadAngle * PI / 180.0;
   Result.Init( Cos( iAngle ), Sin( iAngle ), aDir.Z );
 end;
 
@@ -224,15 +226,15 @@ begin
       Result := iBase;
     ES_SPHERE:
     begin
-      iAngle := Random * 2 * PI;
+      iAngle := FRNG.RFloat * 2 * PI;
       iRadius := aData^.ShapeParams.X;
-      Result.X := iBase.X + Cos( iAngle ) * iRadius * ( 0.5 + Random * 0.5 );
-      Result.Y := iBase.Y + Sin( iAngle ) * iRadius * ( 0.5 + Random * 0.5 );
-      Result.Z := iBase.Z + ( Random - 0.5 ) * iRadius;
+      Result.X := iBase.X + Cos( iAngle ) * iRadius * ( 0.5 + FRNG.RFloat * 0.5 );
+      Result.Y := iBase.Y + Sin( iAngle ) * iRadius * ( 0.5 + FRNG.RFloat * 0.5 );
+      Result.Z := iBase.Z + ( FRNG.RFloat - 0.5 ) * iRadius;
     end;
     ES_BASE_RING:
     begin
-      iAngle := Random * 2 * PI;
+      iAngle := FRNG.RFloat * 2 * PI;
       Result.X := iBase.X + Cos( iAngle ) * aData^.ShapeParams.X;
       Result.Y := iBase.Y + Sin( iAngle ) * aData^.ShapeParams.Y;
       // Z varies for depth: bottom of ring is positive (behind), top is negative (in front)
@@ -240,8 +242,8 @@ begin
     end;
     ES_BASE_ELLIPSE:
     begin
-      iAngle := Random * 2 * PI;
-      iRadius := Sqrt( Random );  // uniform disc distribution
+      iAngle := FRNG.RFloat * 2 * PI;
+      iRadius := Sqrt( FRNG.RFloat );  // uniform disc distribution
       Result.X := iBase.X + Cos( iAngle ) * aData^.ShapeParams.X * iRadius;
       Result.Y := iBase.Y + Sin( iAngle ) * aData^.ShapeParams.Y * iRadius;
       Result.Z := Sin( iAngle ) * aData^.ShapeParams.Z * iRadius;
@@ -267,25 +269,25 @@ begin
   with FParticles[iP] do
   begin
     Position      := RandomPointInShape( iE^.Position, iD );
-    iSpeed        := iD^.SpeedRange.Random;
+    iSpeed        := iD^.SpeedRange.Random( FRNG );
     iDir          := RandomDirection( iE^.Direction, iD^.SpreadAngle );
     Velocity.X    := iDir.X * iSpeed;
     Velocity.Y    := iDir.Y * iSpeed;
     Velocity.Z    := iDir.Z * iSpeed;
-    Acceleration  := iD^.AccelRange.Random;
-    Life          := iD^.LifetimeRange.Random;
+    Acceleration  := iD^.AccelRange.Random( FRNG );
+    Life          := iD^.LifetimeRange.Random( FRNG );
     LifeMax       := Life;
-    Scale         := iD^.ScaleRange.Random;
-    Rotation      := iD^.RotationRange.Random;
-    RotationSpeed := iD^.RotSpeedRange.Random;
-    ColorStart    := iD^.ColorStartRange.Random;
-    ColorEnd      := iD^.ColorEndRange.Random;
+    Scale         := iD^.ScaleRange.Random( FRNG );
+    Rotation      := iD^.RotationRange.Random( FRNG );
+    RotationSpeed := iD^.RotSpeedRange.Random( FRNG );
+    ColorStart    := iD^.ColorStartRange.Random( FRNG );
+    ColorEnd      := iD^.ColorEndRange.Random( FRNG );
     SpriteID      := iD^.SpriteID;
     SubID         := iD^.SubID;
     AnimFrames    := iD^.AnimFrames;
     AnimFrameTime := iD^.AnimFrameTime;
     if ( AnimFrames > 1 ) and ( PF_RAND_OFFSET in iD^.ParticleFlags ) then
-      AnimTimeOffset := Random * AnimFrameTime * AnimFrames
+      AnimTimeOffset := FRNG.RFloat * AnimFrameTime * AnimFrames
     else
       AnimTimeOffset := 0;
     DecalSprite   := iD^.DecalSprite;
@@ -663,25 +665,25 @@ begin
     if iIdx < 0 then Exit;
     iP := @FParticles[iIdx];
     iP^.Position      := RandomPointInShape( aPos, aData );
-    iSpeed            := aData^.SpeedRange.Random;
+    iSpeed            := aData^.SpeedRange.Random( FRNG );
     iDir              := RandomDirection( aDir, aData^.SpreadAngle );
     iP^.Velocity.X    := iDir.X * iSpeed;
     iP^.Velocity.Y    := iDir.Y * iSpeed;
     iP^.Velocity.Z    := iDir.Z * iSpeed;
-    iP^.Acceleration  := aData^.AccelRange.Random;
-    iP^.Life          := aData^.LifetimeRange.Random;
+    iP^.Acceleration  := aData^.AccelRange.Random( FRNG );
+    iP^.Life          := aData^.LifetimeRange.Random( FRNG );
     iP^.LifeMax       := iP^.Life;
-    iP^.Scale         := aData^.ScaleRange.Random;
-    iP^.Rotation      := aData^.RotationRange.Random;
-    iP^.RotationSpeed := aData^.RotSpeedRange.Random;
-    iP^.ColorStart    := aData^.ColorStartRange.Random;
-    iP^.ColorEnd      := aData^.ColorEndRange.Random;
+    iP^.Scale         := aData^.ScaleRange.Random( FRNG );
+    iP^.Rotation      := aData^.RotationRange.Random( FRNG );
+    iP^.RotationSpeed := aData^.RotSpeedRange.Random( FRNG );
+    iP^.ColorStart    := aData^.ColorStartRange.Random( FRNG );
+    iP^.ColorEnd      := aData^.ColorEndRange.Random( FRNG );
     iP^.SpriteID      := aData^.SpriteID;
     iP^.SubID         := aData^.SubID;
     iP^.AnimFrames    := aData^.AnimFrames;
     iP^.AnimFrameTime := aData^.AnimFrameTime;
     if ( aData^.AnimFrames > 1 ) and ( PF_RAND_OFFSET in aData^.ParticleFlags ) then
-      iP^.AnimTimeOffset := Random * aData^.AnimFrameTime * aData^.AnimFrames
+      iP^.AnimTimeOffset := FRNG.RFloat * aData^.AnimFrameTime * aData^.AnimFrames
     else
       iP^.AnimTimeOffset := 0;
     iP^.DecalSprite   := aData^.DecalSprite;

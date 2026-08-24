@@ -1141,7 +1141,7 @@ end;
 function lua_core_set_rseed(L: Plua_State): Integer; cdecl;
 begin
   if lua_gettop(L) < 1 then Exit(0);
-  RandSeed := lua_tointeger(L,1);
+  LuaRNG.SetSeed( DWord( lua_tointeger( L, 1 ) ) );
   Result := 0;
 end;
 
@@ -1881,8 +1881,8 @@ end;
 
 procedure TLuaSystem.SetErrorFunc ( aErrorFunc : TLuaSystemErrorFunc ) ;
 begin
-  FErrorFunc := aErrorFunc;
-  FLua.FErrorFunc :=  aErrorFunc;
+  FErrorFunc     := aErrorFunc;
+  FLua.ErrorFunc := aErrorFunc;
 end;
 
 procedure TLuaSystem.TableToStream ( const aPath : AnsiString; aStream : TStream ) ;

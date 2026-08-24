@@ -3,6 +3,16 @@ unit vtig;
 interface
 uses vutil, viotypes, vtigstyle, vioconsole, vtigio;
 
+type TTIGWindowFlag = (
+  VTIG_WINDOW_NO_CLEAR
+);
+type TTIGWindowFlags = set of TTIGWindowFlag;
+
+type TTIGFreeLabelFlag = (
+  VTIG_FREELABEL_UNRESTRICTED
+);
+type TTIGFreeLabelFlags = set of TTIGFreeLabelFlag;
+
 procedure VTIG_Initialize( aRenderer : TIOConsoleRenderer; aDriver : TIODriver; aClearOnRender : Boolean = True );
 procedure VTIG_Shutdown;
 procedure VTIG_NewFrame;
@@ -10,9 +20,9 @@ procedure VTIG_EndFrame;
 procedure VTIG_Render;
 procedure VTIG_Clear;
 
-procedure VTIG_Begin( aName : Ansistring ); overload;
-procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint ); overload;
-procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_Begin( aName : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 procedure VTIG_End; overload;
 procedure VTIG_End( aFooter : Ansistring ); overload;
 procedure VTIG_Reset( aName : AnsiString );
@@ -31,18 +41,18 @@ procedure VTIG_ResetSelect( aName : AnsiString = ''; aValue : Integer = 0 );
 function VTIG_Scrollbar( aScrollMax : Boolean = False ) : Boolean;
 procedure VTIG_ResetScroll( aName : AnsiString = ''; aValue : Integer = 0 );
 
-procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
-procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint ); overload;
-procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
-procedure VTIG_BeginWindow( aName : Ansistring ); overload;
-procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint ); overload;
-procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 
 function VTIG_PositionResolve( aPos : TIOPoint ) : TIOPoint;
-procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0 ); overload;
-procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0 ); overload;
-procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0 ); overload;
-procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0 ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] ); overload;
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] ); overload;
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor; aBGColor : TIOColor );
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint; aColor : TIOColor );
 procedure VTIG_FreeChar( aChar : Char; aPos : TIOPoint );
@@ -54,7 +64,7 @@ function VTIG_Length( const aText: AnsiString; aParameters: array of const) : In
 function VTIG_StripTags( const aText : AnsiString ) : AnsiString;
 
 procedure VTIG_ResetInput( const aName : Ansistring = ''; aCaret : Integer = -1 );
-function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
+function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aCharSet : TFlags = [] ) : Boolean;
 function VTIG_EnabledInput( aValue : PBoolean; aActive : Boolean; aEnabled : Ansistring = ''; aDisabled : Ansistring = '' ) : Boolean;
 function VTIG_IntInput( aValue : PInteger; aActive : Boolean; aMin, aMax, aStep : Integer ) : Boolean;
 function VTIG_EnumInput( aValue : PInteger; aActive : Boolean; aOpen : PBoolean; aNames : array of Ansistring ) : Boolean;
@@ -163,23 +173,102 @@ begin
   end;
 end;
 
-procedure VTIG_RenderTextSegment( const aText: PAnsiChar; var aCurrentX, aCurrentY : Integer; aClip: TIORect; var aStyleStack: TTIGStyleStack; aParameters: array of const );
+const VTIG_MAX_SUBWIDTH = 99; // clamp for the {$name|N} / {N|N} width controller
+
+var GPadBuffer : array[0..VTIG_MAX_SUBWIDTH-1] of AnsiChar; // static space buffer, filled once - avoids per-call padding allocations
+
+function VTIG_PLength( const aText: PAnsiChar; aParameters: array of const ) : Integer; forward;
+
+// Parses a width spec such as '10', '-10' (cut-only) or '+10' (pad-only) directly from a pointer range, no allocations.
+function VTIG_ParseWidthSpec( aSpec : PAnsiChar; aSpecLen : Integer; out aWidth : Integer; out aAllowPad, aAllowCut : Boolean ) : Boolean;
+var i : Integer;
+begin
+  aAllowPad := True;
+  aAllowCut := True;
+  aWidth    := 0;
+  Result    := False;
+  if aSpecLen <= 0 then Exit;
+  i := 0;
+  if aSpec[0] = '-' then begin aAllowPad := False; Inc(i); end
+  else if aSpec[0] = '+' then begin aAllowCut := False; Inc(i); end;
+  if i >= aSpecLen then Exit;
+  while i < aSpecLen do
+  begin
+    if not ( aSpec[i] in ['0'..'9'] ) then Exit; // malformed spec, caller degrades to "no width"
+    aWidth := aWidth * 10 + ( Ord(aSpec[i]) - Ord('0') );
+    Inc(i);
+  end;
+  if aWidth > VTIG_MAX_SUBWIDTH then aWidth := VTIG_MAX_SUBWIDTH;
+  Result := aWidth > 0;
+end;
+
+// Final visible length after applying cut then pad - shared by the render and measure paths so they always agree.
+function VTIG_ApplyWidth( aLen, aWidth : Integer; aAllowPad, aAllowCut : Boolean ) : Integer;
+begin
+  Result := aLen;
+  if aAllowCut and ( Result > aWidth ) then Result := aWidth;
+  if aAllowPad and ( Result < aWidth ) then Result := aWidth;
+end;
+
+// Single-pass scan of a self-contained {N...} / {$name...} tag body up to its closing '}', splitting
+// off an optional trailing '|widthspec'. Shared by the digit and '$' branches of both the render and
+// measure walkers, so the "{}"-adjustment-value extraction only exists once.
+// aBodyLen = offset of the closing '}' relative to aBody. aNameLen = offset of '|' (or aBodyLen if none).
+// Returns False if no closing '}' is found before the string ends (malformed tag).
+function VTIG_ScanWidthTag( aBody : PAnsiChar; out aBodyLen, aNameLen, aWidth : Integer; out aAllowPad, aAllowCut : Boolean ) : Boolean;
+var iBarPos : Integer;
+begin
+  aBodyLen := 0;
+  iBarPos  := -1;
+  while (aBody[aBodyLen] <> '}') and (aBody[aBodyLen] <> #0) do
+  begin
+    if (iBarPos < 0) and (aBody[aBodyLen] = '|') then iBarPos := aBodyLen;
+    Inc(aBodyLen);
+  end;
+  Result := aBody[aBodyLen] = '}';
+  if not Result then Exit;
+  if iBarPos >= 0 then
+  begin
+    aNameLen := iBarPos;
+    VTIG_ParseWidthSpec( aBody + iBarPos + 1, aBodyLen - iBarPos - 1, aWidth, aAllowPad, aAllowCut );
+  end
+  else
+  begin
+    aNameLen  := aBodyLen;
+    aWidth    := 0;
+    aAllowPad := True;
+    aAllowCut := True;
+  end;
+end;
+
+procedure VTIG_RenderTextSegment( const aText: PAnsiChar; var aCurrentX, aCurrentY : Integer; aClip: TIORect; var aStyleStack: TTIGStyleStack; aParameters: array of const; aMaxVisible : Integer = -1 );
 var iWindow        : TTIGWindow;
     i, iParamIndex : Integer;
     iPos, iWidth   : Integer;
     iLastSpace     : Integer;
     iSpaceLeft     : Integer;
-    iPNamePtr      : PAnsiChar;
     iNamePos       : Integer;
     iValue         : AnsiString;
     iLineContent   : Boolean;
     iSpecial       : set of Char;
+    iSubWidth      : Integer;
+    iNameLen       : Integer;
+    iAllowPad      : Boolean;
+    iAllowCut      : Boolean;
 
   procedure Render( const aPart : PAnsiChar; aLength : Integer );
-  var iCmd    : TTIGDrawCommand;
-      iLength : Integer;
+  var iCmd     : TTIGDrawCommand;
+      iLength  : Integer;
+      iAdvance : Integer;
   begin
-    iLength := aLength;
+    iLength  := aLength;
+    iAdvance := aLength;
+    if aMaxVisible >= 0 then // local, non-global cut budget for this tag only - advances the cursor by what's actually kept
+    begin
+      if iLength > aMaxVisible then iLength := aMaxVisible;
+      iAdvance := iLength;
+      Dec( aMaxVisible, iLength );
+    end;
     if GCtx.MaxCharacters >= 0 then
     begin
       GCtx.MaxCharacters -= iLength;
@@ -201,10 +290,28 @@ var iWindow        : TTIGWindow;
       iCmd.Text  := iWindow.DrawList.PushText( aPart, iLength );
       iWindow.DrawList.Push( iCmd );
     end;
-    aCurrentX += aLength;
+    aCurrentX += iAdvance;
   end;
 
-  procedure HandleParameter(aParameterIndex: Integer);
+  procedure RenderPadding( aCount : Integer );
+  begin
+    if aCount <= 0 then Exit;
+    if aCount > VTIG_MAX_SUBWIDTH then aCount := VTIG_MAX_SUBWIDTH;
+    Render( @GPadBuffer[0], aCount );
+  end;
+
+  // Applies cut/pad to an already-measured value and renders it - the one place that combines VTIG_ApplyWidth with rendering.
+  procedure RenderSized( aValue : PAnsiChar; aLen, aWidth : Integer; aAllowPad, aAllowCut : Boolean );
+  var iFinalLen : Integer;
+  begin
+    iFinalLen := VTIG_ApplyWidth( aLen, aWidth, aAllowPad, aAllowCut );
+    if iFinalLen < aLen
+      then VTIG_RenderTextSegment( aValue, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters, iFinalLen )
+      else VTIG_RenderTextSegment( aValue, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+    if iFinalLen > aLen then RenderPadding( iFinalLen - aLen );
+  end;
+
+  procedure HandleParameter(aParameterIndex: Integer; aWidth : Integer = 0; aAllowPad : Boolean = True; aAllowCut : Boolean = True);
   var
     iParamStr    : PAnsiChar;
     iBuffer      : shortstring;
@@ -214,17 +321,22 @@ var iWindow        : TTIGWindow;
       case aParameters[aParameterIndex].VType of
         vtChar: begin
             Render( @(aParameters[aParameterIndex].VChar), 1 );
+            if aAllowPad and ( aWidth > 1 ) then RenderPadding( aWidth - 1 );
           end;
         vtAnsiString:
           begin
             iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
-            VTIG_RenderTextSegment( iParamStr, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+            if aWidth <= 0
+              then VTIG_RenderTextSegment( iParamStr, aCurrentX, aCurrentY, aClip, aStyleStack, aParameters )
+              else RenderSized( iParamStr, VTIG_PLength( iParamStr, aParameters ), aWidth, aAllowPad, aAllowCut );
           end;
         vtInteger:
         begin
           Str( aParameters[aParameterIndex].VInteger, iBuffer );
           iBuffer[Length(iBuffer)+1] := #0;
-          VTIG_RenderTextSegment( @iBuffer[1], aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+          if aWidth <= 0
+            then VTIG_RenderTextSegment( @iBuffer[1], aCurrentX, aCurrentY, aClip, aStyleStack, aParameters )
+            else RenderSized( @iBuffer[1], Length(iBuffer), aWidth, aAllowPad, aAllowCut );
         end;
 
         // Add handling for other parameter types if needed
@@ -272,24 +384,24 @@ begin
             '0'..'9':
               begin
                 iParamIndex := Ord(aText[i]) - Ord('0');
-                HandleParameter( iParamIndex );
+                Inc(i); // now right after the digit - '}' (no spec) or '|widthspec}'
+                if VTIG_ScanWidthTag( @aText[i], iNamePos, iNameLen, iSubWidth, iAllowPad, iAllowCut )
+                  then HandleParameter( iParamIndex, iSubWidth, iAllowPad, iAllowCut )
+                  else begin HandleParameter( iParamIndex ); iNamePos := 0; end; // malformed, degrade gracefully
+                i += iNamePos; // now at the tag's closing '}'
                 iLineContent := True;
-                Inc(i);
               end;
 
             '$' :
               begin
-                iPNamePtr := @aText[i+1];
-                iNamePos  := 0;
-                while (iPNamePtr[iNamePos] <> '}') and (iPNamePtr[iNamePos] <> #0) do
-                  Inc(iNamePos);
-
-                if iPNamePtr[iNamePos] = '}' then
+                if VTIG_ScanWidthTag( @aText[i+1], iNamePos, iNameLen, iSubWidth, iAllowPad, iAllowCut ) then
                 begin
                   if Assigned( GCtx.SubCallback ) then
                   begin
-                    iValue := GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) );
-                    VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
+                    iValue := GCtx.SubCallback( Copy( PAnsiChar(@aText[i+1]), 0, iNameLen ) );
+                    if iSubWidth > 0
+                      then RenderSized( PAnsiChar(iValue), VTIG_PLength( PAnsiChar(iValue), aParameters ), iSubWidth, iAllowPad, iAllowCut )
+                      else VTIG_RenderTextSegment( PAnsiChar(iValue), aCurrentX, aCurrentY, aClip, aStyleStack, aParameters );
                     iLineContent := True;
                   end;
                   Inc(i, iNamePos + 1);
@@ -388,8 +500,12 @@ end;
 
 function VTIG_PLength( const aText: PAnsiChar; aParameters: array of const ) : Integer;
 var i, iParamIndex : Integer;
-    iPNamePtr      : PAnsiChar;
     iNamePos       : Integer;
+    iNameLen       : Integer;
+    iSubWidth      : Integer;
+    iSubLen        : Integer;
+    iAllowPad      : Boolean;
+    iAllowCut      : Boolean;
 
   function ParameterLength(aParameterIndex: Integer) : Integer;
   var
@@ -421,19 +537,23 @@ begin
         if aText[i] in ['0'..'9'] then
         begin
           iParamIndex := Ord(aText[i]) - Ord('0');
-          Result += ParameterLength( iParamIndex );
+          Inc(i); // now right after the digit - '}' (no spec) or '|widthspec}'
+          if VTIG_ScanWidthTag( @aText[i], iNamePos, iNameLen, iSubWidth, iAllowPad, iAllowCut )
+            then Result += VTIG_ApplyWidth( ParameterLength( iParamIndex ), iSubWidth, iAllowPad, iAllowCut )
+            else begin Result += ParameterLength( iParamIndex ); iNamePos := 0; end; // malformed, degrade gracefully
+          i += iNamePos; // now at the tag's closing '}'
         end;
         if aText[i] = '$' then
         begin
-          iPNamePtr := @aText[i+1];
-          iNamePos  := 0;
-          while (iPNamePtr[iNamePos] <> '}') and (iPNamePtr[iNamePos] <> #0) do
-            Inc(iNamePos);
-
-          if iPNamePtr[iNamePos] = '}' then
+          if VTIG_ScanWidthTag( @aText[i+1], iNamePos, iNameLen, iSubWidth, iAllowPad, iAllowCut ) then
           begin
             if Assigned( GCtx.SubCallback ) then
-              Result += VTIG_PLength( PAnsiChar( GCtx.SubCallback( Copy( iPNamePtr, 0, iNamePos ) ) ), aParameters );
+            begin
+              iSubLen := VTIG_PLength( PAnsiChar( GCtx.SubCallback( Copy( PAnsiChar(@aText[i+1]), 0, iNameLen ) ) ), aParameters );
+              if iSubWidth > 0
+                then Result += VTIG_ApplyWidth( iSubLen, iSubWidth, iAllowPad, iAllowCut )
+                else Result += iSubLen;
+            end;
             Inc(i, iNamePos + 1);
           end
           else
@@ -628,17 +748,17 @@ begin
   GCtx.Io.Clear;
 end;
 
-procedure VTIG_Begin( aName : Ansistring ); overload;
+procedure VTIG_Begin( aName : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_Begin( aName, Point( -1, -1 ), Point( -1, -1 ) )
+  VTIG_Begin( aName, Point( -1, -1 ), Point( -1, -1 ), aFlags )
 end;
 
-procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint ); overload;
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_Begin( aName, aSize, Point( -1, -1 ) )
+  VTIG_Begin( aName, aSize, Point( -1, -1 ), aFlags )
 end;
 
-procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_Begin( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 var iParent : TTIGWindow;
     iWindow : TTIGWindow;
     iFirst  : Boolean;
@@ -712,7 +832,8 @@ begin
   GCtx.BGColor := iWindow.FBackground;
   GCtx.Color   := iWindow.FColor;
 
-  if ( aSize.X > -1 ) and ( aSize.Y > -1 ) then
+  if ( aSize.X > -1 ) and ( aSize.Y > -1 )
+    and ( ( iFrame <> '' ) or not ( VTIG_WINDOW_NO_CLEAR in aFlags ) ) then
   begin
     Initialize( iCmd );
     iCmd.CType := VTIG_CMD_CLEAR;
@@ -722,7 +843,9 @@ begin
     iCmd.BG    := GCtx.BGColor;
     if iFrame <> '' then
     begin
-      iCmd.CType  := VTIG_CMD_FRAME;
+      if VTIG_WINDOW_NO_CLEAR in aFlags
+        then iCmd.CType := VTIG_CMD_BORDER
+        else iCmd.CType := VTIG_CMD_FRAME;
       iCmd.Text   := iWindow.DrawList.PushText( PChar(iFrame), Length( iFrame ) );
     end;
     iWindow.DrawList.Push( iCmd );
@@ -1049,23 +1172,23 @@ begin
   end;
 end;
 
-procedure VTIG_BeginWindow( aName, aID : Ansistring ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_BeginWindow( aName, aID, Point( -1, -1 ), Point( -1, -1 ) );
+  VTIG_BeginWindow( aName, aID, Point( -1, -1 ), Point( -1, -1 ), aFlags );
 end;
 
-procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_BeginWindow( aName, aID, aSize, Point( -1, -1 ) );
+  VTIG_BeginWindow( aName, aID, aSize, Point( -1, -1 ), aFlags );
 end;
 
-procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName, aID : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 var iClip : TIORect;
     iPos  : TIOPoint;
 begin
   if aID = '' then aID := aName;
   aSize.X := Min( aSize.X, GCtx.Size.X );
-  VTIG_Begin( aID, aSize, aPos );
+  VTIG_Begin( aID, aSize, aPos, aFlags );
   iClip := GCtx.Current.DC.FClip.Expanded( 1 );
   GCtx.Color   := GCtx.Style^.Color[ VTIG_TITLE_COLOR ];
   GCtx.BGColor := GCtx.Current.FBackground;
@@ -1077,19 +1200,19 @@ begin
   GCtx.Color   := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
 end;
 
-procedure VTIG_BeginWindow( aName : Ansistring ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_BeginWindow( aName, '', Point( -1, -1 ), Point( -1, -1 ) );
+  VTIG_BeginWindow( aName, '', Point( -1, -1 ), Point( -1, -1 ), aFlags );
 end;
 
-procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_BeginWindow( aName, '', aSize, Point( -1, -1 ) );
+  VTIG_BeginWindow( aName, '', aSize, Point( -1, -1 ), aFlags );
 end;
 
-procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint ); overload;
+procedure VTIG_BeginWindow( aName : Ansistring; aSize : TIOPoint; aPos : TIOPoint; aFlags : TTIGWindowFlags = [] ); overload;
 begin
-  VTIG_BeginWindow( aName, '', aSize, aPos );
+  VTIG_BeginWindow( aName, '', aSize, aPos, aFlags );
 end;
 
 function VTIG_PositionResolve( aPos : TIOPoint ) : TIOPoint;
@@ -1119,17 +1242,17 @@ begin
     else Result := iWindow.DC.FClip.Expanded( 1 );
 end;
 
-procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] );
 begin
-  VTIG_FreeLabel( aText, aPos, [], aColor );
+  VTIG_FreeLabel( aText, aPos, [], aColor, aFlags );
 end;
 
-procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] );
 begin
-  VTIG_FreeLabel( aText, aArea, [], aColor );
+  VTIG_FreeLabel( aText, aArea, [], aColor, aFlags );
 end;
 
-procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aPos : TIOPoint; aParams : array of const; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] );
 var iClip  : TIORect;
     iStart : TIOPoint;
 begin
@@ -1138,16 +1261,19 @@ begin
   if GCtx.WindowStack.Size = 1
     then GCtx.BGColor := GCtx.Style^.Color[ VTIG_BACKGROUND_COLOR ]
     else GCtx.BGColor := GCtx.Current.FBackground;
-  iClip  := GCtx.Current.DC.FClip;
+  if VTIG_FREELABEL_UNRESTRICTED in aFlags
+    then iClip := Rectangle( Point( 1, 1 ), GCtx.Size )
+    else iClip := GCtx.Current.DC.FClip;
   iStart := VTIG_PositionResolve( aPos );
+  iClip.Dim.X -= ( iStart.X - iClip.Pos.X );
   iClip.Pos.X := iStart.X;
-  iClip.Dim.X -= ( iStart.X - GCtx.Current.DC.FClip.Pos.X );
   if ( iStart.X > iClip.x2 ) or ( iStart.Y > iClip.y2 ) then Exit;
   VTIG_RenderText( aText, iStart, iClip, aParams );
 end;
 
-procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0 );
+procedure VTIG_FreeLabel( aText : Ansistring; aArea : TIORect; aParams : array of const; aColor : TIOColor = 0; aFlags : TTIGFreeLabelFlags = [] );
 var iClip  : TIORect;
+    iBounds: TIORect;
     iStart : TIOPoint;
 begin
   if aColor = 0 then aColor := GCtx.Style^.Color[ VTIG_TEXT_COLOR ];
@@ -1157,7 +1283,10 @@ begin
     else GCtx.BGColor := GCtx.Current.FBackground;
   iStart := VTIG_PositionResolve( aArea.Pos );
   iClip  := Rectangle( iStart, aArea.Dim );
-  ClampTo( iClip, GCtx.Current.DC.FClip );
+  if VTIG_FREELABEL_UNRESTRICTED in aFlags
+    then iBounds := Rectangle( Point( 1, 1 ), GCtx.Size )
+    else iBounds := GCtx.Current.DC.FClip;
+  ClampTo( iClip, iBounds );
   if ( iStart.X > iClip.x2 ) or ( iStart.Y > iClip.y2 ) then Exit;
   VTIG_RenderText( aText, iStart, iClip, aParams );
 end;
@@ -1280,7 +1409,7 @@ begin
   SetLength( Result, iL );
 end;
 
-function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aConsole : Boolean = False ) : Boolean;
+function VTIG_Input( aBuffer : PChar; aMaxSize : Word; aCharSet : TFlags = [] ) : Boolean;
 var i, iLength : Word;
     iState     : TIOEventState;
     iChar      : Byte;
@@ -1288,6 +1417,7 @@ var i, iLength : Word;
     iCharSet   : TFlags;
     iCursor    : Integer;
     iText      : Ansistring;
+    iRawInput  : Boolean;
 begin
   iLength := StrLen( aBuffer );
   Result  := VTIG_EventConfirm;
@@ -1296,9 +1426,10 @@ begin
     GCtx.Current.Caret := iLength;
   iCursor := GCtx.Current.Caret;
 
-  if aConsole
-    then iCharSet := [32..126]
-    else iCharSet := [Ord('a')..Ord('z')] + [Ord('A')..Ord('Z')] + [Ord('0')..Ord('9')] + [Ord(''''), Ord(' '), Ord('_')];
+  iRawInput := aCharSet <> [];
+  iCharSet  := aCharSet;
+  if iCharSet = [] then
+    iCharSet := [Ord('a')..Ord('z')] + [Ord('A')..Ord('Z')] + [Ord('0')..Ord('9')] + [Ord(''''), Ord(' '), Ord('_')];
 
   for i := 0 to VIO_MAXINPUT - 1 do
   begin
@@ -1367,7 +1498,7 @@ begin
   iCmd.BG    := GCtx.BGColor;
   GCtx.Current.DrawList.Push( iCmd );
 
-  GRawMode := aConsole;
+  GRawMode := iRawInput;
   VTIG_Text( aBuffer, [], GCtx.Color, GCtx.BGColor );
   GRawMode := False;
 end;
@@ -1546,6 +1677,7 @@ end;
 
 initialization
 
+FillChar( GPadBuffer, SizeOf(GPadBuffer), ' ' );
 GDefaultContext := TTIGContext.Create;
 GCtx            := GDefaultContext;
 

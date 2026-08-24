@@ -43,6 +43,69 @@ os.exec_ext   = os.os_params[ OS ].exec_ext
 os.pack_ext   = os.os_params[ OS ].pack_ext
 os.short_name = os.os_params[ OS ].short_name
 
+function os.path_normalize(path)
+	path = tostring(path)
+	if os.path_sep == "\\" then
+		return path:gsub("/", "\\")
+	end
+	return path:gsub("\\", "/")
+end
+
+function os.path_is_absolute(path)
+	path = os.path_normalize(path)
+	if OS == "WINDOWS" then
+		return path:match("^%a:\\") ~= nil
+			or path:sub(1, 2) == "\\\\"
+	end
+	return path:sub(1, 1) == "/"
+end
+
+function os.path_join(...)
+	local parts = { ... }
+	local result = os.path_normalize(parts[1] or "")
+	for index = 2, #parts do
+		result = result:gsub("[/\\]+$", "")
+		local part = os.path_normalize(parts[index])
+		part = part:gsub("^[/\\]+", "")
+		result = result..os.path_sep..part
+	end
+	return result
+end
+
+function os.quote_argument(value)
+	value = tostring(value)
+	if value:find("[\r\n]") then
+		error("Command arguments may not contain line breaks")
+	end
+
+	if OS ~= "WINDOWS" then
+		return "'"..value:gsub("'", "'\\''").."'"
+	end
+	if value:find("%%") then
+		error("Windows command arguments may not contain percent signs")
+	end
+
+	local result = { '"' }
+	local backslashes = 0
+	for index = 1, #value do
+		local char = value:sub(index, index)
+		if char == "\\" then
+			backslashes = backslashes + 1
+		elseif char == '"' then
+			result[#result + 1] = string.rep("\\", backslashes * 2 + 1)
+			result[#result + 1] = char
+			backslashes = 0
+		else
+			result[#result + 1] = string.rep("\\", backslashes)
+			result[#result + 1] = char
+			backslashes = 0
+		end
+	end
+	result[#result + 1] = string.rep("\\", backslashes * 2)
+	result[#result + 1] = '"'
+	return table.concat(result)
+end
+
 function os.readsingleline( filename )
 	local f = assert(io.open(filename, "r"))
     local line = f:read()
@@ -76,6 +139,13 @@ function os.copy( from, dest )
 	end
 end
 
+function os.copy_file( source_path, destination_path )
+	os.exit_on_error( os.execute(
+		"cp "..os.quote_argument(source_path)
+		.." "..os.quote_argument(destination_path)
+	) )
+end
+
 function os.pwd()
 	local result = ""
 	if OS == "WINDOWS" then 
@@ -96,7 +166,14 @@ function os.exit_on_error( result )
 	end
 end
 
-function os.execute_in_dir( filename, dir )
+function os.execute_in_dir( filename, dir, arguments )
+	if arguments then
+		local command = { filename }
+		for _,argument in ipairs(arguments) do
+			command[#command + 1] = os.quote_argument(argument)
+		end
+		filename = table.concat(command, " ")
+	end
 	local result
 	if OS == "WINDOWS" then
 		result = os.execute("cd "..dir.." && "..filename.." && cd ..")
@@ -260,6 +337,9 @@ function make.version_name()
 	local ver = "trunk"
 	if make.version then
 		ver = table.concat( make.version.tarray )
+		if make.version.suffix then
+			ver = ver..string.lower( make.version.suffix )
+		end
 		if make.version.beta then
 			ver = ver.."-"..string.lower( string.gsub( make.version.beta, " ", "" ) )
 		end
@@ -272,6 +352,9 @@ function make.version_human_name()
 	local ver = "trunk"
 	if make.version then
 		ver = table.concat( make.version.tarray, "." )
+		if make.version.suffix then
+			ver = ver..make.version.suffix
+		end
 		if make.version.beta then
 			ver = ver.." "..make.version.beta
 		end
@@ -294,28 +377,72 @@ function make.archive_name()
 	return make.makefile.name.."-"..os.short_name.."-"..make.version_name()
 end
 
+function make.parseversion( vline )
+	if type( vline ) ~= "string" then
+		error( "Version must be a string" )
+	end
+
+	local version = vline:match( "^%s*(.-)%s*$" )
+	local maj,min,p,p2,suffix,tail = version:match(
+		"^(%d+)%.(%d+)%.(%d+)%.(%d+)([%a]*)(.*)$"
+	)
+	if not maj then
+		maj,min,p,suffix,tail = version:match(
+			"^(%d+)%.(%d+)%.(%d+)([%a]*)(.*)$"
+		)
+	end
+	if ( not maj ) or ( ( tail ~= "" ) and ( not tail:match( "^%s+" ) ) ) then
+		error( "Invalid version string: "..version )
+	end
+
+	local beta = tail:match( "^%s*(.-)%s*$" )
+	if ( beta ~= "" ) and ( not beta:match( "^[%w ]+$" ) ) then
+		error( "Invalid version suffix: "..beta )
+	end
+
+	local tarray = { maj, min, p }
+	local array  = { tonumber( maj ), tonumber( min ), tonumber( p ) }
+	if p2 then
+		tarray[4] = p2
+		array[4]  = tonumber( p2 )
+	end
+
+	local result = {
+		version = version,
+		array   = array,
+		tarray  = tarray,
+		major   = array[1],
+		minor   = array[2],
+		sub     = array[3],
+		patch   = array[4],
+	}
+	if suffix ~= "" then result.suffix = suffix end
+	if beta   ~= "" then result.beta   = beta   end
+	make.version = result
+	return result
+end
+
 function make.readversion( filename )
-    local vline = os.readsingleline( filename )
-    local v,maj,min,p,p2,beta = vline:match("^(%D*(%d)%.(%d+)%.(%d+)%.?(%d*)%w*%s?([%w ]*))")
-    v = v:match( "(.-)[%s%c]*$" )
-    local tarray = { maj, min, p }
-    local array = { tonumber(maj), tonumber(min), tonumber( p ) }
-    if p2 and #p2 > 0 then 
-    	array[4] = tonumber(p2) 
-    	tarray[4] = p2
-    end
-    local result = {
-    	version = v,
-    	array   = array,
-    	tarray  = tarray,
-    	major   = array[1],
-    	minor   = array[2],
-    	sub     = array[3],
-    	patch   = array[4],
-    }
-    if beta and #beta > 0 then result.beta = beta end
-    make.version = result
-    return result
+	return make.parseversion( os.readsingleline( filename ) )
+end
+
+function make.readluaversion( filename, declaration )
+	local file = assert( io.open( filename, "r" ) )
+	local matches = {}
+	for line in file:lines() do
+		local name,value = line:match(
+			'^%s*core%.declare%s*%(%s*"([%w_]+)"%s*,%s*"([^"]*)"%s*%)%s*$'
+		)
+		if name == declaration then
+			table.insert( matches, value )
+		end
+	end
+	file:close()
+
+	if #matches ~= 1 then
+		error( "Expected exactly one "..declaration.." declaration in "..filename )
+	end
+	return make.parseversion( matches[1] )
 end
 
 function make.svnrevision()

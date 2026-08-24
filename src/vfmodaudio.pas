@@ -28,7 +28,7 @@ type TFMODAudio = class( TAudio )
       const aNameHint : AnsiString; aStreamed : Boolean ) : Pointer; override;
     procedure FreeBackendAsset( aData : Pointer ); override;
     function StartBackend( aAssetData : Pointer; aStream, aLoop : Boolean;
-      aMusic : Boolean ) : Pointer; override;
+      aMusic : Boolean; aGain : Single ) : Pointer; override;
     procedure StopBackend( aInstanceData : Pointer ); override;
     function BackendPlaying( aInstanceData : Pointer ) : Boolean; override;
     procedure SetBackendGain( aInstanceData : Pointer; aGain : Single ); override;
@@ -120,7 +120,7 @@ begin
 end;
 
 function TFMODAudio.StartBackend( aAssetData : Pointer; aStream, aLoop : Boolean;
-  aMusic : Boolean ) : Pointer;
+  aMusic : Boolean; aGain : Single ) : Pointer;
 var iAsset   : PFMODAsset;
     iChannel : PFMOD_CHANNEL;
 begin
@@ -134,6 +134,7 @@ begin
     Check( FMOD_Channel_SetMode(iChannel, FMOD_LOOP_NORMAL) );
     Check( FMOD_Channel_SetLoopCount(iChannel, -1) );
   end;
+  Check(FMOD_Channel_SetVolume(iChannel, aGain));
   Check(FMOD_Channel_SetPaused(iChannel, 0));
   Result := iChannel;
 end;

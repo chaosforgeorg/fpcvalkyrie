@@ -2,11 +2,11 @@
 unit vio;
 interface
 uses Classes, SysUtils, vsystem, vgenerics,
-     vuielement, vconui, vioevent, viotypes, vtigconsole, vioconsole;
+     vioevent, viopadstate, viotypes, vtigconsole, vioconsole;
 
 type TIO = class( TSystem )
-  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False  ); reintroduce;
-  procedure Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean = False );
+  constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer  ); reintroduce;
+  procedure Initialize( aConsole : TIOConsoleRenderer );
   procedure PreUpdate; virtual;
   procedure FullUpdate; virtual;
   procedure PostUpdate; virtual;
@@ -15,8 +15,6 @@ type TIO = class( TSystem )
   procedure Delay( aTime : Integer );
   procedure ClearEventBuffer;
   function OnEvent( const aEvent : TIOEvent ) : Boolean; virtual;
-  function RunUILoop( aElement : TUIElement = nil ) : DWord; virtual;
-  procedure SetUILoopResult( aResult : DWord );
   function HandleEvents : Boolean; virtual;
   destructor Destroy; override;
   procedure RegisterDebugConsole( aKey : TIOKeyCode );
@@ -33,22 +31,18 @@ protected
   procedure ClearFinishedLayers;
 protected
   FIODriver       : TIODriver;
-  FUIRoot         : TConUIRoot;
   FConsole        : TIOConsoleRenderer;
   FTIGConsoleView : TTIGConsoleView;
   FLayers         : TIOLayerStack;
-
+  FPadState       : TIOPadState;
   FLastUpdate     : DWord;
-  FUILoop         : Boolean;
-  FUILoopResult   : DWord;
-  FTIGActive      : Boolean;
 
-  FUIMouseLast : TIOPoint;
-  FUIMouse     : TIOPoint;
+  FMouseLast      : TIOPoint;
+  FMouse          : TIOPoint;
 public
-  property Root      : TConUIRoot read FUIRoot;
   property Driver    : TIODriver  read FIODriver;
   property Console   : TIOConsoleRenderer read FConsole;
+  property PadState  : TIOPadState read FPadState;
 end;
 
 var IO : TIO;
@@ -59,42 +53,30 @@ uses vutil, vtig, vtigio, dateutils, math;
 
 { TIO }
 
-constructor TIO.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean ) ;
+constructor TIO.Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer );
 begin
   inherited Create;
   IO := Self;
   FIODriver        := aIODriver;
   FConsole         := nil;
-  FUIRoot          := nil;
   FLastUpdate      := FIODriver.GetMs;
   FTIGConsoleView  := nil;
   FLayers          := TIOLayerStack.Create;
-  FTIGActive       := False;
-  FUIMouseLast     := Point(-1,-1);
-  FUIMouse         := Point(-1,-1);
+  FPadState        := TIOPadState.Create;
+  FMouseLast       := Point(-1,-1);
+  FMouse           := Point(-1,-1);
 
   if aConsole <> nil then
-    Initialize( aConsole, aStyle, aInitTIG );
+    Initialize( aConsole );
 end;
 
-procedure TIO.Initialize( aConsole : TIOConsoleRenderer; aStyle : TUIStyle; aInitTIG : Boolean );
+procedure TIO.Initialize( aConsole : TIOConsoleRenderer );
 begin
-  FreeAndNil( FUIRoot );
-  if aInitTIG then
-  begin
-    if FTIGActive then
-      VTIG_Shutdown;
-    if aConsole <> nil then
-    begin
-      FTIGActive := True;
-      VTIG_Initialize( aConsole, FIODriver, False );
-    end;
-  end;
+  VTIG_Shutdown;
+  if aConsole <> nil then
+    VTIG_Initialize( aConsole, FIODriver, False );
   if FConsole <> aConsole then FreeAndNil( FConsole );
   FConsole    := aConsole;
-  if FConsole = nil then Exit;
-  FUIRoot     := TConUIRoot.Create( FConsole, aStyle );
-  FUIRoot.Fullscreen := True;
 end;
 
 destructor TIO.Destroy;
@@ -103,10 +85,9 @@ begin
   for iLayer in FLayers do
     iLayer.Free;
   FreeAndNil( FLayers );
-  if FTIGActive then
-    VTIG_Shutdown;
+  FreeAndNil( FPadState );
+  VTIG_Shutdown;
 
-  FreeAndNil( FUIRoot );
   FreeAndNil( FConsole );
   FreeAndNil( FIODriver );
   inherited Destroy;
@@ -130,8 +111,7 @@ begin
   iTickTime   := iNow - FLastUpdate;
   FLastUpdate := iNow;
 
-  if FTIGActive then
-    VTIG_NewFrame;
+  VTIG_NewFrame;
   PreUpdate;
   Update( iTickTime );
 
@@ -149,23 +129,21 @@ begin
   for iLayer in FLayers do
     iLayer.Free;
   FLayers.Clear;
-  FUIMouseLast := Point(-1,-1);
-  FUIMouse     := Point(-1,-1);
+  FPadState.Clear;
+  FMouseLast := Point(-1,-1);
+  FMouse     := Point(-1,-1);
 end;
 
 procedure TIO.Update ( aMSec : DWord ) ;
 var iMEvent : TIOEvent;
     i,iM    : Integer;
 begin
-  if FUIMouse <> FUIMouseLast then
+  if FMouse <> FMouseLast then
   begin
-    FUIMouseLast := FUIMouse;
-    if FTIGActive then
-    begin
-      iMEvent.EType:= VEVENT_MOUSEMOVE;
-      iMEvent.MouseMove.Pos := FUIMouse;
-      VTIG_GetIOState.MouseState.HandleEvent( iMEvent );
-    end;
+    FMouseLast := FMouse;
+    iMEvent.EType:= VEVENT_MOUSEMOVE;
+    iMEvent.MouseMove.Pos := FMouse;
+    VTIG_GetIOState.MouseState.HandleEvent( iMEvent );
   end;
 
   if FLayers.Size > 0 then
@@ -183,15 +161,8 @@ begin
     ClearFinishedLayers;
   end;
 
-  FUIRoot.OnUpdate( aMSec );
-  FUIRoot.Render;
-  if FTIGActive then
-  begin
-    VTIG_EndFrame;
-    VTIG_Render;
-  end
-  else
-    FConsole.Update;
+  VTIG_EndFrame;
+  VTIG_Render;
 end;
 
 function TIO.OnEvent( const aEvent : TIOEvent ) : Boolean;
@@ -199,22 +170,21 @@ var i, iInput : Integer;
     iEvent    : TIOEvent;
     iWide     : WideString;
 begin
+  FPadState.HandleEvent( aEvent );
+
   if ( aEvent.EType in [ VEVENT_MOUSEMOVE ] ) then
-    FUIMouse := DeviceCoordToConsoleCoord( aEvent.MouseMove.Pos );
+    FMouse := DeviceCoordToConsoleCoord( aEvent.MouseMove.Pos );
 
   if ( aEvent.EType in [ VEVENT_MOUSEDOWN, VEVENT_MOUSEUP ] ) then
   begin
     iEvent := aEvent;
     iEvent.Mouse.Pos := DeviceCoordToConsoleCoord( aEvent.Mouse.Pos );
-    if FTIGActive then
-    begin
-      VTIG_GetIOState.MouseState.HandleEvent( iEvent );
-      if ( aEvent.EType = VEVENT_MOUSEDOWN ) and ( aEvent.Mouse.Button = VMB_BUTTON_LEFT ) then
-        VTIG_GetIOState.EventState.SetState( VTIG_IE_MCONFIRM, True );
-    end;
+    VTIG_GetIOState.MouseState.HandleEvent( iEvent );
+    if ( aEvent.EType = VEVENT_MOUSEDOWN ) and ( aEvent.Mouse.Button = VMB_BUTTON_LEFT ) then
+      VTIG_GetIOState.EventState.SetState( VTIG_IE_MCONFIRM, True );
   end;
 
-  if ( aEvent.EType = VEVENT_TEXT ) and FTIGActive then
+  if ( aEvent.EType = VEVENT_TEXT ) then
   begin
     iWide := UTF8Decode( UTF8String( aEvent.Text.Text ) );
     VTIG_GetIOState.EventState.AppendText( PWideChar( iWide ) );
@@ -294,47 +264,19 @@ begin
   Exit( False );
 end;
 
-function TIO.RunUILoop ( aElement : TUIElement ) : DWord;
-var iCount  : DWord;
-    iParent : TUIElement;
-begin
-  FConsole.HideCursor;
-  iCount := 0;
-  iParent := FUIRoot;
-  if aElement <> nil then
-  begin
-    iParent := aElement.Parent as TUIElement;
-    iCount := iParent.ChildCount-1;
-  end;
-  FUILoop := True;
-  FLastUpdate := FIODriver.GetMs;
-  repeat
-    Sleep(10);
-    FullUpdate;
-    HandleEvents;
-  until ( not FUILoop ) or ( iParent.ChildCount = iCount );
-  FUILoop := True;
-  Exit( FUILoopResult );
-end;
-
-procedure TIO.SetUILoopResult ( aResult : DWord ) ;
-begin
-  FUILoopResult := aResult;
-end;
-
 function TIO.HandleEvents : Boolean;
 var iEvent : TIOEvent;
 begin
   HandleEvents := False;
   while FIODriver.PollEvent( iEvent ) do
-    HandleEvents := OnEvent( iEvent ) or FUIRoot.OnEvent( iEvent ) or HandleEvents;
+    HandleEvents := OnEvent( iEvent ) or HandleEvents;
 end;
 
 procedure TIO.ClearEventBuffer;
 var iEvent : TIOEvent;
 begin
-  while FIODriver.EventPending do
-    FIODriver.PollEvent( iEvent );
+  while FIODriver.PollEvent( iEvent ) do
+    FPadState.HandleEvent( iEvent );
 end;
 
 procedure TIO.Delay( aTime : Integer );
@@ -351,22 +293,18 @@ end;
 
 function TIO.ConsoleCallback ( aEvent : TIOEvent ) : Boolean;
 begin
-  if FTIGActive then
+  if FTIGConsoleView <> nil then
   begin
-    if FTIGConsoleView <> nil then
-    begin
-      FConsole.HideCursor;
-      FTIGConsoleView.SaveHistory('console.history');
-      FTIGConsoleView.Finish;
-      FTIGConsoleView := nil;
-      Exit( True );
-    end;
-    FConsole.ShowCursor;
-    FTIGConsoleView := PushLayer( TTIGConsoleView.Create ) as TTIGConsoleView;
-    FTIGConsoleView.LoadHistory('console.history');
+    FConsole.HideCursor;
+    FTIGConsoleView.SaveHistory('console.history');
+    FTIGConsoleView.Finish;
+    FTIGConsoleView := nil;
     Exit( True );
   end;
-  Exit( False );
+  FConsole.ShowCursor;
+  FTIGConsoleView := PushLayer( TTIGConsoleView.Create ) as TTIGConsoleView;
+  FTIGConsoleView.LoadHistory('console.history');
+  Exit( True );
 end;
 
 procedure TIO.ClearFinishedLayers;
@@ -429,4 +367,3 @@ begin
   Exit( aCoord );
 end;
 end.
-

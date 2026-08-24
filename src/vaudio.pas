@@ -69,7 +69,7 @@ type
       const aNameHint : AnsiString; aStreamed : Boolean ) : Pointer; virtual; abstract;
     procedure FreeBackendAsset( aData : Pointer ); virtual; abstract;
     function StartBackend( aAssetData : Pointer; aStream, aLoop : Boolean;
-      aMusic : Boolean ) : Pointer; virtual; abstract;
+      aMusic : Boolean; aGain : Single ) : Pointer; virtual; abstract;
     procedure StopBackend( aInstanceData : Pointer ); virtual; abstract;
     function BackendPlaying( aInstanceData : Pointer ) : Boolean; virtual; abstract;
     procedure SetBackendGain( aInstanceData : Pointer; aGain : Single ); virtual; abstract;
@@ -254,6 +254,7 @@ end;
 function TAudio.Play( aAsset : TAudioAssetHandle; aVolumePercent : Integer;
   aLoop : Boolean; aFadeInMS : DWord ) : TAudioInstanceHandle;
 var iAsset, iInstance : Integer;
+    iGain             : Single;
 begin
   iAsset := CheckAsset( aAsset );
   iInstance := AllocateInstance;
@@ -264,12 +265,6 @@ begin
     Playing := True;
     Loop := aLoop;
     Volume := ClampPercent( aVolumePercent );
-    Data := StartBackend( FAssets[iAsset].Data, FAssets[iAsset].Stream, aLoop, False );
-    if Data = nil then
-    begin
-      ClearInstance( iInstance );
-      Exit( 0 );
-    end;
     FadeTo := 1.0;
     if aFadeInMS > 0 then
     begin
@@ -279,13 +274,22 @@ begin
     else
       FadeFrom := 1.0;
   end;
-  ApplyGain( iInstance );
+  iGain := InstanceGain( iInstance );
+  FInstances[iInstance].Data := StartBackend(
+    FAssets[iAsset].Data, FAssets[iAsset].Stream, aLoop, False, iGain
+  );
+  if FInstances[iInstance].Data = nil then
+  begin
+    ClearInstance( iInstance );
+    Exit( 0 );
+  end;
   Result := iInstance + 1;
 end;
 
 function TAudio.PlayMusic( aAsset : TAudioAssetHandle; aLoop : Boolean;
   aFadeInMS : DWord ) : TAudioInstanceHandle;
 var iAsset, iInstance : Integer;
+    iGain             : Single;
 begin
   if FMusic <> 0 then Stop( FMusic );
   iAsset := CheckAsset( aAsset );
@@ -298,12 +302,6 @@ begin
     Music   := True;
     Loop    := aLoop;
     Volume  := 100;
-    Data    := StartBackend( FAssets[iAsset].Data, FAssets[iAsset].Stream, aLoop, True );
-    if Data = nil then
-    begin
-      ClearInstance( iInstance );
-      Exit( 0 );
-    end;
     FadeTo := 1.0;
     if aFadeInMS > 0 then
     begin
@@ -313,8 +311,16 @@ begin
     else
       FadeFrom := 1.0;
   end;
+  iGain := InstanceGain( iInstance );
+  FInstances[iInstance].Data := StartBackend(
+    FAssets[iAsset].Data, FAssets[iAsset].Stream, aLoop, True, iGain
+  );
+  if FInstances[iInstance].Data = nil then
+  begin
+    ClearInstance( iInstance );
+    Exit( 0 );
+  end;
   FMusic := iInstance + 1;
-  ApplyGain( iInstance );
   Result := FMusic;
 end;
 

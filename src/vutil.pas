@@ -77,15 +77,6 @@ const
 // @raises( EException if file not found or cannot be read )
 function ReadVersion( const aFileName : string ) : string; deprecated;
 
-// A virtual die. number is the number of dice, sides the number of sides.
-// Note that Randomize must be called before. If any of the parameters is
-// zero, the result is zero as well.
-//
-// @param( aNumber number of dice to be rolled )
-// @param( aSides number of sides on the dice )
-// @returns( Result of the dice roll )
-function Dice( aNumber : DWord; aSides : DWord ) : DWord;
-
 // Converts string to a boolean.
 //
 // @param( aString String to be converted )
@@ -652,16 +643,6 @@ begin
 end;
 
 
-function Dice( aNumber : DWord; aSides : DWord ) : DWord;
-var iCount : DWord;
-begin
-  Dice := 0;
-  if aNumber * aSides = 0 then Exit(0);
-  if aSides = 1 then Exit( aNumber );
-  for iCount := 1 to aNumber do
-     Dice += Random( aSides ) + 1;
-end;
-
 function TimeStamp : string;
 begin
   Exit(DateTimeToStr(Now));
@@ -697,8 +678,6 @@ begin
   inherited CreateFmt( aMessage, aParams );
 end;
 
-begin
-  Randomize;
 end.
 
 //* 23.11.2004 Removed a lot of useless stuff.
