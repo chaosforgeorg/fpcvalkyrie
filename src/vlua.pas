@@ -40,8 +40,9 @@ end;
 implementation
 uses SysUtils, vluaext;
 
-function lua_math_random(L: Plua_State): Integer; cdecl;
+function lua_math_random( L : Plua_State ) : Integer; cdecl;
 begin
+  if LuaRNG = nil then Exit( luaL_error( L, 'math.random requires LuaRNG' ) );
   Exit( vlua_rng_random( L, LuaRNG ) );
 end;
 
@@ -67,9 +68,10 @@ begin
   Result := 1;
 end;
 
-function lua_math_randomseed(L: Plua_State): Integer; cdecl;
+function lua_math_randomseed( L : Plua_State ) : Integer; cdecl;
 var iArgs : Byte;
 begin
+  if LuaRNG = nil then Exit( luaL_error( L, 'math.randomseed requires LuaRNG' ) );
   iArgs := lua_gettop(L);
   case iArgs of
     0 : LuaRNG.Randomize;
@@ -96,8 +98,6 @@ end;
 
 constructor TLua.Create( aCoverState : Plua_State = nil );
 begin
-  if LuaRNG = nil then
-    raise EArgumentException.Create( 'TLua.Create requires LuaRNG' );
   LoadLua;
   if aCoverState = nil then
   begin
@@ -225,4 +225,3 @@ initialization
   LuaRNG := nil;
 
 end.
-
