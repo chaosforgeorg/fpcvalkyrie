@@ -17,15 +17,15 @@ os.execute = function(command)
   return 0
 end
 
-os.execute_in_dir("makewad jhc", "bin")
-assert(commands[1] == "cd bin && makewad jhc && cd ..",
+os.execute_in_dir("drlwad ..", "bin")
+assert(commands[1] == "cd bin && drlwad .. && cd ..",
   "two-argument execution must remain byte-for-byte unchanged")
 
-os.execute_in_dir("makewad", "bin", {
-  "jhc", "--module-path", [[D:\JHC Source]],
+os.execute_in_dir("drlwad", "bin", {
+  [[D:\JHC Source\build.lua]],
 })
 assert(commands[2] ==
-  [[cd bin && makewad "jhc" "--module-path" "D:\JHC Source" && cd ..]],
+  [[cd bin && drlwad "D:\JHC Source\build.lua" && cd ..]],
   "argument-list execution must quote each argument")
 
 os.copy_file(
@@ -45,8 +45,8 @@ assert(os.path_join("/workspace", "bin", [[..\jhc]]) ==
   "/workspace/bin/../jhc")
 assert(os.quote_argument("JHC Source") == "'JHC Source'")
 assert(os.quote_argument("JHC's Source") == "'JHC'\\''s Source'")
-os.execute_in_dir("makewad jhc", "bin")
-assert(commands[4] == "cd bin && ./makewad jhc && cd ..",
+os.execute_in_dir("drlwad ../drlhq.build.lua", "bin")
+assert(commands[4] == "cd bin && ./drlwad ../drlhq.build.lua && cd ..",
   "POSIX two-argument execution must remain byte-for-byte unchanged")
 
 os.copy_file(
