@@ -58,5 +58,28 @@ assert(commands[5] ==
   "'/workspace/drl steam/data/jhc/setup'",
   "literal file copy must quote POSIX source and destination paths")
 
+local real_exit = os.exit
+local exit_called = false
+os.exit = function(code)
+  exit_called = true
+  error("unexpected os.exit(" .. tostring(code) .. ")")
+end
+os.execute = function(command)
+  commands[#commands + 1] = command
+  return 7 * 256
+end
+local success, message = pcall(
+  os.execute_in_dir,
+  "drlwad",
+  "bin",
+  { "../demo.build.lua" },
+  true
+)
+assert(not success, "raise mode must report a failed command")
+assert(not exit_called, "raise mode must not terminate before cleanup")
+assert(message:find("Command failed with exit code 7", 1, true),
+  "raise mode must report the normalized exit code")
+
 os.execute = real_execute
+os.exit = real_exit
 print("lua_make path and argument tests passed")
