@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 // Generic Valkyrie process shell with option, path, and lifecycle handling.
-// Descendants implement LoadConfiguration, PublishPaths, CreateGame,
-// DestroyGame, InitializeGame, RunGame, and ShutdownGame.
+// Descendants implement LoadConfiguration, CreateGame, DestroyGame,
+// InitializeGame, RunGame, and ShutdownGame.
 unit vapp;
 interface
 
@@ -16,6 +16,7 @@ type TGamePaths = record
     DataPath          : AnsiString;
     WritePath         : AnsiString;
     ScorePath         : AnsiString;
+    ModuleUserPath    : AnsiString;
     LogPath           : AnsiString;
     CrashPath         : AnsiString;
     HeapTracePath     : AnsiString;
@@ -38,7 +39,6 @@ type TGamePaths = record
       Description   : AnsiString;
     end;
   private
-    FPaths             : TGamePaths;
     FOptionSpecs       : array of TOptionSpec;
     FDataInitialized   : Boolean;
     FShutdown          : Boolean;
@@ -50,6 +50,7 @@ type TGamePaths = record
     procedure RunDataGeneration( out aResult : TVRunResult );
     procedure DispatchApplicationException( aException : Exception );
   protected
+    FPaths : TGamePaths;
     procedure AddFlag( const aLongName : AnsiString; aShortName : Char; const aDescription : AnsiString );
     procedure AddValueOption( const aLongName : AnsiString; aShortName : Char; const aValueName, aDescription : AnsiString );
     procedure FailOption( const aMessage : AnsiString );
@@ -58,7 +59,6 @@ type TGamePaths = record
     procedure DiscoverPaths( var aPaths : TGamePaths ); virtual;
     procedure BeforeConfiguration( var aPaths : TGamePaths ); virtual;
     procedure LoadConfiguration( var aPaths : TGamePaths ); virtual; abstract;
-    procedure PublishPaths( const aPaths : TGamePaths ); virtual; abstract;
     procedure ApplyOptions; virtual;
     procedure BeforeDiagnostics; virtual;
     function ExecuteApplicationCommand : Boolean; virtual;
@@ -83,6 +83,8 @@ type TGamePaths = record
 
     property Paths : TGamePaths read FPaths;
   end;
+
+var Application : TValkyrieApplication;
 
 implementation
 
@@ -111,6 +113,7 @@ begin
   NormalizeDirectory(DataPath);
   NormalizeDirectory(WritePath);
   NormalizeDirectory(ScorePath);
+  NormalizeDirectory(ModuleUserPath);
 end;
 
 procedure TGamePaths.DeriveDiagnostics;
@@ -358,6 +361,7 @@ begin
   aPaths.DataPath          := iCandidate;
   aPaths.WritePath         := '';
   aPaths.ScorePath         := '';
+  aPaths.ModuleUserPath    := '';
 end;
 
 procedure TValkyrieApplication.BeforeConfiguration( var aPaths : TGamePaths );
@@ -370,9 +374,7 @@ begin
   if HasOption('config') then
     FPaths.ConfigurationPath := GetOptionValue('config');
 
-  PublishPaths(FPaths);
   BeforeConfiguration(FPaths);
-  PublishPaths(FPaths);
   LoadConfiguration(FPaths);
 
   if HasOption('data-path') then
@@ -384,7 +386,6 @@ begin
 
   FPaths.Normalize;
   FPaths.DeriveDiagnostics;
-  PublishPaths(FPaths);
 end;
 
 procedure TValkyrieApplication.ApplyOptions;
