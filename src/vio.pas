@@ -2,7 +2,7 @@
 unit vio;
 interface
 uses Classes, SysUtils, vsystem, vgenerics,
-     vioevent, viopadstate, viotypes, vtigconsole, vioconsole;
+     vioevent, viopadstate, viotypes, vtigconsole, vioconsole, vbindings;
 
 type TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer  ); reintroduce;
@@ -35,6 +35,7 @@ protected
   FTIGConsoleView : TTIGConsoleView;
   FLayers         : TIOLayerStack;
   FPadState       : TIOPadState;
+  FBindings       : TBindings;
   FLastUpdate     : DWord;
 
   FMouseLast      : TIOPoint;
@@ -43,6 +44,7 @@ public
   property Driver    : TIODriver  read FIODriver;
   property Console   : TIOConsoleRenderer read FConsole;
   property PadState  : TIOPadState read FPadState;
+  property Bindings  : TBindings read FBindings;
 end;
 
 var IO : TIO;
@@ -63,6 +65,7 @@ begin
   FTIGConsoleView  := nil;
   FLayers          := TIOLayerStack.Create;
   FPadState        := TIOPadState.Create;
+  FBindings        := TBindings.Create;
   FMouseLast       := Point(-1,-1);
   FMouse           := Point(-1,-1);
 
@@ -88,6 +91,7 @@ begin
   FreeAndNil( FPadState );
   VTIG_Shutdown;
 
+  FreeAndNil( FBindings );
   FreeAndNil( FConsole );
   FreeAndNil( FIODriver );
   inherited Destroy;

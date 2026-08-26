@@ -2,7 +2,7 @@ unit vluaconfig;
 {$mode objfpc}
 interface
 
-uses classes, vnode, vluastate, vioevent, viotypes;
+uses classes, vnode, vluastate, vioevent, viotypes, vbindings;
 
 type TEntryCallback = procedure ( key, value : Variant ) of object;
 
@@ -15,7 +15,8 @@ type
 
 TLuaConfig = class(TVObject)
     constructor Create( const aFileName : Ansistring = ''; aState : PLua_State = nil );
-    procedure LoadKeybindings( const aTableName : AnsiString = '' );
+    procedure LoadKeybindings( const aTableName : AnsiString = '' ); overload;
+    procedure LoadKeybindings( aContext : TBindingContext; const aTableName : AnsiString = '' ); overload;
     function GetKeybinding ( aCommand : Byte ) : AnsiString;
     function GetKeyCode ( aCommand : Byte ) : TIOKeyCode;
     function GetPadButton( aCommand : Byte ) : TIOPadButton;
@@ -59,7 +60,31 @@ TLuaConfig = class(TVObject)
 
 implementation
 
-uses sysutils, strutils, variants, vdebug, vlualibrary, vluaext, vluatype;
+uses sysutils, strutils, variants, vdebug, vlualibrary, vluaext, vluatype, vutil;
+
+type TLuaBindingLoader = class
+  constructor Create( aContext : TBindingContext );
+  procedure Callback( aKey, aValue : Variant );
+private
+  FContext : TBindingContext;
+end;
+
+constructor TLuaBindingLoader.Create( aContext : TBindingContext );
+begin
+  FContext := aContext;
+end;
+
+procedure TLuaBindingLoader.Callback( aKey, aValue : Variant );
+var iKey : TIOKeyCode;
+begin
+  iKey := StringToIOKeyCode(aKey);
+  if iKey = 0 then
+    Log(LOGWARN, 'Unknown keycode - '+AnsiString(aKey))
+  else if VarIsOrdinal(aValue) then
+    FContext.BindKey(iKey, Integer(aValue))
+  else
+    FContext.BindKey(iKey, BINDING_FORWARD_LUA);
+end;
 
 function lua_config_dofile( L: Plua_State ) : Integer; cdecl;
 var iFileName  : AnsiString;
@@ -105,6 +130,18 @@ procedure TLuaConfig.LoadKeybindings ( const aTableName : AnsiString ) ;
 begin
   if aTableName <> '' then FKeyTabName := aTableName;
   EntryFeed(FKeyTabName, @CommandCallback );
+end;
+
+procedure TLuaConfig.LoadKeybindings( aContext : TBindingContext; const aTableName : AnsiString );
+var iLoader : TLuaBindingLoader;
+begin
+  if aTableName <> '' then FKeyTabName := aTableName;
+  iLoader := TLuaBindingLoader.Create(aContext);
+  try
+    EntryFeed(FKeyTabName, @iLoader.Callback);
+  finally
+    iLoader.Free;
+  end;
 end;
 
 function TLuaConfig.GetKeybinding ( aCommand : Byte ) : AnsiString;
@@ -351,4 +388,3 @@ begin
 end;
 
 end.
-
