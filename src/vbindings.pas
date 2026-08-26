@@ -1,9 +1,7 @@
 {$INCLUDE valkyrie.inc}
+// Generic keyboard and controller binding storage
 unit vbindings;
 interface
-
-// Generic keyboard and controller binding storage independent of Lua configuration.
-
 uses vconfiguration, vioevent, vgenerics;
 
 type TBindingAction = Integer;
@@ -24,7 +22,8 @@ end;
 type TBindingCatalog = class
   constructor Create( const aInfo : array of TBindingInfo );
   procedure RegisterGroup( aGroup : TConfigurationGroup; const aGroupID : AnsiString );
-  // Checks catalog registration only; omitted setting values and unbound actions are valid.
+  // Checks catalog registration only; omitted setting values
+  // and unbound actions are valid.
   procedure ValidateRegistration;
   function ConfigurationValue( aAction : TBindingAction ) : Integer;
   function Info( aAction : TBindingAction ) : TBindingInfo;
@@ -37,7 +36,8 @@ private
   function FindDefinition( aAction : TBindingAction ) : Integer;
 end;
 
-// Stores keyboard and controller bindings for one caller-defined input context.
+// Stores keyboard and controller bindings for one caller-defined
+// input context.
 type TBindingContext = class
   constructor Create;
   procedure Clear;
