@@ -25,8 +25,11 @@ type TBindingCatalog = class
   // Checks catalog registration only; omitted setting values
   // and unbound actions are valid.
   procedure ValidateRegistration;
+  procedure ResetValues;
   function ConfigurationValue( aAction : TBindingAction ) : Integer;
   function Info( aAction : TBindingAction ) : TBindingInfo;
+protected
+  procedure SetConfigurationValue( aAction : TBindingAction; aValue : Integer );
 private
   FInfo          : array of TBindingInfo;
   FEntry         : array of TIntegerConfigurationEntry;
@@ -161,6 +164,13 @@ begin
       raise Exception.Create('TBindingCatalog - ID '+FInfo[iInfo].ID+' is not registered!');
 end;
 
+procedure TBindingCatalog.ResetValues;
+var iInfo : Integer;
+begin
+  for iInfo := 0 to High(FEntry) do
+    if FEntry[iInfo] <> nil then FEntry[iInfo].Reset;
+end;
+
 function TBindingCatalog.ConfigurationValue( aAction : TBindingAction ) : Integer;
 var iInfo : Integer;
 begin
@@ -170,6 +180,20 @@ begin
   if FEntry[iInfo] = nil then
     raise Exception.Create('TBindingCatalog - action '+IntToStr(aAction)+' is not registered!');
   Result := FEntry[iInfo].Value;
+end;
+
+procedure TBindingCatalog.SetConfigurationValue(
+  aAction : TBindingAction;
+  aValue  : Integer
+);
+var iInfo : Integer;
+begin
+  iInfo := FindDefinition(aAction);
+  if iInfo < 0 then
+    raise Exception.Create('TBindingCatalog - action '+IntToStr(aAction)+' is undefined!');
+  if FEntry[iInfo] = nil then
+    raise Exception.Create('TBindingCatalog - action '+IntToStr(aAction)+' is not registered!');
+  FEntry[iInfo].Value := aValue;
 end;
 
 function TBindingCatalog.Info( aAction : TBindingAction ) : TBindingInfo;
@@ -235,6 +259,7 @@ begin
     if aCatalog.FEntry[iInfo] <> nil then
     begin
       iValue := aCatalog.ConfigurationValue(aCatalog.FInfo[iInfo].Action);
+      if iValue = Ord(VPAD_BUTTON_INVALID) then Continue;
       if (iValue >= Ord(VPAD_BUTTON_A)) and
          (iValue <= Ord(High(TIOPadButton))) then
         BindPad(TIOPadButton(iValue), aCatalog.FInfo[iInfo].Action)
