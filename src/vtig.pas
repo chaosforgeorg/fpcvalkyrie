@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vtig;
 interface
-uses vutil, viotypes, vtigstyle, vioconsole, vtigio;
+uses vutil, viotypes, vioevent, vtigstyle, vioconsole, vtigio;
 
 type TTIGWindowFlag = (
   VTIG_WINDOW_NO_CLEAR
@@ -1450,23 +1450,25 @@ begin
     end;
   end;
 
-  if (iCursor > 0) and VTIG_Event( VTIG_IE_BACKSPACE) then
+  if ( iCursor > 0 ) and GCtx.IO.KeyState.Activated( VKEY_BACK ) then
   begin
     System.Move( aBuffer[iCursor], aBuffer[iCursor - 1], (iLength - iCursor) + 1 );
     Dec(iCursor);
     Dec(iLength);
   end;
 
-  if ( iCursor < iLength ) and VTIG_Event( VTIG_IE_DELETE ) then
+  if ( iCursor < iLength ) and GCtx.IO.KeyState.Activated( VKEY_DELETE ) then
   begin
     System.Move( aBuffer[iCursor + 1], aBuffer[iCursor], (iLength - iCursor) );
     Dec(iLength);
   end;
 
-  if (iCursor > 0)       and ( VTIG_Event( VTIG_IE_LEFT) )   then Dec(iCursor);
-  if (iCursor < iLength) and ( VTIG_Event( VTIG_IE_RIGHT ) ) then Inc(iCursor);
-  if VTIG_Event( VTIG_IE_HOME ) then iCursor := 0;
-  if VTIG_Event( VTIG_IE_END )  then iCursor := iLength;
+  if ( iCursor > 0 ) and GCtx.IO.KeyState.Activated( VKEY_LEFT ) then
+    Dec( iCursor );
+  if ( iCursor < iLength ) and GCtx.IO.KeyState.Activated( VKEY_RIGHT ) then
+    Inc( iCursor );
+  if GCtx.IO.KeyState.Activated( VKEY_HOME ) then iCursor := 0;
+  if GCtx.IO.KeyState.Activated( VKEY_END )  then iCursor := iLength;
 
   if VTIG_Event( VTIG_IE_COPY )  then
     GCtx.Io.Driver.SetClipboard( aBuffer );
@@ -1641,6 +1643,7 @@ end;
 procedure VTIG_EventClear;
 begin
   GCtx.IO.EventState.Clear;
+  GCtx.IO.KeyState.Clear;
 end;
 
 procedure VTIG_PushStyle( aStyle : PTIGStyle );
@@ -1687,4 +1690,3 @@ GCtx := nil;
 FreeAndNil( GDefaultContext );
 
 end.
-

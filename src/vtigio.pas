@@ -45,9 +45,6 @@ const
   VTIG_IE_CANCEL    = 137; // ESCAPE
   VTIG_IE_SELECT    = 138; // SPACE
   VTIG_IE_CONFIRM   = 139; // ENTER
-  VTIG_IE_TAB       = 140;
-  VTIG_IE_BACKSPACE = 141;
-  VTIG_IE_DELETE    = 142;
   VTIG_IE_COPY      = 143;
   VTIG_IE_PASTE     = 144;
   VTIG_IE_MCONFIRM  = 155; // MOUSE LEFT
@@ -119,6 +116,7 @@ type TTIGIOState = class
     destructor Destroy; override;
   private
     FEventState     : TIOEventState;
+    FKeyState       : TIOEventState;
     FMouseState     : TIOMouseState;
     FRenderer       : TIOConsoleRenderer;
     FDriver         : TIODriver;
@@ -133,6 +131,7 @@ type TTIGIOState = class
     property SoundParameter : Pointer            write FSoundParameter;
     property SoundCallback  : TTIGSoundCallback  write FSoundCallback;
     property EventState     : TIOEventState      read FEventState;
+    property KeyState       : TIOEventState      read FKeyState;
     property MouseState     : TIOMouseState      read FMouseState;
     property Renderer       : TIOConsoleRenderer read FRenderer;
     property MousePosition  : TIOPoint           read FMousePosition write FMousePosition;
@@ -203,6 +202,7 @@ end;
 constructor TTIGIOState.Create;
 begin
   FEventState := TIOEventState.Create;
+  FKeyState   := TIOEventState.Create;
   FMouseState := TIOMouseState.Create;
   FRenderer   := nil;
   FDriver     := nil;
@@ -347,12 +347,14 @@ begin
     iDTime := iCTime - FTime;
   FTime := iCTime;
   FEventState.update( iDTime );
+  FKeyState.update( iDTime );
   FMouseState.update( iDTime );
 end;
 
 procedure TTIGIOState.EndFrame;
 begin
   FEventState.EndFrame;
+  FKeyState.EndFrame;
   FMouseState.EndFrame;
 end;
 
@@ -364,6 +366,7 @@ end;
 destructor TTIGIOState.Destroy;
 begin
   FreeAndNil( FEventState );
+  FreeAndNil( FKeyState );
   FreeAndNil( FMouseState );
   inherited Destroy;
 end;
@@ -376,4 +379,3 @@ end;
 
 
 end.
-

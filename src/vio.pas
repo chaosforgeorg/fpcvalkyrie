@@ -53,7 +53,7 @@ var IO : TIO;
 
 implementation
 
-uses vutil, vtig, vtigio, vtigbindings, dateutils, math;
+uses vutil, vtig, vtigio, vioeventstate, dateutils, math;
 
 { TIO }
 
@@ -69,7 +69,25 @@ begin
   FPadState        := TIOPadState.Create;
   FBindings        := TBindings.Create;
   FUIBindings       := FBindings.CreateContext;
-  VTIG_LoadDefaultBindings( FUIBindings );
+  FUIBindings.BindKey( VKEY_UP,     VTIG_IE_UP );
+  FUIBindings.BindKey( VKEY_DOWN,   VTIG_IE_DOWN );
+  FUIBindings.BindKey( VKEY_LEFT,   VTIG_IE_LEFT );
+  FUIBindings.BindKey( VKEY_RIGHT,  VTIG_IE_RIGHT );
+  FUIBindings.BindKey( VKEY_HOME,   VTIG_IE_HOME );
+  FUIBindings.BindKey( VKEY_END,    VTIG_IE_END );
+  FUIBindings.BindKey( VKEY_PGUP,   VTIG_IE_PGUP );
+  FUIBindings.BindKey( VKEY_PGDOWN, VTIG_IE_PGDOWN );
+  FUIBindings.BindKey( VKEY_ESCAPE, VTIG_IE_CANCEL );
+  FUIBindings.BindKey( VKEY_ENTER,  VTIG_IE_CONFIRM );
+  FUIBindings.BindKey( VKEY_SPACE,  VTIG_IE_SELECT );
+  FUIBindings.BindPad( VPAD_BUTTON_DPAD_UP,       VTIG_IE_UP );
+  FUIBindings.BindPad( VPAD_BUTTON_DPAD_DOWN,     VTIG_IE_DOWN );
+  FUIBindings.BindPad( VPAD_BUTTON_DPAD_LEFT,     VTIG_IE_LEFT );
+  FUIBindings.BindPad( VPAD_BUTTON_DPAD_RIGHT,    VTIG_IE_RIGHT );
+  FUIBindings.BindPad( VPAD_BUTTON_B,             VTIG_IE_CANCEL );
+  FUIBindings.BindPad( VPAD_BUTTON_A,             VTIG_IE_CONFIRM );
+  FUIBindings.BindPad( VPAD_BUTTON_LEFTSHOULDER,  VTIG_IE_LEFT );
+  FUIBindings.BindPad( VPAD_BUTTON_RIGHTSHOULDER, VTIG_IE_RIGHT );
   FMouseLast       := Point(-1,-1);
   FMouse           := Point(-1,-1);
 
@@ -177,9 +195,26 @@ function TIO.OnEvent( const aEvent : TIOEvent ) : Boolean;
 var i, iInput : Integer;
     iEvent    : TIOEvent;
     iWide     : WideString;
+    iAction   : TBindingAction;
 begin
   FPadState.HandleEvent( aEvent );
-  VTIG_ApplyBindingEvent( aEvent, FUIBindings, VTIG_GetIOState.EventState );
+  case aEvent.EType of
+    VEVENT_KEYDOWN,
+    VEVENT_KEYUP:
+      if not aEvent.Key.Repeated then
+      begin
+        iAction := FUIBindings.ResolveKey( TIOKeyCode( aEvent.Key.Code ) );
+        if ( iAction >= 0 ) and ( iAction < VIO_MAXEVENTS ) then
+          VTIG_GetIOState.EventState.SetState( iAction, aEvent.Key.Pressed );
+      end;
+    VEVENT_PADDOWN,
+    VEVENT_PADUP:
+      begin
+        iAction := FUIBindings.ResolvePad( aEvent.Pad.Button );
+        if ( iAction >= 0 ) and ( iAction < VIO_MAXEVENTS ) then
+          VTIG_GetIOState.EventState.SetState( iAction, aEvent.Pad.Pressed );
+      end;
+  end;
 
   if ( aEvent.EType in [ VEVENT_MOUSEMOVE ] ) then
     FMouse := DeviceCoordToConsoleCoord( aEvent.MouseMove.Pos );
@@ -202,6 +237,7 @@ begin
   if ( aEvent.EType in [ VEVENT_KEYDOWN, VEVENT_KEYUP ] ) and
      ( not aEvent.Key.Repeated ) then
   begin
+    VTIG_GetIOState.KeyState.SetState( aEvent.Key.Code, aEvent.Key.Pressed );
     VTIG_GetIOState.EventState.SetState( VTIG_IE_SHIFT, VKMOD_SHIFT in aEvent.Key.ModState );
     case aEvent.Key.Code of
       VKEY_0 : VTIG_GetIOState.EventState.SetState( VTIG_IE_0, aEvent.Key.Pressed );
