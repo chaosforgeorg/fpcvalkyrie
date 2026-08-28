@@ -9,21 +9,24 @@ uses sysutils,
 type
   ERLRuntimeState = class( Exception );
 
-type
-
-{ TRLRuntime }
-
-  TRLRuntime = class abstract( TSystem )
+// TRLRuntime
+//
+// Architectural boundary: owns reusable roguelike services and their
+// data-generation lifecycle. Game policy belongs in descendants, while
+// one-playthrough state belongs in a game session or controller.
+type TRLRuntime = class abstract( TSystem )
   private
-    FPaths           : TGamePaths;
     FConfiguration   : TObject;
     FGameRNG         : TRNG;
     FIO              : TIORL;
     FLua             : TLuaSystem;
     FDataInitialized : Boolean;
+    procedure ReleaseLua;
   protected
+    FPaths : TGamePaths;
     function CreateIO : TIORL; virtual; abstract;
     function CreateLua : TLuaSystem; virtual; abstract;
+    procedure PrepareGameData; virtual;
     procedure InitializeGameData; virtual;
     function RunGame : TVRunResult; virtual; abstract;
     procedure ShutdownGameData; virtual;
@@ -37,6 +40,7 @@ type
     procedure Shutdown;
     procedure Reset;
     procedure HandleGameException( aException : Exception );
+    procedure ReplaceGameRNG( var aGameRNG : TRNG );
 
     property Paths : TGamePaths read FPaths;
     property Configuration : TObject read FConfiguration;
@@ -46,9 +50,12 @@ type
     property DataInitialized : Boolean read FDataInitialized;
   end;
 
-{ TRLApplication }
-
-  TRLApplication = class abstract( TValkyrieApplication )
+// TRLApplication
+//
+// Architectural boundary: owns process bootstrap, paths, configuration
+// creation, and exactly one runtime. Loaded game data and playthrough state
+// belong to the runtime and its active session.
+type TRLApplication = class abstract( TValkyrieApplication )
   private
     FConfiguration : TObject;
     FRuntime       : TRLRuntime;
@@ -94,9 +101,7 @@ end;
 
 destructor TRLRuntime.Destroy;
 begin
-  if LuaSystem = FLua then
-    LuaSystem := nil;
-  FreeAndNil(FLua);
+  ReleaseLua;
 
   if vio.IO = FIO then
     vio.IO := nil;
@@ -109,7 +114,18 @@ begin
   inherited Destroy;
 end;
 
+procedure TRLRuntime.ReleaseLua;
+begin
+  if LuaSystem = FLua then
+    LuaSystem := nil;
+  FreeAndNil(FLua);
+end;
+
 procedure TRLRuntime.InitializeGameData;
+begin
+end;
+
+procedure TRLRuntime.PrepareGameData;
 begin
 end;
 
@@ -130,17 +146,21 @@ begin
   if FDataInitialized then
     raise ERLRuntimeState.Create('Runtime data is already initialized');
 
-  FLua := CreateLua;
   try
+    PrepareGameData;
+    FLua := CreateLua;
     if FLua <> nil then
       Add(FLua);
     LuaSystem := FLua;
     InitializeGameData;
     FDataInitialized := True;
   except
-    if LuaSystem = FLua then
-      LuaSystem := nil;
-    FreeAndNil(FLua);
+    try
+      ShutdownGameData;
+    except
+    end;
+    FDataInitialized := False;
+    ReleaseLua;
     raise;
   end;
 end;
@@ -159,9 +179,7 @@ begin
     ShutdownGameData;
   finally
     FDataInitialized := False;
-    if LuaSystem = FLua then
-      LuaSystem := nil;
-    FreeAndNil(FLua);
+    ReleaseLua;
   end;
 end;
 
@@ -175,6 +193,23 @@ end;
 procedure TRLRuntime.HandleGameException( aException : Exception );
 begin
   GameException(aException);
+end;
+
+procedure TRLRuntime.ReplaceGameRNG( var aGameRNG : TRNG );
+var iPrevious : TRNG;
+begin
+  if aGameRNG = nil then
+    raise ERLRuntimeState.Create('Replacement game RNG is nil');
+  if aGameRNG = FGameRNG then
+  begin
+    aGameRNG := nil;
+    Exit;
+  end;
+  iPrevious := FGameRNG;
+  FGameRNG := aGameRNG;
+  aGameRNG := nil;
+  LuaRNG := FGameRNG;
+  iPrevious.Free;
 end;
 
 { TRLApplication }
