@@ -31,7 +31,6 @@ type TRLRuntime = class abstract( TSystem )
     function RunGame : TVRunResult; virtual; abstract;
     procedure ShutdownGameData; virtual;
     procedure ResetGameData; virtual;
-    procedure GameException( aException : Exception ); virtual;
   public
     constructor Create( const aPaths : TGamePaths; var aConfiguration : TObject ); reintroduce; virtual;
     destructor Destroy; override;
@@ -39,7 +38,7 @@ type TRLRuntime = class abstract( TSystem )
     function Run : TVRunResult;
     procedure Shutdown;
     procedure Reset;
-    procedure HandleGameException( aException : Exception );
+    procedure HandleGameException( aException : Exception ); virtual;
     procedure ReplaceGameRNG( var aGameRNG : TRNG );
 
     property Paths : TGamePaths read FPaths;
@@ -62,18 +61,11 @@ type TRLApplication = class abstract( TValkyrieApplication )
   protected
     function CreateConfiguration( var aPaths : TGamePaths ) : TObject; virtual; abstract;
     function CreateRuntime( const aPaths : TGamePaths; var aConfiguration : TObject ) : TRLRuntime; virtual; abstract;
-    function ExecuteGameUtility : Boolean; virtual;
 
     procedure LoadConfiguration( var aPaths : TGamePaths ); override;
-    function ExecuteApplicationCommand : Boolean; override;
-    procedure CreateGame; override;
-    procedure DestroyGame; override;
-    procedure InitializeGame; override;
-    function RunGame : TVRunResult; override;
-    procedure ShutdownGame; override;
-    procedure ResetGame; override;
-    procedure GameException( aException : Exception ); override;
-  public
+    procedure ExecuteApplication; override;
+    procedure FinalizeApplication; override;
+
     property Runtime : TRLRuntime read FRuntime;
   end;
 
@@ -137,10 +129,7 @@ procedure TRLRuntime.ResetGameData;
 begin
 end;
 
-procedure TRLRuntime.GameException( aException : Exception );
-begin
-end;
-
+// Initialize brackets Lua creation between pre-Lua and post-Lua data hooks.
 procedure TRLRuntime.Initialize;
 begin
   if FDataInitialized then
@@ -172,6 +161,7 @@ begin
   Result := RunGame;
 end;
 
+// Shutdown invokes game cleanup before unpublishing and freeing Lua.
 procedure TRLRuntime.Shutdown;
 begin
   if not FDataInitialized then Exit;
@@ -183,6 +173,7 @@ begin
   end;
 end;
 
+// Reset is valid only between initialized data generations.
 procedure TRLRuntime.Reset;
 begin
   if FDataInitialized then
@@ -192,7 +183,6 @@ end;
 
 procedure TRLRuntime.HandleGameException( aException : Exception );
 begin
-  GameException(aException);
 end;
 
 procedure TRLRuntime.ReplaceGameRNG( var aGameRNG : TRNG );
@@ -214,61 +204,44 @@ end;
 
 { TRLApplication }
 
-function TRLApplication.ExecuteGameUtility : Boolean;
-begin
-  Result := False;
-end;
-
 procedure TRLApplication.LoadConfiguration( var aPaths : TGamePaths );
 begin
   FConfiguration := CreateConfiguration(aPaths);
 end;
 
-function TRLApplication.ExecuteApplicationCommand : Boolean;
-begin
-  Result := ExecuteGameUtility;
-end;
-
-procedure TRLApplication.CreateGame;
+// create runtime -> initialize data -> run -> shutdown data -> optional reset
+procedure TRLApplication.ExecuteApplication;
+var iResult : TVRunResult;
 begin
   FRuntime := CreateRuntime(FPaths, FConfiguration);
   if FRuntime = nil then
     raise Exception.Create('CreateRuntime returned nil');
   if FConfiguration <> nil then
     raise Exception.Create('CreateRuntime did not take configuration ownership');
+  repeat
+    FRuntime.Initialize;
+    try
+      try
+        iResult := FRuntime.Run;
+      except
+        on E : Exception do
+        begin
+          FRuntime.HandleGameException(E);
+          raise;
+        end;
+      end;
+    finally
+      FRuntime.Shutdown;
+    end;
+    if iResult = VRR_RELOAD_DATA then
+      FRuntime.Reset;
+  until iResult = VRR_QUIT;
 end;
 
-procedure TRLApplication.DestroyGame;
+procedure TRLApplication.FinalizeApplication;
 begin
   FreeAndNil(FRuntime);
   FreeAndNil(FConfiguration);
-end;
-
-procedure TRLApplication.InitializeGame;
-begin
-  FRuntime.Initialize;
-end;
-
-function TRLApplication.RunGame : TVRunResult;
-begin
-  Result := FRuntime.Run;
-end;
-
-procedure TRLApplication.ShutdownGame;
-begin
-  FRuntime.Shutdown;
-end;
-
-procedure TRLApplication.ResetGame;
-begin
-  FRuntime.Reset;
-end;
-
-procedure TRLApplication.GameException( aException : Exception );
-begin
-  if FRuntime <> nil then
-    FRuntime.HandleGameException(aException);
-  inherited GameException(aException);
 end;
 
 end.
