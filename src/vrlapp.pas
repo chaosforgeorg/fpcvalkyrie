@@ -90,15 +90,12 @@ begin
   FIO := CreateIO;
   if FIO <> nil then
     Add(FIO);
-
-  FLua := CreateLua;
-  if FLua <> nil then
-    Add(FLua);
-  LuaSystem := FLua;
 end;
 
 destructor TRLRuntime.Destroy;
 begin
+  if LuaSystem = FLua then
+    LuaSystem := nil;
   FreeAndNil(FLua);
 
   if vio.IO = FIO then
@@ -132,8 +129,20 @@ procedure TRLRuntime.Initialize;
 begin
   if FDataInitialized then
     raise ERLRuntimeState.Create('Runtime data is already initialized');
-  InitializeGameData;
-  FDataInitialized := True;
+
+  FLua := CreateLua;
+  try
+    if FLua <> nil then
+      Add(FLua);
+    LuaSystem := FLua;
+    InitializeGameData;
+    FDataInitialized := True;
+  except
+    if LuaSystem = FLua then
+      LuaSystem := nil;
+    FreeAndNil(FLua);
+    raise;
+  end;
 end;
 
 function TRLRuntime.Run : TVRunResult;
@@ -150,6 +159,9 @@ begin
     ShutdownGameData;
   finally
     FDataInitialized := False;
+    if LuaSystem = FLua then
+      LuaSystem := nil;
+    FreeAndNil(FLua);
   end;
 end;
 
