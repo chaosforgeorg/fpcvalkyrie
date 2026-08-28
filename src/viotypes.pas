@@ -48,6 +48,8 @@ type TIOTerminateEventHandler = function : Boolean of object;
 type TIOInterrupt = function( aEvent : TIOEvent ) : Boolean of object;
 type TIOInterrupts = array[0..IOKeyCodeMax] of TIOInterrupt;
 
+// Architectural boundary: owns device mechanics and interrupt registration.
+// Renderer, path, and game policy belong to callers.
 type TIODriver = class( TVObject )
   constructor Create;
   function PollEvent( out aEvent : TIOEvent ) : Boolean; virtual; abstract;
@@ -64,6 +66,7 @@ type TIODriver = class( TVObject )
   function GetMouseButtonState( out aResult : TIOMouseButtonSet) : Boolean; virtual; abstract;
   function GetModKeyState : TIOModKeySet; virtual; abstract;
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString = '' ); virtual; abstract;
+  function CaptureScreen( const aFileName : AnsiString ) : Boolean; virtual;
   procedure ClearInterrupts;
   procedure RegisterInterrupt( aCode : TIOKeyCode; aInterrupt : TIOInterrupt );
   procedure StartTextInput; virtual;
@@ -246,6 +249,11 @@ end;
 procedure TIODriver.RegisterInterrupt ( aCode : TIOKeyCode; aInterrupt : TIOInterrupt );
 begin
   FInterrupts[aCode] := aInterrupt;
+end;
+
+function TIODriver.CaptureScreen( const aFileName : AnsiString ) : Boolean;
+begin
+  Result := False;
 end;
 
 procedure TIODriver.StartTextInput;

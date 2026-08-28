@@ -2,7 +2,7 @@
 unit viorl;
 interface
 uses Classes, SysUtils, vio, vrltools, vluaentitynode, vluamapnode, vrandom,
-     vluastate, vluaconfig, vioevent, viotypes, vioconsole, vtextmap, vmessages;
+     vluastate, vluaconfig, vioevent, viotypes, vioconsole, vtextmap, vmessages, vbindings;
 
 const COMMAND_INVALID = 255;
       COMMAND_SYSQUIT = 253;
@@ -12,9 +12,9 @@ type TCommandSet = Set of Byte;
 
 type
 
-{ TIORL }
-
- TIORL = class( TIO )
+// Architectural boundary: owns shared roguelike presentation mechanics.
+// Game actions, HUDs, concrete effects, and gameplay policy belong to callers.
+TIORL = class( TIO )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer ); reintroduce;
 
   // TIG-version functions
@@ -37,10 +37,16 @@ type
   procedure MsgUpdate; virtual;
   // Dump last messages to file.
   procedure MsgDump( var aTextFile : Text; aLastCount : Integer );
+  procedure InitializeMessages( aVisible, aLength : DWord;
+    aOnMore : TMessagesMoreEvent; aBufferSize : Word = 1000 );
+  procedure ReleaseMessages;
+  function MsgGetRecent : TMessageBuffer;
+  procedure MsgReset;
+  procedure MsgClear;
 
   // Events
-  function GetCommand : Byte;
-  function WaitForCommand( const aSet : TCommandSet ) : Byte;
+  function GetCommand : Byte; deprecated 'Use GameBindings semantic action resolution';
+  function WaitForCommand( const aSet : TCommandSet ) : Byte; deprecated 'Use GameBindings semantic action resolution';
   function WaitForKey ( const aSet : TKeySet ) : Byte;
   function WaitForKeyEvent ( out aEvent : TIOEvent ) : Boolean;
   procedure BreakKeyLoop;
@@ -53,8 +59,12 @@ type
   procedure AddMarkAnimation( aCoord : TCoord2D; aSign : char; aColor : TIOColor; aDuration : DWord; aDelay : DWord = 0  );
   procedure AddBulletAnimation( aFrom, aTo : TCoord2D; aSign : char; aColor : TIOColor; aDuration : DWord; aDelay : DWord = 0  );
   procedure AddExplodeAnimation( aCoord : TCoord2D; const aArray : TTextExplosionArray; aDelay : DWord );
-  procedure ClearAnimations;
-  procedure WaitForAnimations;
+  function AnimationsRunning : Boolean; virtual;
+  function AnimationsBlockingFinished : Boolean; virtual;
+  procedure ClearAnimations; virtual;
+  function WaitForAnimationCompletion( aStrict : Boolean;
+    aTimeout : DWord = 0 ) : Boolean;
+  procedure WaitForAnimations; deprecated 'Use WaitForAnimationCompletion';
   // Renders an explosion on the screen using Explode marks
   procedure Explosion( aWhere : TCoord2D; aColor : byte; aRange : byte; aDrawDelay : Word; aDelay : Word );
 
@@ -62,7 +72,7 @@ type
   procedure FocusCursor( aCoord : TCoord2D );
   procedure ShowCursor;
   procedure HideCursor;
-  function IOKeyCodeToCommand( aKey : TIOKeyCode ) : Byte;
+  function IOKeyCodeToCommand( aKey : TIOKeyCode ) : Byte; deprecated 'Use GameBindings semantic action resolution';
 
   destructor Destroy; override;
 
@@ -72,22 +82,25 @@ type
   class procedure RegisterLuaAPI( State : TLuaState; const aTableName : AnsiString );
 private
   function GetMapShift : TIOPoint;
+  function WaitForCommandInternal( const aSet : TCommandSet ) : Byte;
 protected
-  FVisualRNG : TRNG;
-  FTMap      : TTextMap;
-  FMessages  : TMessages;
-  FConfig    : TLuaConfig;
-  FKeyCode   : Word;
+  FVisualRNG    : TRNG;
+  FTMap         : TTextMap;
+  FMessages     : TMessages;
+  FConfig       : TLuaConfig;
+  FKeyCode      : Word;
+  FGameBindings : TBindingContext;
 
   FLevel     : TLuaMapNode;
   FPlayer    : TLuaEntityNode;
   FBreakLoop : Boolean;
 public
-  property Config      : TLuaConfig read FConfig;
-  property MapShift    : TIOPoint read GetMapShift;
-  property LastKeyCode : Word read FKeyCode;
-  property Messages    : TMessages read FMessages;
-  property VisualRNG   : TRNG read FVisualRNG;
+  property Config       : TLuaConfig read FConfig;
+  property MapShift     : TIOPoint read GetMapShift;
+  property LastKeyCode  : Word read FKeyCode;
+  property Messages     : TMessages read FMessages;
+  property VisualRNG    : TRNG read FVisualRNG;
+  property GameBindings : TBindingContext read FGameBindings;
 end;
 
 implementation
@@ -102,6 +115,7 @@ constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer 
 begin
   IORL := Self;
   inherited Create( aIODriver, aConsole );
+  FGameBindings := Bindings.CreateContext;
   FTMap      := nil;
   FMessages  := nil;
   FLevel     := nil;
@@ -167,11 +181,41 @@ begin
   end;
 end;
 
+procedure TIORL.InitializeMessages( aVisible, aLength : DWord;
+  aOnMore : TMessagesMoreEvent; aBufferSize : Word );
+begin
+  FreeAndNil( FMessages );
+  FMessages := TMessages.Create( aVisible, aLength, aOnMore, aBufferSize );
+end;
+
+procedure TIORL.ReleaseMessages;
+begin
+  FreeAndNil( FMessages );
+end;
+
+function TIORL.MsgGetRecent : TMessageBuffer;
+begin
+  if FMessages = nil then Exit( nil );
+  Exit( FMessages.Content );
+end;
+
+procedure TIORL.MsgReset;
+begin
+  if FMessages = nil then Exit;
+  FMessages.Reset;
+  FMessages.Update;
+end;
+
+procedure TIORL.MsgClear;
+begin
+  if FMessages <> nil then FMessages.Clear;
+end;
+
 function TIORL.GetCommand : Byte;
 var iSpecial    : Variant;
 begin
   Assert( FConfig <> nil );
-  GetCommand := WaitForCommand([]);
+  GetCommand := WaitForCommandInternal([]);
   MsgUpdate;
 
   if GetCommand = COMMAND_INVALID then
@@ -184,6 +228,11 @@ begin
 end;
 
 function TIORL.WaitForCommand ( const aSet : TCommandSet ) : Byte;
+begin
+  Exit( WaitForCommandInternal( aSet ) );
+end;
+
+function TIORL.WaitForCommandInternal( const aSet : TCommandSet ) : Byte;
 var iCommand : Byte;
     iEvent   : TIOEvent;
 begin
@@ -257,9 +306,41 @@ begin
   if FTMap <> nil then FTMap.AddAnimation( TTextExplosionAnimation.Create( aCoord, '*', aArray, aDelay ) );
 end;
 
+function TIORL.AnimationsRunning : Boolean;
+begin
+  if FTMap = nil then Exit( False );
+  Exit( not FTMap.AnimationsFinished );
+end;
+
+function TIORL.AnimationsBlockingFinished : Boolean;
+begin
+  if FTMap = nil then Exit( True );
+  Exit( FTMap.AnimationsBlockingFinished );
+end;
+
 procedure TIORL.ClearAnimations;
 begin
   if FTMap <> nil then FTMap.ClearAnimations;
+end;
+
+function TIORL.WaitForAnimationCompletion( aStrict : Boolean;
+  aTimeout : DWord ) : Boolean;
+var iStart    : DWord;
+    iFinished : Boolean;
+begin
+  iStart := Driver.GetMs;
+  repeat
+    if aStrict
+      then iFinished := not AnimationsRunning
+      else iFinished := AnimationsBlockingFinished;
+    if iFinished then Exit( True );
+    Delay( 5 );
+    if ( aTimeout > 0 ) and ( Driver.GetMs - iStart > aTimeout ) then
+    begin
+      ClearAnimations;
+      Exit( False );
+    end;
+  until False;
 end;
 
 procedure TIORL.WaitForAnimations;
@@ -333,6 +414,7 @@ end;
 destructor TIORL.Destroy;
 begin
   IORL := nil;
+  ReleaseMessages;
   FreeAndNil( FVisualRNG );
   inherited Destroy;
 end;
@@ -394,4 +476,3 @@ end;
 
 
 end.
-

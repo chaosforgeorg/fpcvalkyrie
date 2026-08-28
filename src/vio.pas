@@ -4,6 +4,8 @@ interface
 uses Classes, SysUtils, vsystem, vgenerics,
      vioevent, viopadstate, viotypes, vtigconsole, vioconsole, vbindings;
 
+// Architectural boundary: owns driver, console, layers, and binding contexts.
+// Device mechanics, renderer implementation, path, and game policy belong to callers.
 type TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer  ); reintroduce;
   procedure Initialize( aConsole : TIOConsoleRenderer );
@@ -25,6 +27,8 @@ type TIO = class( TSystem )
   function EventToUIInput( const aEvent : TIOEvent ) : Integer; virtual;
   function DeviceCoordToConsoleCoord( aCoord : TIOPoint ) : TIOPoint; virtual;
   function ConsoleCoordToDeviceCoord( aCoord : TIOPoint ) : TIOPoint; virtual;
+  function CaptureScreen( const aFileName : AnsiString ) : Boolean;
+  function SaveConsoleTextDump( const aFileName : AnsiString ) : Boolean;
 protected
   function HandleInput( aInput : Integer ) : Boolean;
   function ConsoleCallback( aEvent : TIOEvent ) : Boolean;
@@ -117,6 +121,40 @@ begin
   FreeAndNil( FConsole );
   FreeAndNil( FIODriver );
   inherited Destroy;
+end;
+
+function TIO.CaptureScreen( const aFileName : AnsiString ) : Boolean;
+begin
+  if FIODriver = nil then Exit( False );
+  Result := FIODriver.CaptureScreen( aFileName );
+end;
+
+function TIO.SaveConsoleTextDump( const aFileName : AnsiString ) : Boolean;
+var iLines : TStringList;
+    iLine  : AnsiString;
+    iX, iY : Integer;
+begin
+  Result := False;
+  if FConsole = nil then Exit;
+
+  iLines := TStringList.Create;
+  try
+    for iY := 1 to FConsole.SizeY do
+    begin
+      SetLength( iLine, FConsole.SizeX );
+      for iX := 1 to FConsole.SizeX do
+        iLine[ iX ] := FConsole.GetChar( iX, iY );
+      iLines.Add( iLine );
+    end;
+    try
+      iLines.SaveToFile( aFileName );
+      Result := True;
+    except
+      on E : Exception do Result := False;
+    end;
+  finally
+    iLines.Free;
+  end;
 end;
 
 procedure TIO.RegisterDebugConsole ( aKey : TIOKeyCode ) ;
