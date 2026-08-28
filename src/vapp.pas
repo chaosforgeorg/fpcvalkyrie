@@ -534,6 +534,7 @@ begin
   else if Assigned(Logger) then
     Logger.Flush;
   Terminate(1);
+  AcquireExceptionObject;
   raise iException;
 end;
 
