@@ -1,7 +1,6 @@
 {$INCLUDE valkyrie.inc}
 // Generic Valkyrie process shell with option, path, and lifecycle handling.
-// Descendants implement LoadConfiguration, CreateGame, DestroyGame,
-// InitializeGame, RunGame, and ShutdownGame.
+// Descendants implement configuration, execution, and finalization policies.
 unit vapp;
 interface
 
@@ -39,15 +38,13 @@ type TGamePaths = record
       Description   : AnsiString;
     end;
   private
-    FOptionSpecs       : array of TOptionSpec;
-    FDataInitialized   : Boolean;
-    FShutdown          : Boolean;
+    FOptionSpecs : array of TOptionSpec;
+    FShutdown    : Boolean;
     procedure AddStandardOptions;
     procedure ParseOptions;
     procedure WriteHelp;
     procedure ResolvePaths;
     procedure InitializeDiagnostics;
-    procedure RunDataGeneration( out aResult : TVRunResult );
     procedure DispatchApplicationException( aException : Exception );
   protected
     FPaths : TGamePaths;
@@ -63,14 +60,8 @@ type TGamePaths = record
     procedure BeforeDiagnostics; virtual;
     function ExecuteApplicationCommand : Boolean; virtual;
 
-    procedure CreateGame; virtual; abstract;
-    procedure DestroyGame; virtual; abstract;
-    procedure InitializeGame; virtual; abstract;
-    function RunGame : TVRunResult; virtual; abstract;
-    procedure ShutdownGame; virtual; abstract;
-    procedure ResetGame; virtual;
-
-    procedure GameException( aException : Exception ); virtual;
+    procedure ExecuteApplication; virtual; abstract;
+    procedure FinalizeApplication; virtual;
     procedure ApplicationException( aException : Exception ); virtual;
 
     procedure DoRun; override;
@@ -401,11 +392,7 @@ begin
   Result := False;
 end;
 
-procedure TValkyrieApplication.ResetGame;
-begin
-end;
-
-procedure TValkyrieApplication.GameException( aException : Exception );
+procedure TValkyrieApplication.FinalizeApplication;
 begin
 end;
 
@@ -428,6 +415,8 @@ begin
   Logger.Log(LOGINFO, 'Log path set to - ' + FPaths.LogPath);
 end;
 
+// Initialization sequence: application setup -> options -> paths/configuration -> diagnostics.
+// LoadConfiguration and BeforeDiagnostics descendants may acquire resources for FinalizeApplication.
 procedure TValkyrieApplication.Initialize;
 begin
   try
@@ -451,29 +440,6 @@ begin
   end;
 end;
 
-procedure TValkyrieApplication.RunDataGeneration( out aResult : TVRunResult );
-begin
-  InitializeGame;
-  FDataInitialized := True;
-  try
-    try
-      aResult := RunGame;
-    except
-      on E : Exception do
-      begin
-        GameException(E);
-        raise;
-      end;
-    end;
-  finally
-    try
-      ShutdownGame;
-    finally
-      FDataInitialized := False;
-    end;
-  end;
-end;
-
 procedure TValkyrieApplication.DispatchApplicationException( aException : Exception );
 begin
   if Assigned(Logger) then
@@ -481,8 +447,9 @@ begin
   ApplicationException(aException);
 end;
 
+// Run sequence: command -> ExecuteApplication -> Shutdown.
+// ExecuteApplication descendants own run-phase resources until FinalizeApplication.
 procedure TValkyrieApplication.DoRun;
-var iResult : TVRunResult;
 begin
   if Terminated then Exit;
   try
@@ -492,36 +459,24 @@ begin
       Exit;
     end;
 
-    CreateGame;
-    repeat
-      RunDataGeneration(iResult);
-      if iResult = VRR_RELOAD_DATA then
-        ResetGame;
-    until iResult = VRR_QUIT;
+    ExecuteApplication;
     Terminate(0);
   finally
     Shutdown;
   end;
 end;
 
+// Shutdown sequence: FinalizeApplication -> logger flush.
+// FinalizeApplication descendants own application resources released during finalization.
 procedure TValkyrieApplication.Shutdown;
 begin
   if FShutdown then Exit;
   FShutdown := True;
   try
-    if FDataInitialized then
-      try
-        ShutdownGame;
-      finally
-        FDataInitialized := False;
-      end;
+    FinalizeApplication;
   finally
-    try
-      DestroyGame;
-    finally
-      if Assigned(Logger) then
-        Logger.Flush;
-    end;
+    if Assigned(Logger) then
+      Logger.Flush;
   end;
 end;
 
@@ -534,6 +489,7 @@ begin
   else if Assigned(Logger) then
     Logger.Flush;
   Terminate(1);
+  AcquireExceptionObject;
   raise iException;
 end;
 

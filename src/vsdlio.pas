@@ -6,6 +6,8 @@ uses Classes, SysUtils, vutil, viotypes, vsdl3library, vioevent, viopadstate;
 type TSDLIOFlag  = ( SDLIO_OpenGL, SDLIO_FullScreen, SDLIO_Resizable, SDLIO_Gamepad );
      TSDLIOFlags = set of TSDLIOFlag;
 
+// Architectural boundary: owns SDL window, event, and capture mechanics only.
+// Renderer, path, and game policy belong to callers.
 type TSDLIODriver = class( TIODriver )
   class function GetCurrentResolution( out aResult : TIOPoint ) : Boolean;
 
@@ -28,7 +30,8 @@ type TSDLIODriver = class( TIODriver )
   function GetModKeyState : TIOModKeySet; override;
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString ); override;
   procedure ShowMouse( aShow : Boolean );
-  procedure ScreenShot( const aFileName : AnsiString );
+  function CaptureScreen( const aFileName : AnsiString ) : Boolean; override;
+  procedure ScreenShot( const aFileName : AnsiString ); deprecated 'Use CaptureScreen';
   function SetDisplayMode( aIndex : Integer ) : Boolean;
   procedure StartTextInput; override;
   procedure StopTextInput; override;
@@ -798,7 +801,7 @@ begin
     else SDL_HideCursor;
 end;
 
-procedure TSDLIODriver.ScreenShot( const aFileName: AnsiString );
+function TSDLIODriver.CaptureScreen( const aFileName : AnsiString ) : Boolean;
 var iSx, iSy : Integer;
     iPitch   : Int64;
     iBuf     : PByte;
@@ -809,6 +812,7 @@ var iSx, iSy : Integer;
     iSurface : PSDL_Surface;
     iRGB     : PSDL_Surface;
 begin
+  Result := False;
   iSx := GetSizeX;
   iSy := GetSizeY;
   if (iSx <= 0) or (iSy <= 0) then Exit;
@@ -837,6 +841,7 @@ begin
       try
         if not IMG_SavePNG( iRGB, PAnsiChar(aFileName) ) then
           raise Exception.Create(SDL_GetError());
+        Result := True;
       finally
         SDL_DestroySurface(iRGB);
       end;
@@ -848,6 +853,11 @@ begin
     FreeMem(iFlipBuf);
     FreeMem(iBuf);
   end;
+end;
+
+procedure TSDLIODriver.ScreenShot( const aFileName : AnsiString );
+begin
+  CaptureScreen( aFileName );
 end;
 
 procedure TSDLIODriver.ScanDisplayModes;
