@@ -481,18 +481,22 @@ begin
 end;
 
 procedure TValkyrieApplication.HandleException( aSender : TObject );
-var iException : TObject;
-    iAddress   : Pointer;
+var iException  : TObject;
+    iAddress    : Pointer;
+    iFrameCount : LongInt;
+    iFrames     : PPointer;
 begin
   iException := ExceptObject;
   iAddress := ExceptAddr;
+  iFrameCount := ExceptFrameCount;
+  iFrames := ExceptFrames;
   if iException is Exception then
     DispatchApplicationException(Exception(iException))
   else if Assigned(Logger) then
     Logger.Flush;
   Terminate(1);
-  AcquireExceptionObject;
-  raise iException at iAddress;
+  if Assigned(ExceptProc) then
+    ExceptProc(iException, iAddress, iFrameCount, iFrames);
 end;
 
 end.
