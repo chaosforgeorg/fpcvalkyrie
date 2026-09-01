@@ -113,7 +113,6 @@ var IORL : TIORL = nil;
 
 constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer ) ;
 begin
-  IORL := Self;
   inherited Create( aIODriver, aConsole );
   FGameBindings := Bindings.CreateContext;
   FTMap      := nil;
@@ -123,6 +122,7 @@ begin
   FConfig    := nil;
   FBreakLoop := False;
   FVisualRNG := TRNG.Create;
+  IORL := Self;
 end;
 
 procedure TIORL.RunLayer( aLayer : TIOLayer );
@@ -413,7 +413,7 @@ end;
 
 destructor TIORL.Destroy;
 begin
-  IORL := nil;
+  if IORL = Self then IORL := nil;
   ReleaseMessages;
   FreeAndNil( FVisualRNG );
   inherited Destroy;

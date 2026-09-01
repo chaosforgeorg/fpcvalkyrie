@@ -64,7 +64,6 @@ uses vutil, vtig, vtigio, vioeventstate, dateutils, math;
 constructor TIO.Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer );
 begin
   inherited Create;
-  IO := Self;
   FIODriver        := aIODriver;
   FConsole         := nil;
   FLastUpdate      := FIODriver.GetMs;
@@ -97,6 +96,7 @@ begin
 
   if aConsole <> nil then
     Initialize( aConsole );
+  IO := Self;
 end;
 
 procedure TIO.Initialize( aConsole : TIOConsoleRenderer );
@@ -111,6 +111,7 @@ end;
 destructor TIO.Destroy;
 var iLayer : TIOLayer;
 begin
+  if IO = Self then IO := nil;
   for iLayer in FLayers do
     iLayer.Free;
   FreeAndNil( FLayers );
