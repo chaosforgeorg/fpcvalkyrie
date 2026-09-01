@@ -170,6 +170,9 @@ begin
   // Get value from curses
   FLastGet := wgetch(stdscr);
 
+  // Zero-init so fields not set below dont leak to consumers
+  FillChar( aEvent, SizeOf(aEvent), 0 );
+
   // If value is err, return none event
   if FLastGet = -1 then Exit( False );
 
