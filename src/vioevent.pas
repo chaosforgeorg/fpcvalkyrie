@@ -579,6 +579,7 @@ end;
 function PrintableToIOEvent ( aKey : Char ) : TIOEvent;
 begin
   Assert( Ord(aKey) in VKEY_PRINTABLESET );
+  FillChar( Result, SizeOf(Result), 0 );
   Result.EType        := VEVENT_KEYDOWN;
   Result.Key.ASCII    := aKey;
   Result.Key.Code     := Ord(Unshift( aKey ));
