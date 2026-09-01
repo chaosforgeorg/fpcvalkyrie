@@ -207,6 +207,7 @@ function LoadSDL3Mixer( const aPath : AnsiString = SDL3MixerDefaultPath ) : Bool
   end;
 begin
   if SDL3_mixer <> nil then Exit( True );
+  if ( SDL3 = nil ) and not LoadSDL3() then Exit( False );
   SDL3_mixer := TLibrary.Load( aPath );
   if SDL3_mixer = nil then Exit( False );
 
