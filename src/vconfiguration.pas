@@ -455,7 +455,7 @@ begin
       iEntry := FLookup[ iKey ];
       if iEntry = nil
         then Log( LOGWARN, 'Unknown key in configuration file: '+ iKey )
-        else if not iEntry.ParseValue( iState, -1 ) then Exit( False );
+        else iEntry.ParseValue( iState, -1 );
       lua_pop(iState, 1);
     end;
 
