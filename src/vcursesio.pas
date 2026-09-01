@@ -169,8 +169,7 @@ begin
   // Get value from curses
   FLastGet := wgetch(stdscr);
 
-  // out-param starts as stack garbage; fields not set below (e.g. Repeated)
-  // must not leak to consumers
+  // Zero-init so fields not set below dont leak to consumers
   FillChar( aEvent, SizeOf(aEvent), 0 );
 
   // If value is err, return none event
