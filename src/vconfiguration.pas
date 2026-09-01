@@ -417,6 +417,7 @@ var iState : PLua_State;
     iKey   : Ansistring;
     iEntry : TConfigurationEntry;
 begin
+  Result := False;
   Log( 'Reading configuration from '+aFileName+' ...');
   if not LoadLua then
   begin
@@ -437,6 +438,11 @@ begin
     end;
 
     lua_getglobal( iState, 'configuration' );
+    if not lua_istable( iState, -1 ) then
+    begin
+      Log( LOGERROR, 'Malformed configuration file, table expected!' );
+      Exit( False );
+    end;
     lua_pushnil( iState );
     while ( lua_next( iState, -2 ) <> 0 ) do
     begin
@@ -449,11 +455,12 @@ begin
       iEntry := FLookup[ iKey ];
       if iEntry = nil
         then Log( LOGWARN, 'Unknown key in configuration file: '+ iKey )
-        else iEntry.ParseValue( iState, -1 );
+        else if not iEntry.ParseValue( iState, -1 ) then Exit( False );
       lua_pop(iState, 1);
     end;
 
     Log( 'Configuration read from '+aFileName+' successfully.' );
+    Result := True;
   finally
     lua_close(iState);
   end;
