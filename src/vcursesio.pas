@@ -121,6 +121,7 @@ begin
     nCurses.KEY_STAB      : Result := VKEY_TAB;
 
     10                    : Result := VKEY_ENTER;
+    13                    : Result := VKEY_ENTER; // raw() clears ICRNL, so Return arrives as CR
     nCurses.KEY_ENTER     : Result := VKEY_ENTER;
 
     27                    : Result := VKEY_ESCAPE;
