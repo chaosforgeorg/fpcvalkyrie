@@ -482,15 +482,17 @@ end;
 
 procedure TValkyrieApplication.HandleException( aSender : TObject );
 var iException : TObject;
+    iAddress   : Pointer;
 begin
   iException := ExceptObject;
+  iAddress := ExceptAddr;
   if iException is Exception then
     DispatchApplicationException(Exception(iException))
   else if Assigned(Logger) then
     Logger.Flush;
   Terminate(1);
   AcquireExceptionObject;
-  raise iException;
+  raise iException at iAddress;
 end;
 
 end.
