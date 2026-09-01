@@ -66,6 +66,7 @@ type TRLApplication = class abstract( TValkyrieApplication )
     procedure ExecuteApplication; override;
     procedure FinalizeApplication; override;
 
+    property Configuration : TObject read FConfiguration;
     property Runtime : TRLRuntime read FRuntime;
   end;
 
