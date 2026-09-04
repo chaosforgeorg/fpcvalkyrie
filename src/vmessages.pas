@@ -19,6 +19,7 @@ type TMessages = class
   procedure Update;
   procedure Clear;
   procedure Reset;
+  procedure Resize( aVisible : DWord; aLength : DWord );
   procedure Pop;
   function Size : DWord;
   procedure AddHighlightCallback( aKey, aValue : Variant );
@@ -188,6 +189,13 @@ begin
     FContent.PushBack( '' );
 end;
 
+procedure TMessages.Resize( aVisible : DWord; aLength : DWord );
+begin
+  FVisible := aVisible;
+  FLength  := aLength;
+  if FActive > FVisible then FActive := FVisible;
+end;
+
 procedure TMessages.Pop;
 begin
   if FContent.Size > 0 then
@@ -223,4 +231,3 @@ begin
 end;
 
 end.
-
