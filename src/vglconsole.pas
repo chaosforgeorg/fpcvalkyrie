@@ -26,6 +26,9 @@ type TGLConsoleRenderer = class( TIOConsoleRenderer )
   procedure Clear; override;
   procedure ClearRect(x1,y1,x2,y2 : Integer; aBackColor : TIOColor = 0 ); override;
   procedure Resize( aNewSizeX, aNewSizeY, aLineSpace : DWord );
+  function MaxScaleForDevice( const aMinimumSize : TIOPoint ) : Integer;
+  function FitToDevice( const aMinimumSize : TIOPoint;
+    aRequestedScale : Integer ) : Integer;
   procedure Update; override;
   destructor Destroy; override;
   function GetDeviceArea : TIORect; override;
@@ -445,6 +448,41 @@ begin
 
 end;
 
+function TGLConsoleRenderer.MaxScaleForDevice(
+  const aMinimumSize : TIOPoint ) : Integer;
+var iWidthScale  : Integer;
+    iHeightScale : Integer;
+begin
+  if ( aMinimumSize.X < 1 ) or ( aMinimumSize.Y < 1 ) or
+     ( FFont.GylphSize.X < 1 ) or
+     ( FFont.GylphSize.Y + FLineSpace < 1 ) then Exit( 1 );
+  iWidthScale := SDLIO.GetSizeX div
+    ( FFont.GylphSize.X * aMinimumSize.X );
+  iHeightScale := SDLIO.GetSizeY div
+    ( ( FFont.GylphSize.Y + FLineSpace ) * aMinimumSize.Y );
+  Result := iWidthScale;
+  if iHeightScale < Result then Result := iHeightScale;
+  if Result < 1 then Result := 1;
+end;
+
+function TGLConsoleRenderer.FitToDevice( const aMinimumSize : TIOPoint;
+  aRequestedScale : Integer ) : Integer;
+var iMaximum : Integer;
+begin
+  iMaximum := MaxScaleForDevice( aMinimumSize );
+  if aRequestedScale < 1
+    then Result := iMaximum
+    else if aRequestedScale > iMaximum
+      then Result := iMaximum
+      else Result := aRequestedScale;
+  FScale := Result;
+  Resize(
+    SDLIO.GetSizeX div ( FFont.GylphSize.X * FScale ),
+    SDLIO.GetSizeY div ( ( FFont.GylphSize.Y + FLineSpace ) * FScale ),
+    FLineSpace
+  );
+end;
+
 procedure TGLConsoleRenderer.Update;
 begin
   glBindVertexArray(FTriangleVAO);
@@ -530,4 +568,3 @@ begin
 end;
 
 end.
-

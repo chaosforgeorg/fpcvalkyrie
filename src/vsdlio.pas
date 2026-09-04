@@ -3,7 +3,8 @@ unit vsdlio;
 interface
 uses Classes, SysUtils, vutil, viotypes, vsdl3library, vioevent, viopadstate;
 
-type TSDLIOFlag  = ( SDLIO_OpenGL, SDLIO_FullScreen, SDLIO_Resizable, SDLIO_Gamepad );
+type TSDLIOFlag  = ( SDLIO_OpenGL, SDLIO_FullScreen, SDLIO_Resizable,
+                     SDLIO_Gamepad, SDLIO_DesktopFullScreen );
      TSDLIOFlags = set of TSDLIOFlag;
 
 // Architectural boundary: owns SDL window, event, and capture mechanics only.
@@ -59,6 +60,8 @@ private
   FPendingPadEvent    : TIOEvent;
   FHasPendingPadEvent : Boolean;
 private
+  function ResetDesktopVideoMode( aWidth, aHeight, aBPP : Word;
+    aFlags : TSDLIOFlags ) : Boolean;
   procedure ClearPadEventState;
   procedure ResetPadEventState( aWhich : Int32 );
   procedure ScanDisplayModes;
@@ -521,6 +524,27 @@ begin
   Log('SDL IO system ready.');
 end;
 
+function TSDLIODriver.ResetDesktopVideoMode( aWidth, aHeight, aBPP : Word;
+  aFlags : TSDLIOFlags ) : Boolean;
+var iWindowedFlags : TSDLIOFlags;
+begin
+  if ( FWindow <> nil ) and FFScreen and
+     ( SDLIO_DesktopFullScreen in FFlags ) then Exit( True );
+
+  iWindowedFlags := aFlags - [ SDLIO_FullScreen, SDLIO_DesktopFullScreen ];
+  if not ResetVideoMode( aWidth, aHeight, aBPP, iWindowedFlags ) then
+    Exit( False );
+
+  ResetPadEventState( Int32( FGamePadID ) );
+  if not SDL_SetWindowFullscreenMode( FWindow, nil ) then Exit( False );
+  if not SDL_SetWindowFullscreen( FWindow, True ) then Exit( False );
+
+  FFScreen := True;
+  FFlags := aFlags;
+  SDL_SetWindowPosition( FWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED );
+  Exit( True );
+end;
+
 function TSDLIODriver.ResetVideoMode ( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags ) : Boolean;
 var iSDLFlags : DWord;
     iDM       : PSDL_DisplayMode;
@@ -530,6 +554,9 @@ var iFScreen : Boolean;
     iClosest : SDL_DisplayMode;
     iCurrent : SDL_DisplayID;
 begin
+  if SDLIO_DesktopFullScreen in aFlags then
+    Exit( ResetDesktopVideoMode( aWidth, aHeight, aBPP, aFlags ) );
+
   iCurrent := 0;
 //  if FWindow <> nil then
 //    iCurrent := SDL_GetWindowDisplay(FWindow);
@@ -546,7 +573,6 @@ begin
     aWidth  := iDM^.w;
     aHeight := iDM^.h;
   end;
-
 
   if FWindow <> nil then
   begin
