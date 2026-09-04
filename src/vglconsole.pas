@@ -476,6 +476,7 @@ begin
       then Result := iMaximum
       else Result := aRequestedScale;
   FScale := Result;
+  glViewport( 0, 0, SDLIO.GetSizeX, SDLIO.GetSizeY );
   Resize(
     SDLIO.GetSizeX div ( FFont.GylphSize.X * FScale ),
     SDLIO.GetSizeY div ( ( FFont.GylphSize.Y + FLineSpace ) * FScale ),
