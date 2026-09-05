@@ -26,12 +26,17 @@ type TBindingCatalog = class
   // and unbound actions are valid.
   procedure ValidateRegistration;
   procedure ResetValues;
+  function ActionForID( const aID : AnsiString ) : TBindingAction;
+  // Looks up registered values, including device-specific unbound values.
+  function ActionForValue( aValue : Integer ) : TBindingAction;
+  // Assigns a keyboard chord and unbinds its other owners in this catalog.
+  procedure SetKey( aAction : TBindingAction; aKey : TIOKeyCode );
   function ConfigurationValue( aAction : TBindingAction ) : Integer;
   function Info( aAction : TBindingAction ) : TBindingInfo;
 protected
+  FInfo          : array of TBindingInfo;
   procedure SetConfigurationValue( aAction : TBindingAction; aValue : Integer );
 private
-  FInfo          : array of TBindingInfo;
   FEntry         : array of TIntegerConfigurationEntry;
   FRegistrations : array of Integer;
   FIndexedAction : array of TBindingAction;
@@ -169,6 +174,35 @@ var iInfo : Integer;
 begin
   for iInfo := 0 to High(FEntry) do
     if FEntry[iInfo] <> nil then FEntry[iInfo].Reset;
+end;
+
+function TBindingCatalog.ActionForID( const aID : AnsiString ) : TBindingAction;
+var iInfo : TBindingInfo;
+begin
+  if aID <> '' then
+    for iInfo in FInfo do
+      if iInfo.ID = aID then Exit( iInfo.Action );
+  Result := BINDING_NONE;
+end;
+
+function TBindingCatalog.ActionForValue( aValue : Integer ) : TBindingAction;
+var iInfo : Integer;
+begin
+  for iInfo := 0 to High( FInfo ) do
+    if ( FEntry[iInfo] <> nil ) and ( FEntry[iInfo].Value = aValue ) then
+      Exit( FInfo[iInfo].Action );
+  Result := BINDING_NONE;
+end;
+
+procedure TBindingCatalog.SetKey( aAction : TBindingAction; aKey : TIOKeyCode );
+var iInfo : Integer;
+begin
+  SetConfigurationValue( aAction, aKey );
+  if aKey = 0 then Exit;
+  for iInfo := 0 to High( FInfo ) do
+    if ( FInfo[iInfo].Action <> aAction ) and ( FEntry[iInfo] <> nil ) and
+       ( FEntry[iInfo].Value = aKey ) then
+      FEntry[iInfo].Value := 0;
 end;
 
 function TBindingCatalog.ConfigurationValue( aAction : TBindingAction ) : Integer;
