@@ -259,9 +259,16 @@ begin
 end;
 
 function TStringConfigurationEntry.ToLuaString : Ansistring;
+var i : Integer;
 begin
-  // TODO: Escape sequences!
-  Result := '"'+FValue+'"';
+  Result := '"';
+  for i := 1 to Length( FValue ) do
+    // Three decimal digits keep following digits separate from the escape.
+    if ( Ord( FValue[i] ) < 32 ) or ( FValue[i] in [ #34, #92 ] ) then
+      Result += #92 + Format( '%.3d', [ Ord( FValue[i] ) ] )
+    else
+      Result += FValue[i];
+  Result += '"';
 end;
 
 function TStringConfigurationEntry.ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean;
