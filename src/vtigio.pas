@@ -122,6 +122,7 @@ type TTIGIOState = class
     FDriver         : TIODriver;
     FTime           : Single;
     FClearOnRender  : Boolean;
+    FInputCursorVisible : Boolean;
     FMousePosition  : TIOPoint;
     FSoundCallback  : TTIGSoundCallback;
     FSoundParameter : Pointer;
@@ -244,6 +245,12 @@ begin
   begin
     FRenderer.ShowCursor;
     FRenderer.MoveCursor( aData.FCursorPosition.X, aData.FCursorPosition.Y );
+    FInputCursorVisible := True;
+  end
+  else if FInputCursorVisible then
+  begin
+    FRenderer.HideCursor;
+    FInputCursorVisible := False;
   end;
 
   for iList in aData.FLists do
