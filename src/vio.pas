@@ -112,8 +112,9 @@ destructor TIO.Destroy;
 var iLayer : TIOLayer;
 begin
   if IO = Self then IO := nil;
-  for iLayer in FLayers do
-    iLayer.Free;
+  if FLayers <> nil then
+    for iLayer in FLayers do
+      iLayer.Free;
   FreeAndNil( FLayers );
   FreeAndNil( FPadState );
   VTIG_Shutdown;
