@@ -620,8 +620,7 @@ begin
   Result := 1;
 end;
 
-procedure lua_core_register_callback_impl( L: Plua_State; INAME : Integer; const aBlueprintName : PChar );
-var idx : Integer;
+procedure lua_core_register_callback_impl( L : Plua_State; INAME : Integer; const aBlueprintName : PChar );
 begin
   lua_getglobal( L, 'core' );
   lua_getfield( L, -1, 'blueprints' );
@@ -636,16 +635,10 @@ begin
   lua_rawseti( L, -2, 2 );
   // blueprint[func_name] = spec
   lua_setfield( L, -2, lua_tolstring( L, INAME, nil ) );
-  lua_pop( L, 2 ); // pop blueprint table and blueprints table, keep core
-  // append func_name to core.callbacks array
-  lua_getfield( L, -1, 'callbacks' );
-  idx := lua_objlen( L, -1 ) + 1;
-  lua_pushvalue( L, INAME );
-  lua_rawseti( L, -2, idx );
-  lua_pop( L, 2 ); // pop callbacks and core
+  lua_pop( L, 3 ); // blueprint, blueprints and core
 end;
 
-function lua_core_register_callback(L: Plua_State): Integer; cdecl;
+function lua_core_register_callback( L : Plua_State ) : Integer; cdecl;
 var i, n : Integer;
 begin
   luaL_checktype( L, 1, LUA_TSTRING );
@@ -654,6 +647,7 @@ begin
   else if lua_type( L, 2 ) = LUA_TTABLE then
   begin
     n := lua_objlen( L, 2 );
+    if n = 0 then Exit( 0 );
     for i := 1 to n do
     begin
       lua_rawgeti( L, 2, i );
@@ -665,6 +659,23 @@ begin
   end
   else
     luaL_error( L, 'core.register_callback - second parameter must be a string or array of strings!' );
+  // One callback ID per name, regardless of the number of blueprints.
+  lua_getglobal( L, 'core' );
+  lua_getfield( L, -1, 'callbacks' );
+  n := lua_objlen( L, -1 );
+  for i := 1 to n do
+  begin
+    lua_rawgeti( L, -1, i );
+    if lua_rawequal( L, 1, -1 ) then
+    begin
+      lua_pop( L, 3 );
+      Exit( 0 );
+    end;
+    lua_pop( L, 1 );
+  end;
+  lua_pushvalue( L, 1 );
+  lua_rawseti( L, -2, n + 1 );
+  lua_pop( L, 2 );
   Result := 0;
 end;
 
