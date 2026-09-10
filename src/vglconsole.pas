@@ -33,7 +33,10 @@ type TGLConsoleRenderer = class( TIOConsoleRenderer )
   destructor Destroy; override;
   function GetDeviceArea : TIORect; override;
   function GetSupportedCapabilities : TIOConsoleCapSet; override;
-  procedure SetPositionScale( x, y : Integer; aLineSpace : Word; aScale : Byte );
+  procedure SetPositionScale( x, y : Integer; aLineSpace : Word; aScale : Byte ); overload;
+  // Fixed-grid placement in an explicit pixel viewport, without clearing cells/cursor.
+  procedure SetPositionScale( x, y : Integer; aLineSpace : Word; aScale : Byte;
+    const aDeviceSize : TIOPoint ); overload;
 private
   procedure Initialize( aFont : TBitmapFont; aLineSpace : DWord );
   procedure SetData( aIndex : DWord; aChar : Char; aFrontColor, aBackColor : TIOColor ); inline;
@@ -566,6 +569,29 @@ begin
   FLineSpace    := aLineSpace;
   FScale        := aScale;
   Resize( FSizeX, FSizeY, FLineSpace );
+end;
+
+procedure TGLConsoleRenderer.SetPositionScale( x, y : Integer; aLineSpace : Word;
+  aScale : Byte; const aDeviceSize : TIOPoint );
+var iRect : TIORect;
+    iMatrix : TMatrix44;
+begin
+  if ( aDeviceSize.X <= 0 ) or ( aDeviceSize.Y <= 0 ) or ( aScale = 0 ) then
+    raise EIOException.Create( 'Invalid console viewport' );
+  FPositionX := x;
+  FPositionY := y;
+  FLineSpace := aLineSpace;
+  FScale := aScale;
+  iRect := GetDeviceArea;
+  iMatrix := GLCreateOrtho(
+    -1 - 2 * x / iRect.Dim.X,
+    2 * ( aDeviceSize.X - x ) / iRect.Dim.X - 1,
+    1 - 2 * ( aDeviceSize.Y - y ) / iRect.Dim.Y,
+    1 + 2 * y / iRect.Dim.Y, -1, 1 );
+  FProgram.Bind;
+  glUniformMatrix4fv( FProgram.GetUniformLocation( 'projection' ), 1, GL_FALSE, @iMatrix[0] );
+  glUniform1i( FProgram.GetUniformLocation( 'uline_space' ), FLineSpace );
+  FProgram.UnBind;
 end;
 
 end.

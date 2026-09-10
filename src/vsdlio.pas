@@ -529,7 +529,8 @@ function TSDLIODriver.ResetDesktopVideoMode( aWidth, aHeight, aBPP : Word;
 var iWindowedFlags : TSDLIOFlags;
 begin
   if ( FWindow <> nil ) and FFScreen and
-     ( SDLIO_DesktopFullScreen in FFlags ) then Exit( True );
+     ( SDLIO_DesktopFullScreen in FFlags ) and
+     ( SDL_GetWindowFlags( FWindow ) and SDL_WINDOW_FULLSCREEN <> 0 ) then Exit( True );
 
   iWindowedFlags := aFlags - [ SDLIO_FullScreen, SDLIO_DesktopFullScreen ];
   if not ResetVideoMode( aWidth, aHeight, aBPP, iWindowedFlags ) then
@@ -553,6 +554,7 @@ var iSDLFlags : DWord;
 var iFScreen : Boolean;
     iClosest : SDL_DisplayMode;
     iCurrent : SDL_DisplayID;
+    iWindowWidth, iWindowHeight : LongInt;
 begin
   if SDLIO_DesktopFullScreen in aFlags then
     Exit( ResetDesktopVideoMode( aWidth, aHeight, aBPP, aFlags ) );
@@ -576,10 +578,16 @@ begin
 
   if FWindow <> nil then
   begin
+    FFScreen := SDL_GetWindowFlags( FWindow ) and SDL_WINDOW_FULLSCREEN <> 0;
     iFScreen  := ( SDLIO_FullScreen in aFlags );
+    iWindowWidth := 0;
+    iWindowHeight := 0;
+    if not iFScreen then
+      if not SDL_GetWindowSize( FWindow, @iWindowWidth, @iWindowHeight ) then Exit( False );
     if ( FFScreen = iFScreen )
       and ( FSizeX = aWidth )
       and ( FSizeY = aHeight )
+      and ( iFScreen or ( ( iWindowWidth = aWidth ) and ( iWindowHeight = aHeight ) ) )
           then Exit( True );
     ResetPadEventState( Int32( FGamePadID ) );
     if iFScreen then
@@ -600,8 +608,9 @@ begin
     end
     else
     begin
-      if FFScreen then SDL_SetWindowFullscreen( FWindow, False );
-      SDL_SetWindowSize( FWindow, aWidth, aHeight );
+      if FFScreen then
+        if not SDL_SetWindowFullscreen( FWindow, False ) then Exit( False );
+      if not SDL_SetWindowSize( FWindow, aWidth, aHeight ) then Exit( False );
     end;
   end;
 
@@ -839,8 +848,7 @@ var iSx, iSy : Integer;
     iRGB     : PSDL_Surface;
 begin
   Result := False;
-  iSx := GetSizeX;
-  iSy := GetSizeY;
+  if not SDL_GetWindowSizeInPixels( FWindow, @iSx, @iSy ) then Exit;
   if (iSx <= 0) or (iSy <= 0) then Exit;
 
   iPitch := iSx * 4;
