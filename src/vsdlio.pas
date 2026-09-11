@@ -14,6 +14,9 @@ type TSDLIODriver = class( TIODriver )
 
   constructor Create( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags );
   function ResetVideoMode( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags ) : Boolean;
+  function RefreshWindowSize : Boolean;
+  function SynchronizeWindow : Boolean;
+  function SetMinimumSize( const aSize : TIOPoint ) : Boolean;
   function SetupOpenGL : Boolean;
   function PollEvent( out aEvent : TIOEvent ) : Boolean; override;
   function PeekEvent( out aEvent : TIOEvent ) : Boolean; override;
@@ -786,6 +789,27 @@ begin
   SDL_DestroyWindow( FWindow );
   FreeAndNil( FDisplayModes );
   inherited Destroy;
+end;
+
+function TSDLIODriver.RefreshWindowSize : Boolean;
+var iWidth, iHeight : LongInt;
+begin
+  Result := SDL_GetWindowSizeInPixels( FWindow, @iWidth, @iHeight );
+  if not Result then Exit;
+  Result := (iWidth > 0) and (iHeight > 0);
+  if not Result then Exit;
+  FSizeX := iWidth;
+  FSizeY := iHeight;
+end;
+
+function TSDLIODriver.SynchronizeWindow : Boolean;
+begin
+  Result := SDL_SyncWindow( FWindow );
+end;
+
+function TSDLIODriver.SetMinimumSize( const aSize : TIOPoint ) : Boolean;
+begin
+  Result := SDL_SetWindowMinimumSize( FWindow, aSize.X, aSize.Y );
 end;
 
 function TSDLIODriver.GetSizeX : DWord;
