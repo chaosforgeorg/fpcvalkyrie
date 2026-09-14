@@ -20,6 +20,7 @@ type TIOEventState = class
   private
     FDuration    : array[0..VIO_MAXEVENTS - 1] of Single;
     FDown        : array[0..VIO_MAXEVENTS - 1] of Boolean;
+    FPressed     : array[0..VIO_MAXEVENTS - 1] of Boolean;
     FInput       : array[0..VIO_MAXINPUT - 1]  of WChar;
     FRepeatDelay : Single;
     FRepeatRate  : Single;
@@ -47,6 +48,8 @@ var i : Integer;
 begin
   for i := 0 to VIO_MAXEVENTS - 1 do
   begin
+    // An initial press lasts one update, even when no time has elapsed.
+    FPressed[i] := FDown[i] and ( FDuration[i] < 0.0 );
     if FDown[i] then
     begin
       if FDuration[i] < 0.0 then
@@ -64,6 +67,7 @@ procedure TIOEventState.SetState( aState: Integer; aValue: Boolean );
 begin
   FDuration[aState] := -1.0;
   FDown[aState] := aValue;
+  FPressed[aState] := False;
 end;
 
 procedure TIOEventState.AppendText( aText: PWideChar );
@@ -92,17 +96,19 @@ begin
   if not FDown[aState] then
     Exit(False);
 
-  if FDuration[aState] = 0.0 then
-    Exit(True);
+  if FPressed[aState] then
+    Exit( True );
 
   if aRepeat and (FRepeatRate > 0.0) then
   begin
     duration := FDuration[aState] - FRepeatDelay;
-    if duration > 0.0 then
+    if duration >= 0.0 then
     begin
-      if ((Frac(duration / FRepeatRate) > 0.5) <>
-          (Frac((duration - FLastElapsed) / FRepeatRate) > 0.5)) then
-        Exit(True);
+      // Activate at the delay boundary, then once per complete repeat interval.
+      if ( duration - FLastElapsed < 0.0 ) or
+         ( Trunc( duration / FRepeatRate ) >
+           Trunc( ( duration - FLastElapsed ) / FRepeatRate ) ) then
+        Exit( True );
     end;
   end;
   Result := False;
@@ -112,7 +118,7 @@ function TIOEventState.Activated( aStates : TFlags ): Boolean;
 var iState : Byte;
 begin
   for iState in aStates do
-    if FDown[iState] and ( FDuration[iState] = 0.0 ) then
+    if FDown[iState] and FPressed[iState] then
       Exit( True );
   Exit( False );
 end;
@@ -142,6 +148,7 @@ begin
   begin
     FDuration[i] := -1.0;
     FDown[i] := False;
+    FPressed[i] := False;
   end;
   for i := 0 to VIO_MAXINPUT - 1 do
     FInput[i] := #0;

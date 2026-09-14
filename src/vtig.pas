@@ -1450,22 +1450,22 @@ begin
     end;
   end;
 
-  if ( iCursor > 0 ) and GCtx.IO.KeyState.Activated( VKEY_BACK ) then
+  if ( iCursor > 0 ) and GCtx.IO.KeyState.Activated( VKEY_BACK, True ) then
   begin
     System.Move( aBuffer[iCursor], aBuffer[iCursor - 1], (iLength - iCursor) + 1 );
     Dec(iCursor);
     Dec(iLength);
   end;
 
-  if ( iCursor < iLength ) and GCtx.IO.KeyState.Activated( VKEY_DELETE ) then
+  if ( iCursor < iLength ) and GCtx.IO.KeyState.Activated( VKEY_DELETE, True ) then
   begin
     System.Move( aBuffer[iCursor + 1], aBuffer[iCursor], (iLength - iCursor) );
     Dec(iLength);
   end;
 
-  if ( iCursor > 0 ) and GCtx.IO.KeyState.Activated( VKEY_LEFT ) then
+  if ( iCursor > 0 ) and GCtx.IO.KeyState.Activated( VKEY_LEFT, True ) then
     Dec( iCursor );
-  if ( iCursor < iLength ) and GCtx.IO.KeyState.Activated( VKEY_RIGHT ) then
+  if ( iCursor < iLength ) and GCtx.IO.KeyState.Activated( VKEY_RIGHT, True ) then
     Inc( iCursor );
   if GCtx.IO.KeyState.Activated( VKEY_HOME ) then iCursor := 0;
   if GCtx.IO.KeyState.Activated( VKEY_END )  then iCursor := iLength;
