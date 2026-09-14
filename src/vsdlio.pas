@@ -169,8 +169,6 @@ begin
   iMod   := SDL_GetModState();
   iShift := ( (iMod and SDL_KMOD_SHIFT) <> 0 ) or
             ( (iMod and SDL_KMOD_CAPS) <> 0 );
-  Result.Key.Repeated := ( event^._type = SDL_EVENT_KEY_DOWN ) and ( event^.key.repeat_ );
-  Result.Key.Pressed  := event^._type = SDL_EVENT_KEY_DOWN;
   if ( iCode >= 32 )
     and ( iCode < 127 )
     and ( iCode <> SDLK_PAGEDOWN )
@@ -200,16 +198,19 @@ begin
     Result := PrintableToIOEvent( Char( iCode ) );
     if (iMod and SDL_KMOD_CTRL)  <> 0 then Include( Result.Key.ModState, VKMOD_CTRL );
     if (iMod and SDL_KMOD_ALT)   <> 0 then Include( Result.Key.ModState, VKMOD_ALT );
-    Result.Key.Pressed  := event^._type = SDL_EVENT_KEY_DOWN;
-    if event^._type = SDL_EVENT_KEY_UP then Result.EType := VEVENT_KEYUP;
-    Exit;
+  end
+  else
+  begin
+    Result.Key.ASCII    := #0;
+    Result.Key.ModState := SDLModToModKeySet( iMod );
+    Result.Key.Code     := SDLSymToCode( event^.key.key );
   end;
+  // PrintableToIOEvent clears the record, so apply SDL state after conversion.
+  Result.Key.Pressed  := event^._type = SDL_EVENT_KEY_DOWN;
+  Result.Key.Repeated := Result.Key.Pressed and event^.key.repeat_;
   if event^._type = SDL_EVENT_KEY_DOWN
     then Result.EType := VEVENT_KEYDOWN
     else Result.EType := VEVENT_KEYUP;
-  Result.Key.ASCII    := #0;
-  Result.Key.ModState := SDLModToModKeySet( iMod );
-  Result.Key.Code     := SDLSymToCode( event^.key.key );
 end;
 
 function SDLSystemEventToIOEvent( event : PSDL_Event ) : TIOEvent;
