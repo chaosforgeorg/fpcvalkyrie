@@ -4,8 +4,7 @@ interface
 uses Classes, SysUtils, vio, vrltools, vluaentitynode, vluamapnode, vrandom,
      vluastate, vluaconfig, vioevent, viotypes, vioconsole, vtextmap, vmessages, vbindings;
 
-const COMMAND_INVALID = 255;
-      COMMAND_SYSQUIT = 253;
+const COMMAND_SYSQUIT = 253;
 
 type TCommandSet = Set of Byte;
      TKeySet     = Set of Byte;
@@ -45,8 +44,6 @@ TIORL = class( TIO )
   procedure MsgClear;
 
   // Events
-  function GetCommand : Byte; deprecated 'Use GameBindings semantic action resolution';
-  function WaitForCommand( const aSet : TCommandSet ) : Byte; deprecated 'Use GameBindings semantic action resolution';
   function WaitForKey ( const aSet : TKeySet ) : Byte;
   function WaitForKeyEvent ( out aEvent : TIOEvent ) : Boolean;
   procedure BreakKeyLoop;
@@ -64,7 +61,6 @@ TIORL = class( TIO )
   procedure ClearAnimations; virtual;
   function WaitForAnimationCompletion( aStrict : Boolean;
     aTimeout : DWord = 0 ) : Boolean;
-  procedure WaitForAnimations; deprecated 'Use WaitForAnimationCompletion';
   // Renders an explosion on the screen using Explode marks
   procedure Explosion( aWhere : TCoord2D; aColor : byte; aRange : byte; aDrawDelay : Word; aDelay : Word );
 
@@ -72,7 +68,6 @@ TIORL = class( TIO )
   procedure FocusCursor( aCoord : TCoord2D );
   procedure ShowCursor;
   procedure HideCursor;
-  function IOKeyCodeToCommand( aKey : TIOKeyCode ) : Byte; deprecated 'Use GameBindings semantic action resolution';
 
   destructor Destroy; override;
 
@@ -82,7 +77,6 @@ TIORL = class( TIO )
   class procedure RegisterLuaAPI( State : TLuaState; const aTableName : AnsiString );
 private
   function GetMapShift : TIOPoint;
-  function WaitForCommandInternal( const aSet : TCommandSet ) : Byte;
 protected
   FVisualRNG    : TRNG;
   FTMap         : TTextMap;
@@ -105,7 +99,7 @@ end;
 
 implementation
 
-uses variants, vtig, vluasystem, vutil, math;
+uses vtig, vluasystem, vutil, math;
 
 var IORL : TIORL = nil;
 
@@ -211,43 +205,6 @@ begin
   if FMessages <> nil then FMessages.Clear;
 end;
 
-function TIORL.GetCommand : Byte;
-var iSpecial    : Variant;
-begin
-  Assert( FConfig <> nil );
-  GetCommand := WaitForCommandInternal([]);
-  MsgUpdate;
-
-  if GetCommand = COMMAND_INVALID then
-  begin
-    iSpecial := FConfig.RunKey( IOKeyCodeToString( FKeyCode ) );
-    if VarIsOrdinal(iSpecial) and (not VarIsType( iSpecial, varBoolean ) ) then GetCommand := iSpecial;
-  end;
-
-  Exit( GetCommand );
-end;
-
-function TIORL.WaitForCommand ( const aSet : TCommandSet ) : Byte;
-begin
-  Exit( WaitForCommandInternal( aSet ) );
-end;
-
-function TIORL.WaitForCommandInternal( const aSet : TCommandSet ) : Byte;
-var iCommand : Byte;
-    iEvent   : TIOEvent;
-begin
-  Assert( FConfig <> nil );
-  repeat
-    iCommand := 0;
-    if not WaitForKeyEvent( iEvent ) then Exit( 0 );
-    if (iEvent.EType = VEVENT_SYSTEM) and (iEvent.System.Code = VIO_SYSEVENT_QUIT) then Exit( COMMAND_SYSQUIT );
-    FKeyCode := IOKeyEventToIOKeyCode( iEvent.Key );
-    iCommand := FConfig.Commands[ FKeyCode ];
-    if (aSet = []) and ((FKeyCode mod 256) <> 0) then Exit( iCommand );
-  until (iCommand in aSet);
-  Exit( iCommand )
-end;
-
 function TIORL.WaitForKey ( const aSet : TKeySet ) : Byte;
 var iEvent : TIOEvent;
 begin
@@ -343,16 +300,6 @@ begin
   until False;
 end;
 
-procedure TIORL.WaitForAnimations;
-begin
-  if FTMap <> nil then
-  while not FTMap.AnimationsFinished do
-  begin
-    FIODriver.Sleep(10);
-    FullUpdate;
-  end;
-end;
-
 procedure TIORL.Explosion ( aWhere : TCoord2D; aColor : byte; aRange : byte;
   aDrawDelay : Word; aDelay : Word ) ;
 var iExpl     : TTextExplosionArray;
@@ -404,12 +351,6 @@ procedure TIORL.HideCursor;
 begin
   FConsole.HideCursor;
 end;
-
-function TIORL.IOKeyCodeToCommand ( aKey : TIOKeyCode ) : Byte;
-begin
-  Exit( FConfig.Commands[ aKey ] );
-end;
-
 
 destructor TIORL.Destroy;
 begin

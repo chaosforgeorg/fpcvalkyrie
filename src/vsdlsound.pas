@@ -19,7 +19,7 @@ interface
 uses Classes, SysUtils, vsound, vgenerics, vsdl3mixerlibrary, vrandom;
 
 // The basic sound class, published as the singleton @link(Sound).
-// Should be initialized and disposed via TSystems.
+// The caller constructs and owns the sound service.
 type
 
 { TSound }

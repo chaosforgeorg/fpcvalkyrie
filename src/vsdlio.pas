@@ -35,7 +35,6 @@ type TSDLIODriver = class( TIODriver )
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString ); override;
   procedure ShowMouse( aShow : Boolean );
   function CaptureScreen( const aFileName : AnsiString ) : Boolean; override;
-  procedure ScreenShot( const aFileName : AnsiString ); deprecated 'Use CaptureScreen';
   function SetDisplayMode( aIndex : Integer ) : Boolean;
   procedure StartTextInput; override;
   procedure StopTextInput; override;
@@ -912,11 +911,6 @@ begin
     FreeMem(iFlipBuf);
     FreeMem(iBuf);
   end;
-end;
-
-procedure TSDLIODriver.ScreenShot( const aFileName : AnsiString );
-begin
-  CaptureScreen( aFileName );
 end;
 
 procedure TSDLIODriver.ScanDisplayModes;

@@ -1,5 +1,5 @@
 unit vluaconfig;
-{$mode objfpc}
+{$MODE OBJFPC}
 interface
 
 uses classes, vnode, vluastate, vioevent, viotypes, vbindings;
@@ -7,19 +7,13 @@ uses classes, vnode, vluastate, vioevent, viotypes, vbindings;
 type TEntryCallback = procedure ( key, value : Variant ) of object;
 
 
-const COMMAND_INVALID = 255;
-
 type
 
 { TLuaConfig }
 
 TLuaConfig = class(TVObject)
     constructor Create( const aFileName : Ansistring = ''; aState : PLua_State = nil );
-    procedure LoadKeybindings( const aTableName : AnsiString = '' ); overload;
-    procedure LoadKeybindings( aContext : TBindingContext; const aTableName : AnsiString = '' ); overload;
-    function GetKeybinding ( aCommand : Byte ) : AnsiString;
-    function GetKeyCode ( aCommand : Byte ) : TIOKeyCode;
-    function GetPadButton( aCommand : Byte ) : TIOPadButton;
+    procedure LoadKeybindings( aContext : TBindingContext; const aTableName : AnsiString = '' );
     function RunKey( const aKeyID : AnsiString ) : Variant;
     function RunKey( aKeyCode : TIOKeyCode ) : Variant;
     procedure Load( const aFileName : Ansistring );
@@ -31,29 +25,18 @@ TLuaConfig = class(TVObject)
     procedure SetConstant( const ID : AnsiString; const Value : Variant );
     function Call(const Path: array of const; const Args: array of const): Variant;
     function Configure( const ID : AnsiString; aDefault : Variant ) : Variant;
-    procedure ResetCommands;
-    procedure ResetPadCommands;
     destructor Destroy; override;
   protected
-    procedure CommandCallback( key, value : Variant ); virtual;
     function GetValue( const Key : AnsiString ) : Variant;
     function HasValue( const Key : AnsiString ) : Boolean;
     function Resolve( const Key : AnsiString ) : Boolean;
-    function GetCommand( Key : TIOKeyCode ) : Byte;
-    procedure SetCommand( Key : TIOKeyCode; Value : Byte );
-    function GetPadCommand( Button : TIOPadButton ) : Byte;
-    procedure SetPadCommand( Button : TIOPadButton; Value : Byte );
   protected
     FState      : PLua_State;
     FLuaState   : TLuaState;
     FKeyTabName : AnsiString;
     FConfigPath : AnsiString;
-    FCommands   : array[0..IOKeyCodeMax] of Byte;
-    FPadCommands : array[TIOPadButton] of Byte;
   public
     property ConfigPath : AnsiString read FConfigPath write FConfigPath;
-    property Commands[ const Key : TIOKeyCode ] : Byte read GetCommand write SetCommand;
-    property PadCommands[ const Button : TIOPadButton ] : Byte read GetPadCommand write SetPadCommand;
     property Raw : PLua_State read FState;
     property State : TLuaState read FLuaState;
   end;
@@ -107,8 +90,6 @@ end;
 constructor TLuaConfig.Create( const aFileName : Ansistring = ''; aState : PLua_State = nil);
 begin
   FConfigPath := '';
-  ResetCommands;
-  ResetPadCommands;
   FKeyTabName := 'keybindings';
   if aState = nil then
   begin
@@ -126,12 +107,6 @@ begin
   FLuaState.Init( FState );
 end;
 
-procedure TLuaConfig.LoadKeybindings ( const aTableName : AnsiString ) ;
-begin
-  if aTableName <> '' then FKeyTabName := aTableName;
-  EntryFeed(FKeyTabName, @CommandCallback );
-end;
-
 procedure TLuaConfig.LoadKeybindings( aContext : TBindingContext; const aTableName : AnsiString );
 var iLoader : TLuaBindingLoader;
 begin
@@ -142,35 +117,6 @@ begin
   finally
     iLoader.Free;
   end;
-end;
-
-function TLuaConfig.GetKeybinding ( aCommand : Byte ) : AnsiString;
-var iCount : Word;
-begin
-  for iCount := Low( FCommands ) to High( FCommands ) do
-    if FCommands[ iCount ] = aCommand then
-      Exit( IOKeyCodeToString( iCount ) );
-  Exit( 'ERROR' );
-end;
-
-function TLuaConfig.GetKeyCode ( aCommand : Byte ) : TIOKeyCode;
-var iCount : Word;
-begin
-  for iCount := Low( FCommands ) to High( FCommands ) do
-    if FCommands[ iCount ] = aCommand then
-      Exit( iCount );
-  Exit( 0 );
-end;
-
-function TLuaConfig.GetPadButton( aCommand : Byte ) : TIOPadButton;
-var iButton : TIOPadButton;
-begin
-  if aCommand = COMMAND_INVALID then
-    Exit( VPAD_BUTTON_INVALID );
-  for iButton := VPAD_BUTTON_A to High( TIOPadButton ) do
-    if FPadCommands[ iButton ] = aCommand then
-      Exit( iButton );
-  Exit( VPAD_BUTTON_INVALID );
 end;
 
 function TLuaConfig.RunKey ( const aKeyID : AnsiString ) : Variant;
@@ -278,33 +224,9 @@ begin
     else Exit( aDefault );
 end;
 
-procedure TLuaConfig.ResetCommands;
-begin
-  FillByte(FCommands,IOKeyCodeMax+1,0);
-end;
-
-procedure TLuaConfig.ResetPadCommands;
-begin
-  FillByte( FPadCommands, SizeOf( FPadCommands ), COMMAND_INVALID );
-end;
-
 destructor TLuaConfig.Destroy;
 begin
   lua_close( FState );
-end;
-
-procedure TLuaConfig.CommandCallback ( key, value : Variant ) ;
-var iKey     : TIOKeyCode;
-    iCommand : Byte;
-begin
-  if VarIsOrdinal(value)
-    then iCommand := value
-    else iCommand := COMMAND_INVALID;
-  iKey := StringToIOKeyCode(key);
-  if iKey = 0 then // TODO : RAISE ERROR
-    Log('Unknown keycode - '+ AnsiString( key ) )
-  else
-    FCommands[iKey] := iCommand
 end;
 
 function TLuaConfig.GetValue(const Key: AnsiString): Variant;
@@ -364,27 +286,6 @@ begin
   until false;
   if Count = 1 then Exit(False);
   Exit( True );
-end;
-
-function TLuaConfig.GetCommand ( Key : TIOKeyCode ) : Byte;
-begin
-  Exit( FCommands[ Key ] );
-end;
-
-procedure TLuaConfig.SetCommand ( Key : TIOKeyCode; Value : Byte ) ;
-begin
-  if Key <> 0 then
-    FCommands[ Key ] := Value
-end;
-
-function TLuaConfig.GetPadCommand( Button : TIOPadButton ) : Byte;
-begin
-  Exit( FPadCommands[ Button ] );
-end;
-
-procedure TLuaConfig.SetPadCommand( Button : TIOPadButton; Value : Byte );
-begin
-  FPadCommands[ Button ] := Value;
 end;
 
 end.
