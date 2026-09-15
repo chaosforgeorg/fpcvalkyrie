@@ -21,7 +21,6 @@
 //
 //  TODO:
 //    -- Decouple Lua type system from LuaSystem
-//    -- TNode should hold it's lua state pointer!
 //    -- Decouple TNode from LuaSystem
 //    -- All lua-based creation should be based on properties!
 //    -- use overrides to handle weird properties
@@ -208,6 +207,7 @@ type
     property Raw : PLua_State                read FState;
     property State : TLuaState               read FLuaState;
     property ErrorFunc : TLuaSystemErrorFunc write SetErrorFunc;
+    property PrintFunc : TLuaSystemPrintFunc read FPrintFunc;
     property ModuleNames : TStringBoolMap    read FModuleNames;
     property Defines : TIntMap               read FDefines;
 

@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vio;
 interface
-uses Classes, SysUtils, vsystem, vgenerics,
+uses vluasystem, Classes, SysUtils, vsystem, vgenerics,
      vioevent, viopadstate, viotypes, vtigconsole, vioconsole, vbindings;
 
 // Architectural boundary: owns driver, console, layers, and binding contexts.
@@ -19,7 +19,7 @@ type TIO = class( TSystem )
   function OnEvent( const aEvent : TIOEvent ) : Boolean; virtual;
   function HandleEvents : Boolean; virtual;
   destructor Destroy; override;
-  procedure RegisterDebugConsole( aKey : TIOKeyCode );
+  procedure ToggleDebugConsole( aLua : TLuaSystem );
   function PushLayer( aLayer : TIOLayer ) : TIOLayer; virtual;
   function IsTopLayer( aLayer : TIOLayer ) : Boolean;
   function IsModal : Boolean;
@@ -31,7 +31,6 @@ type TIO = class( TSystem )
   function SaveConsoleTextDump( const aFileName : AnsiString ) : Boolean;
 protected
   function HandleInput( aInput : Integer ) : Boolean;
-  function ConsoleCallback( aEvent : TIOEvent ) : Boolean;
   procedure ClearFinishedLayers;
 protected
   FIODriver       : TIODriver;
@@ -159,11 +158,6 @@ begin
   end;
 end;
 
-procedure TIO.RegisterDebugConsole ( aKey : TIOKeyCode ) ;
-begin
-  FIODriver.RegisterInterrupt( aKey, @ConsoleCallback );
-end;
-
 procedure TIO.PreUpdate;
 begin
   FIODriver.PreUpdate;
@@ -195,6 +189,7 @@ begin
   for iLayer in FLayers do
     iLayer.Free;
   FLayers.Clear;
+  FTIGConsoleView := nil;
   FPadState.Clear;
   FMouseLast := Point(-1,-1);
   FMouse     := Point(-1,-1);
@@ -348,7 +343,7 @@ begin
   end;
 end;
 
-function TIO.ConsoleCallback ( aEvent : TIOEvent ) : Boolean;
+procedure TIO.ToggleDebugConsole( aLua : TLuaSystem );
 begin
   if FTIGConsoleView <> nil then
   begin
@@ -356,12 +351,11 @@ begin
     FTIGConsoleView.SaveHistory('console.history');
     FTIGConsoleView.Finish;
     FTIGConsoleView := nil;
-    Exit( True );
+    Exit;
   end;
   FConsole.ShowCursor;
-  FTIGConsoleView := PushLayer( TTIGConsoleView.Create ) as TTIGConsoleView;
+  FTIGConsoleView := PushLayer( TTIGConsoleView.Create( aLua ) ) as TTIGConsoleView;
   FTIGConsoleView.LoadHistory('console.history');
-  Exit( True );
 end;
 
 procedure TIO.ClearFinishedLayers;

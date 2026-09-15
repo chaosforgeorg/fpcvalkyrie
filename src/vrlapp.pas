@@ -4,7 +4,7 @@ unit vrlapp;
 interface
 
 uses sysutils,
-     vapp, vsystem, vrandom, viorl, vluasystem;
+     vapp, vsystem, vrandom, viorl, vluasystem, vioevent;
 
 type
   ERLRuntimeState = class( Exception );
@@ -22,6 +22,7 @@ type TRLRuntime = class abstract( TSystem )
     FLua             : TLuaSystem;
     FDataInitialized : Boolean;
     procedure ReleaseLua;
+    function ConsoleCallback( aEvent : TIOEvent ) : Boolean;
   protected
     FPaths : TGamePaths;
     function CreateIO : TIORL; virtual; abstract;
@@ -31,6 +32,7 @@ type TRLRuntime = class abstract( TSystem )
     function RunGame : TVRunResult; virtual; abstract;
     procedure ShutdownGameData; virtual;
     procedure ResetGameData; virtual;
+    procedure RegisterDebugConsole( aKey : TIOKeyCode );
   public
     constructor Create( const aPaths : TGamePaths; var aConfiguration : TObject ); reintroduce; virtual;
     destructor Destroy; override;
@@ -109,9 +111,22 @@ end;
 
 procedure TRLRuntime.ReleaseLua;
 begin
-  if LuaSystem = FLua then
-    LuaSystem := nil;
+  if FIO <> nil then
+    FIO.Clear;
+  if LuaSystem = FLua then LuaSystem := nil;
   FreeAndNil(FLua);
+end;
+
+procedure TRLRuntime.RegisterDebugConsole( aKey : TIOKeyCode );
+begin
+  FIO.Driver.RegisterInterrupt( aKey, @ConsoleCallback );
+end;
+
+function TRLRuntime.ConsoleCallback( aEvent : TIOEvent ) : Boolean;
+begin
+  if FLua = nil then Exit( False );
+  FIO.ToggleDebugConsole( FLua );
+  Result := True;
 end;
 
 procedure TRLRuntime.InitializeGameData;

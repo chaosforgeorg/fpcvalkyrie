@@ -1,6 +1,6 @@
 unit vluadungen;
 
-{$mode objfpc}
+{$MODE OBJFPC}
 interface
 
 uses Classes, SysUtils, vlualibrary, vrltools, vluamapnode;

@@ -72,7 +72,6 @@ TIORL = class( TIO )
   destructor Destroy; override;
 
   // Register Lua API
-  class procedure RegisterLuaAPI( const aTableName : AnsiString );
   // Register Lua API
   class procedure RegisterLuaAPI( State : TLuaState; const aTableName : AnsiString );
 private
@@ -397,11 +396,6 @@ const lua_iorl_lib : array[0..3] of luaL_Reg = (
   ( name : 'delay';              func : @lua_iorl_delay),
   ( name : nil;                  func : nil; )
 );
-
-class procedure TIORL.RegisterLuaAPI ( const aTableName : AnsiString ) ;
-begin
-  LuaSystem.Register( aTableName, lua_iorl_lib );
-end;
 
 class procedure TIORL.RegisterLuaAPI ( State : TLuaState;
   const aTableName : AnsiString ) ;

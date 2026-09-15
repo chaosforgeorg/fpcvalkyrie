@@ -7,14 +7,15 @@ uses variants, classes,
 type ELuaException = vlualibrary.ELuaException;
      Plua_State    = vlualibrary.Plua_State;
 
-var  LuaRNG : TRNG = nil;
+// Borrowed gameplay RNG. TRLRuntime publishes, replaces and clears it.
+var LuaRNG : TRNG = nil;
 
 function vlua_rng_random( L : Plua_State; aRNG : TRNG ) : Integer;
 
 { TLua }
 
 type TLua = class(TVObject)
-  constructor Create( aCoverState : Plua_State = nil ); virtual;
+  constructor Create( aCoverState : PLua_State = nil ); virtual;
 
   procedure LoadFile( const aFileName : AnsiString );
   procedure StreamLoader( aIST : TStream; aStreamName : AnsiString; aSize : DWord );
@@ -96,7 +97,7 @@ begin
 end;
 {$POP}
 
-constructor TLua.Create( aCoverState : Plua_State = nil );
+constructor TLua.Create( aCoverState : PLua_State = nil );
 begin
   LoadLua;
   if aCoverState = nil then
@@ -117,14 +118,13 @@ begin
   FErrorFunc  := nil;
   lua_getglobal( FLuaState, 'math' );
   lua_pushstring( FLuaState, 'random' );
-  lua_pushcfunction(FLuaState, @lua_math_random );
+  lua_pushcfunction( FLuaState, @lua_math_random );
   lua_rawset(FLuaState, -3);
   lua_pushstring( FLuaState, 'mix_seed' );
   lua_pushcfunction(FLuaState, @lua_math_mix_seed );
   lua_rawset(FLuaState, -3);
-  lua_getglobal( FLuaState, 'math' );
   lua_pushstring( FLuaState, 'randomseed' );
-  lua_pushcfunction(FLuaState, @lua_math_randomseed );
+  lua_pushcfunction( FLuaState, @lua_math_randomseed );
   lua_rawset(FLuaState, -3);
   lua_pop(FLuaState, 1);
 end;

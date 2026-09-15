@@ -1478,7 +1478,8 @@ begin
     ErrorLogWriteln('Error message : '+e.Message);
     ErrorLogClose;
     ProtectedCall := aDefault;
-    LuaSystem.OnError( aName + ' -- ' + e.Message );
+    if ( LuaSystem <> nil ) and ( LuaSystem.Raw = FState ) then
+      LuaSystem.OnError( aName + ' -- ' + e.Message );
   end;
   end;
 end;
