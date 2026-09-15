@@ -29,7 +29,7 @@ uses Classes, vutil, vobject;
 
 type TUIDStorePolicy = ( UIDReturnZero, UIDThrowException, UIDGrow );
 
-// Manager class for UIDs. Used through the singleton @link(UIDs).
+// UID store. Entries are borrowed; the Session owns the store.
 type TUIDStore = class(TVObject)
        // Standard constructor.
        constructor Create( aSize : DWord = $FFFF ); reintroduce;
@@ -66,9 +66,6 @@ type TUIDStore = class(TVObject)
        property Count : QWord read FIDCount;
        property Size : DWord read FSize;
      end;
-
-// Singleton for using @link(TUIDStore).
-const UIDs : TUIDStore = nil;
 
 implementation
 
@@ -118,7 +115,6 @@ end;
 
 destructor TUIDStore.Destroy;
 begin
-  vuid.UIDs := nil;
   SetLength( FData, 0 );
   inherited Destroy;
 end;

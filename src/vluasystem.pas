@@ -27,7 +27,7 @@
 
 unit vluasystem;
 interface
-uses classes, vlualibrary, vutil, vdebug, vobject, vlua, vluastate, vluatype, vdf, vgenerics, vluatable;
+uses classes, vlualibrary, vutil, vdebug, vobject, vlua, vluastate, vluatype, vdf, vgenerics, vluatable, vuid, vrandom;
 
 type
    ELuaException = vlualibrary.ELuaException;
@@ -38,6 +38,25 @@ type
    THookSet      = set of Byte;
    TLuaSystemErrorFunc = procedure( const Message : AnsiString ) of object;
    TLuaSystemPrintFunc = procedure( const Text : AnsiString ) of object;
+
+type
+  TLuaSystem = class;
+
+  // Owned by TLuaSystem; services are borrowed from Runtime and Session.
+  TLuaSystemContext = class
+  private
+    FLua  : TLuaSystem;
+    FUIDs : TUIDStore;
+    FRNG  : TRNG;
+  public
+    constructor Create( aLua : TLuaSystem );
+    procedure BindUIDs( aUIDs : TUIDStore );
+    procedure BindRNG( aRNG : TRNG );
+    class function FromState( aState : PLua_State ) : TLuaSystemContext; static;
+    property Lua  : TLuaSystem read FLua;
+    property UIDs : TUIDStore read FUIDs;
+    property RNG  : TRNG read FRNG;
+  end;
 
 type
 
@@ -191,6 +210,7 @@ type
     // Streaming support
     procedure TableFromStream( const aPath : AnsiString; aStream : TStream );
   protected
+    FContext      : TLuaSystemContext;
     FLuaState     : TLuaState;
     FState        : PLua_State;
     FLua          : TLua;
@@ -204,6 +224,7 @@ type
     FDefines      : TIntMap;
   public
     property CallDefaultResult : Variant     read FCallDefVal write FCallDefVal;
+    property Context : TLuaSystemContext read FContext;
     property Raw : PLua_State                read FState;
     property State : TLuaState               read FLuaState;
     property ErrorFunc : TLuaSystemErrorFunc write SetErrorFunc;
@@ -229,6 +250,33 @@ const LuaSystem : TLuaSystem = nil;
 implementation
 
 uses variants, sysutils, strutils, math, vluaext;
+
+// Its address is a private registry key, not a published context pointer.
+var LuaSystemContextKey : Byte;
+
+constructor TLuaSystemContext.Create( aLua : TLuaSystem );
+begin
+  inherited Create;
+  FLua := aLua;
+end;
+
+procedure TLuaSystemContext.BindUIDs( aUIDs : TUIDStore );
+begin
+  FUIDs := aUIDs;
+end;
+
+procedure TLuaSystemContext.BindRNG( aRNG : TRNG );
+begin
+  FRNG := aRNG;
+end;
+
+class function TLuaSystemContext.FromState( aState : PLua_State ) : TLuaSystemContext;
+begin
+  lua_pushlightuserdata( aState, @LuaSystemContextKey );
+  lua_rawget( aState, LUA_REGISTRYINDEX );
+  Result := TLuaSystemContext( lua_touserdata( aState, -1 ) );
+  lua_pop( aState, 1 );
+end;
 
 const BlueprintTypes : array[-1..8] of PChar = ( 'TANY', 'TNIL', 'TBOOL', 'TLUSER', 'TNUMBER', 'TSTRING', 'TTABLE', 'TFUNC', 'TUSER', 'TTHREAD' );
 
@@ -1424,6 +1472,10 @@ begin
   FCallDefVal  := NULL;
   FLua         := TLua.Create( coverState );
   FState       := FLua.NativeState;
+  FContext     := TLuaSystemContext.Create( Self );
+  lua_pushlightuserdata( FState, @LuaSystemContextKey );
+  lua_pushlightuserdata( FState, FContext );
+  lua_rawset( FState, LUA_REGISTRYINDEX );
   FModuleNames := TStringBoolMap.Create;
   FDataFiles   := TStringDataFileMap.Create;
   FRawModules  := TStringStringMap.Create;
@@ -1449,12 +1501,21 @@ end;
 
 destructor TLuaSystem.Destroy;
 begin
+  // A borrowed interpreter survives this system; remove its context reference.
+  // An owned interpreter discards the registry when FLua closes it below.
+  if ( FContext <> nil ) and ( not FLua.Owner ) then
+  begin
+    lua_pushlightuserdata( FState, @LuaSystemContextKey );
+    lua_pushnil( FState );
+    lua_rawset( FState, LUA_REGISTRYINDEX );
+  end;
   FreeAndNil( FModuleNames );
   FreeAndNil( FDataFiles );
   FreeAndNil( FRawModules );
   FreeAndNil( FClassMap );
   FreeAndNil( FDefines );
   FreeAndNil( FLua );
+  FreeAndNil( FContext );
   inherited Destroy;
   LuaSystem := nil;
 end;

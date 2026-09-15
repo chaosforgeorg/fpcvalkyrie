@@ -60,7 +60,7 @@ function LuaStackRef( aL : Plua_State; aIndex : Integer ) : TLuaType;
 
 implementation
 
-uses vluastate, vluaext, vuid, vlua;
+uses vluastate, vluaext, vuid, vlua, vluasystem;
 
 function vlua_toflags( L : Plua_State; Index : Integer ): TFlags;
 begin
@@ -1418,21 +1418,32 @@ end;
 
 // -------- UID functions --------------------------------------------- //
 
-function lua_uid_count( L: Plua_State ): Integer; cdecl;
+function LuaUIDStore( aState : PLua_State ) : TUIDStore;
+var iContext : TLuaSystemContext;
 begin
-  lua_pushnumber( L, UIDs.Size );
+  iContext := TLuaSystemContext.FromState( aState );
+  if iContext = nil then
+    luaL_error( aState, 'Lua system context is not registered' );
+  if iContext.UIDs = nil then
+    luaL_error( aState, 'UID store is not bound to this Lua system' );
+  Result := iContext.UIDs;
+end;
+
+function lua_uid_count( L : PLua_State ) : Integer; cdecl;
+begin
+  lua_pushnumber( L, LuaUIDStore( L ).Size );
   Result := 1;
 end;
 
-function lua_uid_get( L: Plua_State ): Integer; cdecl;
+function lua_uid_get( L : PLua_State ) : Integer; cdecl;
 begin
-  vlua_pushanyobject( L, UIDs.Get( lua_tointeger( L, 1 ) ) );
+  vlua_pushanyobject( L, LuaUIDStore( L ).Get( lua_tointeger( L, 1 ) ) );
   Result := 1;
 end;
 
-function lua_uid_exists( L: Plua_State ): Integer; cdecl;
+function lua_uid_exists( L : PLua_State ) : Integer; cdecl;
 begin
-  lua_pushboolean( L, UIDs.Get( lua_tointeger( L, 1 ) ) <> nil );
+  lua_pushboolean( L, LuaUIDStore( L ).Get( lua_tointeger( L, 1 ) ) <> nil );
   Result := 1;
 end;
 

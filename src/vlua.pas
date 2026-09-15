@@ -34,6 +34,7 @@ private
   FErrorFunc : TLuaErrorFunc;
 
 public
+  property Owner       : Boolean      read FOwner;
   property NativeState : Plua_state    read FLuaState;
   property ErrorFunc   : TLuaErrorFunc read FErrorFunc write FErrorFunc;
 end;

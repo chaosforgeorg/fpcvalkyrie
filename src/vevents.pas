@@ -3,13 +3,12 @@
 // @created(May 7, 2004)
 //
 // Implements all event handling classes, that is @link(TEvent)
-// and @link(TEventController). Implements global variables
-// @link(Events) and @link(EventTimer).
+// and @link(TEventController), with an explicitly supplied UID store.
 {$INCLUDE valkyrie.inc}
 {$H-}
 unit vevents;
 interface
-uses Classes, vnode, vutil, vgenerics;
+uses Classes, vnode, vutil, vgenerics, vuid;
 
 type TMessage = packed record
   MSGID : Cardinal;
@@ -45,18 +44,18 @@ type
 end;
 
 // @link(TEvent) holder and manager. Holds all events in a priority queue.
-// Used as a singleton @link(Events).
+// Borrows its UID store, which must outlive the controller.
 type
 
 { TEventController }
 
  TEventController = class(TNode)
   // Standard constructor.
-  constructor Create; override;
+  constructor Create( aUIDs : TUIDStore ); reintroduce;
   // Standard destructor, frees all unexecuted events.
   destructor Destroy; override;
   // Adding an event to the queue. Timeleft calculates
-  // execution time based on @link(EventTimer). MSG is copied.
+  // execution time based on this controller's timer. MSG is copied.
   procedure AddEvent(TimeLeft : QWord; nTarget : TUID; aMSGSize : Word; var MSG );
   // Shorthand for simple events
   procedure AddEvent(TimeLeft : QWord; nTarget : TUID; MSG : Cardinal );
@@ -68,16 +67,16 @@ type
   // Handles a single event if due. Returns if there was any event handled.
   function HandleEvent : Boolean;
   // Stream constructor, reads UID, and ID from stream, should be overriden.
-  constructor CreateFromStream( Stream : TStream ); override;
+  constructor CreateFromStream( Stream : TStream; aUIDs : TUIDStore ); reintroduce;
   // Write Node to stream (UID and ID) should be overriden.
   procedure WriteToStream( Stream : TStream ); override;
   // Returns amount of events
   function GetSize : Integer;
   private
+  FUIDs : TUIDStore;
   // First event in queue.
   FQueue : TEventQueue;
-  // Global variable holding the current time. Queried to
-  // get knowledge wether an event should be executed.
+  // Controller-local time used to decide when events are due.
   FTimer : QWord;
   private
   // Dispatches event and destroys it. Returns if event was valid.
@@ -86,12 +85,9 @@ type
   property Size : Integer read GetSize;
 end;
 
-// Singleton @link(TEventController) class. Needs to be initialized.
-const Events   : TEventController = nil;
-
 implementation
 
-uses SysUtils, vuid;
+uses SysUtils;
 
 function EventCompare( const Item1, Item2: PEvent ): Integer;
 begin
@@ -114,9 +110,10 @@ begin
       Event^.Target := 0;
 end;
 
-constructor TEventController.Create;
+constructor TEventController.Create( aUIDs : TUIDStore );
 begin
   inherited Create;
+  FUIDs := aUIDs;
   FQueue := TEventQueue.Create;
 end;
 
@@ -142,12 +139,13 @@ begin
 end;
 
 
-constructor TEventController.CreateFromStream(Stream: TStream);
+constructor TEventController.CreateFromStream( Stream : TStream; aUIDs : TUIDStore );
 var iCount, iEvents : DWord;
     iSize           : Word;
     iEvent          : PEvent;
 begin
-  inherited CreateFromStream(Stream);
+  inherited CreateFromStream( Stream );
+  FUIDs := aUIDs;
   FTimer := Stream.ReadQWord;
   FQueue := TEventQueue.Create;
   iEvents := Stream.ReadDWord;
@@ -192,7 +190,7 @@ var iTarget : TVObject;
 begin
   if aEvent^.Target <> 0 then
   begin
-    iTarget := UIDs.Get( aEvent^.Target );
+    iTarget := FUIDs.Get( aEvent^.Target );
     if iTarget <> nil then
     begin
       iTarget.Dispatch( aEvent^.MSG );
