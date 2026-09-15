@@ -22,7 +22,7 @@
 unit vluamapnode;
 interface
 uses SysUtils, Classes,
-     vnode, vutil, vvision, vrandom, vrltools, vluaext, vluagamestate, vluaentitynode, vluastate;
+     vnode, vutil, vvision, vrandom, vrltools, vluaext, vluagamestate, vluaentitynode, vluastate, vluasystem;
 
 const vlfExplored     = 0;
       vlfVisible      = 1;
@@ -132,7 +132,7 @@ public
   // Write Node to stream (UID and ID) should be overriden.
   procedure WriteToStream( Stream : TStream ); override;
   // Register API
-  class procedure RegisterLuaAPI( const aTableName : AnsiString );
+  class procedure RegisterLuaAPI( aLuaSystem : TLuaSystem; const aTableName : AnsiString );
 protected
   // Abstract function for child creation from stream
   // Being = 1, Item = 2
@@ -179,7 +179,7 @@ end;
 
 implementation
 
-uses vlua, vluasystem, vgenerics, vmath,
+uses vlua, vgenerics, vmath,
      vluatools, vluatype, vlualibrary, math;
 
 type TMinCoordChoice = specialize TGMinimalChoice<TCoord2D>;
@@ -649,8 +649,8 @@ var iState : TLuaMapState;
 begin
   iState.Init( L );
   if lua_isnumber( L, 2 )
-    then iState.Map.PutCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ), iState.ToID( 4 ) )
-    else iState.Map.PutCell( iState.ToPosition( 2 ), iState.ToID( 3 ) );
+    then iState.Map.PutCell( NewCoord2D( iState.ToInteger( 2 ), iState.ToInteger( 3 ) ), iState.ToID( iState.Map.Context.Lua, 4 ) )
+    else iState.Map.PutCell( iState.ToPosition( 2 ), iState.ToID( iState.Map.Context.Lua, 3 ) );
   Result := 0;
 end;
 
@@ -1387,11 +1387,11 @@ const lua_map_node_lib : array[0..35] of luaL_Reg = (
   ( name : nil;                       func : nil; )
 );
 
-class procedure TLuaMapNode.RegisterLuaAPI ( const aTableName : AnsiString ) ;
+class procedure TLuaMapNode.RegisterLuaAPI( aLuaSystem : TLuaSystem; const aTableName : AnsiString );
 begin
-  LuaSystem.Register( aTableName, lua_map_node_lib );
-  LuaSystem.RegisterMetaTable( aTableName, 'map',   @lua_map_node_get_cell,    @lua_map_node_set_cell );
-  LuaSystem.RegisterMetaTable( aTableName, 'hp',    @lua_map_node_get_hp,      @lua_map_node_set_hp );
+  aLuaSystem.Register( aTableName, lua_map_node_lib );
+  aLuaSystem.RegisterMetaTable( aTableName, 'map',   @lua_map_node_get_cell,    @lua_map_node_set_cell );
+  aLuaSystem.RegisterMetaTable( aTableName, 'hp',    @lua_map_node_get_hp,      @lua_map_node_set_hp );
 end;
 
 end.

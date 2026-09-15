@@ -23,7 +23,7 @@
 
 unit vluaentitynode;
 interface
-uses Classes, vnode, vutil, vrltools, vluastate, viotypes;
+uses Classes, vnode, vutil, vrltools, vluastate, viotypes, vluasystem;
 
 const ENTITY_BEING    = 1;
       ENTITY_ITEM     = 2;
@@ -50,7 +50,7 @@ TLuaEntityNode = class( TNode )
   // Should push given property to the passed state
   function GetProperty( L : PLua_State; const aPropertyName : AnsiString ) : Integer; override;
   // Register API -- WARNING - registers TableName metatable!
-  class procedure RegisterLuaAPI( const TableName : AnsiString );
+  class procedure RegisterLuaAPI( aLuaSystem : TLuaSystem; const aTableName : AnsiString );
 protected
   // Position
   FPosition  : TCoord2D;
@@ -78,7 +78,7 @@ end;
 function lua_entity_node_in_range_closure(L: Plua_State): Integer; cdecl;
 
 implementation
-uses vluasystem, vluamapnode, vluatools, vluatype, vlualibrary;
+uses vluamapnode, vluatools, vluatype, vlualibrary;
 
 { TLuaEntityNode }
 
@@ -266,9 +266,9 @@ const lua_entity_node_lib : array[0..6] of luaL_Reg = (
 );
 
 
-class procedure TLuaEntityNode.RegisterLuaAPI ( const TableName : AnsiString );
+class procedure TLuaEntityNode.RegisterLuaAPI( aLuaSystem : TLuaSystem; const aTableName : AnsiString );
 begin
-  LuaSystem.Register( TableName, lua_entity_node_lib );
+  aLuaSystem.Register( aTableName, lua_entity_node_lib );
 end;
 
 end.

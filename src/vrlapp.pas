@@ -113,7 +113,6 @@ procedure TRLRuntime.ReleaseLua;
 begin
   if FIO <> nil then
     FIO.Clear;
-  if LuaSystem = FLua then LuaSystem := nil;
   FreeAndNil(FLua);
 end;
 
@@ -155,7 +154,6 @@ begin
     PrepareGameData;
     FLua := CreateLua;
     FLua.Context.BindRNG( FGameRNG );
-    LuaSystem := FLua;
     InitializeGameData;
     FDataInitialized := True;
   except

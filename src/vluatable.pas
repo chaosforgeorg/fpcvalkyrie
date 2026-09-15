@@ -1467,19 +1467,21 @@ end;
 
 function TLuaTable.ProtectedCall ( const aName : AnsiString;
   const Args : array of const; aDefault : Variant ) : Variant;
+var iContext : TLuaSystemContext;
 begin
   try
     Exit( Call( aName, Args, aDefault ) );
-  except on e : Exception do
+  except on iError : Exception do
   begin
-    ErrorLogOpen('ERROR','Lua call UNKNOWN_TABLE.'+aName+' caught '+e.ClassName+'!');
+    ErrorLogOpen('ERROR','Lua call UNKNOWN_TABLE.'+aName+' caught '+iError.ClassName+'!');
     ErrorLogWriteln('Call path     : UNKNOWN_TABLE.'+aName );
     ErrorLogWriteln('Call params   : '+DebugToString( Args ));
-    ErrorLogWriteln('Error message : '+e.Message);
+    ErrorLogWriteln('Error message : '+iError.Message);
     ErrorLogClose;
     ProtectedCall := aDefault;
-    if ( LuaSystem <> nil ) and ( LuaSystem.Raw = FState ) then
-      LuaSystem.OnError( aName + ' -- ' + e.Message );
+    iContext := TLuaSystemContext.FromState( FState );
+    if iContext <> nil then
+      iContext.Lua.OnError( aName + ' -- ' + iError.Message );
   end;
   end;
 end;

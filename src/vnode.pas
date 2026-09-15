@@ -211,7 +211,7 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Returns whether the object has the passed hook
        function HasHook( Hook : Word ) : Boolean; virtual;
        // Lua interface - Register API -- WARNING - registers TableName metatable!
-       class procedure RegisterLuaAPI( const TableName : AnsiString );
+       class procedure RegisterLuaAPI( aLuaSystem : TLuaSystem; const aTableName : AnsiString );
        // Function for getting custom properties in Lua.
        // Should push given property to the passed state
        // Default implementation is no-op
@@ -223,7 +223,7 @@ TNode = class(TVObject, ILuaReferencedObject)
      protected
        // ILuaReferencedObject access for the lower-level Lua units.
        function GetProtoTable : AnsiString;
-       // Lua interface - registers with LuaSystem
+       // Registers with the node context's Lua system
        procedure RegisterWithLua( aClassType : TClass = nil );
      protected
        // Unique IDentification number (@link(TUID))
@@ -1510,12 +1510,12 @@ const lua_node_lib : array[0..14] of luaL_Reg = (
       ( name : nil;               func : nil; )
 );
 
-class procedure TNode.RegisterLuaAPI(const TableName: AnsiString);
+class procedure TNode.RegisterLuaAPI( aLuaSystem : TLuaSystem; const aTableName : AnsiString );
 begin
-  LuaSystem.Register( TableName, lua_node_lib );
-  LuaSystem.RegisterSubTable( TableName, '__props' );
-  LuaSystem.RegisterMetaTable( TableName, 'flags', @lua_node_flags_get, @lua_node_flags_set );
-  LuaSystem.RegisterMetaTable( TableName, @lua_node_property_get, @lua_node_property_set );
+  aLuaSystem.Register( aTableName, lua_node_lib );
+  aLuaSystem.RegisterSubTable( aTableName, '__props' );
+  aLuaSystem.RegisterMetaTable( aTableName, 'flags', @lua_node_flags_get, @lua_node_flags_set );
+  aLuaSystem.RegisterMetaTable( aTableName, @lua_node_property_get, @lua_node_property_set );
 end;
 
 

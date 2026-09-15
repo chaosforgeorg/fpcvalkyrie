@@ -233,6 +233,8 @@ type
     property Defines : TIntMap               read FDefines;
 
   private
+    // Uses the caller's stack, which may belong to a coroutine.
+    function PrintValue( L : PLua_State; aIndex : Integer; aIndent : Word = 0; aPrefix : AnsiString = '' ) : Word;
     // Pushes the path, leaves the last element on top, and the table below it
     // raises on failure of path.
     procedure GetPath( const Path : AnsiString );
@@ -245,7 +247,6 @@ type
     procedure DeepPointerCopy( Index : Integer; Obj : Pointer );
   end;
 
-const LuaSystem : TLuaSystem = nil;
 
 implementation
 
@@ -280,122 +281,126 @@ end;
 
 const BlueprintTypes : array[-1..8] of PChar = ( 'TANY', 'TNIL', 'TBOOL', 'TLUSER', 'TNUMBER', 'TSTRING', 'TTABLE', 'TFUNC', 'TUSER', 'TTHREAD' );
 
-function print_value(L: Plua_State; index : Integer; Indent : Word = 0; Prefix : AnsiString = '') : Word;
-var Lines : Byte;
+function TLuaSystem.PrintValue( L : PLua_State; aIndex : Integer; aIndent : Word; aPrefix : AnsiString ) : Word;
+var iLines : Byte;
 begin
-  index := lua_absindex(L,index);
-  Prefix := StringOfChar(' ',Indent)+Prefix;
-  case lua_type(L,index) of
-    LUA_TNIL           : LuaSystem.Print(Prefix+'{Rnil}');
-    LUA_TBOOLEAN       : if lua_toboolean(L,index) then LuaSystem.Print(Prefix+'{gtrue}') else LuaSystem.Print(Prefix+'{gfalse}');
-    LUA_TLIGHTUSERDATA : LuaSystem.Print(Prefix+'{blightuserdata({^0x'+hexstr(lua_touserdata(L,index))+'})}');
-    LUA_TNUMBER        : LuaSystem.Print(Prefix+'{L'+lua_tostring(L,index)+'}');
-    LUA_TSTRING        : LuaSystem.Print(Prefix+'"{G'+lua_tostring(L,index)+'}"');
-    LUA_TFUNCTION      : LuaSystem.Print(Prefix+'{yfunction}');
-    LUA_TUSERDATA      : LuaSystem.Print(Prefix+'{yuserdata}');
-    LUA_TTHREAD        : LuaSystem.Print(Prefix+'{ythread}');
+  aIndex := lua_absindex(L,aIndex);
+  aPrefix := StringOfChar(' ',aIndent)+aPrefix;
+  case lua_type(L,aIndex) of
+    LUA_TNIL           : Print(aPrefix+'{Rnil}');
+    LUA_TBOOLEAN       : if lua_toboolean(L,aIndex) then Print(aPrefix+'{gtrue}') else Print(aPrefix+'{gfalse}');
+    LUA_TLIGHTUSERDATA : Print(aPrefix+'{blightuserdata({^0x'+hexstr(lua_touserdata(L,aIndex))+'})}');
+    LUA_TNUMBER        : Print(aPrefix+'{L'+lua_tostring(L,aIndex)+'}');
+    LUA_TSTRING        : Print(aPrefix+'"{G'+lua_tostring(L,aIndex)+'}"');
+    LUA_TFUNCTION      : Print(aPrefix+'{yfunction}');
+    LUA_TUSERDATA      : Print(aPrefix+'{yuserdata}');
+    LUA_TTHREAD        : Print(aPrefix+'{ythread}');
     LUA_TTABLE         :
       begin
-        LuaSystem.Print(Prefix+'{ytable} = [');
-        Indent += 2;
-        Lines := 2;
+        Print(aPrefix+'{ytable} = [');
+        aIndent += 2;
+        iLines := 2;
         lua_pushnil(L);
-        while lua_next(L, index) <> 0 do
+        while lua_next(L, aIndex) <> 0 do
         begin
-          // key (index -2), 'value' (index -1)
+          // Key at -2, value at -1.
           if lua_isnumber( L, -2 ) then
-            Lines += print_value( L, -1, Indent, IntToStr(lua_tointeger( L, -2 ))+' = ')
+            iLines += PrintValue( L, -1, aIndent, IntToStr(lua_tointeger( L, -2 ))+' = ')
           else
-            Lines += print_value( L, -1, Indent, lua_tostring( L, -2 )+' = ');
+            iLines += PrintValue( L, -1, aIndent, lua_tostring( L, -2 )+' = ');
           // remove value, keep key
           lua_pop(L, 1);
-          if Lines > 10 then
+          if iLines > 10 then
           begin
-            LuaSystem.Print(StringOfChar(' ',Indent)+'...');
+            Print(StringOfChar(' ',aIndent)+'...');
             lua_pop(L, 1);
             break;
           end;
         end;
-        if Lines <= 8 then LuaSystem.Print(StringOfChar(' ',Indent-2)+']');
-        Exit(Lines);
+        if iLines <= 8 then Print(StringOfChar(' ',aIndent-2)+']');
+        Exit(iLines);
       end;
   end;
   Exit(1);
 end;
 
-function lua_valkyrie_print( L: Plua_State ) : Integer; cdecl;
-var n : Integer;
+function lua_valkyrie_print( L : PLua_State ) : Integer; cdecl;
+var iIndex : Integer;
+    iLua   : TLuaSystem;
 begin
-  if Assigned( LuaSystem.FPrintFunc ) then
+  iLua := TLuaSystemContext.FromState( L ).Lua;
+  if Assigned( iLua.FPrintFunc ) then
   begin
-    n := lua_gettop(L);
-    if n <= 0 then Exit(0);
-    for n := 1 to lua_gettop(L) do
-      print_value(L,n);
+    iIndex := lua_gettop(L);
+    if iIndex <= 0 then Exit(0);
+    for iIndex := 1 to lua_gettop(L) do
+      iLua.PrintValue( L, iIndex );
   end;
   Result := 0;
 end;
 
 { TLuaSystem }
 
-function lua_valkyrie_require( L: Plua_State ) : Integer; cdecl;
-var Arg      : AnsiString;
-    Module   : AnsiString;
-    Path     : AnsiString;
-    FileName : AnsiString;
+function lua_valkyrie_require( L : PLua_State ) : Integer; cdecl;
+var iLua      : TLuaSystem;
+    iArg      : AnsiString;
+    iModule   : AnsiString;
+    iPath     : AnsiString;
+    iFileName : AnsiString;
 begin
-  if lua_gettop(L) <> 1 then LuaSystem.OnError('Require has wrong amount of parameters!');
-  Arg := lua_tostring( L, 1 );
+  iLua := TLuaSystemContext.FromState( L ).Lua;
+  if lua_gettop(L) <> 1 then iLua.OnError('Require has wrong amount of parameters!');
+  iArg := lua_tostring( L, 1 );
 
-  if LuaSystem.FModuleNames.Exists(Arg) then Exit(0);
+  if iLua.FModuleNames.Exists(iArg) then Exit(0);
 
-  Module := ExtractDelimited( 1, Arg, [':'] );
-  Path := ExtractFilePath( Arg );
-  if Module <> '' then
-    Delete( Path, 1, Length( Module ) + 1 );
+  iModule := ExtractDelimited( 1, iArg, [':'] );
+  iPath := ExtractFilePath( iArg );
+  if iModule <> '' then
+    Delete( iPath, 1, Length( iModule ) + 1 );
 
-  if (Length(Path) > 0) and (Path[Length(Path)] = '/') then Delete(Path,Length(Path),1);
-  FileName := ExtractFileName( Arg ) + '.lua';
+  if (Length(iPath) > 0) and (iPath[Length(iPath)] = '/') then Delete(iPath,Length(iPath),1);
+  iFileName := ExtractFileName( iArg ) + '.lua';
 
-  if Pos(':', FileName) > 0 then
-    Delete( FileName, 1, Pos(':', FileName) );
+  if Pos(':', iFileName) > 0 then
+    Delete( iFileName, 1, Pos(':', iFileName) );
 
-  Log('LuaRequire( Module "'+Module+'", Path "'+Path+'", FileName "'+FileName+'")');
+  Log('LuaRequire( Module "'+iModule+'", Path "'+iPath+'", FileName "'+iFileName+'")');
 
-  if not LuaSystem.FRawModules.Exists(Module) then
+  if not iLua.FRawModules.Exists(iModule) then
   begin
-    if not LuaSystem.FDataFiles.Exists(Module) then
-      raise ELuaException.Create('require : Module "'+Module+'" not found!');
-    LuaSystem.LoadStream( LuaSystem.FDataFiles[Module], Path, FileName );
+    if not iLua.FDataFiles.Exists(iModule) then
+      raise ELuaException.Create('require : Module "'+iModule+'" not found!');
+    iLua.LoadStream( iLua.FDataFiles[iModule], iPath, iFileName );
   end
   else
   begin
-    if Path <> '' then
-      Path := LuaSystem.FRawModules[ Module ] + Path + DirectorySeparator + FileName
+    if iPath <> '' then
+      iPath := iLua.FRawModules[ iModule ] + iPath + DirectorySeparator + iFileName
     else
-      Path := LuaSystem.FRawModules[ Module ] + FileName;
-    if not FileExists(Path) then
-      raise ELuaException.Create('require : File "'+Path+'" not found!');
-    LuaSystem.LoadFile( Path );
+      iPath := iLua.FRawModules[ iModule ] + iFileName;
+    if not FileExists(iPath) then
+      raise ELuaException.Create('require : File "'+iPath+'" not found!');
+    iLua.LoadFile( iPath );
   end;
 
-  LuaSystem.FModuleNames[ Arg ] := True;
+  iLua.FModuleNames[ iArg ] := True;
   Exit( 0 );
 end;
 
-function lua_core_log(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+function lua_core_log( L: Plua_State ): Integer; cdecl;
+var iState : TLuaState;
 begin
-  State.Init( L );
-  Log( State.ToString(1) );
+  iState.Init( L );
+  Log( iState.ToString(1) );
   Result := 0;
 end;
 
-function lua_core_warning(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+function lua_core_warning( L: Plua_State ): Integer; cdecl;
+var iState : TLuaState;
 begin
-  State.Init( L );
-  Log( LOGWARN, State.ToString(1) );
+  iState.Init( L );
+  Log( LOGWARN, iState.ToString(1) );
   Result := 0;
 end;
 
@@ -729,9 +734,11 @@ end;
 
 function lua_core_register(L: Plua_State): Integer; cdecl; forward;
 
-function lua_core_create_constructor_impl(L: Plua_State): Integer; cdecl;
-var ident : ansistring;
+function lua_core_create_constructor_impl( L : PLua_State ) : Integer; cdecl;
+var iLua   : TLuaSystem;
+    iIdent : AnsiString;
 begin
+  iLua := TLuaSystemContext.FromState( L ).Lua;
   luaL_checktype( L, 1, LUA_TTABLE );
 
   lua_getfield( L, 1, 'inherit' );
@@ -739,44 +746,44 @@ begin
   begin
     if lua_type( L, -1 ) <> LUA_TSTRING then
       luaL_error( L, 'inherit field must be a string!' );
-    
+
     lua_pushvalue( L, lua_upvalueindex( 2 ) );
     lua_pushvalue( L, -2 );
     lua_rawget( L, -2 );
-    
+
     if lua_isnil( L, -1 ) then
       luaL_error( L, 'Cannot inherit from "%s" - not found in storage!', lua_tolstring( L, -3, nil ) );
-    
+
     lua_getfield( L, -1, '__source' );
     if lua_isnil( L, -1 ) then
       luaL_error( L, 'Parent entry "%s" has no __source field!', lua_tolstring( L, -4, nil ) );
-    
+
     vlua_deepcopy( L, -1 );
-    
+
     lua_pushnil( L );
     lua_setfield( L, -2, 'id' );
     lua_pushnil( L );
     lua_setfield( L, -2, 'nid' );
-    
+
     lua_pushvalue( L, -3 );
     lua_setfield( L, -2, '__inherited' );
-    
+
     vlua_shallowmerge( L, 1 );
     lua_replace( L, 1 );
     lua_pop( L, 4 );
-    
+
     lua_pushnil( L );
     lua_setfield( L, 1, 'inherit' );
   end
   else
     lua_pop( L, 1 );
-  
+
   vlua_deepcopy( L, 1 );
   lua_setfield( L, 1, '__source' );
 
   lua_pushvalue( L, lua_upvalueindex( 1 ) ); // id
-  ident := vlua_tostring( L, -1 );
-  if LuaSystem.Defines.Exists( ident ) then
+  iIdent := vlua_tostring( L, -1 );
+  if iLua.Defines.Exists( iIdent ) then
     luaL_error( L, 'Redefinition of id "%s"!', lua_tolstring( L, -1, nil ) );
   lua_setfield( L, 1, 'id' );
 
@@ -794,13 +801,13 @@ begin
   if not lua_isnil( L, -1 ) then
   begin
     lua_getfield( L, lua_upvalueindex( 2 ), '__name' ); // storage.__name
-    ident := vlua_tostring( L, -1 ) + '[' + ident + ']';
+    iIdent := vlua_tostring( L, -1 ) + '[' + iIdent + ']';
     lua_pop( L, 1 );
 
     lua_pushcfunction( L, @lua_core_apply_blueprint );
     lua_pushvalue( L, 1 );
     lua_pushvalue( L, -3 );
-    lua_pushstring( L, PChar(ident) );
+    lua_pushstring( L, PChar(iIdent) );
     lua_call( L, 3, 0 );
     lua_pop( L, 1 );
   end;
@@ -1073,9 +1080,11 @@ begin
   Result := 1;
 end;
 
-function lua_core_register(L: Plua_State): Integer; cdecl;
-var iName,iID : AnsiString;
+function lua_core_register( L : PLua_State ) : Integer; cdecl;
+var iLua       : TLuaSystem;
+    iName, iID : AnsiString;
 begin
+  iLua := TLuaSystemContext.FromState( L ).Lua;
   lua_core_array_register(L);
 
   // iName := element.name or "error"
@@ -1110,28 +1119,30 @@ begin
   lua_rawset( L, 1 );
 
   // core.define( element.id, element.nid )
-  LuaSystem.FDefines[ iID ] := lua_tointeger( L, 3 );
+  iLua.FDefines[ iID ] := lua_tointeger( L, 3 );
 
   // return id
   lua_pushstring( L, PChar(iID) );
   Result := 1;
 end;
 
-function lua_core_unregister(L: Plua_State): Integer; cdecl;
-var id : integer;
-    s  : ansistring;
+function lua_core_unregister( L : PLua_State ) : Integer; cdecl;
+var iLua  : TLuaSystem;
+    iID   : Integer;
+    iName : AnsiString;
 begin
+  iLua := TLuaSystemContext.FromState( L ).Lua;
   luaL_checktype( L, 1, LUA_TTABLE );
 
   if lua_type( L, 2 ) = LUA_TSTRING then
   begin
-    s  := vlua_tostring(L,2);
-    id := LuaSystem.Defines[ s ];
-    LuaSystem.Defines.Remove( s );
+    iName  := vlua_tostring(L,2);
+    iID := iLua.Defines[ iName ];
+    iLua.Defines.Remove( iName );
     lua_pushvalue( L, 2 );
     lua_pushnil( L );
     lua_rawset( L, 1 );
-    lua_pushinteger( L, id );
+    lua_pushinteger( L, iID );
     lua_pushnil( L );
     lua_rawset( L, 1 );
     Exit(0);
@@ -1141,7 +1152,7 @@ begin
   while lua_next( L, 1 ) <> 0 do
   begin
     if lua_type( L, -2 ) = LUA_TSTRING then
-      LuaSystem.Defines.Remove(vlua_tostring(L,-2));
+      iLua.Defines.Remove(vlua_tostring(L,-2));
     lua_pushvalue( L, -2 );
     lua_pushnil( L );
     lua_rawset( L, 1 );
@@ -1150,19 +1161,23 @@ begin
   Result := 0;
 end;
 
-function lua_core_define(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+function lua_core_define( L : PLua_State ) : Integer; cdecl;
+var iLua   : TLuaSystem;
+    iState : TLuaState;
 begin
-  State.Init( L );
-  LuaSystem.FDefines[ State.ToString(1) ] := State.ToInteger(2);
+  iLua := TLuaSystemContext.FromState( L ).Lua;
+  iState.Init( L );
+  iLua.FDefines[ iState.ToString(1) ] := iState.ToInteger(2);
   Result := 0;
 end;
 
-function lua_core_undefine(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+function lua_core_undefine( L : PLua_State ) : Integer; cdecl;
+var iLua   : TLuaSystem;
+    iState : TLuaState;
 begin
-  State.Init(L);
-  LuaSystem.Defines.Remove(State.ToString(1));
+  iLua := TLuaSystemContext.FromState( L ).Lua;
+  iState.Init(L);
+  iLua.Defines.Remove(iState.ToString(1));
   Result := 0;
 end;
 
@@ -1257,22 +1272,26 @@ begin
   Result := 1;
 end;
 
-function lua_core_type_nid(L: Plua_State): Integer; cdecl;
+function lua_core_type_nid( L : PLua_State ) : Integer; cdecl;
+var iLua : TLuaSystem;
 begin
   if lua_type( L, 3 ) =  LUA_TNUMBER  then Exit( 0 );
   if lua_type( L, 3 ) <> LUA_TSTRING then
     luaL_error( L, 'LUA: "%s.%s" - type mismatch, existing id expected, %s found!', lua_tolstring( L, 1, nil ), lua_tolstring( L, 2, nil ), lua_typename( L, lua_type( L, 3 ) ) );
-  if not LuaSystem.Defines.Exists( lua_tostring( L, 3 ) ) then
+  iLua := TLuaSystemContext.FromState( L ).Lua;
+  if not iLua.Defines.Exists( lua_tostring( L, 3 ) ) then
     luaL_error( L, 'LUA: "%s.%s" - id "%s" isn''t valid (yet?)!', lua_tolstring( L, 1, nil ), lua_tolstring( L, 2, nil ), lua_tolstring( L, 3, nil ) );
-  lua_pushinteger( L, LuaSystem.Defines[ lua_tostring( L, 3 ) ] );
+  lua_pushinteger( L, iLua.Defines[ lua_tostring( L, 3 ) ] );
   Result := 1;
 end;
 
-function lua_core_type_id(L: Plua_State): Integer; cdecl;
+function lua_core_type_id( L : PLua_State ) : Integer; cdecl;
+var iLua : TLuaSystem;
 begin
+  iLua := TLuaSystemContext.FromState( L ).Lua;
   if lua_type( L, 3 ) <> LUA_TSTRING then
     luaL_error( L, 'LUA: "%s.%s" - type mismatch, existing id expected, %s found!', lua_tolstring( L, 1, nil ), lua_tolstring( L, 2, nil ), lua_typename( L, lua_type( L, 3 ) ) );
-  if not LuaSystem.Defines.Exists( lua_tostring( L, 3 ) ) then
+  if not iLua.Defines.Exists( lua_tostring( L, 3 ) ) then
     luaL_error( L, 'LUA: "%s.%s" - id "%s" isn''t valid (yet?)!', lua_tolstring( L, 1, nil ), lua_tolstring( L, 2, nil ), lua_tolstring( L, 3, nil ) );
   Result := 0;
 end;
@@ -1517,7 +1536,6 @@ begin
   FreeAndNil( FLua );
   FreeAndNil( FContext );
   inherited Destroy;
-  LuaSystem := nil;
 end;
 
 function TLuaSystem.RawDefined( const aValue : AnsiString ) : Boolean;
@@ -1947,7 +1965,7 @@ begin
 
   if lua_gettop(FState) > iStack then
   for iCode := iStack+1 to lua_gettop(FState) do
-    print_value(FState,iCode);
+    PrintValue( FState, iCode );
   lua_settop(FState,iStack);
 end;
 
