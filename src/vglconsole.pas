@@ -12,8 +12,8 @@ end;
 
 
 type TGLConsoleRenderer = class( TIOConsoleRenderer )
-  constructor Create( aFont : TBitmapFont; aSizeX, aSizeY : DWord; aLineSpace : DWord = 0; aReqCapabilities : TIOConsoleCapSet = [VIO_CON_CURSOR] );
-  constructor Create( aFont : AnsiString; aFontGridX, aFontCount, aFontShift, aSizeX, aSizeY : DWord; aLineSpace : DWord = 0; aReqCapabilities : TIOConsoleCapSet = [VIO_CON_CURSOR] );
+  constructor Create( aDriver : TIODriver; aFont : TBitmapFont; aSizeX, aSizeY : DWord; aLineSpace : DWord = 0; aReqCapabilities : TIOConsoleCapSet = [VIO_CON_CURSOR] );
+  constructor Create( aDriver : TIODriver; aFont : AnsiString; aFontGridX, aFontCount, aFontShift, aSizeX, aSizeY : DWord; aLineSpace : DWord = 0; aReqCapabilities : TIOConsoleCapSet = [VIO_CON_CURSOR] );
   procedure OutputChar( x,y : Integer; aColor : TIOColor; aChar : char ); override;
   procedure OutputChar( x,y : Integer; aFrontColor, aBackColor : TIOColor; aChar : char ); override;
   function GetChar( x,y : Integer ) : Char; override;
@@ -42,6 +42,7 @@ private
   procedure SetData( aIndex : DWord; aChar : Char; aFrontColor, aBackColor : TIOColor ); inline;
   function MakeColor( aColor : TIOColor ) : TIOColor;
 private
+  FDriver       : TIODriver; // borrowed; IO destroys the renderer before its driver
   FOwnTextures  : Boolean;
   FFont         : TBitmapFont;
   FCurVisible   : Boolean;
@@ -73,7 +74,7 @@ end;
 
 implementation
 
-uses dateutils, vgl3library, vsdlio, vmath, vutil, vcolor, vtextures;
+uses dateutils, vgl3library, vmath, vutil, vcolor, vtextures;
 
 var EmptyTexCoord  : TGLRawQTexCoord;
 
@@ -223,17 +224,19 @@ begin
   SetCursorType( VIO_CURSOR_SMALL );
 end;
 
-constructor TGLConsoleRenderer.Create ( aFont : TBitmapFont; aSizeX, aSizeY : DWord; aLineSpace : DWord; aReqCapabilities : TIOConsoleCapSet );
+constructor TGLConsoleRenderer.Create( aDriver : TIODriver; aFont : TBitmapFont; aSizeX, aSizeY : DWord; aLineSpace : DWord; aReqCapabilities : TIOConsoleCapSet );
 begin
+  FDriver := aDriver;
   inherited Create( aSizeX, aSizeY, aReqCapabilities );
   Initialize( aFont, aLineSpace );
   FOwnTextures  := False;
   FGlyphStretch := False;
 end;
 
-constructor TGLConsoleRenderer.Create ( aFont : AnsiString; aFontGridX, aFontCount, aFontShift, aSizeX, aSizeY : DWord; aLineSpace : DWord; aReqCapabilities : TIOConsoleCapSet ) ;
+constructor TGLConsoleRenderer.Create( aDriver : TIODriver; aFont : AnsiString; aFontGridX, aFontCount, aFontShift, aSizeX, aSizeY : DWord; aLineSpace : DWord; aReqCapabilities : TIOConsoleCapSet ) ;
 var iTextureID : TTextureID;
 begin
+  FDriver := aDriver;
   inherited Create( aSizeX, aSizeY, aReqCapabilities );
   FOwnTextures  := False;
   FGlyphStretch := False;
@@ -419,7 +422,7 @@ begin
   glBindVertexArray(0);
 
   FProgram.Bind;
-    iPart.Init( SDLIO.GetSizeX / iRect.Dim.X, SDLIO.GetSizeY / iRect.Dim.Y );
+    iPart.Init( FDriver.GetSizeX / iRect.Dim.X, FDriver.GetSizeY / iRect.Dim.Y );
     iMatrix := GLCreateOrtho(-iPart.X, iPart.X, 1 - 2*iPart.Y, 1, -1, 1 );
 
     iPLoc := FProgram.GetUniformLocation('projection');
@@ -459,9 +462,9 @@ begin
   if ( aMinimumSize.X < 1 ) or ( aMinimumSize.Y < 1 ) or
      ( FFont.GylphSize.X < 1 ) or
      ( FFont.GylphSize.Y + FLineSpace < 1 ) then Exit( 1 );
-  iWidthScale := SDLIO.GetSizeX div
+  iWidthScale := FDriver.GetSizeX div
     ( FFont.GylphSize.X * aMinimumSize.X );
-  iHeightScale := SDLIO.GetSizeY div
+  iHeightScale := FDriver.GetSizeY div
     ( ( FFont.GylphSize.Y + FLineSpace ) * aMinimumSize.Y );
   Result := iWidthScale;
   if iHeightScale < Result then Result := iHeightScale;
@@ -479,10 +482,10 @@ begin
       then Result := iMaximum
       else Result := aRequestedScale;
   FScale := Result;
-  glViewport( 0, 0, SDLIO.GetSizeX, SDLIO.GetSizeY );
+  glViewport( 0, 0, FDriver.GetSizeX, FDriver.GetSizeY );
   Resize(
-    SDLIO.GetSizeX div ( FFont.GylphSize.X * FScale ),
-    SDLIO.GetSizeY div ( ( FFont.GylphSize.Y + FLineSpace ) * FScale ),
+    FDriver.GetSizeX div ( FFont.GylphSize.X * FScale ),
+    FDriver.GetSizeY div ( ( FFont.GylphSize.Y + FLineSpace ) * FScale ),
     FLineSpace
   );
 end;
