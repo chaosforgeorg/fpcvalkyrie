@@ -34,7 +34,7 @@
 
 unit vnode;
 interface
-uses Classes, vutil, vdebug, vluatype, vlualibrary, vobject, vluasystem, vuid;
+uses classes, vutil, vdebug, vluatype, vlualibrary, vobject, vlua, vuid;
 
 type TVObject      = vobject.TVObject;
      TVObjectClass = vobject.TVObjectClass;
@@ -42,13 +42,13 @@ type TVObject      = vobject.TVObject;
 // Borrowed services for nodes belonging to one game session.
 type TNodeContext = class
   private
-    FLua  : TLuaSystem;
+    FLua  : TLua;
     FUIDs : TUIDStore;
   public
-    constructor Create( aLua : TLuaSystem; aUIDs : TUIDStore );
-    procedure BindLua( aLua : TLuaSystem );
+    constructor Create( aLua : TLua; aUIDs : TUIDStore );
+    procedure BindLua( aLua : TLua );
     procedure BindUIDs( aUIDs : TUIDStore );
-    property Lua  : TLuaSystem read FLua;
+    property Lua  : TLua read FLua;
     property UIDs : TUIDStore  read FUIDs;
 end;
 
@@ -211,7 +211,7 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Returns whether the object has the passed hook
        function HasHook( Hook : Word ) : Boolean; virtual;
        // Lua interface - Register API -- WARNING - registers TableName metatable!
-       class procedure RegisterLuaAPI( aLuaSystem : TLuaSystem; const aTableName : AnsiString );
+       class procedure RegisterLuaAPI( aLua : TLua; const aTableName : AnsiString );
        // Function for getting custom properties in Lua.
        // Should push given property to the passed state
        // Default implementation is no-op
@@ -235,7 +235,7 @@ TNode = class(TVObject, ILuaReferencedObject)
        FID           : TIDN;
        // Lua Registry index.
        FLuaIndex     : LongInt;
-       // Lua Class pointer for vluasystem
+       // Lua Class pointer for vlua
        FLuaClassInfo : TLuaClassInfo;
        // Hooks
        FHooks        : TFlags;
@@ -423,16 +423,16 @@ private
 end;
 
 implementation
-uses sysutils, typinfo, vluastate;
+uses sysutils, typinfo, vluastack;
 
-constructor TNodeContext.Create( aLua : TLuaSystem; aUIDs : TUIDStore );
+constructor TNodeContext.Create( aLua : TLua; aUIDs : TUIDStore );
 begin
   inherited Create;
   FLua := aLua;
   FUIDs := aUIDs;
 end;
 
-procedure TNodeContext.BindLua( aLua : TLuaSystem );
+procedure TNodeContext.BindLua( aLua : TLua );
 begin
   FLua := aLua;
 end;
@@ -520,7 +520,7 @@ begin
   FID           := aID;
   RegisterWithLua;
   if FContext.UIDs <> nil then FUID := FContext.UIDs.Register( Self );
-  FContext.Lua.State.SetPrototypeTable( Self, '__proto' );
+  FContext.Lua.Stack.SetPrototypeTable( Self, '__proto' );
 
   with FContext.Lua.GetTable( [ LuaClassInfo.Storage, ID ] ) do
   try
@@ -558,11 +558,11 @@ begin
     if ( FContext.UIDs <> nil ) and ( FUID <> 0 ) then
       FContext.UIDs.Register( Self, FUID );
 
-    FContext.Lua.State.SetPrototypeTable( Self, '__proto' );
-    FContext.Lua.State.SubTableFromStream( Self ,'__props', Stream );
+    FContext.Lua.Stack.SetPrototypeTable( Self, '__proto' );
+    FContext.Lua.Stack.SubTableFromStream( Self ,'__props', Stream );
 
     if Stream.ReadByte = 1 then
-      FContext.Lua.State.NewSubTableFromStream( Self ,'__hooks', Stream );
+      FContext.Lua.Stack.NewSubTableFromStream( Self ,'__hooks', Stream );
   end;
 end;
 
@@ -578,11 +578,11 @@ begin
     if FLuaIndex >= 0 then
     begin
       Stream.WriteByte(1);
-      FContext.Lua.State.SubTableToStream( Self ,'__props', Stream );
-      if FContext.Lua.State.HasSubTable( Self, '__hooks' ) then
+      FContext.Lua.Stack.SubTableToStream( Self ,'__props', Stream );
+      if FContext.Lua.Stack.HasSubTable( Self, '__hooks' ) then
       begin
         Stream.WriteByte(1);
-        FContext.Lua.State.SubTableToStream( Self ,'__hooks', Stream );
+        FContext.Lua.Stack.SubTableToStream( Self ,'__hooks', Stream );
       end
       else
         Stream.WriteByte(0);
@@ -852,22 +852,22 @@ end;
 
 function TNode.GetLuaProperty ( const Index : AnsiString ) : Variant;
 begin
-  Exit( FContext.Lua.State.GetLuaProperty( Self, Index ) );
+  Exit( FContext.Lua.Stack.GetLuaProperty( Self, Index ) );
 end;
 
 procedure TNode.SetLuaProperty ( const Index : AnsiString; Value : Variant ) ;
 begin
-  FContext.Lua.State.SetLuaProperty( Self, Index, Value );
+  FContext.Lua.Stack.SetLuaProperty( Self, Index, Value );
 end;
 
 function TNode.GetLuaProperty(const aPath: array of const; aDefValue: Variant ): Variant;
 begin
-  Exit( FContext.Lua.State.GetLuaProperty( Self, aPath, aDefValue ) );
+  Exit( FContext.Lua.Stack.GetLuaProperty( Self, aPath, aDefValue ) );
 end;
 
 procedure TNode.SetLuaProperty(const aPath: array of const; aValue: Variant);
 begin
-  FContext.Lua.State.SetLuaProperty( Self, aPath, aValue );
+  FContext.Lua.Stack.SetLuaProperty( Self, aPath, aValue );
 end;
 
 function TNode.GetLuaProtoValue ( const Index : AnsiString ) : Variant;
@@ -1174,7 +1174,7 @@ begin
 end;
 
 function lua_node_get_type(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1184,7 +1184,7 @@ begin
 end;
 
 function lua_node_get_id(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1194,7 +1194,7 @@ begin
 end;
 
 function lua_node_get_uid(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1204,7 +1204,7 @@ begin
 end;
 
 function lua_node_get_parent(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1214,7 +1214,7 @@ begin
 end;
 
 function lua_node_get_child_count(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1224,7 +1224,7 @@ begin
 end;
 
 function lua_node_children_closure(L: Plua_State): Integer; cdecl;
-var State     : TLuaState;
+var State     : TLuaStack;
     Parent    : TNode;
     Next      : TNode;
     Current   : TNode;
@@ -1244,7 +1244,7 @@ begin
 end;
 
 function lua_node_children_filter_closure(L: Plua_State): Integer; cdecl;
-var State     : TLuaState;
+var State     : TLuaStack;
     Parent    : TNode;
     Next      : TNode;
     Current   : TNode;
@@ -1270,7 +1270,7 @@ end;
 
 // iterator
 function lua_node_children(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1288,7 +1288,7 @@ begin
 end;
 
 function lua_node_property_set(L: Plua_State): Integer; cdecl;
-var State  : TLuaState;
+var State  : TLuaStack;
     Node   : TNode;
     Prop   : AnsiString;
     HookID : Integer;
@@ -1324,7 +1324,7 @@ begin
 end;
 
 function lua_node_property_get(L: Plua_State): Integer; cdecl;
-var iState   : TLuaState;
+var iState   : TLuaStack;
     iNode    : TNode;
     iProp    : AnsiString;
     iRes     : Variant;
@@ -1392,7 +1392,7 @@ begin
 end;
 
 function lua_node_add(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1402,7 +1402,7 @@ begin
 end;
 
 function lua_node_register_hook(L: Plua_State): Integer; cdecl;
-var State  : TLuaState;
+var State  : TLuaStack;
     GNode  : TNode;
     Hook   : AnsiString;
     ID     : Integer;
@@ -1457,7 +1457,7 @@ begin
 end;
 
 function lua_node_flags_get(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
+var iState : TLuaStack;
     iNode  : TNode;
 begin
   iState.Init( L );
@@ -1468,7 +1468,7 @@ begin
 end;
 
 function lua_node_flags_set(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
+var iState : TLuaStack;
     iNode  : TNode;
     iFlag  : byte;
 begin
@@ -1483,7 +1483,7 @@ begin
 end;
 
 function lua_node_destroy(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
+var iState : TLuaStack;
     iNode  : TNode;
 begin
   iState.Init(L);
@@ -1510,12 +1510,12 @@ const lua_node_lib : array[0..14] of luaL_Reg = (
       ( name : nil;               func : nil; )
 );
 
-class procedure TNode.RegisterLuaAPI( aLuaSystem : TLuaSystem; const aTableName : AnsiString );
+class procedure TNode.RegisterLuaAPI( aLua : TLua; const aTableName : AnsiString );
 begin
-  aLuaSystem.Register( aTableName, lua_node_lib );
-  aLuaSystem.RegisterSubTable( aTableName, '__props' );
-  aLuaSystem.RegisterMetaTable( aTableName, 'flags', @lua_node_flags_get, @lua_node_flags_set );
-  aLuaSystem.RegisterMetaTable( aTableName, @lua_node_property_get, @lua_node_property_set );
+  aLua.Register( aTableName, lua_node_lib );
+  aLua.RegisterSubTable( aTableName, '__props' );
+  aLua.RegisterMetaTable( aTableName, 'flags', @lua_node_flags_get, @lua_node_flags_set );
+  aLua.RegisterMetaTable( aTableName, @lua_node_property_get, @lua_node_property_set );
 end;
 
 

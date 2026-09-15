@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vluatype;
 interface
-uses Classes, SysUtils, vlualibrary;
+uses classes, sysutils, vlualibrary;
 
 type ILuaType = interface['vluatype.iluatype']
   procedure Push( L : PLua_state );
@@ -11,7 +11,7 @@ type TLuaType = class( ILuaType )
   procedure Push( L : PLua_state ); virtual; abstract;
 end;
 
-type ILuaReferencedObject = interface['vluastate.luareferencedobject']
+type ILuaReferencedObject = interface['vluastack.luareferencedobject']
     function GetLuaIndex      : Integer;
     function GetID            : AnsiString;
     function GetProtoTable    : AnsiString;

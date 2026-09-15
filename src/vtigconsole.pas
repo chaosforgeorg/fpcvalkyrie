@@ -1,12 +1,12 @@
 {$INCLUDE valkyrie.inc}
 unit vtigconsole;
 interface
-uses viotypes, vgenerics, vluasystem;
+uses viotypes, vgenerics, vlua;
 
 type TTIGStringRing = specialize TGRingBuffer<AnsiString>;
 
 type TTIGConsoleView = class( TIOLayer )
-  constructor Create( aLua : TLuaSystem );
+  constructor Create( aLua : TLua );
   procedure Update( aDTime : Integer; aActive : Boolean ); override;
   function IsModal : Boolean; override;
   procedure Writeln( const aText : Ansistring );
@@ -16,7 +16,7 @@ type TTIGConsoleView = class( TIOLayer )
 protected
   procedure Execute( const aLine : Ansistring );
 protected
-  FLua      : TLuaSystem;
+  FLua      : TLua;
   FHPos     : LongInt;
   FText     : TTIGStringRing;
   FHistory  : TTIGStringRing;
@@ -29,7 +29,7 @@ uses sysutils, classes, vutil, vtig, vtigio, vio;
 
 const TIG_CONSOLE_LINES = 16;
 
-constructor TTIGConsoleView.Create( aLua : TLuaSystem );
+constructor TTIGConsoleView.Create( aLua : TLua );
 begin
   FLua := aLua;
   FHistory  := nil;

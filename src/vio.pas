@@ -1,8 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vio;
 interface
-uses vluasystem, Classes, SysUtils, vsystem, vgenerics,
-     vioevent, viopadstate, viotypes, vtigconsole, vioconsole, vbindings;
+uses classes, sysutils, vlua, vsystem, vgenerics, vioevent, viopadstate, viotypes, vtigconsole, vioconsole, vbindings;
 
 // Architectural boundary: owns driver, console, layers, and binding contexts.
 // Device mechanics, renderer implementation, path, and game policy belong to callers.
@@ -19,7 +18,7 @@ type TIO = class( TSystem )
   function OnEvent( const aEvent : TIOEvent ) : Boolean; virtual;
   function HandleEvents : Boolean; virtual;
   destructor Destroy; override;
-  procedure ToggleDebugConsole( aLua : TLuaSystem );
+  procedure ToggleDebugConsole( aLua : TLua );
   function PushLayer( aLayer : TIOLayer ) : TIOLayer; virtual;
   function IsTopLayer( aLayer : TIOLayer ) : Boolean;
   function IsModal : Boolean;
@@ -56,7 +55,7 @@ var IO : TIO;
 
 implementation
 
-uses vutil, vtig, vtigio, vioeventstate, dateutils, math;
+uses dateutils, math, vutil, vtig, vtigio, vioeventstate;
 
 { TIO }
 
@@ -343,7 +342,7 @@ begin
   end;
 end;
 
-procedure TIO.ToggleDebugConsole( aLua : TLuaSystem );
+procedure TIO.ToggleDebugConsole( aLua : TLua );
 begin
   if FTIGConsoleView <> nil then
   begin

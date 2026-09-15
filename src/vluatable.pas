@@ -1,8 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vluatable;
 interface
-uses sysutils, classes, variants, vlualibrary,
-     vluavalue, vrltools, vutil, vvector, vobject, vcolor;
+uses sysutils, classes, variants, vlualibrary, vluavalue, vrltools, vutil, vvector, vobject, vcolor;
 
 const
   LuaKeyField  = -2;
@@ -275,7 +274,7 @@ end;
 
 
 implementation
-uses strutils, vluasystem, vdebug, vluaext, vluatools, vluatype;
+uses strutils, vlua, vdebug, vluaext, vluatools, vluatype;
 
 { TLuaITablesEnumerator }
 
@@ -1467,7 +1466,7 @@ end;
 
 function TLuaTable.ProtectedCall ( const aName : AnsiString;
   const Args : array of const; aDefault : Variant ) : Variant;
-var iContext : TLuaSystemContext;
+var iContext : TLuaContext;
 begin
   try
     Exit( Call( aName, Args, aDefault ) );
@@ -1479,7 +1478,7 @@ begin
     ErrorLogWriteln('Error message : '+iError.Message);
     ErrorLogClose;
     ProtectedCall := aDefault;
-    iContext := TLuaSystemContext.FromState( FState );
+    iContext := TLuaContext.FromState( FState );
     if iContext <> nil then
       iContext.Lua.OnError( aName + ' -- ' + iError.Message );
   end;

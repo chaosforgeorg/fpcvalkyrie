@@ -3,20 +3,20 @@ unit vluadungen;
 {$MODE OBJFPC}
 interface
 
-uses Classes, SysUtils, vlualibrary, vrltools, vluamapnode;
+uses classes, sysutils, vlualibrary, vrltools, vluamapnode;
 
 procedure RegisterDungenClass( L : Plua_State; ObjectName : AnsiString = '' );
 
 implementation
 
-uses vutil, vlua, vluatools, vluaext, strutils;
+uses strutils, vutil, vluastate, vluatools, vluaext;
 
 const
   VALKYRIE_DUNGEN      = 'valkyrie.dungen';
   VALKYRIE_DUNGEN_TILE = 'valkyrie.dungen.tile';
 
 function lua_dungen_plot_line( L : Plua_State ) : Integer; cdecl;
-var iState      : TLuaMapState;
+var iState      : TLuaMapStack;
     iPoint      : TCoord2D;
     iCoord      : TCoord2D;
     iStep       : TCoord2D;
@@ -67,7 +67,7 @@ begin
 end;
 
 function lua_dungen_get_endpoints( L : Plua_State ) : Integer; cdecl;
-var iState   : TLuaMapState;
+var iState   : TLuaMapStack;
     iCoord   : TCoord2D;
     iWhere   : TCoord2D;
     iStep    : TCoord2D;
@@ -119,7 +119,7 @@ begin
 end;
 
 function lua_dungen_get_endpoint_coords( L : Plua_State ) : Integer; cdecl;
-var iState   : TLuaMapState;
+var iState   : TLuaMapStack;
     iCoord   : TCoord2D;
     iWhere   : TCoord2D;
     iStep    : TCoord2D;
@@ -171,7 +171,7 @@ begin
 end;
 
 function lua_dungen_read_rooms( L : Plua_State ) : Integer; cdecl;
-var iState   : TLuaMapState;
+var iState   : TLuaMapStack;
     iMap     : TLuaMapNode;
     iArea    : TArea;
     iCell    : Byte;
@@ -217,7 +217,7 @@ begin
 end;
 
 function lua_dungen_run_drunkard_walk( L : Plua_State ) : Integer; cdecl;
-var iState  : TLuaMapState;
+var iState  : TLuaMapStack;
     iSteps  : DWord;
     iCount  : DWord;
     iCoord  : TCoord2D;
@@ -257,7 +257,7 @@ begin
 end;
 
 function lua_dungen_cellular_init( L : Plua_State ) : Integer; cdecl;
-var iState  : TLuaMapState;
+var iState  : TLuaMapStack;
     iCoord  : TCoord2D;
     iArea   : TArea;
     iFull   : Byte;
@@ -282,7 +282,7 @@ begin
 end;
 
 function lua_dungen_cellular_random( L : Plua_State ) : Integer; cdecl;
-var iState  : TLuaMapState;
+var iState  : TLuaMapStack;
     iCoord  : TCoord2D;
     iC      : TCoord2D;
     iArea   : TArea;
@@ -332,7 +332,7 @@ begin
 end;
 
 function lua_dungen_cellular_clear( L : Plua_State ) : Integer; cdecl;
-var iState : TLuaMapState;
+var iState : TLuaMapStack;
     iCoord : TCoord2D;
     iArea  : TArea;
     iCell  : Byte;
@@ -352,7 +352,7 @@ begin
 end;
 
 function lua_dungen_flood_fill( L : Plua_State ) : Integer; cdecl;
-var iState : TLuaMapState;
+var iState : TLuaMapStack;
     iStart : TCoord2D;
     iCur   : TCoord2D;
     iC     : TCoord2D;
@@ -468,7 +468,7 @@ begin
 end;
 
 function lua_dungen_tile_new( L : Plua_State ) : Integer; cdecl;
-var iState       : TLuaMapState;
+var iState       : TLuaMapStack;
     iCode        : AnsiString;
     iTile        : TTileRecord;
     iLine, iRow  : Word;
@@ -523,7 +523,7 @@ begin
 end;
 
 function lua_dungen_tile_place( L : Plua_State ) : Integer; cdecl;
-var iState : TLuaMapState;
+var iState : TLuaMapStack;
     iTile  : PTileRecord;
     iCoord : TCoord2D;
     iX, iY : Word;

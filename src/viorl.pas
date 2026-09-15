@@ -1,8 +1,8 @@
 {$INCLUDE valkyrie.inc}
 unit viorl;
 interface
-uses Classes, SysUtils, vio, vrltools, vluaentitynode, vluamapnode, vrandom,
-     vluastate, vluaconfig, vioevent, viotypes, vioconsole, vtextmap, vmessages, vbindings;
+uses classes, sysutils,
+     vio, vrltools, vluaentitynode, vluamapnode, vrandom, vluastack, vluaconfig, vioevent, viotypes, vioconsole, vtextmap, vmessages, vbindings;
 
 const COMMAND_SYSQUIT = 253;
 
@@ -73,7 +73,7 @@ TIORL = class( TIO )
 
   // Register Lua API
   // Register Lua API
-  class procedure RegisterLuaAPI( State : TLuaState; const aTableName : AnsiString );
+  class procedure RegisterLuaAPI( State : TLuaStack; const aTableName : AnsiString );
 private
   function GetMapShift : TIOPoint;
 protected
@@ -98,7 +98,7 @@ end;
 
 implementation
 
-uses vtig, vluasystem, vutil, math;
+uses math, vtig, vlua, vutil;
 
 var IORL : TIORL = nil;
 
@@ -360,7 +360,7 @@ begin
 end;
 
 function lua_iorl_msg(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
+var iState : TLuaStack;
 begin
   if IORL = nil then Exit(0);
   iState.Init(L);
@@ -370,7 +370,7 @@ begin
 end;
 
 function lua_iorl_msg_enter(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
+var iState : TLuaStack;
 begin
   if IORL = nil then Exit(0);
   iState.Init(L);
@@ -381,7 +381,7 @@ begin
 end;
 
 function lua_iorl_delay(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
 begin
   if IORL = nil then Exit(0);
   State.Init(L);
@@ -397,7 +397,7 @@ const lua_iorl_lib : array[0..3] of luaL_Reg = (
   ( name : nil;                  func : nil; )
 );
 
-class procedure TIORL.RegisterLuaAPI ( State : TLuaState;
+class procedure TIORL.RegisterLuaAPI ( State : TLuaStack;
   const aTableName : AnsiString ) ;
 begin
   State.Register( aTableName, lua_iorl_lib );

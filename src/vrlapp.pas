@@ -3,8 +3,7 @@
 unit vrlapp;
 interface
 
-uses sysutils,
-     vapp, vsystem, vrandom, viorl, vluasystem, vioevent;
+uses sysutils, vapp, vsystem, vrandom, viorl, vlua, vioevent;
 
 type
   ERLRuntimeState = class( Exception );
@@ -23,10 +22,10 @@ type TRLRuntime = class abstract( TSystem )
     procedure ReleaseLua;
     function ConsoleCallback( aEvent : TIOEvent ) : Boolean;
   protected
-    FLua   : TLuaSystem;
+    FLua   : TLua;
     FPaths : TGamePaths;
     function CreateIO : TIORL; virtual; abstract;
-    function CreateLua : TLuaSystem; virtual; abstract;
+    function CreateLua : TLua; virtual; abstract;
     procedure PrepareGameData; virtual;
     procedure InitializeGameData; virtual;
     function RunGame : TVRunResult; virtual; abstract;
@@ -47,7 +46,7 @@ type TRLRuntime = class abstract( TSystem )
     property Configuration : TObject read FConfiguration;
     property GameRNG : TRNG read FGameRNG;
     property IO : TIORL read FIO;
-    property Lua : TLuaSystem read FLua;
+    property Lua : TLua read FLua;
     property DataInitialized : Boolean read FDataInitialized;
   end;
 
@@ -74,8 +73,7 @@ type TRLApplication = class abstract( TValkyrieApplication )
 
 implementation
 
-uses
-  vio, vlua;
+uses vio, vluastate;
 
 { TRLRuntime }
 

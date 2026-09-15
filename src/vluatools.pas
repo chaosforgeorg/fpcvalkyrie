@@ -9,7 +9,7 @@
 
 unit vluatools;
 interface
-uses Classes, SysUtils, vlualibrary, vutil, vrltools, vluatype;
+uses classes, sysutils, vlualibrary, vutil, vrltools, vluatype;
 
 procedure RegisterTableAuxFunctions( L: Plua_State );
 procedure RegisterMathAuxFunctions( L: Plua_State );
@@ -60,7 +60,7 @@ function LuaStackRef( aL : Plua_State; aIndex : Integer ) : TLuaType;
 
 implementation
 
-uses vluastate, vluaext, vuid, vlua, vluasystem;
+uses vluastack, vluaext, vuid, vluastate, vlua;
 
 function vlua_toflags( L : Plua_State; Index : Integer ): TFlags;
 begin
@@ -1419,9 +1419,9 @@ end;
 // -------- UID functions --------------------------------------------- //
 
 function LuaUIDStore( aState : PLua_State ) : TUIDStore;
-var iContext : TLuaSystemContext;
+var iContext : TLuaContext;
 begin
-  iContext := TLuaSystemContext.FromState( aState );
+  iContext := TLuaContext.FromState( aState );
   if iContext = nil then
     luaL_error( aState, 'Lua system context is not registered' );
   if iContext.UIDs = nil then

@@ -2,7 +2,7 @@ unit vluaconfig;
 {$MODE OBJFPC}
 interface
 
-uses classes, vnode, vluastate, vioevent, viotypes, vbindings;
+uses classes, vnode, vluastack, vioevent, viotypes, vbindings;
 
 type TEntryCallback = procedure ( key, value : Variant ) of object;
 
@@ -32,13 +32,13 @@ TLuaConfig = class(TVObject)
     function Resolve( const Key : AnsiString ) : Boolean;
   protected
     FState      : PLua_State;
-    FLuaState   : TLuaState;
+    FStack      : TLuaStack;
     FKeyTabName : AnsiString;
     FConfigPath : AnsiString;
   public
     property ConfigPath : AnsiString read FConfigPath write FConfigPath;
     property Raw : PLua_State read FState;
-    property State : TLuaState read FLuaState;
+    property Stack : TLuaStack read FStack;
   end;
 
 implementation
@@ -104,7 +104,7 @@ begin
     FState := aState;
 
   if aFileName <> '' then LoadMain( aFileName );
-  FLuaState.Init( FState );
+  FStack.Init( FState );
 end;
 
 procedure TLuaConfig.LoadKeybindings( aContext : TBindingContext; const aTableName : AnsiString );

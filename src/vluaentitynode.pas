@@ -19,11 +19,11 @@
 //  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 //  @html </div>
 //
-// TODO - unwrap TLuaState calls for efficiency
+// TODO - unwrap TLuaStack calls for efficiency
 
 unit vluaentitynode;
 interface
-uses Classes, vnode, vutil, vrltools, vluastate, viotypes, vluasystem;
+uses classes, vnode, vutil, vrltools, vluastack, viotypes, vlua;
 
 const ENTITY_BEING    = 1;
       ENTITY_ITEM     = 2;
@@ -50,7 +50,7 @@ TLuaEntityNode = class( TNode )
   // Should push given property to the passed state
   function GetProperty( L : PLua_State; const aPropertyName : AnsiString ) : Integer; override;
   // Register API -- WARNING - registers TableName metatable!
-  class procedure RegisterLuaAPI( aLuaSystem : TLuaSystem; const aTableName : AnsiString );
+  class procedure RegisterLuaAPI( aLua : TLua; const aTableName : AnsiString );
 protected
   // Position
   FPosition  : TCoord2D;
@@ -127,7 +127,7 @@ end;
 
 function TLuaEntityNode.GetProperty ( L : PLua_State;
   const aPropertyName : AnsiString ) : Integer;
-var iState : TLuaState;
+var iState : TLuaStack;
 begin
   iState.Init(L);
   if aPropertyName = 'position' then begin iState.PushCoord( FPosition ); Exit( 1 ); end;
@@ -136,7 +136,7 @@ begin
 end;
 
 function lua_entity_node_distance_to(L: Plua_State) : Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     GNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -149,7 +149,7 @@ begin
 end;
 
 function lua_entity_node_displace(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     GNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -159,7 +159,7 @@ begin
 end;
 
 function lua_entity_node_position(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     GNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -207,7 +207,7 @@ begin
 end;
 
 function lua_entity_node_siblings_in_range(L: Plua_State): Integer; cdecl;
-var State   : TLuaState;
+var State   : TLuaStack;
     LuaNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -225,7 +225,7 @@ begin
 end;
 
 function lua_entity_node_is_visible(L: Plua_State) : Integer; cdecl;
-var State   : TLuaState;
+var State   : TLuaStack;
     LuaNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -235,7 +235,7 @@ begin
 end;
 
 function lua_entity_node_is_being(L: Plua_State): Integer; cdecl;
-var State   : TLuaState;
+var State   : TLuaStack;
     LuaNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -245,7 +245,7 @@ begin
 end;
 
 function lua_entity_node_is_item(L: Plua_State): Integer; cdecl;
-var State   : TLuaState;
+var State   : TLuaStack;
     LuaNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -266,9 +266,9 @@ const lua_entity_node_lib : array[0..6] of luaL_Reg = (
 );
 
 
-class procedure TLuaEntityNode.RegisterLuaAPI( aLuaSystem : TLuaSystem; const aTableName : AnsiString );
+class procedure TLuaEntityNode.RegisterLuaAPI( aLua : TLua; const aTableName : AnsiString );
 begin
-  aLuaSystem.Register( aTableName, lua_entity_node_lib );
+  aLua.Register( aTableName, lua_entity_node_lib );
 end;
 
 end.
