@@ -9,8 +9,7 @@
 // It implements a tree-like structure. Also, each node
 // has an unique identifier, represented by @link(TUID).
 //
-// This unit also implements the two Valkyrie base classes :
-// TVObject and TVClass.
+// This unit also defines TNodeContext and exposes the TVObject base class.
 //
 //  @html <div class="license">
 //  This library is free software; you can redistribute it and/or modify it
@@ -35,37 +34,23 @@
 
 unit vnode;
 interface
-uses Classes, vutil, vdebug, vluatype, vlualibrary;
+uses Classes, vutil, vdebug, vluatype, vlualibrary, vobject, vluasystem, vuid;
 
-// The most generic of Valkyrie objects. Implements only the error
-// handling functions. It is recommended that all Valkyrie classes
-// inherit at least this class.
-type
+type TVObject      = vobject.TVObject;
+     TVObjectClass = vobject.TVObjectClass;
 
-{ TVObject }
-
-TVObject = class( TObject )
-     // TVObject Interface for @link(grdebug.Log).
-     procedure   Log( const aLogString : Ansistring ); virtual;
-     // TVObject Interface for @link(grdebug.Log).
-     procedure   Log( aLevel : TLogLevel; const aLogString : Ansistring ); virtual;
-     // TVObject Interface for @link(grdebug.Log), Formatted version.
-     procedure   Log( const aLogString : Ansistring; const aParam : array of Const );
-     // TVObject Interface for @link(grdebug.Log), Formatted version.
-     procedure   Log( aLevel : TLogLevel; const aLogString       : Ansistring; const aParam : array of Const );
-     // Returns wether the object has a parent -- in case of TVObject it's always false
-     function hasParent : boolean; virtual;
-     // Returns wether the object has a child -- in case of TVObject it's always false
-     function hasChild : boolean; virtual;
-     // Returns wether the object is a TVNode
-     function isNode : boolean; virtual;
-     // Stream constructor, reads UID, and ID from stream, should be overriden.
-     constructor CreateFromStream( Stream : TStream ); virtual;
-     // Write Node to stream (UID and ID) should be overriden.
-     procedure WriteToStream( Stream : TStream ); virtual;
-  end;
-
-type TVObjectClass = class of TVObject;
+// Borrowed services for nodes belonging to one game session.
+type TNodeContext = class
+  private
+    FLua  : TLuaSystem;
+    FUIDs : TUIDStore;
+  public
+    constructor Create( aLua : TLuaSystem; aUIDs : TUIDStore );
+    procedure BindLua( aLua : TLuaSystem );
+    procedure BindUIDs( aUIDs : TUIDStore );
+    property Lua  : TLuaSystem read FLua;
+    property UIDs : TUIDStore  read FUIDs;
+end;
 
 type TNode = class;
 type TNodeClass = class of TNode;
@@ -141,10 +126,13 @@ type TNodeClass = class of TNode;
 TNode = class(TVObject, ILuaReferencedObject)
        // Standard constructor, zeroes all fields.
        constructor Create; virtual;
+       constructor Create( aContext : TNodeContext );
        // Lua constructor - registers the class with lua, and reads props
-       constructor Create( const aID : AnsiString; aUID : Boolean );
-       // Stream constructor, reads UID, and ID from stream, should be overriden.
+       constructor Create( const aID : AnsiString; aContext : TNodeContext );
+       // Context-free stream constructor for nodes without Lua or UID registration.
        constructor CreateFromStream( Stream : TStream ); override;
+       // Registered nodes load through an explicit context.
+       constructor CreateFromStream( Stream : TStream; aContext : TNodeContext ); reintroduce; virtual;
        // Write Node to stream (UID and ID) should be overriden.
        procedure WriteToStream( Stream : TStream ); override;
        // zeroes all fields.
@@ -204,10 +192,6 @@ TNode = class(TVObject, ILuaReferencedObject)
        function GetLuaIndex   : Integer;
        // Lua interface - GetID
        function GetID         : AnsiString;
-       // Lua interface - GetProtoTable
-       function GetProtoTable : AnsiString;
-       // Lua interface - GetProtoName
-       function GetProtoName  : AnsiString;
        // Returns a property value from Lua __props of this instance
        function GetLuaProperty( const Index : AnsiString ) : Variant;
        // Sets a property value in Lua __props of this instance
@@ -237,19 +221,22 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Default implementation is no-op
        function SetProperty( L : PLua_State; const aPropertyName : AnsiString; aValueIndex : Integer ) : Boolean; virtual;
      protected
+       // ILuaReferencedObject access for the lower-level Lua units.
+       function GetProtoTable : AnsiString;
        // Lua interface - registers with LuaSystem
        procedure RegisterWithLua( aClassType : TClass = nil );
      protected
        // Unique IDentification number (@link(TUID))
-       // Assigned by the @link(UIDs) singleton, unique.
+       // Assigned by the context UID store.
        FUID          : TUID;
+       FContext      : TNodeContext;
        // Identification Number of this Class - may be shared among similar
        // Classes.
        FID           : TIDN;
        // Lua Registry index.
        FLuaIndex     : LongInt;
        // Lua Class pointer for vluasystem
-       FLuaClassInfo : Pointer;
+       FLuaClassInfo : TLuaClassInfo;
        // Hooks
        FHooks        : TFlags;
        // Name
@@ -278,7 +265,9 @@ TNode = class(TVObject, ILuaReferencedObject)
        property Flags[ Index : Byte ] : Boolean read GetFlag write SetFlag;
 
      public
-       property LuaClassInfo : Pointer read FLuaClassInfo;
+       property LuaClassInfo : TLuaClassInfo read FLuaClassInfo;
+       property Context      : TNodeContext read FContext;
+       
        property UID        : TUID read FUID;
        property ID         : TIDN read FID;
        property Parent     : TNode read FParent;
@@ -434,7 +423,24 @@ private
 end;
 
 implementation
-uses sysutils, typinfo, vluasystem, vluastate, vuid;
+uses sysutils, typinfo, vluastate;
+
+constructor TNodeContext.Create( aLua : TLuaSystem; aUIDs : TUIDStore );
+begin
+  inherited Create;
+  FLua := aLua;
+  FUIDs := aUIDs;
+end;
+
+procedure TNodeContext.BindLua( aLua : TLuaSystem );
+begin
+  FLua := aLua;
+end;
+
+procedure TNodeContext.BindUIDs( aUIDs : TUIDStore );
+begin
+  FUIDs := aUIDs;
+end;
 
 { TGNodeEnumerator }
 
@@ -498,19 +504,27 @@ begin
   Clean;
 end;
 
-constructor TNode.Create(const aID: AnsiString; aUID : Boolean );
+constructor TNode.Create( aContext : TNodeContext );
+begin
+  Log( LOGDEBUG2, 'Created.' );
+  Clean;
+  FContext := aContext;
+end;
+
+constructor TNode.Create( const aID : AnsiString; aContext : TNodeContext );
 var iCount : DWord;
 begin
   Log(LOGDEBUG2,'Created.');
   Clean;
+  FContext      := aContext;
   FID           := aID;
   RegisterWithLua;
-  if aUID and (UIDs <> nil) then FUID := UIDs.Register( Self );
-  LuaSystem.State.SetPrototypeTable( Self, '__proto' );
+  if FContext.UIDs <> nil then FUID := FContext.UIDs.Register( Self );
+  FContext.Lua.State.SetPrototypeTable( Self, '__proto' );
 
-  with LuaSystem.GetTable( [ GetProtoTable, ID ] ) do
+  with FContext.Lua.GetTable( [ LuaClassInfo.Storage, ID ] ) do
   try
-    with TLuaClassInfo( LuaClassInfo ) do
+    with LuaClassInfo do
       for iCount in HookSet do
         if isFunction( Hooks[ iCount ] ) then
           Include( FHooks, iCount );
@@ -520,11 +534,17 @@ begin
   end;
 end;
 
-constructor TNode.CreateFromStream( Stream: TStream );
+constructor TNode.CreateFromStream( Stream : TStream );
+begin
+  CreateFromStream( Stream, nil );
+end;
+
+constructor TNode.CreateFromStream( Stream : TStream; aContext : TNodeContext );
 begin
   Log(LOGDEBUG2,'Created.');
   Clean;
 
+  FContext := aContext;
   FID   := Stream.ReadAnsiString();
   FUID  := Stream.ReadQWord();
   FName := Stream.ReadAnsiString;
@@ -535,14 +555,14 @@ begin
   if Stream.ReadByte > 0 then
   begin
     RegisterWithLua;
-    if ( UIDs <> nil ) and ( FUID <> 0 ) then
-      UIDs.Register( Self, FUID );
+    if ( FContext.UIDs <> nil ) and ( FUID <> 0 ) then
+      FContext.UIDs.Register( Self, FUID );
 
-    LuaSystem.State.SetPrototypeTable( Self, '__proto' );
-    LuaSystem.State.SubTableFromStream( Self ,'__props', Stream );
+    FContext.Lua.State.SetPrototypeTable( Self, '__proto' );
+    FContext.Lua.State.SubTableFromStream( Self ,'__props', Stream );
 
     if Stream.ReadByte = 1 then
-      LuaSystem.State.NewSubTableFromStream( Self ,'__hooks', Stream );
+      FContext.Lua.State.NewSubTableFromStream( Self ,'__hooks', Stream );
   end;
 end;
 
@@ -558,11 +578,11 @@ begin
     if FLuaIndex >= 0 then
     begin
       Stream.WriteByte(1);
-      LuaSystem.State.SubTableToStream( Self ,'__props', Stream );
-      if LuaSystem.State.HasSubTable( Self, '__hooks' ) then
+      FContext.Lua.State.SubTableToStream( Self ,'__props', Stream );
+      if FContext.Lua.State.HasSubTable( Self, '__hooks' ) then
       begin
         Stream.WriteByte(1);
-        LuaSystem.State.SubTableToStream( Self ,'__hooks', Stream );
+        FContext.Lua.State.SubTableToStream( Self ,'__hooks', Stream );
       end
       else
         Stream.WriteByte(0);
@@ -690,13 +710,14 @@ end;
 destructor TNode.Destroy;
 begin
   Detach;
-  if (UIDs <> nil) and (FUID <> 0) then UIDs.Remove(FUID);
+  if ( FUID <> 0 ) and ( FContext.UIDs <> nil ) then
+    FContext.UIDs.Remove( FUID );
   while FChild <> nil do
   begin
     FChild.Free;
   end;
-  if (LuaSystem <> nil) and (FLuaIndex <> LUA_NOREF) then
-    LuaSystem.UnRegisterObject( Self );
+  if FLuaIndex <> LUA_NOREF then
+    FContext.Lua.UnRegisterObject( Self );
   Log(LOGDEBUG2,'Destroyed.');
 end;
 
@@ -808,20 +829,15 @@ end;
 
 function TNode.GetProtoTable: AnsiString;
 begin
-  Exit( TLuaClassInfo(FLuaClassInfo).Storage );
-end;
-
-function TNode.GetProtoName: AnsiString;
-begin
-  Exit( TLuaClassInfo(FLuaClassInfo).Proto );
+  Exit( FLuaClassInfo.Storage );
 end;
 
 procedure TNode.RegisterWithLua( aClassType : TClass = nil );
 begin
   if FLuaIndex <> LUA_NOREF then raise EException.Create('Register With Lua called twice!');
   if aClassType = nil then aClassType := Self.ClassType;
-  FLuaIndex := LuaSystem.RegisterObject( Self, aClassType.ClassName );
-  FLuaClassInfo := LuaSystem.GetClassInfo( aClassType );
+  FLuaIndex := FContext.Lua.RegisterObject( Self, aClassType.ClassName );
+  FLuaClassInfo := FContext.Lua.GetClassInfo( aClassType );
 end;
 
 function TNode.GetProperty ( L : PLua_State; const aPropertyName : AnsiString ) : Integer;
@@ -836,27 +852,27 @@ end;
 
 function TNode.GetLuaProperty ( const Index : AnsiString ) : Variant;
 begin
-  Exit( LuaSystem.State.GetLuaProperty( Self, Index ) );
+  Exit( FContext.Lua.State.GetLuaProperty( Self, Index ) );
 end;
 
 procedure TNode.SetLuaProperty ( const Index : AnsiString; Value : Variant ) ;
 begin
-  LuaSystem.State.SetLuaProperty( Self, Index, Value );
+  FContext.Lua.State.SetLuaProperty( Self, Index, Value );
 end;
 
 function TNode.GetLuaProperty(const aPath: array of const; aDefValue: Variant ): Variant;
 begin
-  Exit( LuaSystem.State.GetLuaProperty( Self, aPath, aDefValue ) );
+  Exit( FContext.Lua.State.GetLuaProperty( Self, aPath, aDefValue ) );
 end;
 
 procedure TNode.SetLuaProperty(const aPath: array of const; aValue: Variant);
 begin
-  LuaSystem.State.SetLuaProperty( Self, aPath, aValue );
+  FContext.Lua.State.SetLuaProperty( Self, aPath, aValue );
 end;
 
 function TNode.GetLuaProtoValue ( const Index : AnsiString ) : Variant;
 begin
-  Exit( LuaSystem.Get( [ GetProtoTable, ID, Index ] ) );
+  Exit( FContext.Lua.Get( [ LuaClassInfo.Storage, ID, Index ] ) );
 end;
 
 function TNode.GetFlag ( aFlag : Byte ) : Boolean;
@@ -875,7 +891,7 @@ function TNode.RunHook ( Hook : Word; const Args : array of const ) : Variant;
 begin
   RunHook := False;
   if Hook in FHooks then
-    RunHook := LuaSystem.ProtectedRunHook( Self, TLuaClassInfo( LuaClassInfo ).Hooks[ Hook ], Args );
+    RunHook := FContext.Lua.ProtectedRunHook( Self, LuaClassInfo.Hooks[ Hook ], Args );
 end;
 
 function TNode.HasHook ( Hook : Word ) : Boolean;
@@ -883,51 +899,6 @@ begin
   Exit( Hook in FHooks );
 end;
 
-
-procedure TVObject.Log      (const aLogString       : Ansistring);
-begin
-  vdebug.Log('<'+classname+'> '+aLogString);
-end;
-
-procedure TVObject.Log( aLevel: TLogLevel; const aLogString: Ansistring );
-begin
-  vdebug.Log( aLevel,'<'+classname+'> '+aLogString );
-end;
-
-procedure TVObject.Log( const aLogString: Ansistring; const aParam: array of const );
-begin
-  Log( Format( aLogString, aParam ) );
-end;
-
-procedure TVObject.Log( aLevel: TLogLevel; const aLogString: Ansistring; const aParam: array of const);
-begin
-  Log( aLevel, Format( aLogString, aParam ) );
-end;
-
-function TVObject.hasParent : boolean;
-begin
-  Exit(False);
-end;
-
-function TVObject.hasChild : boolean;
-begin
-  Exit(False);
-end;
-
-function TVObject.isNode : boolean; 
-begin
-  Exit(False);
-end;
-
-constructor TVObject.CreateFromStream ( Stream : TStream ) ;
-begin
-  // noop
-end;
-
-procedure TVObject.WriteToStream ( Stream : TStream ) ;
-begin
-  // noop
-end;
 
 { TGNodeListEnumerator }
 
@@ -1208,7 +1179,7 @@ var State : TLuaState;
 begin
   State.Init(L);
   Node := State.ToObject(1) as TNode;
-  State.Push( LuaSystem.GetProtoTable( Node.ClassType ) );
+  State.Push( Node.Context.Lua.GetProtoTable( Node.ClassType ) );
   Result := 1;
 end;
 
@@ -1288,7 +1259,7 @@ begin
     Current := Next;
     if Next <> nil then Next := Next.Next;
     if Next = Parent.Child then Next := nil;
-  until (Current = nil) or (Current.GetProtoName = Filter);
+  until (Current = nil) or (Current.LuaClassInfo.Proto = Filter);
 
   lua_pushlightuserdata( L, Next );
   lua_replace( L, lua_upvalueindex(2) );
@@ -1440,18 +1411,18 @@ begin
   lua_settop( L, 3 );
   GNode := State.ToObject(1) as TNode;
   Hook  := State.ToString(2);
-  ID := TLuaClassInfo(GNode.LuaClassInfo).GetHookID(Hook);
+  ID := GNode.LuaClassInfo.GetHookID(Hook);
   if ID = -1 then
     State.Error('Unknown hook "'+Hook+'" requested to be set on object of type '+GNode.ClassName+'!');
 
   if not lua_isnil( L, 3 ) then
   begin
     // Check if hook exists
-    lua_getglobal( L, GNode.GetProtoTable );
+    lua_getglobal( L, GNode.LuaClassInfo.Storage );
     lua_pushansistring( L, '__hooks' );
     lua_rawget( L, -2 );
     if lua_isnil( L, -1 ) then
-      State.Error('Table "'+GNode.GetProtoTable+'" has no __hooks registry!');
+      State.Error('Table "'+GNode.LuaClassInfo.Storage+'" has no __hooks registry!');
     lua_pushvalue( L, 3 );
     lua_rawget( L, -2 );
     if lua_isnil( L, -1 ) then
@@ -1477,7 +1448,7 @@ begin
   lua_rawset( L, -3 );
   if lua_isnil( L, 3 ) then
   begin
-    if not LuaSystem.Defined([ GNode.GetProtoTable, GNode.ID, Hook ]) then
+    if not GNode.Context.Lua.Defined([ GNode.LuaClassInfo.Storage, GNode.ID, Hook ]) then
       Exclude( GNode.FHooks, ID );
   end
   else

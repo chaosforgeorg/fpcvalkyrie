@@ -26,8 +26,8 @@
 
 unit vrltools;
 interface
-uses SysUtils, Classes, vmath, vutil, vnode, vvector, vcolor, vgenerics,
-  vrandom;
+uses sysutils, classes,
+     vmath, vutil, vobject, vvector, vcolor, vgenerics, vrandom;
 
 const DIR_NONE      = 0;
       DIR_DOWNLEFT  = 1;

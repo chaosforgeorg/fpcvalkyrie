@@ -188,7 +188,7 @@ begin
 end;
 
 function TEventController.Resolve(aEvent: PEvent): Boolean;
-var iTarget : TNode;
+var iTarget : TVObject;
 begin
   if aEvent^.Target <> 0 then
   begin

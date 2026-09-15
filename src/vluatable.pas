@@ -2,7 +2,7 @@
 unit vluatable;
 interface
 uses sysutils, classes, variants, vlualibrary,
-     vluavalue, vrltools, vutil, vvector, vnode, vcolor;
+     vluavalue, vrltools, vutil, vvector, vobject, vcolor;
 
 const
   LuaKeyField  = -2;

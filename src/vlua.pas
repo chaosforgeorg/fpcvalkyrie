@@ -2,7 +2,7 @@
 unit vlua;
 interface
 uses variants, classes,
-     vlualibrary, vnode, vutil, vdf, vrandom;
+     vlualibrary, vobject, vutil, vdf, vrandom;
 
 type ELuaException = vlualibrary.ELuaException;
      Plua_State    = vlualibrary.Plua_State;

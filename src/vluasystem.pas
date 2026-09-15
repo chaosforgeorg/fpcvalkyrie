@@ -27,7 +27,7 @@
 
 unit vluasystem;
 interface
-uses classes, vlualibrary, vutil, vdebug, vsystem, vlua, vluastate, vluatype, vdf, vgenerics, vluatable;
+uses classes, vlualibrary, vutil, vdebug, vobject, vlua, vluastate, vluatype, vdf, vgenerics, vluatable;
 
 type
    ELuaException = vlualibrary.ELuaException;
@@ -73,7 +73,7 @@ type
 
 { TLuaSystem }
 
- TLuaSystem = class(TSystem)
+ TLuaSystem = class(TVObject)
     // Registers system execution.
     constructor Create( coverState : Plua_State = nil ); reintroduce;
     // Closes system execution.

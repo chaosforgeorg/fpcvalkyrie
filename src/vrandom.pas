@@ -35,7 +35,7 @@
 unit vrandom;
 interface
 
-uses Classes, SysUtils, vnode;
+uses Classes, SysUtils, vobject;
 
 type
 

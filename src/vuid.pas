@@ -25,28 +25,28 @@
 
 unit vuid;
 interface
-uses Classes, vutil, vnode, vsystem;
+uses Classes, vutil, vobject;
 
 type TUIDStorePolicy = ( UIDReturnZero, UIDThrowException, UIDGrow );
 
 // Manager class for UIDs. Used through the singleton @link(UIDs).
-type TUIDStore = class(TSystem)
+type TUIDStore = class(TVObject)
        // Standard constructor.
-       constructor Create( aSize : DWord = $FFFF); reintroduce;
-       // UID lookup. Returns the @link(TNode) referenced by given UID.
-       function    Get( aUID : TUID ) : TNode;
+       constructor Create( aSize : DWord = $FFFF ); reintroduce;
+       // UID lookup. Returns the @link(TVObject) referenced by given UID.
+       function    Get( aUID : TUID ) : TVObject;
        // Marks the UID as invalid
        procedure   Remove( aUID : TUID ); reintroduce;
-       // Registers the Node with given UID.
-       procedure   Register( aNode : TNode; aUID : TUID);
-       // Registers the Node, returns UID (save it!).
-       function    Register( aNode : TNode ) : TUID;
+       // Registers the object with given UID.
+       procedure   Register( aObject : TVObject; aUID : TUID );
+       // Registers the object, returns UID (save it!).
+       function    Register( aObject : TVObject ) : TUID;
        // Returns a unused UID number, marks it as used!
        function    GetFreeID : TUID;
        // Standard destructor.
        destructor  Destroy; override;
        // Property for Get
-       property UIDs[aUID : TUID] : TNode read Get; default;
+       property UIDs[aUID : TUID] : TVObject read Get; default;
        // Stream constructor, reads ONLY the current Policy, UID and Size and
        // Initial parameters!
        constructor CreateFromStream( Stream : TStream ); override;
@@ -55,7 +55,7 @@ type TUIDStore = class(TSystem)
      private
        FPolicy  : TUIDStorePolicy;
        FIDCount : TUID;
-       FData    : array of TNode;
+       FData    : array of TVObject;
        FSize    : DWord;
        FInitial : DWord;
      private
@@ -79,11 +79,11 @@ begin
   FInitial := aSize;
   FPolicy  := UIDGrow;
   SetLength( FData, aSize );
-  FillChar( FData[0], aSize*SizeOf(TNode),0 );
+  FillChar( FData[0], aSize*SizeOf(TVObject),0 );
   FIDCount := 0;
 end;
 
-function TUIDStore.Get(aUID : TUID) : TNode;
+function TUIDStore.Get( aUID : TUID ) : TVObject;
 begin
   Get := FData[aUID];
 end;
@@ -93,15 +93,15 @@ begin
   FData[ aUID ] := nil;
 end;
 
-procedure TUIDStore.Register( aNode : TNode; aUID : TUID );
+procedure TUIDStore.Register( aObject : TVObject; aUID : TUID );
 begin
-  FData[ aUID ] := aNode;
+  FData[ aUID ] := aObject;
 end;
 
-function TUIDStore.Register( aNode : TNode ) : TUID;
+function TUIDStore.Register( aObject : TVObject ) : TUID;
 begin
   Register := GetFreeID;
-  FData[ Register ] := aNode;
+  FData[ Register ] := aObject;
 end;
 
 function TUIDStore.GetFreeID : TUID;
@@ -132,7 +132,7 @@ begin
   FInitial := Stream.ReadDWord;
 
   SetLength( FData, FSize );
-  FillChar( FData[0], FSize*SizeOf(TNode), 0 );
+  FillChar( FData[0], FSize*SizeOf(TVObject), 0 );
 end;
 
 procedure TUIDStore.WriteToStream ( Stream : TStream ) ;
@@ -148,7 +148,7 @@ var NewSize : DWord;
 begin
   NewSize := FSize + FInitial;
   SetLength( FData, NewSize );
-  FillChar( FData[FSize], FInitial*SizeOf(TNode), 0 );
+  FillChar( FData[FSize], FInitial*SizeOf(TVObject), 0 );
   FSize := NewSize;
 end;
 

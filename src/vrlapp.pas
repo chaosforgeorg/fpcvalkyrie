@@ -38,7 +38,7 @@ type TRLRuntime = class abstract( TSystem )
     destructor Destroy; override;
     procedure Initialize;
     function Run : TVRunResult;
-    procedure Shutdown;
+    procedure Shutdown; virtual;
     procedure Reset;
     procedure HandleGameException( aException : Exception ); virtual;
     procedure ReplaceGameRNG( var aGameRNG : TRNG );
@@ -154,8 +154,6 @@ begin
   try
     PrepareGameData;
     FLua := CreateLua;
-    if FLua <> nil then
-      Add(FLua);
     LuaSystem := FLua;
     InitializeGameData;
     FDataInitialized := True;

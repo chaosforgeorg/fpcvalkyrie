@@ -9,7 +9,7 @@
 //       TGBuiltInArray.
 unit vgenerics;
 interface
-uses types, classes, sysutils, vnode, vstream, vrandom;
+uses types, classes, sysutils, vobject, vstream, vrandom;
 
 type ERangeError       = class(Exception);
      ECollisionError   = class(Exception);

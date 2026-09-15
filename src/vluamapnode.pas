@@ -50,7 +50,7 @@ type PMapCell = ^TMapCell;
 type TLuaMapNode = class( TNode, IVisionQuery )
 public
   // Create and setup
-  constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte ); reintroduce;
+  constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte; aContext : TNodeContext ); reintroduce;
   // Removes given bits from lightMap
   procedure ClearLightMapBits( aValue : TWordSet );
   // Fills the light map with given value
@@ -128,7 +128,7 @@ public
   // Free generator and structure
   destructor Destroy; override;
   // Stream constructor, reads UID, and ID from stream, should be overriden.
-  constructor CreateFromStream( Stream : TStream ); override;
+  constructor CreateFromStream( Stream : TStream; aContext : TNodeContext ); override;
   // Write Node to stream (UID and ID) should be overriden.
   procedure WriteToStream( Stream : TStream ); override;
   // Register API
@@ -188,9 +188,9 @@ type TMinCoordChoice = specialize TGMinimalChoice<TCoord2D>;
 
 { TLuaMapNode }
 
-constructor TLuaMapNode.Create ( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte ) ;
+constructor TLuaMapNode.Create ( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte; aContext : TNodeContext );
 begin
-  inherited Create( aID, True );
+  inherited Create( aID, aContext );
   FArea.Create( NewCoord2D( 1, 1 ), NewCoord2D( aMaxX, aMaxY ) );
   FVision    := TIsaacVision.Create( Self, aMaxVision );
   FMaxVision := aMaxVision;
@@ -288,12 +288,12 @@ end;
 
 function TLuaMapNode.IDtoCell ( const aID : AnsiString ) : Byte;
 begin
-  Exit( LuaSystem.Defines[ aID ] );
+  Exit( FContext.Lua.Defines[ aID ] );
 end;
 
 function TLuaMapNode.CellToID( const aCell : Byte ) : AnsiString;
 begin
-  Exit( LuaSystem.Get([FCellsName,aCell,'id']) );
+  Exit( FContext.Lua.Get([FCellsName,aCell,'id']) );
 end;
 
 function TLuaMapNode.isEyeContact( const a,b : TCoord2D ) : boolean;
@@ -529,11 +529,11 @@ begin
   FreeMem( FCellMap, FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );
 end;
 
-constructor TLuaMapNode.CreateFromStream ( Stream : TStream ) ;
+constructor TLuaMapNode.CreateFromStream( Stream : TStream; aContext : TNodeContext );
 var iEntityID : DWord;
     iEntity   : TLuaEntityNode;
 begin
-  inherited CreateFromStream ( Stream ) ;
+  inherited CreateFromStream( Stream, aContext );
 
   Stream.Read( FArea, SizeOf( FArea ) );
   FMaxVision := Stream.ReadByte;
@@ -593,7 +593,7 @@ begin
   iType := lua_type( FState, aIndex );
   if iType = LUA_TSTRING then
   begin
-    iValue := LuaSystem.Defines.Get( ToString( aIndex ), -1 );
+    iValue := FMap.Context.Lua.Defines.Get( ToString( aIndex ), -1 );
     if iValue >= 0 then Exit( DWord( iValue ) );
     Error('Unknown CellID ("'+ToString( aIndex )+'") at index '+ToString( aIndex ) +'!');
   end

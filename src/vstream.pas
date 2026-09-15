@@ -25,7 +25,7 @@ end;
 
 implementation
 
-uses vnode;
+uses vobject;
 
 procedure TStreamHelper.WriteType( aPointer : Pointer; aSize : DWord; aTypeInfo : PTypeInfo );
 begin

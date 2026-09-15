@@ -35,9 +35,9 @@ TLuaEntityNodeEnumerator = specialize TGNodeEnumerator< TLuaEntityNode >;
 
 TLuaEntityNode = class( TNode )
   // Standard constructor, zeroes all fields.
-  constructor Create( const aID : AnsiString ); reintroduce;
+  constructor Create( const aID : AnsiString; aContext : TNodeContext ); reintroduce;
   // Stream constructor, reads UID, and ID from stream, should be overriden.
-  constructor CreateFromStream( Stream : TStream ); override;
+  constructor CreateFromStream( Stream : TStream; aContext : TNodeContext ); override;
   // Write Node to stream (UID and ID) should be overriden.
   procedure WriteToStream( Stream : TStream ); override;
   // Position change - calls TLuaMapNode.Displace
@@ -82,18 +82,18 @@ uses vluasystem, vluamapnode, vluatools, vluatype, vlualibrary;
 
 { TLuaEntityNode }
 
-constructor TLuaEntityNode.Create ( const aID : AnsiString ) ;
+constructor TLuaEntityNode.Create( const aID : AnsiString; aContext : TNodeContext );
 begin
-  inherited Create( aID, True );
+  inherited Create( aID, aContext );
   FPosition.Create(0,0);
   FEntityID := 0;
   FGylph.Color := 7;
   FGylph.ASCII := '?';
 end;
 
-constructor TLuaEntityNode.CreateFromStream ( Stream : TStream ) ;
+constructor TLuaEntityNode.CreateFromStream( Stream : TStream; aContext : TNodeContext );
 begin
-  inherited CreateFromStream ( Stream ) ;
+  inherited CreateFromStream( Stream, aContext );
   FEntityID := Stream.ReadByte;
   Stream.Read( FPosition, SizeOf(FPosition) );
   Stream.Read( FGylph,    SizeOf(FGylph) );
@@ -194,7 +194,7 @@ begin
     Current := Next as TLuaEntityNode;
     if Next <> nil then Next := Next.Next;
     if Next = Parent.Child then Next := nil;
-  until (Current = nil) or ( ((Filter   = '') or (Current.GetProtoName = Filter)) and
+  until (Current = nil) or ( ((Filter   = '') or (Current.LuaClassInfo.Proto = Filter)) and
                              ((FilterID = 0)  or (Current.EntityID = FilterID)) and
                              ( Distance( Current.FPosition, Coord ) <= Range )  and
                              (This <> Current) );
