@@ -54,6 +54,7 @@ type
     procedure BindUIDs( aUIDs : TUIDStore );
     procedure BindRNG( aRNG : TRNG );
     class function FromState( aState : PLua_State ) : TLuaContext; static;
+    class function RequireRNG( L : PLua_State ) : TRNG; static;
     property Lua  : TLua read FLua;
     property UIDs : TUIDStore read FUIDs;
     property RNG  : TRNG read FRNG;
@@ -279,6 +280,17 @@ begin
   lua_rawget( aState, LUA_REGISTRYINDEX );
   Result := TLuaContext( lua_touserdata( aState, -1 ) );
   lua_pop( aState, 1 );
+end;
+
+class function TLuaContext.RequireRNG( L : PLua_State ) : TRNG;
+var iContext : TLuaContext;
+begin
+  iContext := FromState( L );
+  if iContext = nil then
+    luaL_error( L, 'Lua context is not registered' );
+  Result := iContext.RNG;
+  if Result = nil then
+    luaL_error( L, 'RNG is not bound to this Lua context' );
 end;
 
 const BlueprintTypes : array[-1..8] of PChar = ( 'TANY', 'TNIL', 'TBOOL', 'TLUSER', 'TNUMBER', 'TSTRING', 'TTABLE', 'TFUNC', 'TUSER', 'TTHREAD' );
@@ -1214,10 +1226,12 @@ begin
   result := 0;
 end;
 
-function lua_core_set_rseed(L: Plua_State): Integer; cdecl;
+function lua_core_set_rseed( L : PLua_State ) : Integer; cdecl;
+var iRNG : TRNG;
 begin
   if lua_gettop(L) < 1 then Exit(0);
-  LuaRNG.SetSeed( DWord( lua_tointeger( L, 1 ) ) );
+  iRNG := TLuaContext.RequireRNG( L );
+  iRNG.SetSeed( DWord( lua_tointeger( L, 1 ) ) );
   Result := 0;
 end;
 

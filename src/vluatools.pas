@@ -60,7 +60,7 @@ function LuaStackRef( aL : Plua_State; aIndex : Integer ) : TLuaType;
 
 implementation
 
-uses vluastack, vluaext, vuid, vluastate, vlua;
+uses vluastack, vluaext, vuid, vlua, vrandom;
 
 function vlua_toflags( L : Plua_State; Index : Integer ): TFlags;
 begin
@@ -498,28 +498,34 @@ begin
   Exit(1);
 end;
 
-function lua_coord_random( L: Plua_State): Integer; cdecl;
-var Coord : TCoord2D;
+function lua_coord_random( L : PLua_State ) : Integer; cdecl;
+var iRNG   : TRNG;
+    iCoord : TCoord2D;
 begin
-  Coord.Random( LuaRNG, vlua_tocoord( L, 1 ), vlua_tocoord( L, 2 ) );
-  vlua_pushcoord( L, Coord );
+  iRNG := TLuaContext.RequireRNG( L );
+  iCoord.Random( iRNG, vlua_tocoord( L, 1 ), vlua_tocoord( L, 2 ) );
+  vlua_pushcoord( L, iCoord );
   Exit(1);
 end;
 
-function lua_coord_random_shift( L: Plua_State ): Integer; cdecl;
-var PCoord : PCoord2D;
+function lua_coord_random_shift( L : PLua_State ) : Integer; cdecl;
+var iRNG   : TRNG;
+    iCoord : PCoord2D;
 begin
-  PCoord := vlua_topcoord( L, 1 );
-  PCoord^.RandomShift( LuaRNG, lua_tointeger_def( L, 2, 1 ) );
+  iRNG := TLuaContext.RequireRNG( L );
+  iCoord := vlua_topcoord( L, 1 );
+  iCoord^.RandomShift( iRNG, lua_tointeger_def( L, 2, 1 ) );
   Exit(0);
 end;
 
-function lua_coord_random_shifted( L: Plua_State ): Integer; cdecl;
-var Coord : TCoord2D;
+function lua_coord_random_shifted( L : PLua_State ) : Integer; cdecl;
+var iRNG   : TRNG;
+    iCoord : TCoord2D;
 begin
-  Coord := vlua_tocoord( L, 1 );
-  Coord.RandomShift( LuaRNG, lua_tointeger_def( L, 2, 1 ) );
-  vlua_pushcoord( L, Coord );
+  iRNG := TLuaContext.RequireRNG( L );
+  iCoord := vlua_tocoord( L, 1 );
+  iCoord.RandomShift( iRNG, lua_tointeger_def( L, 2, 1 ) );
+  vlua_pushcoord( L, iCoord );
   Exit(1);
 end;
 
@@ -774,27 +780,33 @@ begin
   Exit(1);
 end;
 
-function lua_area_random_coord( L: Plua_State): Integer; cdecl;
-var Area : PArea;
+function lua_area_random_coord( L : PLua_State ) : Integer; cdecl;
+var iRNG  : TRNG;
+    iArea : PArea;
 begin
-  Area := vlua_toparea( L, 1 );
-  vlua_pushcoord( L, Area^.RandomCoord( LuaRNG ) );
+  iRNG := TLuaContext.RequireRNG( L );
+  iArea := vlua_toparea( L, 1 );
+  vlua_pushcoord( L, iArea^.RandomCoord( iRNG ) );
   Exit(1);
 end;
 
-function lua_area_random_edge_coord( L: Plua_State): Integer; cdecl;
-var Area : PArea;
+function lua_area_random_edge_coord( L : PLua_State ) : Integer; cdecl;
+var iRNG  : TRNG;
+    iArea : PArea;
 begin
-  Area := vlua_toparea( L, 1 );
-  vlua_pushcoord( L, Area^.RandomEdgeCoord( LuaRNG ) );
+  iRNG := TLuaContext.RequireRNG( L );
+  iArea := vlua_toparea( L, 1 );
+  vlua_pushcoord( L, iArea^.RandomEdgeCoord( iRNG ) );
   Exit(1);
 end;
 
-function lua_area_random_inner_edge_coord( L: Plua_State): Integer; cdecl;
-var Area : PArea;
+function lua_area_random_inner_edge_coord( L : PLua_State ) : Integer; cdecl;
+var iRNG  : TRNG;
+    iArea : PArea;
 begin
-  Area := vlua_toparea( L, 1 );
-  vlua_pushcoord( L, Area^.RandomInnerEdgeCoord( LuaRNG ) );
+  iRNG := TLuaContext.RequireRNG( L );
+  iArea := vlua_toparea( L, 1 );
+  vlua_pushcoord( L, iArea^.RandomInnerEdgeCoord( iRNG ) );
   Exit(1);
 end;
 
@@ -923,13 +935,15 @@ begin
   Exit(1);
 end;
 
-function lua_area_random_subarea( L: Plua_State): Integer; cdecl;
-var Area : PArea;
-    Dim  : PCoord2D;
+function lua_area_random_subarea( L : PLua_State ) : Integer; cdecl;
+var iRNG  : TRNG;
+    iArea : PArea;
+    iDim  : PCoord2D;
 begin
-  Area := vlua_toparea( L, 1 );
-  Dim  := vlua_topcoord( L, 2 );
-  vlua_pusharea( L, Area^.RandomSubArea( LuaRNG, Dim^ ) );
+  iRNG := TLuaContext.RequireRNG( L );
+  iArea := vlua_toparea( L, 1 );
+  iDim  := vlua_topcoord( L, 2 );
+  vlua_pusharea( L, iArea^.RandomSubArea( iRNG, iDim^ ) );
   Exit(1);
 end;
 
@@ -1332,13 +1346,15 @@ begin
   Exit( 1 );
 end;
 
-function lua_table_random_pick( L: Plua_State ): Integer; cdecl;
-var i : Integer;
+function lua_table_random_pick( L : PLua_State ) : Integer; cdecl;
+var iRNG : TRNG;
+    i    : Integer;
 begin
   luaL_checktype( L, 1, LUA_TTABLE );
   i := lua_objlen( L, 1 );
   if i = 0 then Exit( 0 );
-  lua_rawgeti( L, 1, LuaRNG.RLongInt( i ) + 1 );
+  iRNG := TLuaContext.RequireRNG( L );
+  lua_rawgeti( L, 1, iRNG.RLongInt( i ) + 1 );
   Exit( 1 );
 end;
 
@@ -1361,25 +1377,28 @@ begin
   Exit( 0 );
 end;
 
-function lua_table_shuffle( L: Plua_State ): Integer; cdecl;
-var n,k : Integer;
+function lua_table_shuffle( L : PLua_State ) : Integer; cdecl;
+var iRNG           : TRNG;
+    iCount, iIndex : Integer;
 begin
   luaL_checktype( L, 1, LUA_TTABLE );
   lua_settop( L, 1 );
-  n := lua_objlen( L, 1 );
+  iCount := lua_objlen( L, 1 );
+  if iCount < 2 then Exit( 1 );
+  iRNG := TLuaContext.RequireRNG( L );
 
-	while n >= 2 do
+  while iCount >= 2 do
   begin
-		k := LuaRNG.RLongInt( n ) + 1;
-    if k <> n then
+    iIndex := iRNG.RLongInt( iCount ) + 1;
+    if iIndex <> iCount then
     begin
-      lua_rawgeti( L, 1, n );
-      lua_rawgeti( L, 1, k );
-      lua_rawseti( L, 1, n );
-      lua_rawseti( L, 1, k );
+      lua_rawgeti( L, 1, iCount );
+      lua_rawgeti( L, 1, iIndex );
+      lua_rawseti( L, 1, iCount );
+      lua_rawseti( L, 1, iIndex );
     end;
-    Dec(n);
-	end;
+    Dec(iCount);
+  end;
 
   Exit( 1 );
 end;
@@ -1404,13 +1423,17 @@ begin
   Result := 1;
 end;
 
-function lua_math_dice( L: Plua_State ): Integer; cdecl;
-var dice, sides : LongInt;
+function lua_math_dice( L : PLua_State ) : Integer; cdecl;
+var iRNG          : TRNG;
+    iDice, iSides : LongInt;
 begin
-  dice  := luaL_checkint(L, 1);
-  sides := luaL_checkint(L, 2);
-  if (dice > 0) and (sides > 0) then
-    lua_pushnumber( L, LuaRNG.Dice( DWord( dice ), DWord( sides ) ) )
+  iDice  := luaL_checkint(L, 1);
+  iSides := luaL_checkint(L, 2);
+  if (iDice > 0) and (iSides > 0) then
+  begin
+    iRNG := TLuaContext.RequireRNG( L );
+    lua_pushnumber( L, iRNG.Dice( DWord( iDice ), DWord( iSides ) ) )
+  end
   else
     lua_pushnumber( L, 0 );
   Result := 1;
@@ -1512,8 +1535,9 @@ begin
   Result := 1;
 end;
 
-function lua_weight_table_impl_roll( L: Plua_State ): Integer; cdecl;
-var iRoll  : Integer;
+function lua_weight_table_impl_roll( L : PLua_State ) : Integer; cdecl;
+var iRNG   : TRNG;
+    iRoll  : Integer;
     iIndex : Integer;
     iCount : Integer;
     iSize  : Integer;
@@ -1526,8 +1550,9 @@ begin
   lua_getfield( L, 1, '_elements' );
   iSize := lua_objlen( L, -1 );
   if iSize = 0 then Exit( 0 );
+  iRNG := TLuaContext.RequireRNG( L );
   lua_getfield( L, 1, '_weight' );
-  iRoll := LuaRNG.RLongInt( lua_tointeger( L, -1 ) );
+  iRoll := iRNG.RLongInt( lua_tointeger( L, -1 ) );
 
   lua_settop( L, 1 );
 
@@ -2015,4 +2040,3 @@ end;
 
 
 end.
-

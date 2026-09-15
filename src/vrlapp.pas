@@ -73,7 +73,7 @@ type TRLApplication = class abstract( TValkyrieApplication )
 
 implementation
 
-uses vio, vluastate;
+uses vio;
 
 { TRLRuntime }
 
@@ -85,7 +85,6 @@ begin
   aConfiguration := nil;
 
   FGameRNG := TRNG.Create(0);
-  LuaRNG := FGameRNG;
 
   FIO := CreateIO;
   if FIO <> nil then
@@ -100,8 +99,6 @@ begin
     vio.IO := nil;
   FreeAndNil(FIO);
 
-  if LuaRNG = FGameRNG then
-    LuaRNG := nil;
   FreeAndNil(FGameRNG);
   FreeAndNil(FConfiguration);
   inherited Destroy;
@@ -209,7 +206,6 @@ begin
   iPrevious := FGameRNG;
   FGameRNG := aGameRNG;
   aGameRNG := nil;
-  LuaRNG := FGameRNG;
   if FLua <> nil then FLua.Context.BindRNG( FGameRNG );
   iPrevious.Free;
 end;

@@ -179,7 +179,7 @@ end;
 
 implementation
 
-uses math, vluastate, vgenerics, vmath, vluatools, vluatype, vlualibrary;
+uses math, vgenerics, vmath, vluatools, vluatype, vlualibrary;
 
 type TMinCoordChoice = specialize TGMinimalChoice<TCoord2D>;
      TCoordArray     = specialize TGArray<TCoord2D>;
@@ -865,11 +865,13 @@ begin
   Result := 1;
 end;
 
-function lua_map_node_drop(L: Plua_State): Integer; cdecl;
+function lua_map_node_drop( L : PLua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
+    iRNG   : TRNG;
 begin
   iState.Init( L );
-  iState.Push( iState.Map.Drop( LuaRNG, iState.ToObject(2) as TLuaEntityNode, iState.ToPosition(3), iState.ToFlags(4) ) );
+  iRNG := TLuaContext.RequireRNG( L );
+  iState.Push( iState.Map.Drop( iRNG, iState.ToObject(2) as TLuaEntityNode, iState.ToPosition(3), iState.ToFlags(4) ) );
   Result := 1;
 end;
 
@@ -1104,20 +1106,22 @@ begin
   Exit( 1 );
 end;
 
-function lua_map_node_random_square( L : Plua_State ) : Integer; cdecl;
+function lua_map_node_random_square( L : PLua_State ) : Integer; cdecl;
 const kLimit    = 40000;
 var iState      : TLuaMapStack;
+    iRNG        : TRNG;
     iLimitCount : DWord;
     iCoord      : TCoord2D;
     iCellSet    : TCellSet;
     iArea       : TArea;
 begin
   iState.Init( L );
+  iRNG := TLuaContext.RequireRNG( L );
   iLimitCount := 0;
   iCellSet    := iState.ToCellSet( 2 );
   iArea       := iState.ToOptionalArea( 3 ).Shrinked(1);
   repeat
-    iCoord := iArea.RandomCoord( LuaRNG );
+    iCoord := iArea.RandomCoord( iRNG );
     if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.CellsAround( iCoord, iCellSet ) = 8 ) then
     begin
       vlua_pushcoord( L, iCoord );
@@ -1135,9 +1139,10 @@ begin
   Exit( 0 );
 end;
 
-function lua_map_node_random_coord( L : Plua_State ) : Integer; cdecl;
+function lua_map_node_random_coord( L : PLua_State ) : Integer; cdecl;
 const kLimit = 5000;
 var iState   : TLuaMapStack;
+    iRNG     : TRNG;
     iType2   : Integer;
     iCellSet : TFlags;
     iArea    : TArea;
@@ -1145,15 +1150,16 @@ var iState   : TLuaMapStack;
     iCoord   : TCoord2D;
 begin
   iState.Init( L );
+  iRNG := TLuaContext.RequireRNG( L );
   iType2 := lua_type( L, 2 );
   if iType2 <= LUA_TNIL then
   begin
-    vlua_pushcoord( L, iState.Map.Area.RandomCoord( LuaRNG ) );
+    vlua_pushcoord( L, iState.Map.Area.RandomCoord( iRNG ) );
     Exit( 1 );
   end;
   if iType2 = LUA_TUSERDATA then
   begin
-    vlua_pushcoord( L, vlua_toparea( L, 2 )^.RandomCoord( LuaRNG ) );
+    vlua_pushcoord( L, vlua_toparea( L, 2 )^.RandomCoord( iRNG ) );
     Exit( 1 );
   end;
   iCellSet := iState.ToCellSet( 2 );
@@ -1161,7 +1167,7 @@ begin
 
   iCount := 0;
   repeat
-    iCoord := iArea.RandomCoord( LuaRNG );
+    iCoord := iArea.RandomCoord( iRNG );
     if iState.Map.GetCell( iCoord ) in iCellSet then
     begin
       vlua_pushcoord( L, iCoord );
@@ -1180,9 +1186,10 @@ begin
   Exit( 0 );
 end;
 
-function lua_map_node_random_empty_coord( L : Plua_State ) : Integer; cdecl;
+function lua_map_node_random_empty_coord( L : PLua_State ) : Integer; cdecl;
 const kLimit = 10000;
 var iState   : TLuaMapStack;
+    iRNG     : TRNG;
     iType3   : Integer;
     iCellSet : TFlags;
     iArea    : TArea;
@@ -1191,6 +1198,7 @@ var iState   : TLuaMapStack;
     iFlags   : TFlags32;
 begin
   iState.Init( L );
+  iRNG := TLuaContext.RequireRNG( L );
   iFlags := iState.ToFlags32( 2 );
   iType3 := lua_type( L, 3 );
   if ( iType3 <= LUA_TNIL ) or (iType3 = LUA_TUSERDATA) then
@@ -1198,7 +1206,7 @@ begin
     iArea := iState.ToOptionalArea( 3 );
     iCount := 0;
     repeat
-      iCoord := iArea.RandomCoord( LuaRNG );
+      iCoord := iArea.RandomCoord( iRNG );
       if iState.Map.isEmpty( iCoord, iFlags ) then
       begin
         vlua_pushcoord( L, iCoord );
@@ -1220,7 +1228,7 @@ begin
   iArea    := iState.ToOptionalArea( 4 );
   iCount   := 0;
   repeat
-    iCoord := iArea.RandomCoord( LuaRNG );
+    iCoord := iArea.RandomCoord( iRNG );
     if ( iState.Map.GetCell( iCoord ) in iCellSet ) and ( iState.Map.isEmpty( iCoord, iFlags ) ) then
     begin
       vlua_pushcoord( L, iCoord );
@@ -1239,14 +1247,16 @@ begin
   Exit( 0 );
 end;
 
-function lua_map_node_drop_coord( L : Plua_State ) : Integer; cdecl;
+function lua_map_node_drop_coord( L : PLua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
+    iRNG   : TRNG;
     iCoord : TCoord2D;
 begin
   iState.Init( L );
+  iRNG := TLuaContext.RequireRNG( L );
   iCoord := iState.ToPosition( 2 );
   try
-    vlua_pushcoord( L, iState.Map.DropCoord( LuaRNG, iCoord, iState.ToFlags32( 3 ), iState.ToBoolean( 4, False ) ) );
+    vlua_pushcoord( L, iState.Map.DropCoord( iRNG, iCoord, iState.ToFlags32( 3 ), iState.ToBoolean( 4, False ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -1294,13 +1304,15 @@ begin
   Exit( 0 );
 end;
 
-function lua_map_node_find_random_coord( L : Plua_State ) : Integer; cdecl;
+function lua_map_node_find_random_coord( L : PLua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
+    iRNG   : TRNG;
     iCoord : TCoord2D;
     iCells : TCellSet;
     iArea  : TArea;
 begin
   iState.Init( L );
+  iRNG := TLuaContext.RequireRNG( L );
   iCells := iState.ToCellSet( 2 );
   iArea  := iState.ToOptionalArea( 3 );
 
@@ -1310,7 +1322,7 @@ begin
       if iState.Map.GetCell( iCoord ) in iCells then
         Push( iCoord );
     if IsEmpty then Exit( 0 );
-    iCoord := Items[ LuaRNG.RLongInt( Size ) ];
+    iCoord := Items[ iRNG.RLongInt( Size ) ];
   finally
     Free
   end;
@@ -1319,14 +1331,16 @@ begin
   Exit( 1 );
 end;
 
-function lua_map_node_find_random_empty_coord( L : Plua_State ) : Integer; cdecl;
+function lua_map_node_find_random_empty_coord( L : PLua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
+    iRNG   : TRNG;
     iCoord : TCoord2D;
     iCells : TCellSet;
     iFlags : TFlags32;
     iArea  : TArea;
 begin
   iState.Init( L );
+  iRNG := TLuaContext.RequireRNG( L );
   iCells := iState.ToCellSet( 2 );
   iFlags := iState.ToFlags32( 3 );
   iArea  := iState.ToOptionalArea( 4 );
@@ -1337,7 +1351,7 @@ begin
       if (iState.Map.GetCell( iCoord ) in iCells) and iState.Map.isEmpty( iCoord, iFlags ) then
         Push( iCoord );
     if IsEmpty then Exit( 0 );
-    iCoord := Items[ LuaRNG.RLongInt( Size ) ];
+    iCoord := Items[ iRNG.RLongInt( Size ) ];
   finally
     Free
   end;

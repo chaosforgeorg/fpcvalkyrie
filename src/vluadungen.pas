@@ -9,7 +9,7 @@ procedure RegisterDungenClass( L : Plua_State; ObjectName : AnsiString = '' );
 
 implementation
 
-uses strutils, vutil, vluastate, vluatools, vluaext;
+uses strutils, vutil, vlua, vluatools, vluaext, vrandom;
 
 const
   VALKYRIE_DUNGEN      = 'valkyrie.dungen';
@@ -216,8 +216,9 @@ begin
   Exit( 1 );
 end;
 
-function lua_dungen_run_drunkard_walk( L : Plua_State ) : Integer; cdecl;
+function lua_dungen_run_drunkard_walk( L : PLua_State ) : Integer; cdecl;
 var iState  : TLuaMapStack;
+    iRNG    : TRNG;
     iSteps  : DWord;
     iCount  : DWord;
     iCoord  : TCoord2D;
@@ -241,6 +242,7 @@ begin
 
   if iCount = 0 then
     Exit( 0 );
+  iRNG := TLuaContext.RequireRNG( L );
   for iSteps := 1 to iCount do
   begin
     if not iArea.Contains( iCoord ) then
@@ -251,13 +253,14 @@ begin
 
     if not ( iState.Map.GetCell( iCoord ) in iIgnore ) then
       iState.Map.PutCell( iCoord, iCell );
-    iCoord.RandomShift( LuaRNG, 1 );
+    iCoord.RandomShift( iRNG, 1 );
   end;
   Exit( 0 );
 end;
 
-function lua_dungen_cellular_init( L : Plua_State ) : Integer; cdecl;
+function lua_dungen_cellular_init( L : PLua_State ) : Integer; cdecl;
 var iState  : TLuaMapStack;
+    iRNG    : TRNG;
     iCoord  : TCoord2D;
     iArea   : TArea;
     iFull   : Byte;
@@ -265,6 +268,7 @@ var iState  : TLuaMapStack;
     iChance : Single;
 begin
   iState.Init( L );
+  iRNG := TLuaContext.RequireRNG( L );
   iFull   := iState.ToCell( 2 );
   iEmpty  := iState.ToCell( 3 );
   iChance := iState.ToFloat( 4 );
@@ -274,15 +278,16 @@ begin
     else iState.Map.Area.Clamp( iArea );
 
   for iCoord in iArea do
-    if LuaRNG.RDouble < iChance
+    if iRNG.RDouble < iChance
       then iState.Map.putCell( iCoord, iFull )
       else iState.Map.putCell( iCoord, iEmpty );
 
   Exit( 0 );
 end;
 
-function lua_dungen_cellular_random( L : Plua_State ) : Integer; cdecl;
+function lua_dungen_cellular_random( L : PLua_State ) : Integer; cdecl;
 var iState  : TLuaMapStack;
+    iRNG    : TRNG;
     iCoord  : TCoord2D;
     iC      : TCoord2D;
     iArea   : TArea;
@@ -295,6 +300,7 @@ var iState  : TLuaMapStack;
     iStrict : Boolean;
 begin
   iState.Init( L );
+  iRNG := TLuaContext.RequireRNG( L );
   iFull   := iState.ToCell( 2 );
   iEmpty  := iState.ToCell( 3 );
   iNeigh  := iState.ToInteger( 4 );
@@ -305,7 +311,7 @@ begin
   i := 0;
   repeat
     Inc( i );
-    iCoord := iArea.RandomCoord( LuaRNG );
+    iCoord := iArea.RandomCoord( iRNG );
     if iStrict then
     begin
       iCell := iState.Map.getCell( iCoord );
@@ -630,9 +636,11 @@ begin
   Exit( 0 );
 end;
 
-function lua_dungen_tile_flip_random( L : Plua_State ) : Integer; cdecl;
+function lua_dungen_tile_flip_random( L : PLua_State ) : Integer; cdecl;
+var iRNG : TRNG;
 begin
-  case LuaRNG.RLongInt( 4 ) of
+  iRNG := TLuaContext.RequireRNG( L );
+  case iRNG.RLongInt( 4 ) of
     0 : ;
     1 : lua_dungen_tile_flip_x( L );
     2 : lua_dungen_tile_flip_y( L );

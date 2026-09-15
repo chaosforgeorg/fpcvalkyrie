@@ -6,9 +6,6 @@ uses variants, classes, vlualibrary, vobject, vutil, vdf, vrandom;
 type ELuaException = vlualibrary.ELuaException;
      Plua_State    = vlualibrary.Plua_State;
 
-// Borrowed gameplay RNG. TRLRuntime publishes, replaces and clears it.
-var LuaRNG : TRNG = nil;
-
 function vlua_rng_random( L : Plua_State; aRNG : TRNG ) : Integer;
 
 { TLuaState }
@@ -39,12 +36,13 @@ public
 end;
 
 implementation
-uses sysutils, vluaext;
+uses sysutils, vluaext, vlua;
 
-function lua_math_random( L : Plua_State ) : Integer; cdecl;
+function lua_math_random( L : PLua_State ) : Integer; cdecl;
+var iRNG : TRNG;
 begin
-  if LuaRNG = nil then Exit( luaL_error( L, 'math.random requires LuaRNG' ) );
-  Exit( vlua_rng_random( L, LuaRNG ) );
+  iRNG := TLuaContext.RequireRNG( L );
+  Exit( vlua_rng_random( L, iRNG ) );
 end;
 
 function vlua_rng_random( L : Plua_State; aRNG : TRNG ) : Integer;
@@ -69,14 +67,15 @@ begin
   Result := 1;
 end;
 
-function lua_math_randomseed( L : Plua_State ) : Integer; cdecl;
-var iArgs : Byte;
+function lua_math_randomseed( L : PLua_State ) : Integer; cdecl;
+var iRNG  : TRNG;
+    iArgs : Byte;
 begin
-  if LuaRNG = nil then Exit( luaL_error( L, 'math.randomseed requires LuaRNG' ) );
+  iRNG := TLuaContext.RequireRNG( L );
   iArgs := lua_gettop(L);
   case iArgs of
-    0 : LuaRNG.Randomize;
-    1 : LuaRNG.SetSeed( DWord( lua_tointeger(L, 1) ) );
+    0 : iRNG.Randomize;
+    1 : iRNG.SetSeed( DWord( lua_tointeger(L, 1) ) );
   end;
   Exit(0);
 end;
@@ -220,8 +219,5 @@ begin
   end;
   inherited Destroy;
 end;
-
-initialization
-  LuaRNG := nil;
 
 end.
