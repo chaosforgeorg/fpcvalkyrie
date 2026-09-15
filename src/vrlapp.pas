@@ -19,11 +19,11 @@ type TRLRuntime = class abstract( TSystem )
     FConfiguration   : TObject;
     FGameRNG         : TRNG;
     FIO              : TIORL;
-    FLua             : TLuaSystem;
     FDataInitialized : Boolean;
     procedure ReleaseLua;
     function ConsoleCallback( aEvent : TIOEvent ) : Boolean;
   protected
+    FLua   : TLuaSystem;
     FPaths : TGamePaths;
     function CreateIO : TIORL; virtual; abstract;
     function CreateLua : TLuaSystem; virtual; abstract;

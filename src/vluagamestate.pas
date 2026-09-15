@@ -4,29 +4,39 @@
 unit vluagamestate;
 interface
 
-uses Classes, SysUtils, vluastate, vrltools, vutil, vluaentitynode, vluasystem;
+uses Classes, SysUtils, vluastate, vrltools, vutil, vluaentitynode, vluasystem,
+     viotypes;
 
 type TLuaGameState = object( TLuaState )
 public
-  function ToPosition( aIndex : Integer ) : TCoord2D;
+  function ToPosition( aIndex : Integer ) : TCoord2D; overload;
+  function ToPosition( aIndex : Integer; aDefault : TCoord2D ) : TCoord2D; overload;
   function ToNode( aIndex : Integer ) : TLuaEntityNode;
-  function ToID( aLuaSystem : TLuaSystem; aIndex : Integer ) : DWord;
+  function ToID( aLuaSystem : TLuaSystem; aIndex : Integer ) : Integer;
+  function ToIOColor( aIndex : Integer ) : TIOColor;
   function ToCellSet( aLuaSystem : TLuaSystem; aIndex : Integer ) : TFlags;
 end;
 
 implementation
 
-uses vlualibrary;
+uses vlualibrary, vvector;
 
 { TLuaGameState }
 
-function TLuaGameState.ToPosition ( aIndex : Integer ) : TCoord2D;
+function TLuaGameState.ToPosition( aIndex : Integer ) : TCoord2D;
 var iObject : TObject;
 begin
   if IsCoord( aIndex ) then Exit( ToCoord( aIndex ) );
   iObject := ToObject( aIndex );
   if iObject is TLuaEntityNode then Exit( TLuaEntityNode(iObject).Position );
   Error( 'Position expected at index '+IntToStr(aIndex)+'!' );
+end;
+
+function TLuaGameState.ToPosition( aIndex : Integer; aDefault : TCoord2D ) : TCoord2D;
+begin
+  if IsCoord( aIndex ) then Exit( ToCoord( aIndex ) );
+  if IsObject( aIndex ) then Exit( ToNode( aIndex ).Position );
+  Exit( aDefault );
 end;
 
 function TLuaGameState.ToNode( aIndex : Integer ) : TLuaEntityNode;
@@ -37,17 +47,30 @@ begin
   Error( 'Node expected at index '+IntToStr(aIndex)+'!' );
 end;
 
-function TLuaGameState.ToID( aLuaSystem : TLuaSystem; aIndex : Integer ) : DWord;
+function TLuaGameState.ToID( aLuaSystem : TLuaSystem; aIndex : Integer ) : Integer;
 var iValue : Integer;
 begin
   if isNumber( aIndex ) then Exit( ToInteger( aIndex ) );
   if isString( aIndex ) then
   begin
     iValue := aLuaSystem.Defines.Get( ToString( aIndex ), -1 );
-    if iValue >= 0 then Exit( DWord( iValue ) );
-    Error('Unknown ID ("'+ToString( aIndex )+'") at index '+ToString( aIndex ) +'!');
+    if iValue >= 0 then Exit( iValue );
+    Error('Unknown ID ("'+ToString( aIndex )+'") at index '+IntToStr( aIndex ) +'!');
   end;
   Error('ID expected at index '+IntToStr( aIndex ) +'!');
+end;
+
+function TLuaGameState.ToIOColor( aIndex : Integer ) : TIOColor;
+var iC4b : TVec4b;
+begin
+  Result := 0;
+  if IsNumber( aIndex )
+    then Exit( ToInteger( aIndex ) )
+    else if IsTable( aIndex ) then
+    begin
+      iC4b := ToVec4b( aIndex );
+      Exit( IOColor( iC4b.X, iC4b.Y, iC4b.Z, iC4b.W ) );
+    end;
 end;
 
 function TLuaGameState.ToCellSet( aLuaSystem : TLuaSystem; aIndex : Integer ) : TFlags;
@@ -69,4 +92,3 @@ begin
   end;
 end;
 end.
-
