@@ -50,7 +50,9 @@ type PMapCell = ^TMapCell;
 type TLuaMapNode = class( TNode, IVisionQuery )
 public
   // Create and setup
-  constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte; aContext : TNodeContext ); reintroduce;
+  constructor Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte; aContext : TNodeContext; aGameRNG : TRNG ); reintroduce;
+  // Rebind the borrowed gameplay RNG when Runtime replaces it.
+  procedure BindGameRNG( aGameRNG : TRNG );
   // Removes given bits from lightMap
   procedure ClearLightMapBits( aValue : TWordSet );
   // Fills the light map with given value
@@ -114,9 +116,9 @@ public
   // Return Item at position aCoord
   function GetItem( const aCoord : TCoord2D ) : TLuaEntityNode; virtual;
   // Drop something onto the map
-  function Drop( aRNG : TRNG; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 = [] ) : TLuaEntityNode;
+  function Drop( aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 = [] ) : TLuaEntityNode;
   // Find a suitable drop coord
-  function DropCoord( aRNG : TRNG; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D;
+  function DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D;
   // Returns the number of cells in aCells around cell (excluding self)
   function CellsAround( const aWhere : TCoord2D; const aCells : TCellSet; aRange : Byte = 1 ) : Byte;
   // Returns the number of cells in aCells around cell in cardinal dirs (excluding self );
@@ -128,7 +130,7 @@ public
   // Free generator and structure
   destructor Destroy; override;
   // Stream constructor, reads UID, and ID from stream, should be overriden.
-  constructor CreateFromStream( Stream : TStream; aContext : TNodeContext ); override;
+  constructor CreateFromStream( aStream : TStream; aContext : TNodeContext; aGameRNG : TRNG ); reintroduce; virtual;
   // Write Node to stream (UID and ID) should be overriden.
   procedure WriteToStream( Stream : TStream ); override;
   // Register API
@@ -142,6 +144,8 @@ protected
   // Set Item at position aCoord
   procedure SetItem( const aCoord : TCoord2D; aItem : TLuaEntityNode ); virtual;
 protected
+  // Borrowed from Runtime; never freed or serialized by the map.
+  FGameRNG   : TRNG;
   // Area holding the level boundaries.
   FArea      : TArea;
   // MapArea class
@@ -153,6 +157,7 @@ protected
   // Cell array name
   FCellsName : AnsiString;
 public
+  property GameRNG : TRNG read FGameRNG;
   // Property for Area
   property Area      : TArea           read FArea;
   // Property for Vison
@@ -187,8 +192,9 @@ type TMinCoordChoice = specialize TGMinimalChoice<TCoord2D>;
 
 { TLuaMapNode }
 
-constructor TLuaMapNode.Create ( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte; aContext : TNodeContext );
+constructor TLuaMapNode.Create( const aID : AnsiString; aMaxX, aMaxY : DWord; aMaxVision : Byte; aContext : TNodeContext; aGameRNG : TRNG );
 begin
+  FGameRNG := aGameRNG;
   inherited Create( aID, aContext );
   FArea.Create( NewCoord2D( 1, 1 ), NewCoord2D( aMaxX, aMaxY ) );
   FVision    := TIsaacVision.Create( Self, aMaxVision );
@@ -196,6 +202,11 @@ begin
   FCellMap   := GetMem( aMaxX * aMaxY * SizeOf( TMapCell ) );
   FCellsName := 'cells';
   ClearAll;
+end;
+
+procedure TLuaMapNode.BindGameRNG( aGameRNG : TRNG );
+begin
+  FGameRNG := aGameRNG;
 end;
 
 procedure TLuaMapNode.ClearLightMapBits ( aValue : TWordSet ) ;
@@ -405,7 +416,7 @@ begin
   Exit( FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Item );
 end;
 
-function TLuaMapNode.Drop( aRNG : TRNG; aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
+function TLuaMapNode.Drop( aWhat : TLuaEntityNode; aPosition : TCoord2D; aEmptyFlags : TFlags32 ) : TLuaEntityNode;
 begin
   if aWhat = nil then Exit( nil );
   case aWhat.EntityID of
@@ -415,7 +426,7 @@ begin
   end;
 
   try
-    aPosition := DropCoord( aRNG, aPosition, aEmptyFlags, False );
+    aPosition := DropCoord( aPosition, aEmptyFlags, False );
     if aWhat.Parent <> Self then Add( aWhat );
     aWhat.Displace( aPosition );
     case aWhat.EntityID of
@@ -428,7 +439,7 @@ begin
   Result := aWhat;
 end;
 
-function TLuaMapNode.DropCoord( aRNG : TRNG; const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D;
+function TLuaMapNode.DropCoord( const aCoord : TCoord2D; aEmptyFlags : TFlags32; aInVision : Boolean = False ) : TCoord2D;
 var iC        : TCoord2D;
     iList     : TMinCoordChoice;
     iRange    : Byte;
@@ -468,7 +479,7 @@ begin
 
   if iList.IsEmpty then raise EPlacementException.CreateFmt('TLuaMapNode.DropCoord(%d,%d) failed!',[aCoord.x, aCoord.y]);
 
-  Result := iList.Return( aRNG );
+  Result := iList.Return( FGameRNG );
   FreeAndNil( iList );
 end;
 
@@ -528,26 +539,27 @@ begin
   FreeMem( FCellMap, FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );
 end;
 
-constructor TLuaMapNode.CreateFromStream( Stream : TStream; aContext : TNodeContext );
+constructor TLuaMapNode.CreateFromStream( aStream : TStream; aContext : TNodeContext; aGameRNG : TRNG );
 var iEntityID : DWord;
     iEntity   : TLuaEntityNode;
 begin
-  inherited CreateFromStream( Stream, aContext );
+  FGameRNG := aGameRNG;
+  inherited CreateFromStream( aStream, aContext );
 
-  Stream.Read( FArea, SizeOf( FArea ) );
-  FMaxVision := Stream.ReadByte;
-  FCellsName := Stream.ReadAnsiString;
+  aStream.Read( FArea, SizeOf( FArea ) );
+  FMaxVision := aStream.ReadByte;
+  FCellsName := aStream.ReadAnsiString;
   FVision    := TIsaacVision.Create( Self, FMaxVision );
 
   FCellMap := GetMem( FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );
-  Stream.Read( FCellMap^, FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );
+  aStream.Read( FCellMap^, FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );
 
   ClearEntities;
   repeat
-    iEntityID := Stream.ReadByte;
+    iEntityID := aStream.ReadByte;
     if iEntityID <> 0 then
     begin
-      iEntity := EntityFromStream( Stream, iEntityID );
+      iEntity := EntityFromStream( aStream, iEntityID );
       if iEntity = nil then Halt(0);
       if iEntityID = ENTITY_BEING then SetBeing( iEntity.Position, iEntity ) else
       if iEntityID = ENTITY_ITEM  then SetItem( iEntity.Position, iEntity );
@@ -867,11 +879,9 @@ end;
 
 function lua_map_node_drop( L : PLua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
-    iRNG   : TRNG;
 begin
   iState.Init( L );
-  iRNG := TLuaContext.RequireRNG( L );
-  iState.Push( iState.Map.Drop( iRNG, iState.ToObject(2) as TLuaEntityNode, iState.ToPosition(3), iState.ToFlags(4) ) );
+  iState.Push( iState.Map.Drop( iState.ToObject(2) as TLuaEntityNode, iState.ToPosition(3), iState.ToFlags(4) ) );
   Result := 1;
 end;
 
@@ -1116,7 +1126,7 @@ var iState      : TLuaMapStack;
     iArea       : TArea;
 begin
   iState.Init( L );
-  iRNG := TLuaContext.RequireRNG( L );
+  iRNG := iState.Map.GameRNG;
   iLimitCount := 0;
   iCellSet    := iState.ToCellSet( 2 );
   iArea       := iState.ToOptionalArea( 3 ).Shrinked(1);
@@ -1150,7 +1160,7 @@ var iState   : TLuaMapStack;
     iCoord   : TCoord2D;
 begin
   iState.Init( L );
-  iRNG := TLuaContext.RequireRNG( L );
+  iRNG := iState.Map.GameRNG;
   iType2 := lua_type( L, 2 );
   if iType2 <= LUA_TNIL then
   begin
@@ -1198,7 +1208,7 @@ var iState   : TLuaMapStack;
     iFlags   : TFlags32;
 begin
   iState.Init( L );
-  iRNG := TLuaContext.RequireRNG( L );
+  iRNG := iState.Map.GameRNG;
   iFlags := iState.ToFlags32( 2 );
   iType3 := lua_type( L, 3 );
   if ( iType3 <= LUA_TNIL ) or (iType3 = LUA_TUSERDATA) then
@@ -1249,14 +1259,12 @@ end;
 
 function lua_map_node_drop_coord( L : PLua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
-    iRNG   : TRNG;
     iCoord : TCoord2D;
 begin
   iState.Init( L );
-  iRNG := TLuaContext.RequireRNG( L );
   iCoord := iState.ToPosition( 2 );
   try
-    vlua_pushcoord( L, iState.Map.DropCoord( iRNG, iCoord, iState.ToFlags32( 3 ), iState.ToBoolean( 4, False ) ) );
+    vlua_pushcoord( L, iState.Map.DropCoord( iCoord, iState.ToFlags32( 3 ), iState.ToBoolean( 4, False ) ) );
     Exit( 1 );
   except
     on EPlacementException do
@@ -1312,7 +1320,7 @@ var iState : TLuaMapStack;
     iArea  : TArea;
 begin
   iState.Init( L );
-  iRNG := TLuaContext.RequireRNG( L );
+  iRNG := iState.Map.GameRNG;
   iCells := iState.ToCellSet( 2 );
   iArea  := iState.ToOptionalArea( 3 );
 
@@ -1340,7 +1348,7 @@ var iState : TLuaMapStack;
     iArea  : TArea;
 begin
   iState.Init( L );
-  iRNG := TLuaContext.RequireRNG( L );
+  iRNG := iState.Map.GameRNG;
   iCells := iState.ToCellSet( 2 );
   iFlags := iState.ToFlags32( 3 );
   iArea  := iState.ToOptionalArea( 4 );

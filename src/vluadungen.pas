@@ -242,7 +242,7 @@ begin
 
   if iCount = 0 then
     Exit( 0 );
-  iRNG := TLuaContext.RequireRNG( L );
+  iRNG := iState.Map.GameRNG;
   for iSteps := 1 to iCount do
   begin
     if not iArea.Contains( iCoord ) then
@@ -268,7 +268,7 @@ var iState  : TLuaMapStack;
     iChance : Single;
 begin
   iState.Init( L );
-  iRNG := TLuaContext.RequireRNG( L );
+  iRNG := iState.Map.GameRNG;
   iFull   := iState.ToCell( 2 );
   iEmpty  := iState.ToCell( 3 );
   iChance := iState.ToFloat( 4 );
@@ -300,7 +300,7 @@ var iState  : TLuaMapStack;
     iStrict : Boolean;
 begin
   iState.Init( L );
-  iRNG := TLuaContext.RequireRNG( L );
+  iRNG := iState.Map.GameRNG;
   iFull   := iState.ToCell( 2 );
   iEmpty  := iState.ToCell( 3 );
   iNeigh  := iState.ToInteger( 4 );
