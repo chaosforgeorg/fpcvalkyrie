@@ -91,7 +91,7 @@ type
     PoolIndex     : Integer;
   end;
 
-  TParticleDecalCallback = procedure( const aPosition : TVec3f; aDecalSprite : DWord );
+  TParticleDecalCallback = procedure( const aPosition : TVec3f; aDecalSprite : DWord ) of object;
 
 { TParticleEngine }
 
