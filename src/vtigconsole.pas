@@ -6,7 +6,7 @@ uses viotypes, vgenerics, vlua;
 type TTIGStringRing = specialize TGRingBuffer<AnsiString>;
 
 type TTIGConsoleView = class( TIOLayer )
-  constructor Create( aLua : TLua );
+  constructor Create( aLua : TLua; aDriver : TIODriver; aSize : TIOPoint );
   procedure Update( aDTime : Integer; aActive : Boolean ); override;
   function IsModal : Boolean; override;
   procedure Writeln( const aText : Ansistring );
@@ -17,6 +17,8 @@ protected
   procedure Execute( const aLine : Ansistring );
 protected
   FLua      : TLua;
+  FDriver   : TIODriver;
+  FSize     : TIOPoint;
   FHPos     : LongInt;
   FText     : TTIGStringRing;
   FHistory  : TTIGStringRing;
@@ -25,27 +27,29 @@ end;
 
 implementation
 
-uses sysutils, classes, vutil, vtig, vtigio, vio;
+uses sysutils, classes, vutil, vtig, vtigio;
 
 const TIG_CONSOLE_LINES = 16;
 
-constructor TTIGConsoleView.Create( aLua : TLua );
+constructor TTIGConsoleView.Create( aLua : TLua; aDriver : TIODriver; aSize : TIOPoint );
 begin
   FLua := aLua;
+  FDriver := aDriver;
+  FSize := aSize;
   FHistory  := nil;
   FText     := TTIGStringRing.Create( TIG_CONSOLE_LINES );
   FHPos     := 0;
   FInput[0] := #0;
   if FLua <> nil then
      FLua.SetPrintFunction( @Writeln );
-  IO.Driver.StartTextInput;
+  FDriver.StartTextInput;
 end;
 
 procedure TTIGConsoleView.Update( aDTime : Integer; aActive : Boolean );
 var iLine : Ansistring;
     i     : Integer;
 begin
-  VTIG_Begin( 'tig_console', Point( IO.Console.SizeX, TIG_CONSOLE_LINES + 4 ), Point(1,1) );
+  VTIG_Begin( 'tig_console', Point( FSize.X, TIG_CONSOLE_LINES + 4 ), Point(1,1) );
   if FText.Size < TIG_CONSOLE_LINES then
     for i := 1 to TIG_CONSOLE_LINES - FText.Size do
       VTIG_Text('');
@@ -143,7 +147,7 @@ destructor TTIGConsoleView.Destroy;
 begin
   if ( FLua <> nil ) and ( TMethod( FLua.PrintFunc ).Data = Pointer( Self ) ) then
     FLua.SetPrintFunction( nil );
-  IO.Driver.StopTextInput;
+  FDriver.StopTextInput;
   FreeAndNil( FHistory );
   FreeAndNil( FText );
 end;

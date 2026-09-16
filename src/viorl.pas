@@ -2,7 +2,7 @@
 unit viorl;
 interface
 uses classes, sysutils,
-     vio, vrltools, vluaentitynode, vluamapnode, vrandom, vluastack, vluaconfig, vioevent, viotypes, vioconsole, vtextmap, vmessages, vbindings;
+     vio, vrltools, vluaentitynode, vluamapnode, vrandom, vluaconfig, vioevent, viotypes, vioconsole, vtextmap, vmessages, vbindings;
 
 const COMMAND_SYSQUIT = 253;
 
@@ -71,9 +71,6 @@ TIORL = class( TIO )
 
   destructor Destroy; override;
 
-  // Register Lua API
-  // Register Lua API
-  class procedure RegisterLuaAPI( State : TLuaStack; const aTableName : AnsiString );
 private
   function GetMapShift : TIOPoint;
 protected
@@ -98,9 +95,7 @@ end;
 
 implementation
 
-uses math, vtig, vlua, vutil;
-
-var IORL : TIORL = nil;
+uses math, vtig, vutil;
 
 { TIORL }
 
@@ -115,7 +110,6 @@ begin
   FConfig    := nil;
   FBreakLoop := False;
   FVisualRNG := TRNG.Create;
-  IORL := Self;
 end;
 
 procedure TIORL.RunLayer( aLayer : TIOLayer );
@@ -353,54 +347,9 @@ end;
 
 destructor TIORL.Destroy;
 begin
-  if IORL = Self then IORL := nil;
   ReleaseMessages;
   FreeAndNil( FVisualRNG );
   inherited Destroy;
-end;
-
-function lua_iorl_msg(L: Plua_State): Integer; cdecl;
-var iState : TLuaStack;
-begin
-  if IORL = nil then Exit(0);
-  iState.Init(L);
-  if iState.StackSize < 1 then Exit( 0 );
-  IORL.Msg( Capitalized( iState.ToString(1) ) );
-  Result := 0;
-end;
-
-function lua_iorl_msg_enter(L: Plua_State): Integer; cdecl;
-var iState : TLuaStack;
-begin
-  if IORL = nil then Exit(0);
-  iState.Init(L);
-  IORL.Msg( iState.ToString(1) + ' Press <@<Enter@>>...' );
-  IORL.WaitForKey( [ VKEY_ENTER ] );
-  IORL.MsgUpdate;
-  Result := 0;
-end;
-
-function lua_iorl_delay(L: Plua_State): Integer; cdecl;
-var State : TLuaStack;
-begin
-  if IORL = nil then Exit(0);
-  State.Init(L);
-  if State.StackSize = 0 then Exit(0);
-  IORL.Delay(State.ToInteger(1));
-  Result := 0;
-end;
-
-const lua_iorl_lib : array[0..3] of luaL_Reg = (
-  ( name : 'msg';                func : @lua_iorl_msg),
-  ( name : 'msg_enter';          func : @lua_iorl_msg_enter),
-  ( name : 'delay';              func : @lua_iorl_delay),
-  ( name : nil;                  func : nil; )
-);
-
-class procedure TIORL.RegisterLuaAPI ( State : TLuaStack;
-  const aTableName : AnsiString ) ;
-begin
-  State.Register( aTableName, lua_iorl_lib );
 end;
 
 function TIORL.GetMapShift : TIOPoint;

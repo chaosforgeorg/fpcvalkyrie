@@ -51,8 +51,6 @@ public
   property UIBindings : TBindingContext    read FUIBindings;
 end;
 
-var IO : TIO;
-
 implementation
 
 uses dateutils, math, vutil, vtig, vtigio, vioeventstate;
@@ -94,7 +92,6 @@ begin
 
   if aConsole <> nil then
     Initialize( aConsole );
-  IO := Self;
 end;
 
 procedure TIO.Initialize( aConsole : TIOConsoleRenderer );
@@ -109,7 +106,6 @@ end;
 destructor TIO.Destroy;
 var iLayer : TIOLayer;
 begin
-  if IO = Self then IO := nil;
   if FLayers <> nil then
     for iLayer in FLayers do
       iLayer.Free;
@@ -353,7 +349,8 @@ begin
     Exit;
   end;
   FConsole.ShowCursor;
-  FTIGConsoleView := PushLayer( TTIGConsoleView.Create( aLua ) ) as TTIGConsoleView;
+  FTIGConsoleView := PushLayer( TTIGConsoleView.Create(
+    aLua, FIODriver, Point( FConsole.SizeX, FConsole.SizeY ) ) ) as TTIGConsoleView;
   FTIGConsoleView.LoadHistory('console.history');
 end;
 

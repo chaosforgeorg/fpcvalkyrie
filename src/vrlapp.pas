@@ -73,8 +73,6 @@ type TRLApplication = class abstract( TValkyrieApplication )
 
 implementation
 
-uses vio;
-
 { TRLRuntime }
 
 constructor TRLRuntime.Create( const aPaths : TGamePaths; var aConfiguration : TObject );
@@ -95,8 +93,6 @@ destructor TRLRuntime.Destroy;
 begin
   ReleaseLua;
 
-  if vio.IO = FIO then
-    vio.IO := nil;
   FreeAndNil(FIO);
 
   FreeAndNil(FGameRNG);
