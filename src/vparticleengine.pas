@@ -1,7 +1,8 @@
 unit vparticleengine;
-{$include valkyrie.inc}
+{$INCLUDE valkyrie.inc}
 interface
-uses SysUtils, Math, vvector, vcolor, vrandom, vrltools, vgltypes, vspriteengine;
+uses sysutils, math,
+     vvector, vcolor, vrandom, vrltools, vgltypes, vspriteengine;
 
 const PARTICLE_MAX_DEFAULT = 16384;
 
@@ -98,7 +99,9 @@ type
   TParticleEngine = class
     constructor Create( aRNG : TRNG; aMaxParticles : Integer = PARTICLE_MAX_DEFAULT );
     destructor Destroy; override;
-    procedure Clear;
+    procedure Clear; overload;
+    // Discard all particles and unlisted emitters; keep listed emitters at their current age.
+    procedure Clear( const aKeepEmitters : array of Integer ); overload;
     procedure ClearParticles;
     procedure Update( aDeltaSec : Single );
     procedure Render( aSpriteEngine : TSpriteEngine );
@@ -164,6 +167,28 @@ begin
   FEmitterCount  := 0;
   for i := 0 to FMaxEmitters - 1 do
     FEmitters[i].Used := False;
+end;
+
+procedure TParticleEngine.Clear( const aKeepEmitters : array of Integer );
+var iKeep : array of Boolean;
+    i     : Integer;
+begin
+  SetLength( iKeep, FMaxEmitters );
+  for i in aKeepEmitters do
+    if ( i >= 0 ) and ( i < FMaxEmitters ) then
+      iKeep[i] := True;
+  FParticleCount := 0;
+  FEmitterCount := 0;
+  for i := 0 to FMaxEmitters - 1 do
+  begin
+    FEmitters[i].Used := FEmitters[i].Used and iKeep[i];
+    if FEmitters[i].Used then
+    begin
+      FEmitters[i].ActiveCount := 0;
+      FEmitters[i].TimeSinceEmit := 0;
+      Inc( FEmitterCount );
+    end;
+  end;
 end;
 
 procedure TParticleEngine.ClearParticles;
