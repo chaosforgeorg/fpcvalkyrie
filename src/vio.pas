@@ -386,7 +386,7 @@ function TIO.IsModal : Boolean;
 var iLayer : TIOLayer;
 begin
   for iLayer in FLayers do
-    if iLayer.IsModal then Exit( True );
+    if not iLayer.IsFinished and iLayer.IsModal then Exit( True );
   Exit( False );
 end;
 
