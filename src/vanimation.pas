@@ -39,6 +39,8 @@ protected
   FDuration : DWord;
   FUID      : TUID;
   FBlocking : Boolean;
+  // Limit catch-up steps at the motion's midpoint and end.
+  FPreserveMotionSamples : Boolean;
 public
   property Expired  : Boolean read IsExpired;
   property Duration : DWord   read FDuration;
@@ -56,13 +58,20 @@ type TAnimations = class
   procedure Update( aTime : DWord );
   procedure Draw;
   procedure Clear;
+  procedure RequestCatchUp;
+  // Restore normal playback speed without changing animation progress.
+  procedure ResetPlaybackSpeed;
   function Finished : Boolean;
   function BlockingFinished : Boolean;
   destructor Destroy; override;
 private
   function UIDDuration( aUID : TUID ) : DWord;
+  function BlockingDuration : DWord;
 private
-  FAnimations : TAnimationArray;
+  FAnimations   : TAnimationArray;
+  FPlaybackRate : Double;
+  FTargetRate   : Double;
+  FTimeFraction : Double;
 public
   property Animations : TAnimationArray read FAnimations;
 end;
@@ -70,6 +79,11 @@ end;
 implementation
 
 uses math;
+
+const CATCH_UP_OVERLAP_MS   = 16;
+      CATCH_UP_BACKLOG_MS   = 100.0;
+      CATCH_UP_MAX_RATE     = 3.0;
+      CATCH_UP_RISE_MS      = 80.0;
 
 { TAnimation }
 
@@ -80,6 +94,7 @@ begin
   FDuration := aDuration;
   FUID      := aUID;
   FBlocking := True;
+  FPreserveMotionSamples := False;
 end;
 
 procedure TAnimation.OnUpdate ( aTime : DWord ) ;
@@ -128,6 +143,32 @@ end;
 constructor TAnimations.Create;
 begin
   FAnimations := TAnimationArray.Create;
+  ResetPlaybackSpeed;
+end;
+
+procedure TAnimations.ResetPlaybackSpeed;
+begin
+  FPlaybackRate := 1.0;
+  FTargetRate   := 1.0;
+  FTimeFraction := 0.0;
+end;
+
+function TAnimations.BlockingDuration : DWord;
+var iAnim : TAnimation;
+begin
+  Result := 0;
+  for iAnim in FAnimations do
+    if iAnim.Blocking then
+      Result := Max( Result, iAnim.FDelay + iAnim.FDuration - Min( iAnim.FTime, iAnim.FDuration ) );
+end;
+
+procedure TAnimations.RequestCatchUp;
+var iRemaining : DWord;
+begin
+  iRemaining := BlockingDuration;
+  if iRemaining <= CATCH_UP_OVERLAP_MS then Exit;
+  // Keep the ramp across consecutive actions until blocking animations finish.
+  FTargetRate := Max( FTargetRate, Min( CATCH_UP_MAX_RATE, 1.0 + iRemaining / CATCH_UP_BACKLOG_MS ) );
 end;
 
 function TAnimations.AddAnimation( aAnimation: TAnimation ) : DWord;
@@ -143,14 +184,41 @@ begin
 end;
 
 procedure TAnimations.Update( aTime : DWord );
-var iCount : DWord;
-    iAnim  : TAnimation;
+var iCount   : DWord;
+    iAnim    : TAnimation;
+    iTime    : DWord;
+    iLimit   : DWord;
+    iSample  : DWord;
+    iDecay   : Double;
+    iAdvance : Double;
 begin
   if aTime = 0 then aTime := 1;
+  iTime := aTime;
+  if ( FTargetRate <> 1.0 ) or ( FPlaybackRate <> 1.0 ) then
+  begin
+    iDecay := Exp( -Double( aTime ) / CATCH_UP_RISE_MS );
+    // Integrate the rate ramp, retaining fractional milliseconds across frames.
+    iAdvance := FTargetRate * aTime + ( FPlaybackRate - FTargetRate ) * CATCH_UP_RISE_MS * ( 1.0 - iDecay ) + FTimeFraction;
+    FPlaybackRate := FTargetRate + ( FPlaybackRate - FTargetRate ) * iDecay;
+    iTime := Trunc( iAdvance );
+    FTimeFraction := iAdvance - iTime;
+
+    iLimit := iTime;
+    for iAnim in FAnimations do
+      if iAnim.FPreserveMotionSamples and ( iAnim.FTime < iAnim.FDuration ) then
+      begin
+        iSample := iAnim.FDuration div 2;
+        if iAnim.FTime >= iSample then iSample := iAnim.FDuration;
+        iLimit := Min( iLimit, iAnim.FDelay + iSample - iAnim.FTime );
+      end;
+    // Never slow baseline playback, even after a long frame. Discard excess
+    // catch-up time instead of carrying it into a later frame as a large jump.
+    iTime := Max( aTime, iLimit );
+  end;
   if FAnimations.Size > 0 then
   begin
     for iAnim in FAnimations do
-      iAnim.OnUpdate( aTime );
+      iAnim.OnUpdate( iTime );
     iCount := 0;
     repeat
       if FAnimations[iCount].Expired
@@ -158,6 +226,7 @@ begin
         else Inc( iCount );
     until iCount >= FAnimations.Size;
   end;
+  if ( FPlaybackRate <> 1.0 ) and BlockingFinished then ResetPlaybackSpeed;
 end;
 
 procedure TAnimations.Draw;
@@ -169,6 +238,7 @@ end;
 procedure TAnimations.Clear;
 begin
   FAnimations.Clear;
+  ResetPlaybackSpeed;
 end;
 
 function TAnimations.Finished: Boolean;
