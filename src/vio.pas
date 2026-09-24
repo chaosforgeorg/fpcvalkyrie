@@ -28,6 +28,7 @@ type TIO = class( TSystem )
   function ConsoleCoordToDeviceCoord( aCoord : TIOPoint ) : TIOPoint; virtual;
   function CaptureScreen( const aFileName : AnsiString ) : Boolean;
   function SaveConsoleTextDump( const aFileName : AnsiString ) : Boolean;
+  procedure NotifyInputSource( aSource : TIOInputSource );
 protected
   function HandleInput( aInput : Integer ) : Boolean;
   procedure ClearFinishedLayers;
@@ -41,14 +42,16 @@ protected
   FUIBindings     : TBindingContext;
   FLastUpdate     : DWord;
 
+  FLastInputSource: TIOInputSource;
   FMouseLast      : TIOPoint;
   FMouse          : TIOPoint;
 public
-  property Driver     : TIODriver          read FIODriver;
-  property Console    : TIOConsoleRenderer read FConsole;
-  property PadState   : TIOPadState        read FPadState;
-  property Bindings   : TBindings          read FBindings;
-  property UIBindings : TBindingContext    read FUIBindings;
+  property Driver         : TIODriver          read FIODriver;
+  property Console        : TIOConsoleRenderer read FConsole;
+  property PadState       : TIOPadState        read FPadState;
+  property Bindings       : TBindings          read FBindings;
+  property UIBindings     : TBindingContext    read FUIBindings;
+  property LastInputSource: TIOInputSource read FLastInputSource;
 end;
 
 implementation
@@ -63,6 +66,7 @@ begin
   FIODriver        := aIODriver;
   FConsole         := nil;
   FLastUpdate      := FIODriver.GetMs;
+  FLastInputSource := VINPUT_NONE;
   FTIGConsoleView  := nil;
   FLayers          := TIOLayerStack.Create;
   FPadState        := TIOPadState.Create;
@@ -186,6 +190,7 @@ begin
   FLayers.Clear;
   FTIGConsoleView := nil;
   FPadState.Clear;
+  FLastInputSource := VINPUT_NONE;
   FMouseLast := Point(-1,-1);
   FMouse     := Point(-1,-1);
 end;
@@ -221,12 +226,24 @@ begin
   VTIG_Render;
 end;
 
+procedure TIO.NotifyInputSource( aSource : TIOInputSource );
+begin
+  FLastInputSource := aSource;
+end;
+
 function TIO.OnEvent( const aEvent : TIOEvent ) : Boolean;
 var i, iInput : Integer;
     iEvent    : TIOEvent;
     iWide     : WideString;
     iAction   : TBindingAction;
 begin
+  // Record the source before a UI layer can consume the event or issue a command.
+  case aEvent.EType of
+    VEVENT_KEYDOWN   : FLastInputSource := VINPUT_KEYBOARD;
+    VEVENT_MOUSEDOWN : FLastInputSource := VINPUT_MOUSE;
+    VEVENT_PADDOWN   : FLastInputSource := VINPUT_GAMEPAD;
+    VEVENT_PADDEVICE : FLastInputSource := VINPUT_NONE;
+  end;
   FPadState.HandleEvent( aEvent );
   case aEvent.EType of
     VEVENT_KEYDOWN,
