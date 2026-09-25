@@ -20,6 +20,7 @@ type TIO = class( TSystem )
   destructor Destroy; override;
   procedure ToggleDebugConsole( aLua : TLua );
   function PushLayer( aLayer : TIOLayer ) : TIOLayer; virtual;
+  procedure FinishLayers; virtual;
   function IsTopLayer( aLayer : TIOLayer ) : Boolean;
   function IsModal : Boolean;
   procedure WaitForLayer;
@@ -369,6 +370,14 @@ begin
   FTIGConsoleView := PushLayer( TTIGConsoleView.Create(
     aLua, FIODriver, Point( FConsole.SizeX, FConsole.SizeY ) ) ) as TTIGConsoleView;
   FTIGConsoleView.LoadHistory('console.history');
+end;
+
+procedure TIO.FinishLayers;
+var iLayer : TIOLayer;
+begin
+  if FTIGConsoleView <> nil then ToggleDebugConsole( nil );
+  for iLayer in FLayers do
+    iLayer.Finish;
 end;
 
 procedure TIO.ClearFinishedLayers;
