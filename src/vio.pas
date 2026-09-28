@@ -13,7 +13,7 @@ type TIO = class( TSystem )
   procedure PostUpdate; virtual;
   procedure Clear; virtual;
   procedure Update( aMSec : DWord ); virtual;
-  procedure Delay( aTime : Integer );
+  procedure Delay( aTime : Integer ); virtual;
   procedure ClearEventBuffer;
   function OnEvent( const aEvent : TIOEvent ) : Boolean; virtual;
   function HandleEvents : Boolean; virtual;

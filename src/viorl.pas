@@ -16,8 +16,9 @@ type
 TIORL = class( TIO )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer ); reintroduce;
 
-  // TIG-version functions
+  // Blocking presentation boundaries; call outside layer dispatch.
   procedure RunLayer( aLayer : TIOLayer ); virtual;
+  procedure Delay( aTime : Integer ); override;
 
   // Settings
 
@@ -120,8 +121,16 @@ end;
 
 procedure TIORL.RunLayer( aLayer : TIOLayer );
 begin
+  if MsgPending then MsgUpdate;
+  VTIG_EventClear;
   PushLayer( aLayer );
-  WaitForLayer;
+  WaitForLayer( aLayer );
+end;
+
+procedure TIORL.Delay( aTime : Integer );
+begin
+  if MsgPending then MsgUpdate;
+  inherited Delay( aTime );
 end;
 
 procedure TIORL.Configure ( aLuaConfig : TLuaConfig ) ;
@@ -221,6 +230,7 @@ end;
 function TIORL.WaitForKeyEvent ( out aEvent : TIOEvent ) : Boolean;
 var iEndLoop : TIOEventTypeSet;
 begin
+  if MsgPending then MsgUpdate;
   FBreakLoop := False;
   iEndLoop := [VEVENT_KEYDOWN];
   repeat
@@ -287,13 +297,14 @@ function TIORL.WaitForAnimationCompletion( aStrict : Boolean;
 var iStart    : DWord;
     iFinished : Boolean;
 begin
+  if MsgPending then MsgUpdate;
   iStart := Driver.GetMs;
   repeat
     if aStrict
       then iFinished := not AnimationsRunning
       else iFinished := AnimationsBlockingFinished;
     if iFinished then Exit( True );
-    Delay( 5 );
+    inherited Delay( 5 );
     if ( aTimeout > 0 ) and ( Driver.GetMs - iStart > aTimeout ) then
     begin
       ClearAnimations;
