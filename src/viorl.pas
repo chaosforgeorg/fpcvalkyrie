@@ -30,9 +30,13 @@ TIORL = class( TIO )
   procedure Msg( const aMessage : Ansistring); virtual; overload;
   // Adds a message for the message buffer (params passed to Format)
   procedure Msg( const aMessage : Ansistring; const aParams : array of Const ); overload;
-  // Kills last message from the message buffer.
+  // Queue mode defers presentation and More callbacks until MsgUpdate.
+  // Update only outside view dispatch and More callbacks.
+  // History accessors read only messages already presented.
+  function MsgPending : Boolean;
+  // Removes the newest pending message, or the last displayed line.
   procedure MsgKill;
-  // Update messages
+  // Marks the old page read, then presents pending messages.
   procedure MsgUpdate; virtual;
   // Dump last messages to file.
   procedure MsgDump( var aTextFile : Text; aLastCount : Integer );
@@ -77,6 +81,7 @@ protected
   FVisualRNG    : TRNG;
   FTMap         : TTextMap;
   FMessages     : TMessages;
+  FMsgQueue     : Boolean;
   FConfig       : TLuaConfig;
   FKeyCode      : Word;
   FGameBindings : TBindingContext;
@@ -105,6 +110,7 @@ begin
   FGameBindings := Bindings.CreateContext;
   FTMap      := nil;
   FMessages  := nil;
+  FMsgQueue  := False;
   FLevel     := nil;
   FPlayer    := nil;
   FConfig    := nil;
@@ -135,12 +141,17 @@ end;
 
 procedure TIORL.Msg ( const aMessage : Ansistring ) ;
 begin
-  if FMessages <> nil then FMessages.Add(aMessage);
+  if FMessages <> nil then FMessages.Add( aMessage, FMsgQueue );
 end;
 
 procedure TIORL.Msg( const aMessage : Ansistring; const aParams : array of const ) ;
 begin
   Msg( Format( aMessage, aParams ) );
+end;
+
+function TIORL.MsgPending : Boolean;
+begin
+  Exit( ( FMessages <> nil ) and FMessages.Pending );
 end;
 
 procedure TIORL.MsgKill;
@@ -171,7 +182,7 @@ end;
 procedure TIORL.InitializeMessages( aVisible, aLength : DWord;
   aOnMore : TMessagesMoreEvent; aBufferSize : Word );
 begin
-  FreeAndNil( FMessages );
+  ReleaseMessages;
   FMessages := TMessages.Create( aVisible, aLength, aOnMore, aBufferSize );
 end;
 
@@ -188,9 +199,7 @@ end;
 
 procedure TIORL.MsgReset;
 begin
-  if FMessages = nil then Exit;
-  FMessages.Reset;
-  FMessages.Update;
+  if FMessages <> nil then FMessages.Reset;
 end;
 
 procedure TIORL.MsgClear;

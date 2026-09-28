@@ -15,7 +15,8 @@ type TMessageHighlightArray = specialize TGArray<TMessageHighlight>;
 
 type TMessages = class
   constructor Create( aVisible : DWord; aLength : DWord; aOnMore : TMessagesMoreEvent; aBufferSize : Word = 1000 );
-  procedure Add( const aMessage : Ansistring );
+  procedure Add( const aMessage : AnsiString; aQueue : Boolean = False );
+  function Pending : Boolean;
   procedure Update;
   procedure Clear;
   procedure Reset;
@@ -24,6 +25,11 @@ type TMessages = class
   function Size : DWord;
   procedure AddHighlightCallback( aKey, aValue : Variant );
   destructor Destroy; override;
+private
+  procedure AcknowledgePage;
+private
+  FPending       : array of AnsiString;
+  FPendingHead   : Integer;
 protected
   FHighlights    : TMessageHighlightArray;
   FContent       : TMessageBuffer;
@@ -58,7 +64,12 @@ begin
   FLastCount     := 1;
 end;
 
-procedure TMessages.Add( const aMessage : Ansistring );
+function TMessages.Pending : Boolean;
+begin
+  Exit( FPendingHead < Length( FPending ) );
+end;
+
+procedure TMessages.Add( const aMessage : AnsiString; aQueue : Boolean );
 var iPending : Ansistring;
     iPrefix  : Ansistring;
     iLength  : Integer;
@@ -94,7 +105,7 @@ var iPending : Ansistring;
     if ( FActive = FVisible ) then
     begin
       if Assigned( FOnMore ) then FOnMore;
-      Update;
+      AcknowledgePage;
     end;
     Inc( FActive );
     FContent.PushBack( LetterEscape( aContent ) );
@@ -121,6 +132,12 @@ var iPending : Ansistring;
 
 begin
   if aMessage = '' then Exit;
+  if aQueue then
+  begin
+    SetLength( FPending, Length( FPending ) + 1 );
+    FPending[ High( FPending ) ] := aMessage;
+    Exit;
+  end;
   if FGroupMultiple and ( aMessage = FLast ) and AddRepeat then Exit;
   iLetter  := ' ';
   if FHighlights.Size > 0 then
@@ -168,6 +185,21 @@ begin
 end;
 
 procedure TMessages.Update;
+var iMessage : AnsiString;
+begin
+  AcknowledgePage;
+  while Pending do
+  begin
+    iMessage := FPending[ FPendingHead ];
+    FPending[ FPendingHead ] := '';
+    Inc( FPendingHead );
+    Add( iMessage );
+  end;
+  SetLength( FPending, 0 );
+  FPendingHead := 0;
+end;
+
+procedure TMessages.AcknowledgePage;
 begin
   FActive    := 0;
   FLastCount := 1;
@@ -176,15 +208,18 @@ end;
 
 procedure TMessages.Clear;
 begin
+  SetLength( FPending, 0 );
+  FPendingHead := 0;
   FContent.Clear;
-  Update;
+  AcknowledgePage;
 end;
 
 procedure TMessages.Reset;
 var iCount : Integer;
 begin
-  FLastCount := 1;
-  FLast      := '';
+  SetLength( FPending, 0 );
+  FPendingHead := 0;
+  AcknowledgePage;
   for iCount := 1 to FVisible do
     FContent.PushBack( '' );
 end;
@@ -198,6 +233,11 @@ end;
 
 procedure TMessages.Pop;
 begin
+  if Pending then
+  begin
+    SetLength( FPending, Length( FPending ) - 1 );
+    Exit;
+  end;
   if FContent.Size > 0 then
     FContent.PopBack;
   if FActive > 0 then

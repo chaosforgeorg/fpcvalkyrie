@@ -23,7 +23,7 @@ type TIO = class( TSystem )
   procedure FinishLayers; virtual;
   function IsTopLayer( aLayer : TIOLayer ) : Boolean;
   function IsModal : Boolean;
-  procedure WaitForLayer;
+  procedure WaitForLayer( aLayer : TIOLayer = nil );
   function EventToUIInput( const aEvent : TIOEvent ) : Integer; virtual;
   function DeviceCoordToConsoleCoord( aCoord : TIOPoint ) : TIOPoint; virtual;
   function ConsoleCoordToDeviceCoord( aCoord : TIOPoint ) : TIOPoint; virtual;
@@ -416,13 +416,26 @@ begin
   Exit( False );
 end;
 
-procedure TIO.WaitForLayer;
+procedure TIO.WaitForLayer( aLayer : TIOLayer );
 begin
-  repeat
-    Sleep(10);
+  if aLayer = nil then
+  begin
+    repeat
+      Sleep( 10 );
+      FullUpdate;
+      HandleEvents;
+    until FLayers.IsEmpty or ( not IsModal );
+    Exit;
+  end;
+
+  // Updates may collect the layer; only dereference it while it remains owned.
+  while FLayers.IndexOf( aLayer ) >= 0 do
+  begin
+    if aLayer.IsFinished then Exit;
+    Sleep( 10 );
     FullUpdate;
     HandleEvents;
-  until FLayers.IsEmpty or (not IsModal);
+  end;
 end;
 
 function TIO.EventToUIInput( const aEvent : TIOEvent ) : Integer;
