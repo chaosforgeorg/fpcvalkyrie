@@ -1,10 +1,22 @@
 unit vspriteengine;
-{$include valkyrie.inc}
+{$INCLUDE valkyrie.inc}
 interface
 uses SysUtils, vgenerics, vvector, vrltools, vcolor, vgltypes, vglprogram, vglquadarrays, vtextures;
 
 type TSpriteEngine = class;
 type TGLTexturedColored4Quads = class;
+type TGLSpriteTransitionQuads = class;
+
+// Sprite IDs are local to a single dataset. Shift uses sprite-sized UV units.
+type TSpriteTransitionMaterial = object
+  SpriteID : DWord;
+  Color    : TColor;
+  Emissive : TColor;
+  Shift    : TVec2f;
+  function Compare( const aOther : TSpriteTransitionMaterial ) : Integer;
+end;
+
+type TSpriteTransitionMaterials = array[0..3] of TSpriteTransitionMaterial;
 
 type
 
@@ -18,8 +30,12 @@ TSpriteDataSet = class
   procedure Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aQColor : PGLRawQColor; aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer = 0 );
   procedure Push( aQCoord : PGLRawQCoord; aQTex : PGLRawQTexCoord; aColor, aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer = 0 );
   procedure PushPart( aSpriteID : DWord; aPa, aPb : TVec2i; aQColor : PGLRawQColor; aCosColor, aGlowColor, aEmissive : TColor; aZ : Integer; aTa, aTb : TVec2f );
+  // Quadrants and candidate slots are NW, NE, SW, SE; aMask selects candidates.
+  procedure PushTransition( aCoord : TCoord2D; aQuadrant, aMask : Byte; const aMaterials : TSpriteTransitionMaterials;
+    const aLight : TGLRawQColor; aZ : Integer; aWidth : Single );
   destructor Destroy; override;
 private
+  FTransitions : TGLSpriteTransitionQuads;
   FData        : TGLTexturedColored4Quads;
   FEngine      : TSpriteEngine;
   FTexUnit     : TVec2f;
@@ -46,6 +62,7 @@ type TSpriteDataSetArray = specialize TGArray< TSpriteDataSet >;
 TSpriteEngine = class
   constructor Create( aTileSize : TVec2i; aScale : Byte = 1 );
   procedure Reset;
+  procedure Clear;
   procedure SetScale( aScale : Byte );
   procedure SetScale( aScale : Single );
   procedure Draw;
@@ -57,25 +74,26 @@ private
   procedure SetTexture( aTextureID : DWord );
 private
 
-  FVAO            : Cardinal;
-  FProgram        : TGLProgram;
-  FProjection     : TMatrix44;
-  FCurrentTexture : DWord;
-  FGrid           : TVec2i;
-  FTileSize       : TVec2i;
-  FPosition       : TVec2i;
-  FScale          : Single;
-  FLayersDirty    : Boolean;
-  FFuzzyMode      : Boolean;
-  FLayers         : TSpriteDataSetArray;
-  FLayersSorted   : TSpriteDataSetArray;
-  FTZeroID        : DWord;
+  FVAO               : Cardinal;
+  FProgram           : TGLProgram;
+  FTransitionProgram : TGLProgram;
+  FProjection        : TMatrix44;
+  FCurrentTexture    : DWord;
+  FGrid              : TVec2i;
+  FTileSize          : TVec2i;
+  FPosition          : TVec2i;
+  FScale             : Single;
+  FLayersDirty       : Boolean;
+  FFuzzyMode         : Boolean;
+  FLayers            : TSpriteDataSetArray;
+  FLayersSorted      : TSpriteDataSetArray;
+  FTZeroID           : DWord;
 public
-  property Scale    : Single read FScale;
-  property Grid     : TVec2i read FGrid;
-  property TileSize : TVec2i read FTileSize;
-  property Position : TVec2i read FPosition write FPosition;
-  property Layers   : TSpriteDataSetArray read FLayers;
+  property Scale     : Single read FScale;
+  property Grid      : TVec2i read FGrid;
+  property TileSize  : TVec2i read FTileSize;
+  property Position  : TVec2i read FPosition write FPosition;
+  property Layers    : TSpriteDataSetArray read FLayers;
 end;
 
 type TGLTexturedColored4Quads = class( TGLTexturedQuads )
@@ -85,6 +103,12 @@ type TGLTexturedColored4Quads = class( TGLTexturedQuads )
   procedure PushQuad ( aCoord : TGLQVec3i; aColorQuad : TGLQVec4f; aCosColor, aGlowColor, aEmissive : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
   procedure PushRotatedQuad ( aCenter, aSize : TGLVec3i; aDegrees : Single; aColor, aCosColor, aGlowColor, aEmissive : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
   procedure Append( aList : TGLTexturedColored4Quads );
+end;
+
+type TGLSpriteTransitionQuads = class( TGLTexturedQuads )
+  constructor Create;
+  procedure PushQuad( aPa, aPb : TVec2i; aSourceA, aSourceB : TVec2f; aZ : Integer;
+    const aLight : TGLQVec4f; const aValues : array of TVec4f );
 end;
 
 implementation
@@ -149,6 +173,108 @@ VSpriteFragmentShader : Ansistring =
 'frag_color     = out_color;'+#10+
 '}'+#10;
 
+VSpriteTransitionVertexShader : Ansistring =
+'#version 330 core'+#10+
+'layout (location = 0) in vec3 position;'+#10+
+'layout (location = 1) in vec2 source_position;'+#10+
+'layout (location = 2) in vec4 color;'+#10+
+'layout (location = 3) in vec4 pivot_width;'+#10+
+'layout (location = 4) in vec4 origins01;'+#10+
+'layout (location = 5) in vec4 origins23;'+#10+
+'layout (location = 6) in vec4 masks;'+#10+
+'layout (location = 7) in vec4 colors[4];'+#10+
+'layout (location = 11) in vec4 emissions[4];'+#10+
+'uniform mat4 utransform;'+#10+
+'uniform vec3 uposition;'+#10+
+'out vec2 osource;'+#10+
+'out vec4 ocolor;'+#10+
+'flat out vec4 opivot_width;'+#10+
+'flat out vec4 oorigins01;'+#10+
+'flat out vec4 oorigins23;'+#10+
+'flat out vec4 omasks;'+#10+
+'flat out vec4 ocolors[4];'+#10+
+'flat out vec4 oemissions[4];'+#10+
+'void main() {'+#10+
+'  osource = source_position;'+#10+
+'  ocolor = color;'+#10+
+'  opivot_width = pivot_width;'+#10+
+'  oorigins01 = origins01;'+#10+
+'  oorigins23 = origins23;'+#10+
+'  omasks = masks;'+#10+
+'  for (int i = 0; i < 4; ++i) {'+#10+
+'    ocolors[i] = colors[i];'+#10+
+'    oemissions[i] = emissions[i];'+#10+
+'  }'+#10+
+'  gl_Position = utransform * vec4(uposition + position, 1.0);'+#10+
+'}'+#10;
+VSpriteTransitionFragmentShader : Ansistring =
+'#version 330 core'+#10+
+'in vec2 osource;'+#10+
+'in vec4 ocolor;'+#10+
+'flat in vec4 opivot_width;'+#10+
+'flat in vec4 oorigins01;'+#10+
+'flat in vec4 oorigins23;'+#10+
+'flat in vec4 omasks;'+#10+
+'flat in vec4 ocolors[4];'+#10+
+'flat in vec4 oemissions[4];'+#10+
+'uniform sampler2D unormal;'+#10+
+'uniform sampler2D ucosplay;'+#10+
+'uniform sampler2D uemissive;'+#10+
+'uniform vec2 utile_size;'+#10+
+'uniform vec2 utex_unit;'+#10+
+'layout (location = 0) out vec4 frag_color;'+#10+
+'layout (location = 1) out vec4 emissive_color;'+#10+
+'const int bayer[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);'+#10+
+'void main() {'+#10+
+'  ivec2 pixel = ivec2(floor(osource));'+#10+
+'  vec2 fraction = clamp(0.5 + (vec2(pixel) + 0.5 - opivot_width.xy) / (2.0 * opivot_width.z), 0.0, 1.0);'+#10+
+'  vec4 corners = vec4((1.0-fraction.x)*(1.0-fraction.y), fraction.x*(1.0-fraction.y),'+#10+
+'                      (1.0-fraction.x)*fraction.y, fraction.x*fraction.y);'+#10+
+'  float weights[4];'+#10+
+'  float total = 0.0;'+#10+
+'  for (int i = 0; i < 4; ++i) {'+#10+
+'    int mask = int(omasks[i]);'+#10+
+'    weights[i] = 0.0;'+#10+
+'    for (int j = 0; j < 4; ++j)'+#10+
+'      if ((mask & (1 << j)) != 0) weights[i] += corners[j];'+#10+
+'    total += weights[i];'+#10+
+'  }'+#10+
+'  float threshold = (float(bayer[(pixel.y & 3)*4 + (pixel.x & 3)]) + 0.5) / 16.0 * total;'+#10+
+'  float cumulative = 0.0;'+#10+
+'  int selected = 0;'+#10+
+'  for (int i = 0; i < 4; ++i) {'+#10+
+'    cumulative += weights[i];'+#10+
+'    if (threshold < cumulative) { selected = i; break; }'+#10+
+'  }'+#10+
+'  vec2 origins[4] = vec2[4](oorigins01.xy, oorigins01.zw, oorigins23.xy, oorigins23.zw);'+#10+
+'  vec2 uv = origins[selected] + fract(osource / utile_size) * utex_unit;'+#10+
+'  float emissive = texture(uemissive, uv).x;'+#10+
+'  vec4 tint = vec4(texture(ucosplay, uv).xyz, 0.0);'+#10+
+'  tint *= emissive > 0.0 ? oemissions[selected] : ocolors[selected];'+#10+
+'  vec4 color = (texture(unormal, uv) + tint) * vec4(max(ocolor.xyz, vec3(emissive)), ocolor.w);'+#10+
+'  if (emissive > 0.0 && (ocolor.x != ocolor.y || ocolor.y != ocolor.z)) color *= ocolor;'+#10+
+'  if (color.w < 0.1) discard;'+#10+
+'  frag_color = color;'+#10+
+'  emissive_color = vec4(emissive * color.xyz * oemissions[selected].w, 1.0);'+#10+
+'}'+#10;
+
+{ TSpriteTransitionMaterial }
+
+function TSpriteTransitionMaterial.Compare( const aOther : TSpriteTransitionMaterial ) : Integer;
+begin
+  if SpriteID < aOther.SpriteID then Exit( -1 );
+  if SpriteID > aOther.SpriteID then Exit( 1 );
+  if Color.toDWord < aOther.Color.toDWord then Exit( -1 );
+  if Color.toDWord > aOther.Color.toDWord then Exit( 1 );
+  if Emissive.toDWord < aOther.Emissive.toDWord then Exit( -1 );
+  if Emissive.toDWord > aOther.Emissive.toDWord then Exit( 1 );
+  if Shift.X < aOther.Shift.X then Exit( -1 );
+  if Shift.X > aOther.Shift.X then Exit( 1 );
+  if Shift.Y < aOther.Shift.Y then Exit( -1 );
+  if Shift.Y > aOther.Shift.Y then Exit( 1 );
+  Exit( 0 );
+end;
+
 { TSpriteDataSet }
 
 constructor TSpriteDataSet.Create( aEngine : TSpriteEngine; aNormal, aCosplay, aEmissive, aOutline : TTexture; aOrder : Integer );
@@ -172,6 +298,7 @@ end;
 
 destructor TSpriteDataSet.Destroy;
 begin
+  FreeAndNil( FTransitions );
   FreeAndNil( FData );
 end;
 
@@ -321,6 +448,93 @@ begin
   );
 end;
 
+procedure TSpriteDataSet.PushTransition( aCoord : TCoord2D; aQuadrant, aMask : Byte;
+  const aMaterials : TSpriteTransitionMaterials; const aLight : TGLRawQColor; aZ : Integer; aWidth : Single );
+var iSorted       : TSpriteTransitionMaterials;
+    iMasks        : array[0..3] of Byte;
+    iValues       : array[0..11] of TVec4f;
+    iUV           : array[0..3] of TVec2f;
+    iColors       : array[0..3] of TVec4f;
+    iCount, i, j  : Integer;
+    iIndex        : Integer;
+    iQuadrant     : TVec2i;
+    iTilePos      : TVec2i;
+    iPa, iPb      : TVec2i;
+    iStart, iEnd  : TVec2f;
+    iWorld        : TVec2f;
+    iSourceA      : TVec2f;
+    iSourceB      : TVec2f;
+    iPivot        : TVec2f;
+    iLight        : TGLQVec4f;
+
+    function LightAt( aX, aY : Single ) : TVec4f;
+    begin
+      // Preserve the ordinary quad's NW-to-SE diagonal and triangle gradients.
+      if aX <= aY then
+        Exit( iColors[0].Scaled( 1-aY ) + iColors[1].Scaled( aY-aX ) + iColors[2].Scaled( aX ) );
+      Exit( iColors[0].Scaled( 1-aX ) + iColors[2].Scaled( aY ) + iColors[3].Scaled( aX-aY ) );
+    end;
+
+begin
+  Assert( aQuadrant < 4 );
+  Assert( (aMask and (1 shl (3 xor aQuadrant))) <> 0, 'Transition must include its destination' );
+  Assert( (aWidth > 0) and (aWidth <= FEngine.FTileSize.X/2) and (aWidth <= FEngine.FTileSize.Y/2) );
+  if FTransitions = nil then FTransitions := TGLSpriteTransitionQuads.Create;
+
+  // Sort by appearance, merging corner weights for identical surfaces.
+  iCount := 0;
+  FillChar( iMasks, SizeOf( iMasks ), 0 );
+  for i := 0 to 3 do
+    if (aMask and (1 shl i)) <> 0 then
+    begin
+      Assert( aMaterials[i].SpriteID > 0 );
+      iIndex := 0;
+      while (iIndex < iCount) and (iSorted[iIndex].Compare( aMaterials[i] ) < 0) do Inc( iIndex );
+      if (iIndex < iCount) and (iSorted[iIndex].Compare( aMaterials[i] ) = 0) then
+        iMasks[iIndex] := iMasks[iIndex] or (1 shl i)
+      else
+      begin
+        for j := iCount downto iIndex+1 do
+        begin
+          iSorted[j] := iSorted[j-1];
+          iMasks[j] := iMasks[j-1];
+        end;
+        iSorted[iIndex] := aMaterials[i];
+        iMasks[iIndex] := 1 shl i;
+        Inc( iCount );
+      end;
+    end;
+  for i := iCount to 3 do
+  begin
+    iSorted[i] := iSorted[0];
+    iMasks[i] := 0;
+  end;
+  for i := 0 to 3 do
+  begin
+    iUV[i] := (TVec2f.CreateModDiv( iSorted[i].SpriteID-1, FRowSize ) + iSorted[i].Shift) * FTexUnit;
+    iValues[3].Data[i] := iMasks[i];
+    iValues[4+i] := iSorted[i].Color.toVec43f;
+    iValues[8+i] := iSorted[i].Emissive.toVec4f;
+    iColors[i] := NewColor( aLight.Data[i] ).toVec43f;
+  end;
+  iQuadrant := Vec2i( aQuadrant and 1, aQuadrant shr 1 );
+  iTilePos := Vec2i( aCoord.X-1, aCoord.Y-1 ) * FEngine.FGrid;
+  iPa := Vec2i( iQuadrant.X * FEngine.FGrid.X div 2, iQuadrant.Y * FEngine.FGrid.Y div 2 );
+  iPb := Vec2i( (iQuadrant.X+1) * FEngine.FGrid.X div 2, (iQuadrant.Y+1) * FEngine.FGrid.Y div 2 );
+  iStart := TVec2f.Create( iPa.X / FEngine.FGrid.X, iPa.Y / FEngine.FGrid.Y );
+  iEnd := TVec2f.Create( iPb.X / FEngine.FGrid.X, iPb.Y / FEngine.FGrid.Y );
+  iWorld := TVec2f.Create( (aCoord.X-1) * FEngine.FTileSize.X, (aCoord.Y-1) * FEngine.FTileSize.Y );
+  iSourceA := iWorld + TVec2f.Create( iStart.X * FEngine.FTileSize.X, iStart.Y * FEngine.FTileSize.Y );
+  iSourceB := iWorld + TVec2f.Create( iEnd.X * FEngine.FTileSize.X, iEnd.Y * FEngine.FTileSize.Y );
+  iPivot := iWorld + TVec2f.Create( iQuadrant.X * FEngine.FTileSize.X, iQuadrant.Y * FEngine.FTileSize.Y );
+  iValues[0] := TVec4f.Create( iPivot.X, iPivot.Y, aWidth, 0 );
+  iValues[1] := TVec4f.Create( iUV[0].X, iUV[0].Y, iUV[1].X, iUV[1].Y );
+  iValues[2] := TVec4f.Create( iUV[2].X, iUV[2].Y, iUV[3].X, iUV[3].Y );
+  iLight := TGLQVec4f.Create( LightAt( iStart.X, iStart.Y ), LightAt( iStart.X, iEnd.Y ),
+    LightAt( iEnd.X, iEnd.Y ), LightAt( iEnd.X, iStart.Y ) );
+  FTransitions.PushQuad( iTilePos+iPa, iTilePos+iPb, iSourceA, iSourceB, aZ, iLight, iValues );
+end;
+
 { TSpriteEngine }
 
 procedure TSpriteEngine.Update ( aProjection : TMatrix44 );
@@ -349,7 +563,7 @@ begin
   glEnablei( GL_BLEND, 0 );
   glDisablei( GL_BLEND, 1 );
 
-  if not Data.FData.Empty then
+  if (not Data.FData.Empty) or ((Data.FTransitions <> nil) and (not Data.FTransitions.Empty)) then
   begin
     glActiveTexture( GL_TEXTURE0 );
     SetTexture( Data.TNormalID );
@@ -359,11 +573,32 @@ begin
     SetTexture( Data.TEmissiveID );
     glActiveTexture( GL_TEXTURE3 );
     SetTexture( Data.TOutlineID );
-    FProgram.Bind;
-    Data.FData.Update;
-    Data.FData.Draw;
-    Data.FData.Clear;
-    FProgram.UnBind;
+    if not Data.FData.Empty then
+    begin
+      FProgram.Bind;
+      Data.FData.Update;
+      Data.FData.Draw;
+      Data.FData.Clear;
+      FProgram.UnBind;
+    end;
+    if (Data.FTransitions <> nil) and (not Data.FTransitions.Empty) then
+    begin
+      FTransitionProgram.Bind;
+      glUniformMatrix4fv( FTransitionProgram.GetUniformLocation( 'utransform' ), 1, GL_FALSE, @FProjection[0] );
+      if FFuzzyMode then
+        glUniform3f( FTransitionProgram.GetUniformLocation( 'uposition' ), -FPosition.X+0.01, -FPosition.Y+0.01, 0 )
+      else
+        glUniform3f( FTransitionProgram.GetUniformLocation( 'uposition' ), -FPosition.X, -FPosition.Y, 0 );
+      FTransitionProgram.SetUniformi( 'unormal', 0 );
+      FTransitionProgram.SetUniformi( 'ucosplay', 1 );
+      FTransitionProgram.SetUniformi( 'uemissive', 2 );
+      FTransitionProgram.SetUniformf( 'utile_size', FTileSize.X, FTileSize.Y );
+      FTransitionProgram.SetUniformf( 'utex_unit', Data.FTexUnit.X, Data.FTexUnit.Y );
+      Data.FTransitions.Update;
+      Data.FTransitions.Draw;
+      Data.FTransitions.Clear;
+      FTransitionProgram.UnBind;
+    end;
     glActiveTexture( GL_TEXTURE0 );
     glBindTexture( GL_TEXTURE_2D, 0 );
     glActiveTexture( GL_TEXTURE1 );
@@ -390,6 +625,7 @@ begin
   for iSet in FLayers do
     iSet.Free;
   glDeleteVertexArrays(1, @FVAO);
+  FreeAndNil( FTransitionProgram );
   FreeAndNil( FProgram );
   FreeAndNil( FLayers );
   FreeAndNil( FLayersSorted );
@@ -406,6 +642,7 @@ begin
   FLayersDirty       := True;
 
   FProgram := TGLProgram.Create( VSpriteVertexShader, VSpriteFragmentShader );
+  FTransitionProgram := TGLProgram.Create( VSpriteTransitionVertexShader, VSpriteTransitionFragmentShader );
   glGenVertexArrays(1, @FVAO);
 
   FLayers       := TSpriteDataSetArray.Create;
@@ -432,6 +669,16 @@ begin
     iSet.Free;
   FLayers.Clear;
   FLayersSorted.Clear;
+end;
+
+procedure TSpriteEngine.Clear;
+var iSet : TSpriteDataSet;
+begin
+  for iSet in FLayers do
+  begin
+    iSet.FData.Clear;
+    if iSet.FTransitions <> nil then iSet.FTransitions.Clear;
+  end;
 end;
 
 procedure TSpriteEngine.SetScale( aScale : Byte );
@@ -543,6 +790,29 @@ begin
   TGLQVec4fArray(FArrays[3]).Append( TGLQVec4fArray(aList.FArrays[3]) );
   TGLQVec4fArray(FArrays[4]).Append( TGLQVec4fArray(aList.FArrays[4]) );
   TGLQVec4fArray(FArrays[5]).Append( TGLQVec4fArray(aList.FArrays[5]) );
+end;
+
+{ TGLSpriteTransitionQuads }
+
+constructor TGLSpriteTransitionQuads.Create;
+var i : Integer;
+begin
+  inherited Create;
+  // Locations 0/1 are position/source coordinates, 2 is interpolated light,
+  // and 3..14 are constant patch/material values. Ordinary sprites stay small.
+  for i := 2 to 14 do
+    PushArray( TGLQVec4fArray.Create, 4, GL_FLOAT, i );
+end;
+
+procedure TGLSpriteTransitionQuads.PushQuad( aPa, aPb : TVec2i; aSourceA, aSourceB : TVec2f; aZ : Integer;
+  const aLight : TGLQVec4f; const aValues : array of TVec4f );
+var i : Integer;
+begin
+  Assert( Length( aValues ) = 12 );
+  inherited PushQuad( TVec3i.CreateFrom( aPa, aZ ), TVec3i.CreateFrom( aPb, aZ ), aSourceA, aSourceB );
+  TGLQVec4fArray( FArrays[2] ).Push( aLight );
+  for i := 0 to 11 do
+    TGLQVec4fArray( FArrays[3+i] ).Push( TGLQVec4f.CreateAll( aValues[i] ) );
 end;
 
 initialization

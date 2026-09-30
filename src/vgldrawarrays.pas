@@ -84,7 +84,7 @@ end;
 procedure TGLDrawArrays.Draw;
 var iCount : DWord;
 begin
-  if FArrays.Size = 0 then Exit;
+  if Empty then Exit;
   glBindVertexArray( FVAO );
 
   for iCount := 0 to FArrays.Size-1 do
@@ -105,7 +105,8 @@ end;
 
 function TGLDrawArrays.Empty : Boolean;
 begin
-  Exit( FArrays.Size = 0 );
+  if FArrays.Size = 0 then Exit( True );
+  Exit( FArrays[0].Size = 0 );
 end;
 
 destructor TGLDrawArrays.Destroy;

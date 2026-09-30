@@ -117,6 +117,9 @@ end;
 
 destructor TGLProgram.Destroy;
 begin
+  if FProgramID <> 0 then glDeleteProgram( FProgramID );
+  if FVShaderID <> 0 then glDeleteShader( FVShaderID );
+  if FFShaderID <> 0 then glDeleteShader( FFShaderID );
   inherited Destroy;
 end;
 
@@ -168,6 +171,7 @@ begin
     SetLength( iBuffer, iLength );
     Log( aSource );
     Log( LogError, 'Shader compile failure : '+ iBuffer );
+    glDeleteShader( iShaderID );
     Readln;
     Exit( 0 );
   end;
