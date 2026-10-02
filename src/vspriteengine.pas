@@ -48,6 +48,9 @@ TSpriteDataSet = class
   // Quadrants and candidate slots are NW, NE, SW, SE; aMask selects candidates.
   procedure PushTransition( aCoord : TCoord2D; aQuadrant, aMask : Byte; const aMaterials : TSpriteTransitionMaterials;
     const aLight : TGLRawQColor; aZ : Integer; aWidth : Single );
+  // Normalized tile bounds within the quadrant support split atlas pieces.
+  procedure PushTransitionPart( aCoord : TCoord2D; aQuadrant, aMask : Byte; const aMaterials : TSpriteTransitionMaterials;
+    const aLight : TGLRawQColor; aZ : Integer; aWidth : Single; aStart, aEnd : TVec2f );
   destructor Destroy; override;
 private
   FTransitions : TGLSpriteTransitionQuads;
@@ -506,6 +509,16 @@ end;
 
 procedure TSpriteDataSet.PushTransition( aCoord : TCoord2D; aQuadrant, aMask : Byte;
   const aMaterials : TSpriteTransitionMaterials; const aLight : TGLRawQColor; aZ : Integer; aWidth : Single );
+var iStart : TVec2f;
+begin
+  iStart := TVec2f.Create( (aQuadrant and 1)*0.5, (aQuadrant shr 1)*0.5 );
+  PushTransitionPart( aCoord, aQuadrant, aMask, aMaterials, aLight, aZ, aWidth,
+    iStart, iStart + TVec2f.Create( 0.5, 0.5 ) );
+end;
+
+procedure TSpriteDataSet.PushTransitionPart( aCoord : TCoord2D; aQuadrant, aMask : Byte;
+  const aMaterials : TSpriteTransitionMaterials; const aLight : TGLRawQColor; aZ : Integer; aWidth : Single;
+  aStart, aEnd : TVec2f );
 var iSorted       : TSpriteTransitionMaterials;
     iMasks        : array[0..3] of Byte;
     iPayload      : TSpriteTransitionPayload;
@@ -522,6 +535,13 @@ var iSorted       : TSpriteTransitionMaterials;
     iSourceB      : TVec2f;
     iPivot        : TVec2f;
     iLight        : TGLQVec4f;
+
+    function PixelOffset( aFraction : Single; aSize : Integer ) : Integer;
+    begin
+      // Both entry points must share the same midpoint on odd-sized tile grids.
+      if aFraction = 0.5 then Exit( aSize div 2 );
+      Result := Round( aFraction * aSize );
+    end;
 
     function LightAt( aX, aY : Single ) : TVec4f;
     begin
@@ -570,8 +590,13 @@ begin
     iColors[i] := NewColor( aLight.Data[i] ).toVec43f;
   iQuadrant := Vec2i( aQuadrant and 1, aQuadrant shr 1 );
   iTilePos := Vec2i( aCoord.X-1, aCoord.Y-1 ) * FEngine.FGrid;
-  iPa := Vec2i( iQuadrant.X * FEngine.FGrid.X div 2, iQuadrant.Y * FEngine.FGrid.Y div 2 );
-  iPb := Vec2i( (iQuadrant.X+1) * FEngine.FGrid.X div 2, (iQuadrant.Y+1) * FEngine.FGrid.Y div 2 );
+  iPa := Vec2i( PixelOffset( aStart.X, FEngine.FGrid.X ), PixelOffset( aStart.Y, FEngine.FGrid.Y ) );
+  iPb := Vec2i( PixelOffset( aEnd.X, FEngine.FGrid.X ), PixelOffset( aEnd.Y, FEngine.FGrid.Y ) );
+  Assert( (iPa.X < iPb.X) and (iPa.Y < iPb.Y) );
+  Assert( (iPa.X >= iQuadrant.X * FEngine.FGrid.X div 2) and
+    (iPa.Y >= iQuadrant.Y * FEngine.FGrid.Y div 2) and
+    (iPb.X <= (iQuadrant.X+1) * FEngine.FGrid.X div 2) and
+    (iPb.Y <= (iQuadrant.Y+1) * FEngine.FGrid.Y div 2) );
   iStart := TVec2f.Create( iPa.X / FEngine.FGrid.X, iPa.Y / FEngine.FGrid.Y );
   iEnd := TVec2f.Create( iPb.X / FEngine.FGrid.X, iPb.Y / FEngine.FGrid.Y );
   iLight := TGLQVec4f.Create( LightAt( iStart.X, iStart.Y ), LightAt( iStart.X, iEnd.Y ),
