@@ -39,6 +39,7 @@ protected
   FDuration : DWord;
   FUID      : TUID;
   FBlocking : Boolean;
+  function TryBlend( aAnimation : TAnimation ) : Boolean; virtual;
 public
   property Expired  : Boolean read IsExpired;
   property Duration : DWord   read FDuration;
@@ -52,7 +53,7 @@ type TAnimationArray = specialize TGObjectArray< TAnimation >;
 
 type TAnimations = class
   constructor Create;
-  function AddAnimation( aAnimation : TAnimation ) : DWord;
+  function AddAnimation( aAnimation : TAnimation; aBlend : Boolean = False ) : DWord;
   procedure Update( aTime : DWord );
   procedure Draw;
   procedure Clear;
@@ -110,6 +111,11 @@ begin
   // no-op
 end;
 
+function TAnimation.TryBlend( aAnimation : TAnimation ) : Boolean;
+begin
+  Exit( False );
+end;
+
 procedure TAnimation.Draw;
 begin
   if FTime > 0 then OnDraw;
@@ -130,13 +136,29 @@ begin
   FAnimations := TAnimationArray.Create;
 end;
 
-function TAnimations.AddAnimation( aAnimation: TAnimation ) : DWord;
+function TAnimations.AddAnimation( aAnimation : TAnimation; aBlend : Boolean ) : DWord;
+var iCount : Integer;
+    iAnim  : TAnimation;
 begin
   if aAnimation.FDuration = 0 then
   begin
     FreeAndNil( aAnimation );
     Exit(0);
   end;
+  if aBlend and ( aAnimation.FUID <> 0 ) and ( aAnimation.FDelay = 0 ) then
+    for iCount := FAnimations.Size - 1 downto 0 do
+    begin
+      iAnim := FAnimations[ iCount ];
+      if iAnim.FUID <> aAnimation.FUID then Continue;
+      // Only the last animation for this entity may absorb the new one.
+      if ( iAnim.FDelay = 0 ) and ( not iAnim.Expired ) and iAnim.TryBlend( aAnimation ) then
+      begin
+        Result := iAnim.FDelay;
+        aAnimation.Free;
+        Exit;
+      end;
+      Break;
+    end;
   if aAnimation.FUID <> 0 then aAnimation.FDelay := aAnimation.FDelay + UIDDuration( aAnimation.FUID );
   FAnimations.Push( aAnimation );
   Result := aAnimation.FDelay;
