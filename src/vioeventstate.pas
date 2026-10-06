@@ -38,7 +38,7 @@ implementation
 constructor TIOEventState.Create;
 begin
   FRepeatDelay := 0.3;
-  FRepeatRate  := 0.1;
+  FRepeatRate  := 0.05;
   FLastElapsed := 0.0;
   Clear;
 end;
