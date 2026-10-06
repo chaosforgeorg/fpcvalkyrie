@@ -40,6 +40,7 @@ protected
   FUID      : TUID;
   FBlocking : Boolean;
   function TryBlend( aAnimation : TAnimation ) : Boolean; virtual;
+  procedure OnFollowupQueued( aAnimation : TAnimation ); virtual;
 public
   property Expired  : Boolean read IsExpired;
   property Duration : DWord   read FDuration;
@@ -61,7 +62,7 @@ type TAnimations = class
   function BlockingFinished : Boolean;
   destructor Destroy; override;
 private
-  function UIDDuration( aUID : TUID ) : DWord;
+  procedure QueueAnimation( aAnimation : TAnimation );
 private
   FAnimations : TAnimationArray;
 public
@@ -116,6 +117,11 @@ begin
   Exit( False );
 end;
 
+procedure TAnimation.OnFollowupQueued( aAnimation : TAnimation );
+begin
+  // no-op
+end;
+
 procedure TAnimation.Draw;
 begin
   if FTime > 0 then OnDraw;
@@ -159,8 +165,7 @@ begin
       end;
       Break;
     end;
-  if aAnimation.FUID <> 0 then aAnimation.FDelay := aAnimation.FDelay + UIDDuration( aAnimation.FUID );
-  FAnimations.Push( aAnimation );
+  QueueAnimation( aAnimation );
   Result := aAnimation.FDelay;
 end;
 
@@ -213,20 +218,32 @@ begin
   inherited Destroy;
 end;
 
-function TAnimations.UIDDuration(aUID: TUID): DWord;
-var iCount     : DWord;
+procedure TAnimations.QueueAnimation( aAnimation : TAnimation );
+var iCount     : Integer;
+    iAnim      : TAnimation;
+    iLast      : Boolean;
+    iDelay     : DWord;
     iRemaining : DWord;
 begin
-  if FAnimations.Size = 0 then Exit( 0 );
-  UIDDuration := 0;
-  for iCount := FAnimations.Size-1 downto 0 do
-    with FAnimations[ iCount ] do
-      if FUID = aUID then
+  iDelay := 0;
+  iLast := True;
+  if aAnimation.FUID <> 0 then
+    for iCount := FAnimations.Size - 1 downto 0 do
+    begin
+      iAnim := FAnimations[ iCount ];
+      if iAnim.FUID <> aAnimation.FUID then Continue;
+      if iLast then
       begin
-        iRemaining := 0;
-        if FDuration > FTime then iRemaining := FDuration - FTime;
-        UIDDuration := Max( UIDDuration, FDelay + iRemaining );
+        // Let the tail adjust its timing before scheduling the follow-up.
+        if not iAnim.Expired then iAnim.OnFollowupQueued( aAnimation );
+        iLast := False;
       end;
+      iRemaining := 0;
+      if iAnim.FDuration > iAnim.FTime then iRemaining := iAnim.FDuration - iAnim.FTime;
+      iDelay := Max( iDelay, iAnim.FDelay + iRemaining );
+    end;
+  aAnimation.FDelay += iDelay;
+  FAnimations.Push( aAnimation );
 end;
 
 
