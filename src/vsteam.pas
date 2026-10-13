@@ -1,4 +1,4 @@
-{$include valkyrie.inc}
+{$INCLUDE valkyrie.inc}
 unit vsteam;
 interface
 uses vnode, vutil, vstoreinterface;
@@ -13,9 +13,6 @@ type  TSteam = class( TStoreInterface )
   function IsSteam : Boolean; override;
   function GetUsername : Ansistring; override;
   procedure Update; override;
-  function SetAchievement( const aID : Ansistring ) : Boolean; override;
-  function IncStat( const aID : Ansistring; aAmount : Integer = 1 ) : Boolean; override;
-  function MarkStat( const aID : Ansistring ) : Boolean; override;
   function GetGlobalStat( const aID : Ansistring ) : Int64; override;
   function FlushStatistics : Boolean; override;
   function OpenDLCPage( aAppID : DWord ) : Boolean; override;
@@ -28,6 +25,10 @@ type  TSteam = class( TStoreInterface )
   function GetText( out aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean; override;
   destructor Destroy; override;
   class function TryLoadLibrary : Boolean;
+protected
+  function DoSetAchievement( const aID : Ansistring ) : Boolean; override;
+  function DoIncStat( const aID : Ansistring; aAmount : Integer ) : Boolean; override;
+  function DoMarkStat( const aID : Ansistring ) : Boolean; override;
 private
   function LoadGlobalStats : Boolean;
 private
@@ -717,7 +718,7 @@ begin
   end;
 end;
 
-function TSteam.SetAchievement( const aID : Ansistring ) : Boolean;
+function TSteam.DoSetAchievement( const aID : Ansistring ) : Boolean;
 var iUserStats : TSteamUserStats;
 begin
   if ( not IsInitialized ) then Exit( False );
@@ -736,7 +737,7 @@ begin
   Exit( True );
 end;
 
-function TSteam.IncStat( const aID : Ansistring; aAmount : Integer = 1 ) : Boolean;
+function TSteam.DoIncStat( const aID : Ansistring; aAmount : Integer ) : Boolean;
 var iValue : LongInt;
 begin
   if ( not IsInitialized ) or ( TSteamCore.GetClient.UserStats = nil ) then Exit( False );
@@ -753,7 +754,7 @@ begin
   Exit( True );
 end;
 
-function TSteam.MarkStat( const aID : Ansistring ) : Boolean;
+function TSteam.DoMarkStat( const aID : Ansistring ) : Boolean;
 var iValue : LongInt;
 begin
   if ( not IsInitialized ) or ( TSteamCore.GetClient.UserStats = nil ) then Exit( False );

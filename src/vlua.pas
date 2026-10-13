@@ -154,8 +154,8 @@ type
     function ProtectedCall( const Path : AnsiString; const Args : array of Const ) : Variant;
     // Run a hook on a lua object in protected mode (see above)
     function ProtectedRunHook( Obj : ILuaReferencedObject; HookName : AnsiString; const Params : array of const ) : Variant;
-    // Register table functions
-    procedure Register( const libname : AnsiString; const lr : PluaL_Reg );
+    // Register table functions, consuming aUpvalues captured values from the stack.
+    procedure Register( const aLibrary : AnsiString; const aFunctions : PluaL_Reg; aUpvalues : Integer = 0 );
     // Add empty subtable
     procedure RegisterSubTable( const aTableName, aSubTable : AnsiString );
     // Register Metatables
@@ -1776,9 +1776,9 @@ begin
   end;
 end;
 
-procedure TLua.Register(const libname: AnsiString; const lr: PluaL_Reg);
+procedure TLua.Register( const aLibrary : AnsiString; const aFunctions : PluaL_Reg; aUpvalues : Integer );
 begin
-  vlua_register( FRaw, libname, lr );
+  vlua_register( FRaw, aLibrary, aFunctions, aUpvalues );
 end;
 
 procedure TLua.RegisterSubTable ( const aTableName, aSubTable : AnsiString ) ;
