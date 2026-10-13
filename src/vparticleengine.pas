@@ -18,6 +18,7 @@ type
 
   TParticle = packed record
     Position       : TVec3f;
+    Origin         : TVec3f;
     Velocity       : TVec3f;
     Acceleration   : TVec3f;
     ColorStart     : TColor;
@@ -92,7 +93,7 @@ type
     PoolIndex     : Integer;
   end;
 
-  TParticleDecalCallback = procedure( const aPosition : TVec3f; aDecalSprite : DWord ) of object;
+  TParticleDecalCallback = procedure( const aPosition : TVec3f; aDecalSprite : DWord; const aOrigin : TVec3f ) of object;
 
 { TParticleEngine }
 
@@ -294,6 +295,7 @@ begin
   with FParticles[iP] do
   begin
     Position      := RandomPointInShape( iE^.Position, iD );
+    Origin        := iE^.Position;
     iSpeed        := iD^.SpeedRange.Random( FRNG );
     iDir          := RandomDirection( iE^.Direction, iD^.SpreadAngle );
     Velocity.X    := iDir.X * iSpeed;
@@ -440,7 +442,7 @@ begin
       iP^.Position.Z := 0;
       if ( PF_DECAL_ON_GROUND in iP^.Flags ) and ( iP^.DecalSprite <> 0 ) then
         if Assigned( FDecalCallback ) then
-          FDecalCallback( iP^.Position, iP^.DecalSprite );
+          FDecalCallback( iP^.Position, iP^.DecalSprite, iP^.Origin );
       Include( iP^.Flags, PF_DEAD );
       Exit;
     end;
@@ -672,6 +674,7 @@ begin
   iIdx := AllocParticle;
   if iIdx < 0 then Exit( -1 );
   FParticles[iIdx] := aParticle;
+  FParticles[iIdx].Origin := aParticle.Position;
   Include( FParticles[iIdx].Flags, PF_ACTIVE );
   FParticles[iIdx].EmitterIndex := -1;
   Result := iIdx;
@@ -690,6 +693,7 @@ begin
     if iIdx < 0 then Exit;
     iP := @FParticles[iIdx];
     iP^.Position      := RandomPointInShape( aPos, aData );
+    iP^.Origin        := aPos;
     iSpeed            := aData^.SpeedRange.Random( FRNG );
     iDir              := RandomDirection( aDir, aData^.SpreadAngle );
     iP^.Velocity.X    := iDir.X * iSpeed;
