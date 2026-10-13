@@ -390,6 +390,7 @@ procedure TSpriteDataSet.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aQColo
 var iv2b          : TVec2i;
     ita, itb, its : TVec2f;
 begin
+  if aSpriteID = 0 then Exit;
   iv2b := aPos + FEngine.FGrid.Scaled( aSize );
 
   its := TVec2f.CreateModDiv( aSpriteID-1, FRowSize );
@@ -418,6 +419,7 @@ procedure TSpriteDataSet.PushXY( aSpriteID, aSize : DWord; aPos : TVec2i; aColor
 var iv2a, iv2b, iv2o : TVec2i;
     ita, itb, its    : TVec2f;
 begin
+  if aSpriteID = 0 then Exit;
   iv2a := aPos;
   iv2b := aPos + FEngine.FGrid.Scaled( aSize );
   if aScale <> 1.0 then
