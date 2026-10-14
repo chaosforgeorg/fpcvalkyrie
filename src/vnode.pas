@@ -39,21 +39,29 @@ uses classes, vutil, vdebug, vluatype, vlualibrary, vobject, vlua, vuid;
 type TVObject      = vobject.TVObject;
      TVObjectClass = vobject.TVObjectClass;
 
-// Borrowed services for nodes belonging to one game session.
+type TNode = class;
+type TNodeClass = class of TNode;
+
+// Borrowed services for nodes belonging to one game session. The context also
+// owns discarded nodes until FlushDestroyed; see TNode.Discard.
 type TNodeContext = class
   private
-    FLua  : TLua;
-    FUIDs : TUIDStore;
+    FLua            : TLua;
+    FUIDs           : TUIDStore;
+    FDestroyed      : array of TNode;
+    FDestroyedCount : Integer;
+    procedure QueueDestroy( aNode : TNode );
   public
     constructor Create( aLua : TLua; aUIDs : TUIDStore );
     procedure BindLua( aLua : TLua );
     procedure BindUIDs( aUIDs : TUIDStore );
+    // Frees discarded nodes. Call only where no callback can still reference
+    // them, i.e. between simulated time slices.
+    procedure FlushDestroyed;
+    destructor Destroy; override;
     property Lua  : TLua read FLua;
     property UIDs : TUIDStore  read FUIDs;
 end;
-
-type TNode = class;
-type TNodeClass = class of TNode;
 
 // Enumerator for nodes. Implemented as a generic so it may be reused
 // For a node that implements TNode.
@@ -155,7 +163,7 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Destroys all children.
        procedure DestroyChildren;
        // Ends the node's lifetime. Nodes that running callbacks may still
-       // reference override this to defer destruction; by default it frees.
+       // reference override this with DeferDestroy; by default it frees.
        procedure Discard; virtual;
        // Standard destructor, frees @link(UID), and destroys
        // children and siblings.
@@ -228,9 +236,10 @@ TNode = class(TVObject, ILuaReferencedObject)
        function GetProtoTable : AnsiString;
        // Registers with the node context's Lua system
        procedure RegisterWithLua( aClassType : TClass = nil );
-       // Marks this subtree dead and releases its UID and Lua registrations,
-       // leaving the objects valid for Pascal until their deferred destruction.
-       procedure MarkDiscarded;
+       // Detaches the node, marks its subtree dead, releases the subtree's UID
+       // and Lua registrations and hands the node to its context, which frees
+       // it in FlushDestroyed. Removal callbacks run while still registered.
+       procedure DeferDestroy;
      protected
        // Unique IDentification number (@link(TUID))
        // Assigned by the context UID store.
@@ -249,9 +258,9 @@ TNode = class(TVObject, ILuaReferencedObject)
        FName         : AnsiString;
        // Flags
        FFlags        : TFlags;
-       // Set once the node's life has ended; see Discard.
-       FDead         : Boolean;
      private
+       // Set once the node is discarded; its registrations are released.
+       FDead       : Boolean;
        // Link to the parent node.
        FParent     : TNode;
        // Link to first child node.
@@ -262,6 +271,7 @@ TNode = class(TVObject, ILuaReferencedObject)
        FPrev       : TNode;
        // Count of children nodes.
        FChildCount : DWord;
+       procedure MarkDiscarded;
      public
        // Lua Properties
        property LuaProperties[ const Index : AnsiString ] : Variant read GetLuaProperty write SetLuaProperty;
@@ -449,6 +459,32 @@ end;
 procedure TNodeContext.BindUIDs( aUIDs : TUIDStore );
 begin
   FUIDs := aUIDs;
+end;
+
+procedure TNodeContext.QueueDestroy( aNode : TNode );
+begin
+  if FDestroyedCount = Length( FDestroyed ) then
+    if FDestroyedCount = 0
+      then SetLength( FDestroyed, 16 )
+      else SetLength( FDestroyed, 2 * FDestroyedCount );
+  FDestroyed[ FDestroyedCount ] := aNode;
+  Inc( FDestroyedCount );
+end;
+
+procedure TNodeContext.FlushDestroyed;
+begin
+  // Discarded nodes hold no registrations, so destruction runs no callbacks.
+  while FDestroyedCount > 0 do
+  begin
+    Dec( FDestroyedCount );
+    FDestroyed[ FDestroyedCount ].Free;
+  end;
+end;
+
+destructor TNodeContext.Destroy;
+begin
+  FlushDestroyed;
+  inherited Destroy;
 end;
 
 { TGNodeEnumerator }
@@ -716,6 +752,20 @@ begin
   Free;
 end;
 
+procedure TNode.DeferDestroy;
+begin
+  if FDead then Exit;
+  if FContext = nil then
+  begin
+    Free;
+    Exit;
+  end;
+  FDead := True;
+  Detach;
+  MarkDiscarded;
+  FContext.QueueDestroy( Self );
+end;
+
 procedure TNode.MarkDiscarded;
 var iChild : TNode;
 begin
@@ -740,7 +790,8 @@ end;
 destructor TNode.Destroy;
 begin
   Detach;
-  if ( FUID <> 0 ) and ( FContext.UIDs <> nil ) then
+  // A discarded node released its UID when it was discarded.
+  if ( FUID <> 0 ) and ( not FDead ) and ( FContext.UIDs <> nil ) then
     FContext.UIDs.Remove( FUID );
   while FChild <> nil do
   begin
