@@ -22,7 +22,7 @@
 unit vluamapnode;
 interface
 uses sysutils, classes,
-     vnode, vutil, vvision, vrandom, vrltools, vluaext, vluagamestack, vluaentitynode, vluastack, vlua;
+     vnode, vutil, vvision, vrandom, vrltools, vgenerics, vluaext, vluagamestack, vluaentitynode, vluastack, vlua;
 
 const vlfExplored     = 0;
       vlfVisible      = 1;
@@ -46,6 +46,8 @@ end;
 {$PACKSET DEFAULT}
 
 type PMapCell = ^TMapCell;
+
+type TNodeArray = specialize TGArray<TNode>;
 
 type TLuaMapNode = class( TNode, IVisionQuery )
 public
@@ -127,6 +129,12 @@ public
   procedure Displace( aWhat : TLuaEntityNode; const aWhere : TCoord2D ); reintroduce;
   // Override of remove - automatic map clear
   procedure Remove( aNode : TNode ); override;
+  // Takes ownership of a discarded entity until FlushDestroyed.
+  // Called by TLuaEntityNode.Discard, which detaches and marks it first.
+  procedure QueueDestroy( aNode : TNode );
+  // Frees discarded entities. Call only where no callback can still
+  // reference them, i.e. between simulated time slices.
+  procedure FlushDestroyed;
   // Free generator and structure
   destructor Destroy; override;
   // Stream constructor, reads UID, and ID from stream, should be overriden.
@@ -156,6 +164,8 @@ protected
   FCellMap   : PMapCell;
   // Cell array name
   FCellsName : AnsiString;
+  // Owned discarded entities awaiting FlushDestroyed
+  FDestroyed : TNodeArray;
 public
   property GameRNG : TRNG read FGameRNG;
   // Property for Area
@@ -184,7 +194,7 @@ end;
 
 implementation
 
-uses math, vgenerics, vmath, vluatools, vluatype, vlualibrary;
+uses math, vmath, vluatools, vluatype, vlualibrary;
 
 type TMinCoordChoice = specialize TGMinimalChoice<TCoord2D>;
      TCoordArray     = specialize TGArray<TCoord2D>;
@@ -201,6 +211,7 @@ begin
   FMaxVision := aMaxVision;
   FCellMap   := GetMem( aMaxX * aMaxY * SizeOf( TMapCell ) );
   FCellsName := 'cells';
+  FDestroyed := TNodeArray.Create;
   ClearAll;
 end;
 
@@ -531,9 +542,22 @@ begin
   end;
 end;
 
+procedure TLuaMapNode.QueueDestroy( aNode : TNode );
+begin
+  Assert( aNode.Dead and ( aNode.Parent = nil ) );
+  FDestroyed.Push( aNode );
+end;
+
+procedure TLuaMapNode.FlushDestroyed;
+begin
+  while FDestroyed.Size > 0 do
+    FDestroyed.Pop.Free;
+end;
 
 destructor TLuaMapNode.Destroy;
 begin
+  FlushDestroyed;
+  FreeAndNil( FDestroyed );
   FreeAndNil( FVision );
   inherited Destroy;
   FreeMem( FCellMap, FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );
@@ -549,6 +573,7 @@ begin
   aStream.Read( FArea, SizeOf( FArea ) );
   FMaxVision := aStream.ReadByte;
   FCellsName := aStream.ReadAnsiString;
+  FDestroyed := TNodeArray.Create;
   FVision    := TIsaacVision.Create( Self, FMaxVision );
 
   FCellMap := GetMem( FArea.B.X * FArea.B.Y * SizeOf( TMapCell ) );

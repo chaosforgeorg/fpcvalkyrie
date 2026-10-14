@@ -154,6 +154,9 @@ TNode = class(TVObject, ILuaReferencedObject)
        procedure   Remove( theChild : TNode ); virtual;
        // Destroys all children.
        procedure DestroyChildren;
+       // Ends the node's lifetime. Nodes that running callbacks may still
+       // reference override this to defer destruction; by default it frees.
+       procedure Discard; virtual;
        // Standard destructor, frees @link(UID), and destroys
        // children and siblings.
        destructor  Destroy; override;
@@ -225,6 +228,9 @@ TNode = class(TVObject, ILuaReferencedObject)
        function GetProtoTable : AnsiString;
        // Registers with the node context's Lua system
        procedure RegisterWithLua( aClassType : TClass = nil );
+       // Marks this subtree dead and releases its UID and Lua registrations,
+       // leaving the objects valid for Pascal until their deferred destruction.
+       procedure MarkDiscarded;
      protected
        // Unique IDentification number (@link(TUID))
        // Assigned by the context UID store.
@@ -243,6 +249,8 @@ TNode = class(TVObject, ILuaReferencedObject)
        FName         : AnsiString;
        // Flags
        FFlags        : TFlags;
+       // Set once the node's life has ended; see Discard.
+       FDead         : Boolean;
      private
        // Link to the parent node.
        FParent     : TNode;
@@ -267,6 +275,7 @@ TNode = class(TVObject, ILuaReferencedObject)
      public
        property LuaClassInfo : TLuaClassInfo read FLuaClassInfo;
        property Context      : TNodeContext read FContext;
+       property Dead         : Boolean      read FDead;
        
        property UID        : TUID read FUID;
        property ID         : TIDN read FID;
@@ -603,6 +612,7 @@ begin
   FParent       := nil;
   FHooks        := [];
   FFlags        := [];
+  FDead         := False;
   FNext         := Self;
   FPrev         := Self;
   FChildCount   := 0;
@@ -699,6 +709,26 @@ begin
   begin
     FChild.Free;
   end;
+end;
+
+procedure TNode.Discard;
+begin
+  Free;
+end;
+
+procedure TNode.MarkDiscarded;
+var iChild : TNode;
+begin
+  FDead := True;
+  if ( FUID <> 0 ) and ( FContext.UIDs <> nil ) then
+    FContext.UIDs.Remove( FUID );
+  if FLuaIndex <> LUA_NOREF then
+  begin
+    FContext.Lua.UnRegisterObject( Self );
+    FLuaIndex := LUA_NOREF;
+  end;
+  for iChild in Self do
+    iChild.MarkDiscarded;
 end;
 
 procedure TNode.Move(Destination : TNode);
@@ -1488,7 +1518,7 @@ var iState : TLuaStack;
 begin
   iState.Init(L);
   iNode := iState.ToObject(1) as TNode;
-  iNode.Free;
+  iNode.Discard;
   Result := 0;
 end;
 

@@ -40,6 +40,9 @@ TLuaEntityNode = class( TNode )
   constructor CreateFromStream( Stream : TStream; aContext : TNodeContext ); override;
   // Write Node to stream (UID and ID) should be overriden.
   procedure WriteToStream( Stream : TStream ); override;
+  // Detaches the entity, marks it dead and hands it to its map, which destroys
+  // it in FlushDestroyed. An entity outside any map is freed immediately.
+  procedure Discard; override;
   // Position change - calls TLuaMapNode.Displace
   procedure Displace( const aWhere : TCoord2D ); virtual;
   // Returns true if the thing is in the vision field of the player - calls TLuaMapNode.isVisible
@@ -105,6 +108,25 @@ begin
   Stream.WriteByte( FEntityID );
   Stream.Write( FPosition, SizeOf(FPosition) );
   Stream.Write( FGylph,    SizeOf(FGylph) );
+end;
+
+procedure TLuaEntityNode.Discard;
+var iMap : TNode;
+begin
+  if FDead then Exit;
+  iMap := Parent;
+  while ( iMap <> nil ) and ( not ( iMap is TLuaMapNode ) ) do
+    iMap := iMap.Parent;
+  if iMap = nil then
+  begin
+    Free;
+    Exit;
+  end;
+  // Removal callbacks run while the entity is still registered.
+  FDead := True;
+  Detach;
+  MarkDiscarded;
+  TLuaMapNode( iMap ).QueueDestroy( Self );
 end;
 
 procedure TLuaEntityNode.Displace ( const aWhere : TCoord2D ) ;
