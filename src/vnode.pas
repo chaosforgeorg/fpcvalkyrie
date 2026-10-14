@@ -42,17 +42,19 @@ type TVObject      = vobject.TVObject;
 type TNode = class;
 type TNodeClass = class of TNode;
 
-// Borrowed services for nodes belonging to one game session. The context also
-// owns discarded nodes until FlushDestroyed; see TNode.Discard.
+// Borrowed services for nodes belonging to one game session. A context created
+// with deferred destruction also owns discarded nodes until FlushDestroyed; see
+// TNode.Discard. Without it, discarded nodes are freed immediately.
 type TNodeContext = class
   private
     FLua            : TLua;
     FUIDs           : TUIDStore;
+    FDeferred       : Boolean;
     FDestroyed      : array of TNode;
     FDestroyedCount : Integer;
     procedure QueueDestroy( aNode : TNode );
   public
-    constructor Create( aLua : TLua; aUIDs : TUIDStore );
+    constructor Create( aLua : TLua; aUIDs : TUIDStore; aDeferredDestruction : Boolean = False );
     procedure BindLua( aLua : TLua );
     procedure BindUIDs( aUIDs : TUIDStore );
     // Frees discarded nodes. Call only where no callback can still reference
@@ -78,6 +80,8 @@ end;
     // Next node, held separately so we can go on smoothly event if the current
     // node changes it's parent.
     FNext     : TNode;
+    // Sequence of the last returned child, see TNode.NextChild.
+    FSequence : QWord;
     // Returns current node as T. No checking is done!
     function GetCurrent: T;
   public
@@ -104,6 +108,8 @@ end;
     // Next node, held separately so we can go on smoothly event if the current
     // node changes it's parent.
     FNext     : TNode;
+    // Sequence of the last returned child, see TNode.PrevChild.
+    FSequence : QWord;
     // Returns current node as T. No checking is done!
     function GetCurrent: T;
   public
@@ -165,6 +171,13 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Ends the node's lifetime. Nodes that running callbacks may still
        // reference override this with DeferDestroy; by default it frees.
        procedure Discard; virtual;
+       // Iteration steps that tolerate callbacks removing children. aNext is the
+       // cursor and aSequence the sequence of the last returned child (0 before a
+       // NextChild pass, High( QWord ) before a PrevChild one). Removed children
+       // are skipped through the links they had at removal; sequence numbers stop
+       // the pass when it would wrap to a child already returned.
+       function NextChild( var aNext : TNode; var aSequence : QWord ) : TNode;
+       function PrevChild( var aPrev : TNode; var aSequence : QWord ) : TNode;
        // Standard destructor, frees @link(UID), and destroys
        // children and siblings.
        destructor  Destroy; override;
@@ -271,6 +284,12 @@ TNode = class(TVObject, ILuaReferencedObject)
        FPrev       : TNode;
        // Count of children nodes.
        FChildCount : DWord;
+       // Sibling links at removal time, used by NextChild and PrevChild.
+       FRemovedNext   : TNode;
+       FRemovedPrev   : TNode;
+       // Order of attachment among the parent's children.
+       FSequence      : QWord;
+       FChildSequence : QWord;
        procedure MarkDiscarded;
      public
        // Lua Properties
@@ -444,11 +463,12 @@ end;
 implementation
 uses sysutils, typinfo, vluastack;
 
-constructor TNodeContext.Create( aLua : TLua; aUIDs : TUIDStore );
+constructor TNodeContext.Create( aLua : TLua; aUIDs : TUIDStore; aDeferredDestruction : Boolean = False );
 begin
   inherited Create;
   FLua := aLua;
   FUIDs := aUIDs;
+  FDeferred := aDeferredDestruction;
 end;
 
 procedure TNodeContext.BindLua( aLua : TLua );
@@ -499,13 +519,12 @@ begin
   FParent  := Parent;
   FCurrent := nil;
   FNext    := Parent.Child;
+  FSequence := 0;
 end;
 
 function TGNodeEnumerator.MoveNext : Boolean;
 begin
-  FCurrent := FNext;
-  if FNext <> nil then FNext := FNext.Next;
-  if FNext = FParent.Child then FNext := nil;
+  FCurrent := FParent.NextChild( FNext, FSequence );
   Exit( FCurrent <> nil );
 end;
 
@@ -520,6 +539,7 @@ constructor TGNodeReverseEnumerator.Create ( Parent : TNode );
 begin
   FParent  := Parent;
   FCurrent := nil;
+  FSequence := High( QWord );
   if Parent.Child = nil
     then FNext := nil
     else FNext := Parent.Child.Prev;
@@ -527,12 +547,7 @@ end;
 
 function TGNodeReverseEnumerator.MoveNext : Boolean;
 begin
-  FCurrent := FNext;
-  if FNext <> nil then
-  begin
-    FNext := FNext.Prev;
-    if FNext = FParent.Child.Prev then FNext := nil;
-  end;
+  FCurrent := FParent.PrevChild( FNext, FSequence );
   Exit( FCurrent <> nil );
 end;
 
@@ -649,6 +664,10 @@ begin
   FHooks        := [];
   FFlags        := [];
   FDead         := False;
+  FRemovedNext  := nil;
+  FRemovedPrev  := nil;
+  FSequence     := 0;
+  FChildSequence := 0;
   FNext         := Self;
   FPrev         := Self;
   FChildCount   := 0;
@@ -660,6 +679,8 @@ procedure TNode.Add(theChild : TNode);
 begin
   if theChild.FParent <> nil then theChild.Detach;
   theChild.FParent := Self;
+  Inc( FChildSequence );
+  theChild.FSequence := FChildSequence;
   if FChild = nil then
     FChild := theChild
   else
@@ -729,6 +750,8 @@ end;
 procedure TNode.Remove( theChild : TNode );
 begin
   if theChild.FParent <> Self then Exit(); // signal error?
+  theChild.FRemovedNext := theChild.FNext;
+  theChild.FRemovedPrev := theChild.FPrev;
   if theChild = FChild then
   begin
     if theChild.FNext <> theChild then FChild := theChild.FNext
@@ -755,7 +778,7 @@ end;
 procedure TNode.DeferDestroy;
 begin
   if FDead then Exit;
-  if FContext = nil then
+  if ( FContext = nil ) or ( not FContext.FDeferred ) then
   begin
     Free;
     Exit;
@@ -764,6 +787,48 @@ begin
   Detach;
   MarkDiscarded;
   FContext.QueueDestroy( Self );
+end;
+
+function TNode.NextChild( var aNext : TNode; var aSequence : QWord ) : TNode;
+var iNode : TNode;
+begin
+  while aNext <> nil do
+  begin
+    iNode := aNext;
+    if iNode.FParent = Self then
+    begin
+      aNext := nil;
+      if iNode.FSequence <= aSequence then Exit( nil );
+      aSequence := iNode.FSequence;
+      // Advance before returning: the caller may move or free the child.
+      if iNode.FNext <> FChild then aNext := iNode.FNext;
+      Exit( iNode );
+    end;
+    aNext := iNode.FRemovedNext;
+    if aNext = iNode then aNext := nil;
+  end;
+  Exit( nil );
+end;
+
+function TNode.PrevChild( var aPrev : TNode; var aSequence : QWord ) : TNode;
+var iNode : TNode;
+begin
+  while aPrev <> nil do
+  begin
+    iNode := aPrev;
+    if iNode.FParent = Self then
+    begin
+      aPrev := nil;
+      if iNode.FSequence >= aSequence then Exit( nil );
+      aSequence := iNode.FSequence;
+      // Advance before returning: the caller may move or free the child.
+      if iNode <> FChild then aPrev := iNode.FPrev;
+      Exit( iNode );
+    end;
+    aPrev := iNode.FRemovedPrev;
+    if aPrev = iNode then aPrev := nil;
+  end;
+  Exit( nil );
 end;
 
 procedure TNode.MarkDiscarded;
@@ -1309,14 +1374,16 @@ var State     : TLuaStack;
     Parent    : TNode;
     Next      : TNode;
     Current   : TNode;
+    iSequence : QWord;
 begin
   State.Init( L );
   Parent    := TObject( lua_touserdata( L, lua_upvalueindex(1) ) ) as TNode;
   Next      := TObject( lua_touserdata( L, lua_upvalueindex(2) ) ) as TNode;
+  iSequence := Trunc( lua_tonumber( L, lua_upvalueindex(3) ) );
 
-  Current := Next;
-  if Next <> nil then Next := Next.Next;
-  if Next = Parent.Child then Next := nil;
+  Current := Parent.NextChild( Next, iSequence );
+  lua_pushnumber( L, iSequence );
+  lua_replace( L, lua_upvalueindex(3) );
   lua_pushlightuserdata( L, Next );
   lua_replace( L, lua_upvalueindex(2) );
 
@@ -1329,18 +1396,20 @@ var State     : TLuaStack;
     Parent    : TNode;
     Next      : TNode;
     Current   : TNode;
+    iSequence : QWord;
     Filter    : AnsiString;
 begin
   State.Init( L );
   Parent    := TObject( lua_touserdata( L, lua_upvalueindex(1) ) ) as TNode;
   Next      := TObject( lua_touserdata( L, lua_upvalueindex(2) ) ) as TNode;
   Filter    := lua_tostring( L, lua_upvalueindex(3) );
+  iSequence := Trunc( lua_tonumber( L, lua_upvalueindex(4) ) );
 
   repeat
-    Current := Next;
-    if Next <> nil then Next := Next.Next;
-    if Next = Parent.Child then Next := nil;
+    Current := Parent.NextChild( Next, iSequence );
   until (Current = nil) or (Current.LuaClassInfo.Proto = Filter);
+  lua_pushnumber( L, iSequence );
+  lua_replace( L, lua_upvalueindex(4) );
 
   lua_pushlightuserdata( L, Next );
   lua_replace( L, lua_upvalueindex(2) );
@@ -1361,10 +1430,14 @@ begin
   if lua_isstring( L, 2 ) then
   begin
     lua_pushvalue( L, 2 );
-    lua_pushcclosure( L, @lua_node_children_filter_closure, 3 );
+    lua_pushnumber( L, 0 );
+    lua_pushcclosure( L, @lua_node_children_filter_closure, 4 );
   end
   else
-    lua_pushcclosure( L, @lua_node_children_closure, 2 );
+  begin
+    lua_pushnumber( L, 0 );
+    lua_pushcclosure( L, @lua_node_children_closure, 3 );
+  end;
   Exit( 1 );
 end;
 

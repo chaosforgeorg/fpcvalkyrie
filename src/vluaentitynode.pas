@@ -185,6 +185,7 @@ var Coord    : TCoord2D;
     Next     : TNode;
     Current  : TLuaEntityNode;
     Parent   : TNode;
+    iSequence : QWord;
 begin
   Parent  := TObject( lua_touserdata( L, lua_upvalueindex(1) ) ) as TNode;
   This    := TObject( lua_touserdata( L, lua_upvalueindex(2) ) ) as TNode;
@@ -197,15 +198,16 @@ begin
     LUA_TSTRING : Filter   := lua_tostring( L, lua_upvalueindex(5) );
   end;
   Next   := TObject( lua_touserdata( L, lua_upvalueindex(6) ) ) as TNode;
+  iSequence := Trunc( lua_tonumber( L, lua_upvalueindex(7) ) );
 
   repeat
-    Current := Next as TLuaEntityNode;
-    if Next <> nil then Next := Next.Next;
-    if Next = Parent.Child then Next := nil;
+    Current := Parent.NextChild( Next, iSequence ) as TLuaEntityNode;
   until (Current = nil) or ( ((Filter   = '') or (Current.LuaClassInfo.Proto = Filter)) and
                              ((FilterID = 0)  or (Current.EntityID = FilterID)) and
                              ( Distance( Current.FPosition, Coord ) <= Range )  and
                              (This <> Current) );
+  lua_pushnumber( L, iSequence );
+  lua_replace( L, lua_upvalueindex(7) );
 
   lua_pushlightuserdata( L, Next );
   lua_replace( L, lua_upvalueindex(6) );
@@ -227,8 +229,12 @@ begin
   if (lua_type( L, 3 ) = LUA_TSTRING) or (lua_type( L, 3 ) = LUA_TNUMBER)
     then lua_pushvalue( L, 3 )
     else lua_pushinteger( L, 0 );
-  lua_pushlightuserdata( L, LuaNode.Child );
-  lua_pushcclosure( L, @lua_entity_node_in_range_closure, 6 );
+  // Siblings share the parent's children list.
+  if LuaNode.Parent = nil
+    then lua_pushlightuserdata( L, nil )
+    else lua_pushlightuserdata( L, LuaNode.Parent.Child );
+  lua_pushnumber( L, 0 );
+  lua_pushcclosure( L, @lua_entity_node_in_range_closure, 7 );
   Exit( 1 );
 end;
 

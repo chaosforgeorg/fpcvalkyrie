@@ -434,7 +434,10 @@ begin
       ENTITY_ITEM  : SetItem( aPosition, aWhat );
     end;
   except on Exception do
-    FreeAndNil( aWhat );
+    begin
+      aWhat.Discard;
+      aWhat := nil;
+    end;
   end;
   Result := aWhat;
 end;
@@ -821,7 +824,8 @@ begin
     then lua_pushvalue( L, 4 )
     else lua_pushinteger( L, 0 );
   lua_pushlightuserdata( L, iNode.Child );
-  lua_pushcclosure( L, @lua_entity_node_in_range_closure, 6 );
+  lua_pushnumber( L, 0 );
+  lua_pushcclosure( L, @lua_entity_node_in_range_closure, 7 );
   Exit( 1 );
 end;
 
