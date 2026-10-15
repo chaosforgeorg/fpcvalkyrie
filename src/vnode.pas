@@ -42,19 +42,17 @@ type TVObject      = vobject.TVObject;
 type TNode = class;
 type TNodeClass = class of TNode;
 
-// Borrowed services for nodes belonging to one game session. A context created
-// with deferred destruction also owns discarded nodes until FlushDestroyed; see
-// TNode.Discard. Without it, discarded nodes are freed immediately.
+// Borrowed services for nodes belonging to one game session. The context also
+// owns discarded nodes until FlushDestroyed; see TNode.Discard.
 type TNodeContext = class
   private
     FLua            : TLua;
     FUIDs           : TUIDStore;
-    FDeferred       : Boolean;
     FDestroyed      : array of TNode;
     FDestroyedCount : Integer;
     procedure QueueDestroy( aNode : TNode );
   public
-    constructor Create( aLua : TLua; aUIDs : TUIDStore; aDeferredDestruction : Boolean = False );
+    constructor Create( aLua : TLua; aUIDs : TUIDStore );
     procedure BindLua( aLua : TLua );
     procedure BindUIDs( aUIDs : TUIDStore );
     // Frees discarded nodes. Call only where no callback can still reference
@@ -463,12 +461,11 @@ end;
 implementation
 uses sysutils, typinfo, vluastack;
 
-constructor TNodeContext.Create( aLua : TLua; aUIDs : TUIDStore; aDeferredDestruction : Boolean = False );
+constructor TNodeContext.Create( aLua : TLua; aUIDs : TUIDStore );
 begin
   inherited Create;
   FLua := aLua;
   FUIDs := aUIDs;
-  FDeferred := aDeferredDestruction;
 end;
 
 procedure TNodeContext.BindLua( aLua : TLua );
@@ -778,7 +775,7 @@ end;
 procedure TNode.DeferDestroy;
 begin
   if FDead then Exit;
-  if ( FContext = nil ) or ( not FContext.FDeferred ) then
+  if FContext = nil then
   begin
     Free;
     Exit;
