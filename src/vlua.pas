@@ -158,8 +158,8 @@ type
     procedure Register( const aLibrary : AnsiString; const aFunctions : PluaL_Reg; aUpvalues : Integer = 0 );
     // Add empty subtable
     procedure RegisterSubTable( const aTableName, aSubTable : AnsiString );
-    // Register Metatables
-    procedure RegisterMetaTable( const aTableName : AnsiString; const aIndexFunc, aNewIndexFunc : lua_CFunction );
+    // Register Metatables, consuming aUpvalues captured values from the stack.
+    procedure RegisterMetaTable( const aTableName : AnsiString; const aIndexFunc, aNewIndexFunc : lua_CFunction; aUpvalues : Integer = 0 );
     // Register Metatables
     procedure RegisterMetaTable( const aTableName, aSubTable : AnsiString; const aIndexFunc, aNewIndexFunc : lua_CFunction );
     // Load raw Lua file
@@ -1790,8 +1790,11 @@ begin
   lua_pop( FRaw, 1 );
 end;
 
-procedure TLua.RegisterMetaTable ( const aTableName : AnsiString;  const aIndexFunc, aNewIndexFunc : lua_CFunction ) ;
+procedure TLua.RegisterMetaTable ( const aTableName : AnsiString;  const aIndexFunc, aNewIndexFunc : lua_CFunction; aUpvalues : Integer ) ;
+var iFirst   : Integer;
+    iUpvalue : Integer;
 begin
+  iFirst := lua_gettop( FRaw ) - aUpvalues + 1;
   lua_getglobal( FRaw, aTableName );
   if lua_isnil( FRaw, -1 ) then
   begin
@@ -1801,12 +1804,16 @@ begin
     lua_getglobal( FRaw, aTableName );
   end;
     lua_createtable( FRaw, 0, 2 );
-      lua_pushcfunction( FRaw, aIndexFunc );
+      for iUpvalue := 0 to aUpvalues - 1 do
+        lua_pushvalue( FRaw, iFirst + iUpvalue );
+      lua_pushcclosure( FRaw, aIndexFunc, aUpvalues );
       lua_setfield( FRaw, -2, '__index' );
-      lua_pushcfunction( FRaw,  aNewIndexFunc );
+      for iUpvalue := 0 to aUpvalues - 1 do
+        lua_pushvalue( FRaw, iFirst + iUpvalue );
+      lua_pushcclosure( FRaw, aNewIndexFunc, aUpvalues );
       lua_setfield( FRaw, -2, '__newindex' );
     lua_setmetatable( FRaw, -2 );
-  lua_pop( FRaw, 1 );
+  lua_pop( FRaw, 1 + aUpvalues );
 end;
 
 procedure TLua.RegisterMetaTable ( const aTableName, aSubTable : AnsiString; const aIndexFunc, aNewIndexFunc : lua_CFunction ) ;
