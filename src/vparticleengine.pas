@@ -138,6 +138,7 @@ type
     property DecalCallback : TParticleDecalCallback read FDecalCallback write FDecalCallback;
     property ParticleCount : Integer read FParticleCount;
     property EmitterCount : Integer read FEmitterCount;
+    property RNG           : TRNG    read FRNG;
   end;
 
 implementation
