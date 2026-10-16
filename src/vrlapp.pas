@@ -26,7 +26,9 @@ type TRLRuntime = class abstract( TSystem )
     FPaths : TGamePaths;
     function CreateIO : TIORL; virtual; abstract;
     function CreateLua : TLua; virtual; abstract;
-    procedure PrepareGameData; virtual;
+    // Returns False when launch is declined; Initialize then shuts down any
+    // partially prepared data and reports that no data generation exists.
+    function PrepareGameData : Boolean; virtual;
     procedure InitializeGameData; virtual;
     function RunGame : TVRunResult; virtual; abstract;
     procedure ShutdownGameData; virtual;
@@ -35,7 +37,7 @@ type TRLRuntime = class abstract( TSystem )
   public
     constructor Create( const aPaths : TGamePaths; var aConfiguration : TObject ); reintroduce; virtual;
     destructor Destroy; override;
-    procedure Initialize;
+    function Initialize : Boolean;
     function Run : TVRunResult;
     procedure Shutdown;
     procedure Reset;
@@ -123,8 +125,9 @@ procedure TRLRuntime.InitializeGameData;
 begin
 end;
 
-procedure TRLRuntime.PrepareGameData;
+function TRLRuntime.PrepareGameData : Boolean;
 begin
+  Result := True;
 end;
 
 procedure TRLRuntime.ShutdownGameData;
@@ -136,17 +139,23 @@ begin
 end;
 
 // Initialize brackets Lua creation between pre-Lua and post-Lua data hooks.
-procedure TRLRuntime.Initialize;
+// Returns False when PrepareGameData declines the launch.
+function TRLRuntime.Initialize : Boolean;
 begin
   if FDataInitialized then
     raise ERLRuntimeState.Create('Runtime data is already initialized');
 
   try
-    PrepareGameData;
+    if not PrepareGameData then
+    begin
+      ShutdownGameData;
+      Exit( False );
+    end;
     FLua := CreateLua;
     FLua.Context.BindRNG( FGameRNG );
     InitializeGameData;
     FDataInitialized := True;
+    Result := True;
   except
     try
       ShutdownGameData;
@@ -223,7 +232,8 @@ begin
   if FConfiguration <> nil then
     raise Exception.Create('CreateRuntime did not take configuration ownership');
   repeat
-    FRuntime.Initialize;
+    if not FRuntime.Initialize then
+      Break;
     try
       try
         iResult := FRuntime.Run;
