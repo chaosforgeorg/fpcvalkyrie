@@ -13,7 +13,7 @@ type
 
 // Architectural boundary: owns shared roguelike presentation mechanics.
 // Game actions, HUDs, concrete effects, and gameplay policy belong to callers.
-TIORL = class( TIO )
+TIORL = class( TIO, IRLPresentation )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer ); reintroduce;
 
   // Blocking presentation boundaries; call outside layer dispatch.
@@ -73,6 +73,7 @@ TIORL = class( TIO )
   procedure FocusCursor( aCoord : TCoord2D );
   procedure ShowCursor;
   procedure HideCursor;
+  function GetVisualRNG : TRNG;
 
   destructor Destroy; override;
 
@@ -370,6 +371,11 @@ begin
   ReleaseMessages;
   FreeAndNil( FVisualRNG );
   inherited Destroy;
+end;
+
+function TIORL.GetVisualRNG : TRNG;
+begin
+  Exit( FVisualRNG );
 end;
 
 function TIORL.GetMapShift : TIOPoint;

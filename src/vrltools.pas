@@ -250,6 +250,15 @@ public
   property Current : TCoord2D read FCurrent;
 end;
 
+// Presentation services a game's level and entities use: messages and the
+// presentation RNG. Implemented by TIORL; games extend it with their effects.
+type IRLPresentation = interface
+  procedure Msg( const aMessage : AnsiString ); overload;
+  procedure Msg( const aMessage : AnsiString; const aParams : array of Const ); overload;
+  function GetVisualRNG : TRNG;
+  property VisualRNG : TRNG read GetVisualRNG;
+end;
+
 operator enumerator( a : TArea ) : TAreaEnumerator;
 
 const ZeroCoord2D : TCoord2D = (
