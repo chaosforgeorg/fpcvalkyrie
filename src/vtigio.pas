@@ -102,7 +102,7 @@ type TTIGDrawData = class
   end;
 
 type TTIGSoundCallback = procedure( aEvent : TTIGSoundEvent; aParam : Pointer );
-     TTIGSubCallback   = function( const aID : Ansistring ) : Ansistring;
+     TTIGSubCallback   = function( const aID : Ansistring ) : Ansistring of object;
 
 type TTIGIOState = class
   public
