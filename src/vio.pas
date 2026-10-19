@@ -1,11 +1,36 @@
 {$INCLUDE valkyrie.inc}
 unit vio;
 interface
-uses classes, sysutils, vlua, vsystem, vgenerics, vioevent, viopadstate, viotypes, vtigconsole, vioconsole, vbindings;
+uses classes, sysutils, vlua, vsystem, vgenerics, vioevent, viopadstate, viotypes, vioconsole, vbindings;
+
+type TIO = class;
+
+TIOLayer = class
+  procedure Update( aDTime : Integer; aActive : Boolean ); virtual; abstract;
+  procedure Finish; virtual;
+  function IsFinished : Boolean; virtual;
+  function IsModal : Boolean; virtual;
+  function HandleEvent( const aEvent : TIOEvent ) : Boolean; virtual;
+  function HandleInput( aInput : Integer ) : Boolean; virtual;
+protected
+  // Owner-dependent setup, run once the layer is pushed.
+  procedure Setup; virtual;
+private
+  // Called by the owning IO when it pushes the layer.
+  procedure Attach( aOwner : TIO );
+protected
+  FFinished   : Boolean;
+  FLayerOwner : TIO;
+public
+  // The IO that owns the layer; nil until it is pushed.
+  property Owner : TIO read FLayerOwner;
+end;
+
+TIOLayerStack = specialize TGArray<TIOLayer>;
 
 // Architectural boundary: owns driver, console, layers, and binding contexts.
 // Device mechanics, renderer implementation, path, and game policy belong to callers.
-type TIO = class( TSystem )
+TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer  ); reintroduce;
   procedure Initialize( aConsole : TIOConsoleRenderer );
   procedure PreUpdate; virtual;
@@ -35,7 +60,7 @@ protected
 protected
   FIODriver       : TIODriver;
   FConsole        : TIOConsoleRenderer;
-  FTIGConsoleView : TTIGConsoleView;
+  FTIGConsoleView : TIOLayer;
   FLayers         : TIOLayerStack;
   FPadState       : TIOPadState;
   FBindings       : TBindings;
@@ -54,7 +79,44 @@ end;
 
 implementation
 
-uses dateutils, math, vutil, vtig, vtigio, vioeventstate;
+uses dateutils, math, vutil, vtig, vtigio, vioeventstate, vtigconsole;
+
+{ TIOLayer }
+
+procedure TIOLayer.Attach( aOwner : TIO );
+begin
+  FLayerOwner := aOwner;
+  Setup;
+end;
+
+procedure TIOLayer.Setup;
+begin
+end;
+
+procedure TIOLayer.Finish;
+begin
+  FFinished := True;
+end;
+
+function TIOLayer.IsFinished : Boolean;
+begin
+  Exit( FFinished );
+end;
+
+function TIOLayer.IsModal : Boolean;
+begin
+  Exit( False );
+end;
+
+function TIOLayer.HandleEvent( const aEvent : TIOEvent ) : Boolean;
+begin
+  Exit( IsModal );
+end;
+
+function TIOLayer.HandleInput( aInput : Integer ) : Boolean;
+begin
+  Exit( False );
+end;
 
 { TIO }
 
@@ -344,15 +406,15 @@ begin
   if FTIGConsoleView <> nil then
   begin
     FConsole.HideCursor;
-    FTIGConsoleView.SaveHistory('console.history');
+    TTIGConsoleView( FTIGConsoleView ).SaveHistory('console.history');
     FTIGConsoleView.Finish;
     FTIGConsoleView := nil;
     Exit;
   end;
   FConsole.ShowCursor;
   FTIGConsoleView := PushLayer( TTIGConsoleView.Create(
-    aLua, FIODriver, Point( FConsole.SizeX, FConsole.SizeY ) ) ) as TTIGConsoleView;
-  FTIGConsoleView.LoadHistory('console.history');
+    aLua, FIODriver, Point( FConsole.SizeX, FConsole.SizeY ) ) );
+  TTIGConsoleView( FTIGConsoleView ).LoadHistory('console.history');
 end;
 
 procedure TIO.FinishLayers;
@@ -383,6 +445,7 @@ end;
 function TIO.PushLayer( aLayer : TIOLayer ) : TIOLayer;
 begin
   FLayers.Push( aLayer );
+  aLayer.Attach( Self );
   Result := aLayer;
 end;
 

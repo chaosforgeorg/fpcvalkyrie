@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vtigconsole;
 interface
-uses viotypes, vgenerics, vlua;
+uses viotypes, vgenerics, vlua, vio;
 
 type TTIGStringRing = specialize TGRingBuffer<AnsiString>;
 
