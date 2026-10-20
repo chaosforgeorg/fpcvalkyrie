@@ -22,7 +22,9 @@ type TStoreInterface = class( TVObject )
 private
   FSuppressProgress : Boolean;
 public
-  class function Get : TStoreInterface;
+  // Creates the platform store: Steam when its library loads, otherwise a
+  // stub. The caller owns the result.
+  class function CreateDefault : TStoreInterface;
   function GetUserId : QWord; virtual;
   function IsInitialized : Boolean; virtual;
   function IsOverlayEnabled : Boolean; virtual;
@@ -60,25 +62,18 @@ implementation
 
 uses sysutils, vsteam, vdebug;
 
-var GStoreInterface : TStoreInterface = nil;
-
 constructor TModInfo.Create( aFolder : Ansistring; aID : QWord );
 begin
   FFolder := aFolder;
   FID     := aId;
 end;
 
-class function TStoreInterface.Get : TStoreInterface;
+class function TStoreInterface.CreateDefault : TStoreInterface;
 begin
-  if Assigned ( GStoreInterface ) then Exit( GStoreInterface );
   if TSteam.TryLoadLibrary then
-    GStoreInterface := TSteam.Create
-  else
-  begin
-    vdebug.Log('TStoreInterface : no store API detected, initializing stub');
-    GStoreInterface := TStoreInterface.Create;
-  end;
-  Exit( GStoreInterface );
+    Exit( TSteam.Create );
+  vdebug.Log('TStoreInterface : no store API detected, initializing stub');
+  Exit( TStoreInterface.Create );
 end;
 
 function TStoreInterface.GetUserId : QWord;
@@ -207,10 +202,6 @@ constructor TStoreInterface.Create;
 begin
   inherited Create;
 end;
-
-finalization
-
-FreeAndNil( GStoreInterface );
 
 end.
 
