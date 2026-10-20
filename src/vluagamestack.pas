@@ -12,6 +12,7 @@ public
   function ToPosition( aIndex : Integer; aDefault : TCoord2D ) : TCoord2D; overload;
   function ToNode( aIndex : Integer ) : TLuaEntityNode;
   function ToID( aLua : TLua; aIndex : Integer ) : Integer;
+  function ToStorageID( aIndex : Integer; const aStorage : AnsiString ) : Integer;
   function ToIOColor( aIndex : Integer ) : TIOColor;
   function ToCellSet( aLua : TLua; aIndex : Integer ) : TFlags;
 end;
@@ -57,6 +58,22 @@ begin
     Error('Unknown ID ("'+ToString( aIndex )+'") at index '+IntToStr( aIndex ) +'!');
   end;
   Error('ID expected at index '+IntToStr( aIndex ) +'!');
+end;
+
+// Resolves an id of the given storage, as a number or a string key of that
+// storage; ids of other storages are rejected.
+function TLuaGameStack.ToStorageID( aIndex : Integer; const aStorage : AnsiString ) : Integer;
+begin
+  if lua_type( FState, aIndex ) = LUA_TNUMBER then Exit( lua_tointeger( FState, aIndex ) );
+  aIndex := lua_absindex( FState, aIndex );
+  lua_getglobal( FState, PChar( aStorage ) );
+  lua_pushvalue( FState, aIndex );
+  lua_rawget( FState, -2 );
+  if not lua_istable( FState, -1 ) then
+    PopRaise( 2, 'Unknown '+aStorage+' id ("'+ToString( aIndex )+'") at index '+IntToStr( aIndex )+'!' );
+  lua_getfield( FState, -1, 'nid' );
+  Result := lua_tointeger( FState, -1 );
+  lua_pop( FState, 3 );
 end;
 
 function TLuaGameStack.ToIOColor( aIndex : Integer ) : TIOColor;
