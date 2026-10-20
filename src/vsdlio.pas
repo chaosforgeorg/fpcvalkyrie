@@ -57,6 +57,7 @@ private
   FGamePadID      : DWord;
   FGamePadRumble  : Boolean;
   FGamePadSupport : Boolean;
+  FMouseSupport   : Boolean;
   FGamePadIndex   : Integer;
   FGamePadHandle  : Pointer;
   FPadTriggerState    : TIOPadTriggerState;
@@ -73,11 +74,14 @@ private
   procedure ScanDisplayModes;
   function ScanGamepads( aAllowLoop : Boolean = True ) : Boolean;
   procedure SetGamePadSupport( aValue : Boolean  );
+  procedure SetMouseSupport( aValue : Boolean );
 public
   property Width : DWord            read FSizeX;
   property Height : DWord           read FSizeY;
   property BPP : DWord              read FBPP;
   property GamePadSupport : Boolean read FGamePadSupport write SetGamePadSupport;
+  // When False, mouse events are not delivered; polling the position still works.
+  property MouseSupport : Boolean read FMouseSupport write SetMouseSupport;
   property OpenGLMode : Boolean read FOpenGL;
   property FullScreen : Boolean read FFScreen;
   property Flags : TSDLIOFlags  read FFlags;
@@ -386,10 +390,11 @@ begin
   SDL_EVENT_WINDOW_RESTORED,
   SDL_EVENT_KEY_DOWN,
   SDL_EVENT_KEY_UP,
-  SDL_EVENT_TEXT_INPUT,
+  SDL_EVENT_TEXT_INPUT : Exit(True);
   SDL_EVENT_MOUSE_MOTION,
   SDL_EVENT_MOUSE_BUTTON_DOWN,
-  SDL_EVENT_MOUSE_WHEEL : Exit(True);
+  SDL_EVENT_MOUSE_BUTTON_UP,
+  SDL_EVENT_MOUSE_WHEEL : Exit( iDriver.MouseSupport );
   SDL_EVENT_JOYSTICK_AXIS_MOTION,
   SDL_EVENT_JOYSTICK_BALL_MOTION,
   SDL_EVENT_JOYSTICK_HAT_MOTION,
@@ -476,6 +481,7 @@ begin
   FWindow    := nil;
   FGLContext := nil;
   FGamePadSupport := SDLIO_Gamepad in aFlags;
+  FMouseSupport   := True;
   FGamePadID      := 0;
   FGamePadIndex   := -1;
   FGamePadHandle  := nil;
@@ -1070,6 +1076,17 @@ begin
       );
     end;
     ResetPadEventState( Int32( FGamePadID ) );
+  end;
+end;
+
+procedure TSDLIODriver.SetMouseSupport( aValue : Boolean );
+begin
+  if aValue = FMouseSupport then Exit;
+  FMouseSupport := aValue;
+  if not aValue then
+  begin
+    SDL_PumpEvents;
+    SDL_FlushEvents( SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_WHEEL );
   end;
 end;
 
