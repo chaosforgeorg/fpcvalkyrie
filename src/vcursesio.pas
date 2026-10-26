@@ -121,6 +121,7 @@ begin
     nCurses.KEY_STAB      : Result := VKEY_TAB;
 
     10                    : Result := VKEY_ENTER;
+    13                    : Result := VKEY_ENTER; // raw() clears ICRNL, so Return arrives as CR
     nCurses.KEY_ENTER     : Result := VKEY_ENTER;
 
     27                    : Result := VKEY_ESCAPE;
@@ -168,6 +169,9 @@ begin
 
   // Get value from curses
   FLastGet := wgetch(stdscr);
+
+  // Zero-init so fields not set below dont leak to consumers
+  FillChar( aEvent, SizeOf(aEvent), 0 );
 
   // If value is err, return none event
   if FLastGet = -1 then Exit( False );

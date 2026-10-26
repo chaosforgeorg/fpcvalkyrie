@@ -21,7 +21,7 @@ type ESoundException  = class( EException );
      TIntAssocArray   = specialize TGHashMap<LongInt>;
 
 // The basic sound class, published as the singleton @link(Sound).
-// Should be initialized and disposed via TSystems.
+// The caller constructs and owns the sound service.
 type
 
 { TSound }

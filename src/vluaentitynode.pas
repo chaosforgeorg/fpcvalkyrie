@@ -19,11 +19,11 @@
 //  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 //  @html </div>
 //
-// TODO - unwrap TLuaState calls for efficiency
+// TODO - unwrap TLuaStack calls for efficiency
 
 unit vluaentitynode;
 interface
-uses Classes, vnode, vutil, vrltools, vluastate, viotypes;
+uses classes, vnode, vutil, vrltools, vluastack, viotypes, vlua;
 
 const ENTITY_BEING    = 1;
       ENTITY_ITEM     = 2;
@@ -35,11 +35,14 @@ TLuaEntityNodeEnumerator = specialize TGNodeEnumerator< TLuaEntityNode >;
 
 TLuaEntityNode = class( TNode )
   // Standard constructor, zeroes all fields.
-  constructor Create( const aID : AnsiString ); reintroduce;
+  constructor Create( const aID : AnsiString; aContext : TNodeContext ); reintroduce;
   // Stream constructor, reads UID, and ID from stream, should be overriden.
-  constructor CreateFromStream( Stream : TStream ); override;
+  constructor CreateFromStream( Stream : TStream; aContext : TNodeContext ); override;
   // Write Node to stream (UID and ID) should be overriden.
   procedure WriteToStream( Stream : TStream ); override;
+  // Entities may be referenced by running callbacks, so destruction is
+  // deferred to TNodeContext.FlushDestroyed.
+  procedure Discard; override;
   // Position change - calls TLuaMapNode.Displace
   procedure Displace( const aWhere : TCoord2D ); virtual;
   // Returns true if the thing is in the vision field of the player - calls TLuaMapNode.isVisible
@@ -50,7 +53,7 @@ TLuaEntityNode = class( TNode )
   // Should push given property to the passed state
   function GetProperty( L : PLua_State; const aPropertyName : AnsiString ) : Integer; override;
   // Register API -- WARNING - registers TableName metatable!
-  class procedure RegisterLuaAPI( const TableName : AnsiString );
+  class procedure RegisterLuaAPI( aLua : TLua; const aTableName : AnsiString );
 protected
   // Position
   FPosition  : TCoord2D;
@@ -78,22 +81,22 @@ end;
 function lua_entity_node_in_range_closure(L: Plua_State): Integer; cdecl;
 
 implementation
-uses vluasystem, vluamapnode, vluatools, vluatype, vlualibrary;
+uses vluamapnode, vluatools, vluatype, vlualibrary;
 
 { TLuaEntityNode }
 
-constructor TLuaEntityNode.Create ( const aID : AnsiString ) ;
+constructor TLuaEntityNode.Create( const aID : AnsiString; aContext : TNodeContext );
 begin
-  inherited Create( aID, True );
+  inherited Create( aID, aContext );
   FPosition.Create(0,0);
   FEntityID := 0;
   FGylph.Color := 7;
   FGylph.ASCII := '?';
 end;
 
-constructor TLuaEntityNode.CreateFromStream ( Stream : TStream ) ;
+constructor TLuaEntityNode.CreateFromStream( Stream : TStream; aContext : TNodeContext );
 begin
-  inherited CreateFromStream ( Stream ) ;
+  inherited CreateFromStream( Stream, aContext );
   FEntityID := Stream.ReadByte;
   Stream.Read( FPosition, SizeOf(FPosition) );
   Stream.Read( FGylph,    SizeOf(FGylph) );
@@ -105,6 +108,11 @@ begin
   Stream.WriteByte( FEntityID );
   Stream.Write( FPosition, SizeOf(FPosition) );
   Stream.Write( FGylph,    SizeOf(FGylph) );
+end;
+
+procedure TLuaEntityNode.Discard;
+begin
+  DeferDestroy;
 end;
 
 procedure TLuaEntityNode.Displace ( const aWhere : TCoord2D ) ;
@@ -127,7 +135,7 @@ end;
 
 function TLuaEntityNode.GetProperty ( L : PLua_State;
   const aPropertyName : AnsiString ) : Integer;
-var iState : TLuaState;
+var iState : TLuaStack;
 begin
   iState.Init(L);
   if aPropertyName = 'position' then begin iState.PushCoord( FPosition ); Exit( 1 ); end;
@@ -136,7 +144,7 @@ begin
 end;
 
 function lua_entity_node_distance_to(L: Plua_State) : Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     GNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -149,7 +157,7 @@ begin
 end;
 
 function lua_entity_node_displace(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     GNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -159,7 +167,7 @@ begin
 end;
 
 function lua_entity_node_position(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     GNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -177,6 +185,7 @@ var Coord    : TCoord2D;
     Next     : TNode;
     Current  : TLuaEntityNode;
     Parent   : TNode;
+    iSequence : QWord;
 begin
   Parent  := TObject( lua_touserdata( L, lua_upvalueindex(1) ) ) as TNode;
   This    := TObject( lua_touserdata( L, lua_upvalueindex(2) ) ) as TNode;
@@ -189,15 +198,16 @@ begin
     LUA_TSTRING : Filter   := lua_tostring( L, lua_upvalueindex(5) );
   end;
   Next   := TObject( lua_touserdata( L, lua_upvalueindex(6) ) ) as TNode;
+  iSequence := Trunc( lua_tonumber( L, lua_upvalueindex(7) ) );
 
   repeat
-    Current := Next as TLuaEntityNode;
-    if Next <> nil then Next := Next.Next;
-    if Next = Parent.Child then Next := nil;
-  until (Current = nil) or ( ((Filter   = '') or (Current.GetProtoName = Filter)) and
+    Current := Parent.NextChild( Next, iSequence ) as TLuaEntityNode;
+  until (Current = nil) or ( ((Filter   = '') or (Current.LuaClassInfo.Proto = Filter)) and
                              ((FilterID = 0)  or (Current.EntityID = FilterID)) and
                              ( Distance( Current.FPosition, Coord ) <= Range )  and
                              (This <> Current) );
+  lua_pushnumber( L, iSequence );
+  lua_replace( L, lua_upvalueindex(7) );
 
   lua_pushlightuserdata( L, Next );
   lua_replace( L, lua_upvalueindex(6) );
@@ -207,7 +217,7 @@ begin
 end;
 
 function lua_entity_node_siblings_in_range(L: Plua_State): Integer; cdecl;
-var State   : TLuaState;
+var State   : TLuaStack;
     LuaNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -219,13 +229,17 @@ begin
   if (lua_type( L, 3 ) = LUA_TSTRING) or (lua_type( L, 3 ) = LUA_TNUMBER)
     then lua_pushvalue( L, 3 )
     else lua_pushinteger( L, 0 );
-  lua_pushlightuserdata( L, LuaNode.Child );
-  lua_pushcclosure( L, @lua_entity_node_in_range_closure, 6 );
+  // Siblings share the parent's children list.
+  if LuaNode.Parent = nil
+    then lua_pushlightuserdata( L, nil )
+    else lua_pushlightuserdata( L, LuaNode.Parent.Child );
+  lua_pushnumber( L, 0 );
+  lua_pushcclosure( L, @lua_entity_node_in_range_closure, 7 );
   Exit( 1 );
 end;
 
 function lua_entity_node_is_visible(L: Plua_State) : Integer; cdecl;
-var State   : TLuaState;
+var State   : TLuaStack;
     LuaNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -235,7 +249,7 @@ begin
 end;
 
 function lua_entity_node_is_being(L: Plua_State): Integer; cdecl;
-var State   : TLuaState;
+var State   : TLuaStack;
     LuaNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -245,7 +259,7 @@ begin
 end;
 
 function lua_entity_node_is_item(L: Plua_State): Integer; cdecl;
-var State   : TLuaState;
+var State   : TLuaStack;
     LuaNode : TLuaEntityNode;
 begin
   State.Init(L);
@@ -266,9 +280,9 @@ const lua_entity_node_lib : array[0..6] of luaL_Reg = (
 );
 
 
-class procedure TLuaEntityNode.RegisterLuaAPI ( const TableName : AnsiString );
+class procedure TLuaEntityNode.RegisterLuaAPI( aLua : TLua; const aTableName : AnsiString );
 begin
-  LuaSystem.Register( TableName, lua_entity_node_lib );
+  aLua.Register( aTableName, lua_entity_node_lib );
 end;
 
 end.

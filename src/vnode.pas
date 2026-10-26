@@ -9,8 +9,7 @@
 // It implements a tree-like structure. Also, each node
 // has an unique identifier, represented by @link(TUID).
 //
-// This unit also implements the two Valkyrie base classes :
-// TVObject and TVClass.
+// This unit also defines TNodeContext and exposes the TVObject base class.
 //
 //  @html <div class="license">
 //  This library is free software; you can redistribute it and/or modify it
@@ -35,40 +34,34 @@
 
 unit vnode;
 interface
-uses Classes, vutil, vdebug, vluatype, vlualibrary;
+uses classes, vutil, vdebug, vluatype, vlualibrary, vobject, vlua, vuid;
 
-// The most generic of Valkyrie objects. Implements only the error
-// handling functions. It is recommended that all Valkyrie classes
-// inherit at least this class.
-type
-
-{ TVObject }
-
-TVObject = class( TObject )
-     // TVObject Interface for @link(grdebug.Log).
-     procedure   Log( const aLogString : Ansistring ); virtual;
-     // TVObject Interface for @link(grdebug.Log).
-     procedure   Log( aLevel : TLogLevel; const aLogString : Ansistring ); virtual;
-     // TVObject Interface for @link(grdebug.Log), Formatted version.
-     procedure   Log( const aLogString : Ansistring; const aParam : array of Const );
-     // TVObject Interface for @link(grdebug.Log), Formatted version.
-     procedure   Log( aLevel : TLogLevel; const aLogString       : Ansistring; const aParam : array of Const );
-     // Returns wether the object has a parent -- in case of TVObject it's always false
-     function hasParent : boolean; virtual;
-     // Returns wether the object has a child -- in case of TVObject it's always false
-     function hasChild : boolean; virtual;
-     // Returns wether the object is a TVNode
-     function isNode : boolean; virtual;
-     // Stream constructor, reads UID, and ID from stream, should be overriden.
-     constructor CreateFromStream( Stream : TStream ); virtual;
-     // Write Node to stream (UID and ID) should be overriden.
-     procedure WriteToStream( Stream : TStream ); virtual;
-  end;
-
-type TVObjectClass = class of TVObject;
+type TVObject      = vobject.TVObject;
+     TVObjectClass = vobject.TVObjectClass;
 
 type TNode = class;
 type TNodeClass = class of TNode;
+
+// Borrowed services for nodes belonging to one game session. The context also
+// owns discarded nodes until FlushDestroyed; see TNode.Discard.
+type TNodeContext = class
+  private
+    FLua            : TLua;
+    FUIDs           : TUIDStore;
+    FDestroyed      : array of TNode;
+    FDestroyedCount : Integer;
+    procedure QueueDestroy( aNode : TNode );
+  public
+    constructor Create( aLua : TLua; aUIDs : TUIDStore );
+    procedure BindLua( aLua : TLua );
+    procedure BindUIDs( aUIDs : TUIDStore );
+    // Frees discarded nodes. Call only where no callback can still reference
+    // them, i.e. between simulated time slices.
+    procedure FlushDestroyed;
+    destructor Destroy; override;
+    property Lua  : TLua read FLua;
+    property UIDs : TUIDStore  read FUIDs;
+end;
 
 // Enumerator for nodes. Implemented as a generic so it may be reused
 // For a node that implements TNode.
@@ -85,6 +78,8 @@ type TNodeClass = class of TNode;
     // Next node, held separately so we can go on smoothly event if the current
     // node changes it's parent.
     FNext     : TNode;
+    // Sequence of the last returned child, see TNode.NextChild.
+    FSequence : QWord;
     // Returns current node as T. No checking is done!
     function GetCurrent: T;
   public
@@ -111,6 +106,8 @@ type TNodeClass = class of TNode;
     // Next node, held separately so we can go on smoothly event if the current
     // node changes it's parent.
     FNext     : TNode;
+    // Sequence of the last returned child, see TNode.PrevChild.
+    FSequence : QWord;
     // Returns current node as T. No checking is done!
     function GetCurrent: T;
   public
@@ -141,10 +138,13 @@ type TNodeClass = class of TNode;
 TNode = class(TVObject, ILuaReferencedObject)
        // Standard constructor, zeroes all fields.
        constructor Create; virtual;
+       constructor Create( aContext : TNodeContext );
        // Lua constructor - registers the class with lua, and reads props
-       constructor Create( const aID : AnsiString; aUID : Boolean );
-       // Stream constructor, reads UID, and ID from stream, should be overriden.
+       constructor Create( const aID : AnsiString; aContext : TNodeContext );
+       // Context-free stream constructor for nodes without Lua or UID registration.
        constructor CreateFromStream( Stream : TStream ); override;
+       // Registered nodes load through an explicit context.
+       constructor CreateFromStream( Stream : TStream; aContext : TNodeContext ); reintroduce; virtual;
        // Write Node to stream (UID and ID) should be overriden.
        procedure WriteToStream( Stream : TStream ); override;
        // zeroes all fields.
@@ -166,6 +166,16 @@ TNode = class(TVObject, ILuaReferencedObject)
        procedure   Remove( theChild : TNode ); virtual;
        // Destroys all children.
        procedure DestroyChildren;
+       // Ends the node's lifetime. Nodes that running callbacks may still
+       // reference override this with DeferDestroy; by default it frees.
+       procedure Discard; virtual;
+       // Iteration steps that tolerate callbacks removing children. aNext is the
+       // cursor and aSequence the sequence of the last returned child (0 before a
+       // NextChild pass, High( QWord ) before a PrevChild one). Removed children
+       // are skipped through the links they had at removal; sequence numbers stop
+       // the pass when it would wrap to a child already returned.
+       function NextChild( var aNext : TNode; var aSequence : QWord ) : TNode;
+       function PrevChild( var aPrev : TNode; var aSequence : QWord ) : TNode;
        // Standard destructor, frees @link(UID), and destroys
        // children and siblings.
        destructor  Destroy; override;
@@ -204,10 +214,6 @@ TNode = class(TVObject, ILuaReferencedObject)
        function GetLuaIndex   : Integer;
        // Lua interface - GetID
        function GetID         : AnsiString;
-       // Lua interface - GetProtoTable
-       function GetProtoTable : AnsiString;
-       // Lua interface - GetProtoName
-       function GetProtoName  : AnsiString;
        // Returns a property value from Lua __props of this instance
        function GetLuaProperty( const Index : AnsiString ) : Variant;
        // Sets a property value in Lua __props of this instance
@@ -227,7 +233,7 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Returns whether the object has the passed hook
        function HasHook( Hook : Word ) : Boolean; virtual;
        // Lua interface - Register API -- WARNING - registers TableName metatable!
-       class procedure RegisterLuaAPI( const TableName : AnsiString );
+       class procedure RegisterLuaAPI( aLua : TLua; const aTableName : AnsiString );
        // Function for getting custom properties in Lua.
        // Should push given property to the passed state
        // Default implementation is no-op
@@ -237,19 +243,26 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Default implementation is no-op
        function SetProperty( L : PLua_State; const aPropertyName : AnsiString; aValueIndex : Integer ) : Boolean; virtual;
      protected
-       // Lua interface - registers with LuaSystem
+       // ILuaReferencedObject access for the lower-level Lua units.
+       function GetProtoTable : AnsiString;
+       // Registers with the node context's Lua system
        procedure RegisterWithLua( aClassType : TClass = nil );
+       // Detaches the node, marks its subtree dead, releases the subtree's UID
+       // and Lua registrations and hands the node to its context, which frees
+       // it in FlushDestroyed. Removal callbacks run while still registered.
+       procedure DeferDestroy;
      protected
        // Unique IDentification number (@link(TUID))
-       // Assigned by the @link(UIDs) singleton, unique.
+       // Assigned by the context UID store.
        FUID          : TUID;
+       FContext      : TNodeContext;
        // Identification Number of this Class - may be shared among similar
        // Classes.
        FID           : TIDN;
        // Lua Registry index.
        FLuaIndex     : LongInt;
-       // Lua Class pointer for vluasystem
-       FLuaClassInfo : Pointer;
+       // Lua Class pointer for vlua
+       FLuaClassInfo : TLuaClassInfo;
        // Hooks
        FHooks        : TFlags;
        // Name
@@ -257,6 +270,8 @@ TNode = class(TVObject, ILuaReferencedObject)
        // Flags
        FFlags        : TFlags;
      private
+       // Set once the node is discarded; its registrations are released.
+       FDead       : Boolean;
        // Link to the parent node.
        FParent     : TNode;
        // Link to first child node.
@@ -267,6 +282,13 @@ TNode = class(TVObject, ILuaReferencedObject)
        FPrev       : TNode;
        // Count of children nodes.
        FChildCount : DWord;
+       // Sibling links at removal time, used by NextChild and PrevChild.
+       FRemovedNext   : TNode;
+       FRemovedPrev   : TNode;
+       // Order of attachment among the parent's children.
+       FSequence      : QWord;
+       FChildSequence : QWord;
+       procedure MarkDiscarded;
      public
        // Lua Properties
        property LuaProperties[ const Index : AnsiString ] : Variant read GetLuaProperty write SetLuaProperty;
@@ -278,7 +300,10 @@ TNode = class(TVObject, ILuaReferencedObject)
        property Flags[ Index : Byte ] : Boolean read GetFlag write SetFlag;
 
      public
-       property LuaClassInfo : Pointer read FLuaClassInfo;
+       property LuaClassInfo : TLuaClassInfo read FLuaClassInfo;
+       property Context      : TNodeContext read FContext;
+       property Dead         : Boolean      read FDead;
+       
        property UID        : TUID read FUID;
        property ID         : TIDN read FID;
        property Parent     : TNode read FParent;
@@ -434,7 +459,50 @@ private
 end;
 
 implementation
-uses sysutils, typinfo, vluasystem, vluastate, vuid;
+uses sysutils, typinfo, vluastack;
+
+constructor TNodeContext.Create( aLua : TLua; aUIDs : TUIDStore );
+begin
+  inherited Create;
+  FLua := aLua;
+  FUIDs := aUIDs;
+end;
+
+procedure TNodeContext.BindLua( aLua : TLua );
+begin
+  FLua := aLua;
+end;
+
+procedure TNodeContext.BindUIDs( aUIDs : TUIDStore );
+begin
+  FUIDs := aUIDs;
+end;
+
+procedure TNodeContext.QueueDestroy( aNode : TNode );
+begin
+  if FDestroyedCount = Length( FDestroyed ) then
+    if FDestroyedCount = 0
+      then SetLength( FDestroyed, 16 )
+      else SetLength( FDestroyed, 2 * FDestroyedCount );
+  FDestroyed[ FDestroyedCount ] := aNode;
+  Inc( FDestroyedCount );
+end;
+
+procedure TNodeContext.FlushDestroyed;
+begin
+  // Discarded nodes hold no registrations, so destruction runs no callbacks.
+  while FDestroyedCount > 0 do
+  begin
+    Dec( FDestroyedCount );
+    FDestroyed[ FDestroyedCount ].Free;
+  end;
+end;
+
+destructor TNodeContext.Destroy;
+begin
+  FlushDestroyed;
+  inherited Destroy;
+end;
 
 { TGNodeEnumerator }
 
@@ -448,13 +516,12 @@ begin
   FParent  := Parent;
   FCurrent := nil;
   FNext    := Parent.Child;
+  FSequence := 0;
 end;
 
 function TGNodeEnumerator.MoveNext : Boolean;
 begin
-  FCurrent := FNext;
-  if FNext <> nil then FNext := FNext.Next;
-  if FNext = FParent.Child then FNext := nil;
+  FCurrent := FParent.NextChild( FNext, FSequence );
   Exit( FCurrent <> nil );
 end;
 
@@ -469,6 +536,7 @@ constructor TGNodeReverseEnumerator.Create ( Parent : TNode );
 begin
   FParent  := Parent;
   FCurrent := nil;
+  FSequence := High( QWord );
   if Parent.Child = nil
     then FNext := nil
     else FNext := Parent.Child.Prev;
@@ -476,12 +544,7 @@ end;
 
 function TGNodeReverseEnumerator.MoveNext : Boolean;
 begin
-  FCurrent := FNext;
-  if FNext <> nil then
-  begin
-    FNext := FNext.Prev;
-    if FNext = FParent.Child.Prev then FNext := nil;
-  end;
+  FCurrent := FParent.PrevChild( FNext, FSequence );
   Exit( FCurrent <> nil );
 end;
 
@@ -498,19 +561,27 @@ begin
   Clean;
 end;
 
-constructor TNode.Create(const aID: AnsiString; aUID : Boolean );
+constructor TNode.Create( aContext : TNodeContext );
+begin
+  Log( LOGDEBUG2, 'Created.' );
+  Clean;
+  FContext := aContext;
+end;
+
+constructor TNode.Create( const aID : AnsiString; aContext : TNodeContext );
 var iCount : DWord;
 begin
   Log(LOGDEBUG2,'Created.');
   Clean;
+  FContext      := aContext;
   FID           := aID;
   RegisterWithLua;
-  if aUID and (UIDs <> nil) then FUID := UIDs.Register( Self );
-  LuaSystem.State.SetPrototypeTable( Self, '__proto' );
+  if FContext.UIDs <> nil then FUID := FContext.UIDs.Register( Self );
+  FContext.Lua.Stack.SetPrototypeTable( Self, '__proto' );
 
-  with LuaSystem.GetTable( [ GetProtoTable, ID ] ) do
+  with FContext.Lua.GetTable( [ LuaClassInfo.Storage, ID ] ) do
   try
-    with TLuaClassInfo( LuaClassInfo ) do
+    with LuaClassInfo do
       for iCount in HookSet do
         if isFunction( Hooks[ iCount ] ) then
           Include( FHooks, iCount );
@@ -520,11 +591,17 @@ begin
   end;
 end;
 
-constructor TNode.CreateFromStream( Stream: TStream );
+constructor TNode.CreateFromStream( Stream : TStream );
+begin
+  CreateFromStream( Stream, nil );
+end;
+
+constructor TNode.CreateFromStream( Stream : TStream; aContext : TNodeContext );
 begin
   Log(LOGDEBUG2,'Created.');
   Clean;
 
+  FContext := aContext;
   FID   := Stream.ReadAnsiString();
   FUID  := Stream.ReadQWord();
   FName := Stream.ReadAnsiString;
@@ -535,14 +612,14 @@ begin
   if Stream.ReadByte > 0 then
   begin
     RegisterWithLua;
-    if ( UIDs <> nil ) and ( FUID <> 0 ) then
-      UIDs.Register( Self, FUID );
+    if ( FContext.UIDs <> nil ) and ( FUID <> 0 ) then
+      FContext.UIDs.Register( Self, FUID );
 
-    LuaSystem.State.SetPrototypeTable( Self, '__proto' );
-    LuaSystem.State.SubTableFromStream( Self ,'__props', Stream );
+    FContext.Lua.Stack.SetPrototypeTable( Self, '__proto' );
+    FContext.Lua.Stack.SubTableFromStream( Self ,'__props', Stream );
 
     if Stream.ReadByte = 1 then
-      LuaSystem.State.NewSubTableFromStream( Self ,'__hooks', Stream );
+      FContext.Lua.Stack.NewSubTableFromStream( Self ,'__hooks', Stream );
   end;
 end;
 
@@ -558,11 +635,11 @@ begin
     if FLuaIndex >= 0 then
     begin
       Stream.WriteByte(1);
-      LuaSystem.State.SubTableToStream( Self ,'__props', Stream );
-      if LuaSystem.State.HasSubTable( Self, '__hooks' ) then
+      FContext.Lua.Stack.SubTableToStream( Self ,'__props', Stream );
+      if FContext.Lua.Stack.HasSubTable( Self, '__hooks' ) then
       begin
         Stream.WriteByte(1);
-        LuaSystem.State.SubTableToStream( Self ,'__hooks', Stream );
+        FContext.Lua.Stack.SubTableToStream( Self ,'__hooks', Stream );
       end
       else
         Stream.WriteByte(0);
@@ -583,6 +660,11 @@ begin
   FParent       := nil;
   FHooks        := [];
   FFlags        := [];
+  FDead         := False;
+  FRemovedNext  := nil;
+  FRemovedPrev  := nil;
+  FSequence     := 0;
+  FChildSequence := 0;
   FNext         := Self;
   FPrev         := Self;
   FChildCount   := 0;
@@ -594,6 +676,8 @@ procedure TNode.Add(theChild : TNode);
 begin
   if theChild.FParent <> nil then theChild.Detach;
   theChild.FParent := Self;
+  Inc( FChildSequence );
+  theChild.FSequence := FChildSequence;
   if FChild = nil then
     FChild := theChild
   else
@@ -663,6 +747,8 @@ end;
 procedure TNode.Remove( theChild : TNode );
 begin
   if theChild.FParent <> Self then Exit(); // signal error?
+  theChild.FRemovedNext := theChild.FNext;
+  theChild.FRemovedPrev := theChild.FPrev;
   if theChild = FChild then
   begin
     if theChild.FNext <> theChild then FChild := theChild.FNext
@@ -681,6 +767,82 @@ begin
   end;
 end;
 
+procedure TNode.Discard;
+begin
+  Free;
+end;
+
+procedure TNode.DeferDestroy;
+begin
+  if FDead then Exit;
+  if FContext = nil then
+  begin
+    Free;
+    Exit;
+  end;
+  FDead := True;
+  Detach;
+  MarkDiscarded;
+  FContext.QueueDestroy( Self );
+end;
+
+function TNode.NextChild( var aNext : TNode; var aSequence : QWord ) : TNode;
+var iNode : TNode;
+begin
+  while aNext <> nil do
+  begin
+    iNode := aNext;
+    if iNode.FParent = Self then
+    begin
+      aNext := nil;
+      if iNode.FSequence <= aSequence then Exit( nil );
+      aSequence := iNode.FSequence;
+      // Advance before returning: the caller may move or free the child.
+      if iNode.FNext <> FChild then aNext := iNode.FNext;
+      Exit( iNode );
+    end;
+    aNext := iNode.FRemovedNext;
+    if aNext = iNode then aNext := nil;
+  end;
+  Exit( nil );
+end;
+
+function TNode.PrevChild( var aPrev : TNode; var aSequence : QWord ) : TNode;
+var iNode : TNode;
+begin
+  while aPrev <> nil do
+  begin
+    iNode := aPrev;
+    if iNode.FParent = Self then
+    begin
+      aPrev := nil;
+      if iNode.FSequence >= aSequence then Exit( nil );
+      aSequence := iNode.FSequence;
+      // Advance before returning: the caller may move or free the child.
+      if iNode <> FChild then aPrev := iNode.FPrev;
+      Exit( iNode );
+    end;
+    aPrev := iNode.FRemovedPrev;
+    if aPrev = iNode then aPrev := nil;
+  end;
+  Exit( nil );
+end;
+
+procedure TNode.MarkDiscarded;
+var iChild : TNode;
+begin
+  FDead := True;
+  if ( FUID <> 0 ) and ( FContext.UIDs <> nil ) then
+    FContext.UIDs.Remove( FUID );
+  if FLuaIndex <> LUA_NOREF then
+  begin
+    FContext.Lua.UnRegisterObject( Self );
+    FLuaIndex := LUA_NOREF;
+  end;
+  for iChild in Self do
+    iChild.MarkDiscarded;
+end;
+
 procedure TNode.Move(Destination : TNode);
 begin
   if FParent <> nil     then Detach;
@@ -690,13 +852,15 @@ end;
 destructor TNode.Destroy;
 begin
   Detach;
-  if (UIDs <> nil) and (FUID <> 0) then UIDs.Remove(FUID);
+  // A discarded node released its UID when it was discarded.
+  if ( FUID <> 0 ) and ( not FDead ) and ( FContext.UIDs <> nil ) then
+    FContext.UIDs.Remove( FUID );
   while FChild <> nil do
   begin
     FChild.Free;
   end;
-  if (LuaSystem <> nil) and (FLuaIndex <> LUA_NOREF) then
-    LuaSystem.UnRegisterObject( Self );
+  if FLuaIndex <> LUA_NOREF then
+    FContext.Lua.UnRegisterObject( Self );
   Log(LOGDEBUG2,'Destroyed.');
 end;
 
@@ -808,20 +972,15 @@ end;
 
 function TNode.GetProtoTable: AnsiString;
 begin
-  Exit( TLuaClassInfo(FLuaClassInfo).Storage );
-end;
-
-function TNode.GetProtoName: AnsiString;
-begin
-  Exit( TLuaClassInfo(FLuaClassInfo).Proto );
+  Exit( FLuaClassInfo.Storage );
 end;
 
 procedure TNode.RegisterWithLua( aClassType : TClass = nil );
 begin
   if FLuaIndex <> LUA_NOREF then raise EException.Create('Register With Lua called twice!');
   if aClassType = nil then aClassType := Self.ClassType;
-  FLuaIndex := LuaSystem.RegisterObject( Self, aClassType.ClassName );
-  FLuaClassInfo := LuaSystem.GetClassInfo( aClassType );
+  FLuaIndex := FContext.Lua.RegisterObject( Self, aClassType.ClassName );
+  FLuaClassInfo := FContext.Lua.GetClassInfo( aClassType );
 end;
 
 function TNode.GetProperty ( L : PLua_State; const aPropertyName : AnsiString ) : Integer;
@@ -836,27 +995,27 @@ end;
 
 function TNode.GetLuaProperty ( const Index : AnsiString ) : Variant;
 begin
-  Exit( LuaSystem.State.GetLuaProperty( Self, Index ) );
+  Exit( FContext.Lua.Stack.GetLuaProperty( Self, Index ) );
 end;
 
 procedure TNode.SetLuaProperty ( const Index : AnsiString; Value : Variant ) ;
 begin
-  LuaSystem.State.SetLuaProperty( Self, Index, Value );
+  FContext.Lua.Stack.SetLuaProperty( Self, Index, Value );
 end;
 
 function TNode.GetLuaProperty(const aPath: array of const; aDefValue: Variant ): Variant;
 begin
-  Exit( LuaSystem.State.GetLuaProperty( Self, aPath, aDefValue ) );
+  Exit( FContext.Lua.Stack.GetLuaProperty( Self, aPath, aDefValue ) );
 end;
 
 procedure TNode.SetLuaProperty(const aPath: array of const; aValue: Variant);
 begin
-  LuaSystem.State.SetLuaProperty( Self, aPath, aValue );
+  FContext.Lua.Stack.SetLuaProperty( Self, aPath, aValue );
 end;
 
 function TNode.GetLuaProtoValue ( const Index : AnsiString ) : Variant;
 begin
-  Exit( LuaSystem.Get( [ GetProtoTable, ID, Index ] ) );
+  Exit( FContext.Lua.Get( [ LuaClassInfo.Storage, ID, Index ] ) );
 end;
 
 function TNode.GetFlag ( aFlag : Byte ) : Boolean;
@@ -875,7 +1034,7 @@ function TNode.RunHook ( Hook : Word; const Args : array of const ) : Variant;
 begin
   RunHook := False;
   if Hook in FHooks then
-    RunHook := LuaSystem.ProtectedRunHook( Self, TLuaClassInfo( LuaClassInfo ).Hooks[ Hook ], Args );
+    RunHook := FContext.Lua.ProtectedRunHook( Self, LuaClassInfo.Hooks[ Hook ], Args );
 end;
 
 function TNode.HasHook ( Hook : Word ) : Boolean;
@@ -883,51 +1042,6 @@ begin
   Exit( Hook in FHooks );
 end;
 
-
-procedure TVObject.Log      (const aLogString       : Ansistring);
-begin
-  vdebug.Log('<'+classname+'> '+aLogString);
-end;
-
-procedure TVObject.Log( aLevel: TLogLevel; const aLogString: Ansistring );
-begin
-  vdebug.Log( aLevel,'<'+classname+'> '+aLogString );
-end;
-
-procedure TVObject.Log( const aLogString: Ansistring; const aParam: array of const );
-begin
-  Log( Format( aLogString, aParam ) );
-end;
-
-procedure TVObject.Log( aLevel: TLogLevel; const aLogString: Ansistring; const aParam: array of const);
-begin
-  Log( aLevel, Format( aLogString, aParam ) );
-end;
-
-function TVObject.hasParent : boolean;
-begin
-  Exit(False);
-end;
-
-function TVObject.hasChild : boolean;
-begin
-  Exit(False);
-end;
-
-function TVObject.isNode : boolean; 
-begin
-  Exit(False);
-end;
-
-constructor TVObject.CreateFromStream ( Stream : TStream ) ;
-begin
-  // noop
-end;
-
-procedure TVObject.WriteToStream ( Stream : TStream ) ;
-begin
-  // noop
-end;
 
 { TGNodeListEnumerator }
 
@@ -1203,17 +1317,17 @@ begin
 end;
 
 function lua_node_get_type(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
   Node := State.ToObject(1) as TNode;
-  State.Push( LuaSystem.GetProtoTable( Node.ClassType ) );
+  State.Push( Node.Context.Lua.GetProtoTable( Node.ClassType ) );
   Result := 1;
 end;
 
 function lua_node_get_id(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1223,7 +1337,7 @@ begin
 end;
 
 function lua_node_get_uid(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1233,7 +1347,7 @@ begin
 end;
 
 function lua_node_get_parent(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1243,7 +1357,7 @@ begin
 end;
 
 function lua_node_get_child_count(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1253,18 +1367,20 @@ begin
 end;
 
 function lua_node_children_closure(L: Plua_State): Integer; cdecl;
-var State     : TLuaState;
+var State     : TLuaStack;
     Parent    : TNode;
     Next      : TNode;
     Current   : TNode;
+    iSequence : QWord;
 begin
   State.Init( L );
   Parent    := TObject( lua_touserdata( L, lua_upvalueindex(1) ) ) as TNode;
   Next      := TObject( lua_touserdata( L, lua_upvalueindex(2) ) ) as TNode;
+  iSequence := Trunc( lua_tonumber( L, lua_upvalueindex(3) ) );
 
-  Current := Next;
-  if Next <> nil then Next := Next.Next;
-  if Next = Parent.Child then Next := nil;
+  Current := Parent.NextChild( Next, iSequence );
+  lua_pushnumber( L, iSequence );
+  lua_replace( L, lua_upvalueindex(3) );
   lua_pushlightuserdata( L, Next );
   lua_replace( L, lua_upvalueindex(2) );
 
@@ -1273,22 +1389,24 @@ begin
 end;
 
 function lua_node_children_filter_closure(L: Plua_State): Integer; cdecl;
-var State     : TLuaState;
+var State     : TLuaStack;
     Parent    : TNode;
     Next      : TNode;
     Current   : TNode;
+    iSequence : QWord;
     Filter    : AnsiString;
 begin
   State.Init( L );
   Parent    := TObject( lua_touserdata( L, lua_upvalueindex(1) ) ) as TNode;
   Next      := TObject( lua_touserdata( L, lua_upvalueindex(2) ) ) as TNode;
   Filter    := lua_tostring( L, lua_upvalueindex(3) );
+  iSequence := Trunc( lua_tonumber( L, lua_upvalueindex(4) ) );
 
   repeat
-    Current := Next;
-    if Next <> nil then Next := Next.Next;
-    if Next = Parent.Child then Next := nil;
-  until (Current = nil) or (Current.GetProtoName = Filter);
+    Current := Parent.NextChild( Next, iSequence );
+  until (Current = nil) or (Current.LuaClassInfo.Proto = Filter);
+  lua_pushnumber( L, iSequence );
+  lua_replace( L, lua_upvalueindex(4) );
 
   lua_pushlightuserdata( L, Next );
   lua_replace( L, lua_upvalueindex(2) );
@@ -1299,7 +1417,7 @@ end;
 
 // iterator
 function lua_node_children(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1309,15 +1427,19 @@ begin
   if lua_isstring( L, 2 ) then
   begin
     lua_pushvalue( L, 2 );
-    lua_pushcclosure( L, @lua_node_children_filter_closure, 3 );
+    lua_pushnumber( L, 0 );
+    lua_pushcclosure( L, @lua_node_children_filter_closure, 4 );
   end
   else
-    lua_pushcclosure( L, @lua_node_children_closure, 2 );
+  begin
+    lua_pushnumber( L, 0 );
+    lua_pushcclosure( L, @lua_node_children_closure, 3 );
+  end;
   Exit( 1 );
 end;
 
 function lua_node_property_set(L: Plua_State): Integer; cdecl;
-var State  : TLuaState;
+var State  : TLuaStack;
     Node   : TNode;
     Prop   : AnsiString;
     HookID : Integer;
@@ -1353,7 +1475,7 @@ begin
 end;
 
 function lua_node_property_get(L: Plua_State): Integer; cdecl;
-var iState   : TLuaState;
+var iState   : TLuaStack;
     iNode    : TNode;
     iProp    : AnsiString;
     iRes     : Variant;
@@ -1421,7 +1543,7 @@ begin
 end;
 
 function lua_node_add(L: Plua_State): Integer; cdecl;
-var State : TLuaState;
+var State : TLuaStack;
     Node  : TNode;
 begin
   State.Init(L);
@@ -1431,7 +1553,7 @@ begin
 end;
 
 function lua_node_register_hook(L: Plua_State): Integer; cdecl;
-var State  : TLuaState;
+var State  : TLuaStack;
     GNode  : TNode;
     Hook   : AnsiString;
     ID     : Integer;
@@ -1440,18 +1562,18 @@ begin
   lua_settop( L, 3 );
   GNode := State.ToObject(1) as TNode;
   Hook  := State.ToString(2);
-  ID := TLuaClassInfo(GNode.LuaClassInfo).GetHookID(Hook);
+  ID := GNode.LuaClassInfo.GetHookID(Hook);
   if ID = -1 then
     State.Error('Unknown hook "'+Hook+'" requested to be set on object of type '+GNode.ClassName+'!');
 
   if not lua_isnil( L, 3 ) then
   begin
     // Check if hook exists
-    lua_getglobal( L, GNode.GetProtoTable );
+    lua_getglobal( L, GNode.LuaClassInfo.Storage );
     lua_pushansistring( L, '__hooks' );
     lua_rawget( L, -2 );
     if lua_isnil( L, -1 ) then
-      State.Error('Table "'+GNode.GetProtoTable+'" has no __hooks registry!');
+      State.Error('Table "'+GNode.LuaClassInfo.Storage+'" has no __hooks registry!');
     lua_pushvalue( L, 3 );
     lua_rawget( L, -2 );
     if lua_isnil( L, -1 ) then
@@ -1477,7 +1599,7 @@ begin
   lua_rawset( L, -3 );
   if lua_isnil( L, 3 ) then
   begin
-    if not LuaSystem.Defined([ GNode.GetProtoTable, GNode.ID, Hook ]) then
+    if not GNode.Context.Lua.Defined([ GNode.LuaClassInfo.Storage, GNode.ID, Hook ]) then
       Exclude( GNode.FHooks, ID );
   end
   else
@@ -1486,7 +1608,7 @@ begin
 end;
 
 function lua_node_flags_get(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
+var iState : TLuaStack;
     iNode  : TNode;
 begin
   iState.Init( L );
@@ -1497,7 +1619,7 @@ begin
 end;
 
 function lua_node_flags_set(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
+var iState : TLuaStack;
     iNode  : TNode;
     iFlag  : byte;
 begin
@@ -1512,12 +1634,12 @@ begin
 end;
 
 function lua_node_destroy(L: Plua_State): Integer; cdecl;
-var iState : TLuaState;
+var iState : TLuaStack;
     iNode  : TNode;
 begin
   iState.Init(L);
   iNode := iState.ToObject(1) as TNode;
-  iNode.Free;
+  iNode.Discard;
   Result := 0;
 end;
 
@@ -1539,12 +1661,12 @@ const lua_node_lib : array[0..14] of luaL_Reg = (
       ( name : nil;               func : nil; )
 );
 
-class procedure TNode.RegisterLuaAPI(const TableName: AnsiString);
+class procedure TNode.RegisterLuaAPI( aLua : TLua; const aTableName : AnsiString );
 begin
-  LuaSystem.Register( TableName, lua_node_lib );
-  LuaSystem.RegisterSubTable( TableName, '__props' );
-  LuaSystem.RegisterMetaTable( TableName, 'flags', @lua_node_flags_get, @lua_node_flags_set );
-  LuaSystem.RegisterMetaTable( TableName, @lua_node_property_get, @lua_node_property_set );
+  aLua.Register( aTableName, lua_node_lib );
+  aLua.RegisterSubTable( aTableName, '__props' );
+  aLua.RegisterMetaTable( aTableName, 'flags', @lua_node_flags_get, @lua_node_flags_set );
+  aLua.RegisterMetaTable( aTableName, @lua_node_property_get, @lua_node_property_set );
 end;
 
 

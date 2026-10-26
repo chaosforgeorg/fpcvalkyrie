@@ -1,8 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vluatable;
 interface
-uses sysutils, classes, variants, vlualibrary,
-     vluavalue, vrltools, vutil, vvector, vnode, vcolor;
+uses sysutils, classes, variants, vlualibrary, vluavalue, vrltools, vutil, vvector, vobject, vcolor;
 
 const
   LuaKeyField  = -2;
@@ -275,7 +274,7 @@ end;
 
 
 implementation
-uses strutils, vluasystem, vdebug, vluaext, vluatools, vluatype;
+uses strutils, vlua, vdebug, vluaext, vluatools, vluatype;
 
 { TLuaITablesEnumerator }
 
@@ -1467,18 +1466,21 @@ end;
 
 function TLuaTable.ProtectedCall ( const aName : AnsiString;
   const Args : array of const; aDefault : Variant ) : Variant;
+var iContext : TLuaContext;
 begin
   try
     Exit( Call( aName, Args, aDefault ) );
-  except on e : Exception do
+  except on iError : Exception do
   begin
-    ErrorLogOpen('ERROR','Lua call UNKNOWN_TABLE.'+aName+' caught '+e.ClassName+'!');
+    ErrorLogOpen('ERROR','Lua call UNKNOWN_TABLE.'+aName+' caught '+iError.ClassName+'!');
     ErrorLogWriteln('Call path     : UNKNOWN_TABLE.'+aName );
     ErrorLogWriteln('Call params   : '+DebugToString( Args ));
-    ErrorLogWriteln('Error message : '+e.Message);
+    ErrorLogWriteln('Error message : '+iError.Message);
     ErrorLogClose;
     ProtectedCall := aDefault;
-    LuaSystem.OnError( aName + ' -- ' + e.Message );
+    iContext := TLuaContext.FromState( FState );
+    if iContext <> nil then
+      iContext.Lua.OnError( aName + ' -- ' + iError.Message );
   end;
   end;
 end;

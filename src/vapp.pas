@@ -1,7 +1,6 @@
 {$INCLUDE valkyrie.inc}
 // Generic Valkyrie process shell with option, path, and lifecycle handling.
-// Descendants implement LoadConfiguration, PublishPaths, CreateGame,
-// DestroyGame, InitializeGame, RunGame, and ShutdownGame.
+// Descendants implement configuration, execution, and finalization policies.
 unit vapp;
 interface
 
@@ -16,6 +15,7 @@ type TGamePaths = record
     DataPath          : AnsiString;
     WritePath         : AnsiString;
     ScorePath         : AnsiString;
+    ModuleUserPath    : AnsiString;
     LogPath           : AnsiString;
     CrashPath         : AnsiString;
     HeapTracePath     : AnsiString;
@@ -38,18 +38,16 @@ type TGamePaths = record
       Description   : AnsiString;
     end;
   private
-    FPaths             : TGamePaths;
-    FOptionSpecs       : array of TOptionSpec;
-    FDataInitialized   : Boolean;
-    FShutdown          : Boolean;
+    FOptionSpecs : array of TOptionSpec;
+    FShutdown    : Boolean;
     procedure AddStandardOptions;
     procedure ParseOptions;
     procedure WriteHelp;
     procedure ResolvePaths;
     procedure InitializeDiagnostics;
-    procedure RunDataGeneration( out aResult : TVRunResult );
     procedure DispatchApplicationException( aException : Exception );
   protected
+    FPaths : TGamePaths;
     procedure AddFlag( const aLongName : AnsiString; aShortName : Char; const aDescription : AnsiString );
     procedure AddValueOption( const aLongName : AnsiString; aShortName : Char; const aValueName, aDescription : AnsiString );
     procedure FailOption( const aMessage : AnsiString );
@@ -58,19 +56,12 @@ type TGamePaths = record
     procedure DiscoverPaths( var aPaths : TGamePaths ); virtual;
     procedure BeforeConfiguration( var aPaths : TGamePaths ); virtual;
     procedure LoadConfiguration( var aPaths : TGamePaths ); virtual; abstract;
-    procedure PublishPaths( const aPaths : TGamePaths ); virtual; abstract;
     procedure ApplyOptions; virtual;
     procedure BeforeDiagnostics; virtual;
     function ExecuteApplicationCommand : Boolean; virtual;
 
-    procedure CreateGame; virtual; abstract;
-    procedure DestroyGame; virtual; abstract;
-    procedure InitializeGame; virtual; abstract;
-    function RunGame : TVRunResult; virtual; abstract;
-    procedure ShutdownGame; virtual; abstract;
-    procedure ResetGame; virtual;
-
-    procedure GameException( aException : Exception ); virtual;
+    procedure ExecuteApplication; virtual; abstract;
+    procedure FinalizeApplication; virtual;
     procedure ApplicationException( aException : Exception ); virtual;
 
     procedure DoRun; override;
@@ -83,6 +74,8 @@ type TGamePaths = record
 
     property Paths : TGamePaths read FPaths;
   end;
+
+var Application : TValkyrieApplication;
 
 implementation
 
@@ -111,6 +104,7 @@ begin
   NormalizeDirectory(DataPath);
   NormalizeDirectory(WritePath);
   NormalizeDirectory(ScorePath);
+  NormalizeDirectory(ModuleUserPath);
 end;
 
 procedure TGamePaths.DeriveDiagnostics;
@@ -358,6 +352,7 @@ begin
   aPaths.DataPath          := iCandidate;
   aPaths.WritePath         := '';
   aPaths.ScorePath         := '';
+  aPaths.ModuleUserPath    := '';
 end;
 
 procedure TValkyrieApplication.BeforeConfiguration( var aPaths : TGamePaths );
@@ -370,9 +365,7 @@ begin
   if HasOption('config') then
     FPaths.ConfigurationPath := GetOptionValue('config');
 
-  PublishPaths(FPaths);
   BeforeConfiguration(FPaths);
-  PublishPaths(FPaths);
   LoadConfiguration(FPaths);
 
   if HasOption('data-path') then
@@ -384,7 +377,6 @@ begin
 
   FPaths.Normalize;
   FPaths.DeriveDiagnostics;
-  PublishPaths(FPaths);
 end;
 
 procedure TValkyrieApplication.ApplyOptions;
@@ -400,11 +392,7 @@ begin
   Result := False;
 end;
 
-procedure TValkyrieApplication.ResetGame;
-begin
-end;
-
-procedure TValkyrieApplication.GameException( aException : Exception );
+procedure TValkyrieApplication.FinalizeApplication;
 begin
 end;
 
@@ -427,6 +415,8 @@ begin
   Logger.Log(LOGINFO, 'Log path set to - ' + FPaths.LogPath);
 end;
 
+// Initialization sequence: application setup -> options -> paths/configuration -> diagnostics.
+// LoadConfiguration and BeforeDiagnostics descendants may acquire resources for FinalizeApplication.
 procedure TValkyrieApplication.Initialize;
 begin
   try
@@ -450,29 +440,6 @@ begin
   end;
 end;
 
-procedure TValkyrieApplication.RunDataGeneration( out aResult : TVRunResult );
-begin
-  InitializeGame;
-  FDataInitialized := True;
-  try
-    try
-      aResult := RunGame;
-    except
-      on E : Exception do
-      begin
-        GameException(E);
-        raise;
-      end;
-    end;
-  finally
-    try
-      ShutdownGame;
-    finally
-      FDataInitialized := False;
-    end;
-  end;
-end;
-
 procedure TValkyrieApplication.DispatchApplicationException( aException : Exception );
 begin
   if Assigned(Logger) then
@@ -480,8 +447,9 @@ begin
   ApplicationException(aException);
 end;
 
+// Run sequence: command -> ExecuteApplication -> Shutdown.
+// ExecuteApplication descendants own run-phase resources until FinalizeApplication.
 procedure TValkyrieApplication.DoRun;
-var iResult : TVRunResult;
 begin
   if Terminated then Exit;
   try
@@ -491,49 +459,44 @@ begin
       Exit;
     end;
 
-    CreateGame;
-    repeat
-      RunDataGeneration(iResult);
-      if iResult = VRR_RELOAD_DATA then
-        ResetGame;
-    until iResult = VRR_QUIT;
+    ExecuteApplication;
     Terminate(0);
   finally
     Shutdown;
   end;
 end;
 
+// Shutdown sequence: FinalizeApplication -> logger flush.
+// FinalizeApplication descendants own application resources released during finalization.
 procedure TValkyrieApplication.Shutdown;
 begin
   if FShutdown then Exit;
   FShutdown := True;
   try
-    if FDataInitialized then
-      try
-        ShutdownGame;
-      finally
-        FDataInitialized := False;
-      end;
+    FinalizeApplication;
   finally
-    try
-      DestroyGame;
-    finally
-      if Assigned(Logger) then
-        Logger.Flush;
-    end;
+    if Assigned(Logger) then
+      Logger.Flush;
   end;
 end;
 
 procedure TValkyrieApplication.HandleException( aSender : TObject );
-var iException : TObject;
+var iException  : TObject;
+    iAddress    : Pointer;
+    iFrameCount : LongInt;
+    iFrames     : PPointer;
 begin
   iException := ExceptObject;
+  iAddress := ExceptAddr;
+  iFrameCount := ExceptFrameCount;
+  iFrames := ExceptFrames;
   if iException is Exception then
     DispatchApplicationException(Exception(iException))
   else if Assigned(Logger) then
     Logger.Flush;
   Terminate(1);
-  raise iException;
+  if Assigned(ExceptProc) then
+    ExceptProc(iException, iAddress, iFrameCount, iFrames);
 end;
 
 end.

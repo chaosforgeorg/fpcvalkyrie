@@ -9,7 +9,7 @@
 //       TGBuiltInArray.
 unit vgenerics;
 interface
-uses types, classes, sysutils, vnode, vstream, vrandom;
+uses types, classes, sysutils, vobject, vstream, vrandom;
 
 type ERangeError       = class(Exception);
      ECollisionError   = class(Exception);
@@ -97,6 +97,7 @@ type
     procedure Append( const other : TThis ); overload;
     procedure Append( const other : PType; aCount : Integer ); overload;
     function Push( const aItem : T ) : Integer;
+    procedure Insert( aIndex : Integer; const aItem : T );
     function Pop : T;
     function Top : T;
     procedure Put( aIndex : Integer; const aItem : T );
@@ -829,6 +830,12 @@ end;
 function TGArray.Push ( const aItem : T ) : Integer;
 begin
   Exit( InternalPush( @aItem ) );
+end;
+
+// Inserts before an existing index; use Push to append.
+procedure TGArray.Insert ( aIndex : Integer; const aItem : T );
+begin
+  InternalInsert( aIndex, @aItem );
 end;
 
 function TGArray.Pop : T;

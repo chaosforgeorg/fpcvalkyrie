@@ -158,15 +158,27 @@ end
 
 -- Lua 5.1 on POSIX: os.execute returns raw waitpid status (exit_code * 256)
 -- Normalize to actual exit code to avoid os.exit(256) wrapping to 0
-function os.exit_on_error( result )
+local function normalized_exit_code( result )
 	if result ~= 0 then
 		if OS ~= "WINDOWS" then result = math.floor(result / 256) end
 		if result == 0 then result = 1 end
-		os.exit(result)
+	end
+	return result
+end
+
+function os.exit_on_error( result )
+	result = normalized_exit_code(result)
+	if result ~= 0 then os.exit(result) end
+end
+
+function os.raise_on_error( result, command )
+	result = normalized_exit_code(result)
+	if result ~= 0 then
+		error("Command failed with exit code "..result..": "..command, 0)
 	end
 end
 
-function os.execute_in_dir( filename, dir, arguments )
+function os.execute_in_dir( filename, dir, arguments, raise_errors )
 	if arguments then
 		local command = { filename }
 		for _,argument in ipairs(arguments) do
@@ -180,7 +192,11 @@ function os.execute_in_dir( filename, dir, arguments )
 	else
 		result = os.execute("cd "..dir.." && ./"..filename.." && cd ..")
 	end
-	os.exit_on_error(result)
+	if raise_errors then
+		os.raise_on_error(result, filename)
+	else
+		os.exit_on_error(result)
+	end
 end
 
 make = {}

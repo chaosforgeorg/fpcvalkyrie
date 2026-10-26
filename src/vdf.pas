@@ -24,7 +24,7 @@
 
 unit vdf;
 interface
-uses vnode, Classes, SysUtils, zstream, vgenerics, idea, dom, xmlread;
+uses vobject, Classes, SysUtils, zstream, vgenerics, idea, dom, xmlread;
 
 // default types
 const

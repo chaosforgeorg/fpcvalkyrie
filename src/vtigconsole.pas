@@ -1,12 +1,12 @@
 {$INCLUDE valkyrie.inc}
 unit vtigconsole;
 interface
-uses viotypes, vgenerics;
+uses viotypes, vgenerics, vlua, vio;
 
 type TTIGStringRing = specialize TGRingBuffer<AnsiString>;
 
 type TTIGConsoleView = class( TIOLayer )
-  constructor Create;
+  constructor Create( aLua : TLua; aDriver : TIODriver; aSize : TIOPoint );
   procedure Update( aDTime : Integer; aActive : Boolean ); override;
   function IsModal : Boolean; override;
   procedure Writeln( const aText : Ansistring );
@@ -16,6 +16,9 @@ type TTIGConsoleView = class( TIOLayer )
 protected
   procedure Execute( const aLine : Ansistring );
 protected
+  FLua      : TLua;
+  FDriver   : TIODriver;
+  FSize     : TIOPoint;
   FHPos     : LongInt;
   FText     : TTIGStringRing;
   FHistory  : TTIGStringRing;
@@ -24,26 +27,29 @@ end;
 
 implementation
 
-uses sysutils, classes, vutil, vtig, vtigio, vio, vluasystem;
+uses sysutils, classes, vutil, vtig, vtigio;
 
 const TIG_CONSOLE_LINES = 16;
 
-constructor TTIGConsoleView.Create;
+constructor TTIGConsoleView.Create( aLua : TLua; aDriver : TIODriver; aSize : TIOPoint );
 begin
+  FLua := aLua;
+  FDriver := aDriver;
+  FSize := aSize;
   FHistory  := nil;
   FText     := TTIGStringRing.Create( TIG_CONSOLE_LINES );
   FHPos     := 0;
   FInput[0] := #0;
-  if LuaSystem <> nil then
-     LuaSystem.SetPrintFunction( @Writeln );
-  IO.Driver.StartTextInput;
+  if FLua <> nil then
+     FLua.SetPrintFunction( @Writeln );
+  FDriver.StartTextInput;
 end;
 
 procedure TTIGConsoleView.Update( aDTime : Integer; aActive : Boolean );
 var iLine : Ansistring;
     i     : Integer;
 begin
-  VTIG_Begin( 'tig_console', Point( IO.Console.SizeX, TIG_CONSOLE_LINES + 4 ), Point(1,1) );
+  VTIG_Begin( 'tig_console', Point( FSize.X, TIG_CONSOLE_LINES + 4 ), Point(1,1) );
   if FText.Size < TIG_CONSOLE_LINES then
     for i := 1 to TIG_CONSOLE_LINES - FText.Size do
       VTIG_Text('');
@@ -131,7 +137,7 @@ begin
       FHistory.PushBack( aLine );
   FHPos  := 0;
   try
-    LuaSystem.ConsoleExecute( aLine );
+    FLua.ConsoleExecute( aLine );
   except on E : Exception do
     Writeln( '{RException: }'+E.ToString );
   end;
@@ -139,7 +145,9 @@ end;
 
 destructor TTIGConsoleView.Destroy;
 begin
-  IO.Driver.StopTextInput;
+  if ( FLua <> nil ) and ( TMethod( FLua.PrintFunc ).Data = Pointer( Self ) ) then
+    FLua.SetPrintFunction( nil );
+  FDriver.StopTextInput;
   FreeAndNil( FHistory );
   FreeAndNil( FText );
 end;

@@ -49,10 +49,11 @@ function  vlua_getpath( L: Plua_State; const path : array of const; idx : Intege
 
 procedure vlua_gettableorcreate( L: Plua_State; const table : AnsiString );
 
-procedure vlua_register( L: Plua_State; const funcname : AnsiString; func : lua_CFunction; idx : Integer = 0 );
-procedure vlua_register( L: Plua_State; const lr : PluaL_Reg; idx : Integer = 0 );
-procedure vlua_register( L: Plua_State; const libname, funcname : AnsiString; func : lua_CFunction );
-procedure vlua_register( L: Plua_State; const libname : AnsiString; const lr : PluaL_Reg );
+// Consume aUpvalues values from the stack and capture them in each function.
+procedure vlua_register( L : PLua_State; const aName : AnsiString; aFunction : lua_CFunction; aIndex : Integer = 0; aUpvalues : Integer = 0 );
+procedure vlua_register( L : PLua_State; const aFunctions : PluaL_Reg; aIndex : Integer = 0; aUpvalues : Integer = 0 );
+procedure vlua_register( L : PLua_State; const aLibrary, aName : AnsiString; aFunction : lua_CFunction; aUpvalues : Integer = 0 );
+procedure vlua_register( L : PLua_State; const aLibrary : AnsiString; const aFunctions : PluaL_Reg; aUpvalues : Integer = 0 );
 
 function vlua_loadstream( L: Plua_State; Stream : TStream; Size : DWord = 0; StreamName : AnsiString = '' ) : Integer;
 function vlua_dostream( L: Plua_State; Stream : TStream; Size : DWord = 0; StreamName : AnsiString = '' ) : Integer;
@@ -623,69 +624,79 @@ begin
   end
 end;
 
-procedure vlua_register ( L : Plua_State; const funcname : AnsiString; func : lua_CFunction; idx : Integer ) ;
+procedure vlua_register( L : PLua_State; const aName : AnsiString; aFunction : lua_CFunction; aIndex : Integer; aUpvalues : Integer );
 begin
-  if idx <> 0 then idx := lua_absindex( L, idx );
-  lua_pushansistring( L, funcname );
-  lua_pushcfunction( L, func );
-  if idx = 0
-    then lua_rawset_global(L)
-    else lua_rawset(L, idx);
+  if aIndex <> 0 then aIndex := lua_absindex( L, aIndex );
+  lua_pushansistring( L, aName );
+  lua_insert( L, -aUpvalues - 1 );
+  lua_pushcclosure( L, aFunction, aUpvalues );
+  if aIndex = 0
+    then lua_rawset_global( L )
+    else lua_rawset( L, aIndex );
 end;
 
-procedure vlua_register ( L : Plua_State; const lr : PluaL_Reg; idx : Integer ) ;
-var count : integer;
+procedure vlua_register( L : PLua_State; const aFunctions : PluaL_Reg; aIndex : Integer; aUpvalues : Integer );
+var iFunction : Integer;
+    iUpvalue  : Integer;
+    iFirst    : Integer;
 begin
-  if idx <> 0 then idx := lua_absindex( L, idx );
-  count := 0;
-  while lr[ count ].name <> nil do
+  if aIndex <> 0 then aIndex := lua_absindex( L, aIndex );
+  iFirst := lua_gettop( L ) - aUpvalues + 1;
+  iFunction := 0;
+  while aFunctions[iFunction].name <> nil do
   begin
-    vlua_register( L, lr[ count ].name, lr[ count ].func, idx );
-    Inc( count );
+    for iUpvalue := 0 to aUpvalues - 1 do
+      lua_pushvalue( L, iFirst + iUpvalue );
+    vlua_register( L, aFunctions[iFunction].name, aFunctions[iFunction].func, aIndex, aUpvalues );
+    Inc( iFunction );
   end;
+  lua_pop( L, aUpvalues );
 end;
 
-procedure vlua_register ( L : Plua_State; const libname, funcname : AnsiString; func : lua_CFunction ) ;
+procedure vlua_register( L : PLua_State; const aLibrary, aName : AnsiString; aFunction : lua_CFunction; aUpvalues : Integer );
 begin
-  lua_getglobal( L, libname );
+  lua_getglobal( L, aLibrary );
   if lua_isnil( L, -1 ) then
   begin
     lua_pop( L, 1 );
     lua_createtable( L, 0, 0 );
-    vlua_register( L, funcname, func, -1 );
-    lua_setglobal( L, libname );
+    lua_insert( L, -aUpvalues - 1 );
+    vlua_register( L, aName, aFunction, -aUpvalues - 1, aUpvalues );
+    lua_setglobal( L, aLibrary );
   end
   else
   begin
     if not lua_istable( L, -1 ) then
     begin
       lua_pop( L, 1 );
-      raise ELuaException.Create('Register called with '+libname+' not being a table!');
+      raise ELuaException.Create( 'Register called with ' + aLibrary + ' not being a table!' );
     end;
-    vlua_register( L, funcname, func, -1 );
+    lua_insert( L, -aUpvalues - 1 );
+    vlua_register( L, aName, aFunction, -aUpvalues - 1, aUpvalues );
     lua_pop( L, 1 );
   end;
 end;
 
-
-procedure vlua_register ( L : Plua_State; const libname : AnsiString; const lr : PluaL_Reg ) ;
+procedure vlua_register( L : PLua_State; const aLibrary : AnsiString; const aFunctions : PluaL_Reg; aUpvalues : Integer );
 begin
-  lua_getglobal( L, libname );
+  lua_getglobal( L, aLibrary );
   if lua_isnil( L, -1 ) then
   begin
     lua_pop( L, 1 );
     lua_createtable( L, 0, 0 );
-    vlua_register( L, lr, -1 );
-    lua_setglobal( L, libname );
+    lua_insert( L, -aUpvalues - 1 );
+    vlua_register( L, aFunctions, -aUpvalues - 1, aUpvalues );
+    lua_setglobal( L, aLibrary );
   end
   else
   begin
     if not lua_istable( L, -1 ) then
     begin
       lua_pop( L, 1 );
-      raise ELuaException.Create('Register called with '+libname+' not being a table!');
+      raise ELuaException.Create( 'Register called with ' + aLibrary + ' not being a table!' );
     end;
-    vlua_register( L, lr, -1 );
+    lua_insert( L, -aUpvalues - 1 );
+    vlua_register( L, aFunctions, -aUpvalues - 1, aUpvalues );
     lua_pop( L, 1 );
   end;
 end;

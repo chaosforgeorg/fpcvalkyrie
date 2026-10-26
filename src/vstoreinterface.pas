@@ -1,4 +1,4 @@
-{$include valkyrie.inc}
+{$INCLUDE valkyrie.inc}
 unit vstoreinterface;
 interface
 uses vnode, vgenerics;
@@ -19,7 +19,12 @@ type TModInfo = class
 type TModArray = specialize TGObjectArray< TModInfo >;
 
 type TStoreInterface = class( TVObject )
-  class function Get : TStoreInterface;
+private
+  FSuppressProgress : Boolean;
+public
+  // Creates the platform store: Steam when its library loads, otherwise a
+  // stub. The caller owns the result.
+  class function CreateDefault : TStoreInterface;
   function GetUserId : QWord; virtual;
   function IsInitialized : Boolean; virtual;
   function IsOverlayEnabled : Boolean; virtual;
@@ -27,9 +32,9 @@ type TStoreInterface = class( TVObject )
   function IsSteam : Boolean; virtual;
   function GetUsername : Ansistring; virtual;
   procedure Update; virtual;
-  function SetAchievement( const aID : Ansistring ) : Boolean; virtual;
-  function IncStat( const aID : Ansistring; aAmount : Integer = 1 ) : Boolean; virtual;
-  function MarkStat( const aID : Ansistring ) : Boolean; virtual;
+  function SetAchievement( const aID : Ansistring ) : Boolean;
+  function IncStat( const aID : Ansistring; aAmount : Integer = 1 ) : Boolean;
+  function MarkStat( const aID : Ansistring ) : Boolean;
   function GetGlobalStat( const aID : Ansistring ) : Int64; virtual;
   function FlushStatistics : Boolean; virtual;
   function OpenDLCPage( aAppID : DWord ) : Boolean; virtual;
@@ -41,10 +46,15 @@ type TStoreInterface = class( TVObject )
   function StartText( const aPrompt : Ansistring; aMaxLength : Integer; const aCurrent : AnsiString = '' ) : Boolean; virtual;
   function GetText( out aPrompt : Ansistring; aCancel : PBoolean = nil ) : Boolean; virtual;
   destructor Destroy; override;
+  // False by default. Suppressed progress writes return False without reaching the backend.
+  property SuppressProgress : Boolean read FSuppressProgress write FSuppressProgress;
 {$WARNINGS OFF}
 protected
   constructor Create;
 {$WARNINGS ON}
+  function DoSetAchievement( const aID : Ansistring ) : Boolean; virtual;
+  function DoIncStat( const aID : Ansistring; aAmount : Integer ) : Boolean; virtual;
+  function DoMarkStat( const aID : Ansistring ) : Boolean; virtual;
 end;
 
 
@@ -52,25 +62,18 @@ implementation
 
 uses sysutils, vsteam, vdebug;
 
-var GStoreInterface : TStoreInterface = nil;
-
 constructor TModInfo.Create( aFolder : Ansistring; aID : QWord );
 begin
   FFolder := aFolder;
   FID     := aId;
 end;
 
-class function TStoreInterface.Get : TStoreInterface;
+class function TStoreInterface.CreateDefault : TStoreInterface;
 begin
-  if Assigned ( GStoreInterface ) then Exit( GStoreInterface );
   if TSteam.TryLoadLibrary then
-    GStoreInterface := TSteam.Create
-  else
-  begin
-    vdebug.Log('TStoreInterface : no store API detected, initializing stub');
-    GStoreInterface := TStoreInterface.Create;
-  end;
-  Exit( GStoreInterface );
+    Exit( TSteam.Create );
+  vdebug.Log('TStoreInterface : no store API detected, initializing stub');
+  Exit( TStoreInterface.Create );
 end;
 
 function TStoreInterface.GetUserId : QWord;
@@ -109,15 +112,33 @@ end;
 
 function TStoreInterface.SetAchievement( const aID : Ansistring ) : Boolean;
 begin
-  Exit( False );
+  if FSuppressProgress then Exit( False );
+  Exit( DoSetAchievement( aID ) );
 end;
 
-function TStoreInterface.IncStat( const aID : Ansistring; aAmount : Integer = 1 ) : Boolean;
+function TStoreInterface.IncStat( const aID : Ansistring; aAmount : Integer ) : Boolean;
+begin
+  if FSuppressProgress then Exit( False );
+  Exit( DoIncStat( aID, aAmount ) );
+end;
+
+function TStoreInterface.MarkStat( const aID : Ansistring ) : Boolean;
+begin
+  if FSuppressProgress then Exit( False );
+  Exit( DoMarkStat( aID ) );
+end;
+
+function TStoreInterface.DoSetAchievement( const aID : Ansistring ) : Boolean;
 begin
   Exit( False );
 end;
 
-function TStoreInterface.MarkStat( const aID : Ansistring ) : Boolean;
+function TStoreInterface.DoIncStat( const aID : Ansistring; aAmount : Integer ) : Boolean;
+begin
+  Exit( False );
+end;
+
+function TStoreInterface.DoMarkStat( const aID : Ansistring ) : Boolean;
 begin
   Exit( False );
 end;
@@ -181,10 +202,6 @@ constructor TStoreInterface.Create;
 begin
   inherited Create;
 end;
-
-finalization
-
-FreeAndNil( GStoreInterface );
 
 end.
 

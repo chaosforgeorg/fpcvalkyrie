@@ -259,9 +259,16 @@ begin
 end;
 
 function TStringConfigurationEntry.ToLuaString : Ansistring;
+var i : Integer;
 begin
-  // TODO: Escape sequences!
-  Result := '"'+FValue+'"';
+  Result := '"';
+  for i := 1 to Length( FValue ) do
+    // Three decimal digits keep following digits separate from the escape.
+    if ( Ord( FValue[i] ) < 32 ) or ( FValue[i] in [ #34, #92 ] ) then
+      Result += #92 + Format( '%.3d', [ Ord( FValue[i] ) ] )
+    else
+      Result += FValue[i];
+  Result += '"';
 end;
 
 function TStringConfigurationEntry.ParseValue( aState : PLua_State; aIndex : Integer ) : Boolean;
@@ -417,6 +424,7 @@ var iState : PLua_State;
     iKey   : Ansistring;
     iEntry : TConfigurationEntry;
 begin
+  Result := False;
   Log( 'Reading configuration from '+aFileName+' ...');
   if not LoadLua then
   begin
@@ -437,6 +445,11 @@ begin
     end;
 
     lua_getglobal( iState, 'configuration' );
+    if not lua_istable( iState, -1 ) then
+    begin
+      Log( LOGERROR, 'Malformed configuration file, table expected!' );
+      Exit( False );
+    end;
     lua_pushnil( iState );
     while ( lua_next( iState, -2 ) <> 0 ) do
     begin
@@ -454,6 +467,7 @@ begin
     end;
 
     Log( 'Configuration read from '+aFileName+' successfully.' );
+    Result := True;
   finally
     lua_close(iState);
   end;

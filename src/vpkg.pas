@@ -9,6 +9,12 @@ uses
 type TVDataWriter = procedure (const aFileName : AnsiString; aFileType : DWord; aFlags : TVDFClumpFlags = []; const aPackageName : AnsiString = '') of Object;
 type TVDWriters   = array[1..16] of TVDataWriter;
 
+type TVDataCreatorEntry = record
+  SourceName : AnsiString;
+  Header     : TVDFClumpHeader;
+end;
+type TVDCEArray = array of TVDataCreatorEntry;
+
 type
 
 { TVDataCreator }
@@ -28,18 +34,18 @@ TVDataCreator = class(TVObject)
     procedure Add( const aDir, aMask : AnsiString; aFileType : DWord; aFlags : TVDFClumpFlags = []; const aPackageName : AnsiString = '');
     function FileSize( aFileName : AnsiString ) : DWord;
     procedure Flush;
-    function FileToStream( aFileHead : TVDFClumpHeader; aStream : TStream ) : DWord;
+    function FileToStream( const aEntry : TVDataCreatorEntry; aStream : TStream ) : DWord;
     function IsTempFileName( const aFileName : AnsiString ) : Boolean;
     function TrueFileName( const aFileName : AnsiString ) : AnsiString;
   private
-    FName      : AnsiString;
-    FHeader    : TVDFHeader;
-    FData      : TVDCHArray;
-    FSize      : DWord;
-    FEKey      : TIDEAKey;
-    FFileMark  : ShortString;
-    FWriterSet : set of Byte;
-    FWriters   : TVDWriters;
+    FName        : AnsiString;
+    FHeader      : TVDFHeader;
+    FData        : TVDCEArray;
+    FSize        : DWord;
+    FEKey        : TIDEAKey;
+    FFileMark    : ShortString;
+    FWriterSet   : set of Byte;
+    FWriters     : TVDWriters;
 end;
 
 implementation
@@ -178,10 +184,11 @@ begin
     FSize := 2*FSize;
     SetLength(FData,FSize);
   end;
+  FData[FHeader.Files].SourceName := aFileName;
   
-  with FData[FHeader.Files] do
+  with FData[FHeader.Files].Header do
   begin
-    Name  := aFileName;
+    Name  := ExtractFileName(TrueFileName(aFileName));
     Dir   := aPackageName;
     Size  := FileSize(aFileName);
     Pos   := 0;
@@ -247,25 +254,19 @@ begin
   iStream.Write(FHeader,HEAD);
   Log('Header written - position = '+IntToStr(iStream.Position)+' = '+IntToStr(HEAD));
   for iCount := 0 to FHeader.Files - 1 do
-    iStream.Write(FData[iCount],CLPH);
+    iStream.Write(FData[iCount].Header,CLPH);
   Log('Chunk headers written - position = '+IntToStr(iStream.Position)+' = '+IntToStr(iCPos));
   for iCount := 0 to FHeader.Files - 1 do
   begin
-    Log('Writing '+FData[iCount].Name+' - position = '+IntToStr(iStream.Position)+' = '+IntToStr(iCPos));
-    FData[iCount].Pos := iCPos;
+    Log('Writing '+FData[iCount].SourceName+' - position = '+IntToStr(iStream.Position)+' = '+IntToStr(iCPos));
+    FData[iCount].Header.Pos := iCPos;
     iCPos += FileToStream( FData[iCount], iStream );
-    if IsTempFileName( FData[iCount].Name ) then
-    begin
-      DeleteFile( FData[iCount].Name );
-      FData[iCount].Name := ExtractFileName(TrueFileName(FData[iCount].Name));
-    end
-    else
-      FData[iCount].Name := ExtractFileName(FData[iCount].Name);
-    Log('Written '+FData[iCount].Name+' - position = '+IntToStr(iStream.Position)+' = '+IntToStr(iCPos));
+    if IsTempFileName( FData[iCount].SourceName ) then DeleteFile( FData[iCount].SourceName );
+    Log('Written '+FData[iCount].Header.Name+' - position = '+IntToStr(iStream.Position)+' = '+IntToStr(iCPos));
   end;
   iStream.Seek(HEAD,soFromBeginning);
   for iCount := 0 to FHeader.Files - 1 do
-    iStream.Write(FData[iCount],CLPH);
+    iStream.Write(FData[iCount].Header,CLPH);
   FreeAndNil(iStream);
 end;
 
@@ -275,7 +276,7 @@ begin
   inherited Destroy;
 end;
 
-function TVDataCreator.FileToStream( aFileHead : TVDFClumpHeader; aStream : TStream ) : DWord;
+function TVDataCreator.FileToStream( const aEntry : TVDataCreatorEntry; aStream : TStream ) : DWord;
 var iFileStream : TStream;
     iFilter     : TStream;
     iFilter2    : TStream;
@@ -284,8 +285,8 @@ begin
   iBefore  := aStream.Position;
   iFilter  := nil;
   iFilter2 := nil;
-  iFileStream := TFileStream.Create(aFileHead.Name,fmOpenRead);
-  if (vdfEncrypted in aFileHead.Flags) and (vdfCompressed in aFileHead.Flags) then
+  iFileStream := TFileStream.Create(aEntry.SourceName,fmOpenRead);
+  if (vdfEncrypted in aEntry.Header.Flags) and (vdfCompressed in aEntry.Header.Flags) then
   begin
     iFilter := iFileStream;
     iFilter2 := TIDEAEncryptStream.Create(FEKey,aStream);
@@ -293,14 +294,14 @@ begin
     iFileStream.CopyFrom(iFilter,iFilter.Size);
   end
   else
-  if vdfEncrypted in aFileHead.Flags then
+  if vdfEncrypted in aEntry.Header.Flags then
   begin
     iFilter := iFileStream;
     iFileStream := TIDEAEncryptStream.Create(FEKey,aStream);
     iFileStream.CopyFrom(iFilter,iFilter.Size);
   end
   else
-  if vdfCompressed in aFileHead.Flags then
+  if vdfCompressed in aEntry.Header.Flags then
   begin
     iFilter := iFileStream;
     iFileStream := TCompressionStream.Create(clDefault,aStream,False);

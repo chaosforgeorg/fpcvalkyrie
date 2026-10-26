@@ -1,10 +1,36 @@
 {$INCLUDE valkyrie.inc}
 unit vio;
 interface
-uses Classes, SysUtils, vsystem, vgenerics,
-     vioevent, viopadstate, viotypes, vtigconsole, vioconsole;
+uses classes, sysutils, vlua, vsystem, vgenerics, vioevent, viopadstate, viotypes, vioconsole, vbindings;
 
-type TIO = class( TSystem )
+type TIO = class;
+
+TIOLayer = class
+  procedure Update( aDTime : Integer; aActive : Boolean ); virtual; abstract;
+  procedure Finish; virtual;
+  function IsFinished : Boolean; virtual;
+  function IsModal : Boolean; virtual;
+  function HandleEvent( const aEvent : TIOEvent ) : Boolean; virtual;
+  function HandleInput( aInput : Integer ) : Boolean; virtual;
+protected
+  // Owner-dependent setup, run once the layer is pushed.
+  procedure Setup; virtual;
+private
+  // Called by the owning IO when it pushes the layer.
+  procedure Attach( aOwner : TIO );
+protected
+  FFinished   : Boolean;
+  FLayerOwner : TIO;
+public
+  // The IO that owns the layer; nil until it is pushed.
+  property Owner : TIO read FLayerOwner;
+end;
+
+TIOLayerStack = specialize TGArray<TIOLayer>;
+
+// Architectural boundary: owns driver, console, layers, and binding contexts.
+// Device mechanics, renderer implementation, path, and game policy belong to callers.
+TIO = class( TSystem )
   constructor Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer  ); reintroduce;
   procedure Initialize( aConsole : TIOConsoleRenderer );
   procedure PreUpdate; virtual;
@@ -12,57 +38,118 @@ type TIO = class( TSystem )
   procedure PostUpdate; virtual;
   procedure Clear; virtual;
   procedure Update( aMSec : DWord ); virtual;
-  procedure Delay( aTime : Integer );
+  procedure Delay( aTime : Integer ); virtual;
   procedure ClearEventBuffer;
   function OnEvent( const aEvent : TIOEvent ) : Boolean; virtual;
   function HandleEvents : Boolean; virtual;
   destructor Destroy; override;
-  procedure RegisterDebugConsole( aKey : TIOKeyCode );
+  procedure ToggleDebugConsole( aLua : TLua );
   function PushLayer( aLayer : TIOLayer ) : TIOLayer; virtual;
+  procedure FinishLayers; virtual;
   function IsTopLayer( aLayer : TIOLayer ) : Boolean;
   function IsModal : Boolean;
-  procedure WaitForLayer;
+  procedure WaitForLayer( aLayer : TIOLayer = nil );
   function EventToUIInput( const aEvent : TIOEvent ) : Integer; virtual;
   function DeviceCoordToConsoleCoord( aCoord : TIOPoint ) : TIOPoint; virtual;
   function ConsoleCoordToDeviceCoord( aCoord : TIOPoint ) : TIOPoint; virtual;
+  function CaptureScreen( const aFileName : AnsiString ) : Boolean;
+  function SaveConsoleTextDump( const aFileName : AnsiString ) : Boolean;
 protected
   function HandleInput( aInput : Integer ) : Boolean;
-  function ConsoleCallback( aEvent : TIOEvent ) : Boolean;
   procedure ClearFinishedLayers;
 protected
   FIODriver       : TIODriver;
   FConsole        : TIOConsoleRenderer;
-  FTIGConsoleView : TTIGConsoleView;
+  FTIGConsoleView : TIOLayer;
   FLayers         : TIOLayerStack;
   FPadState       : TIOPadState;
+  FBindings       : TBindings;
+  FUIBindings     : TBindingContext;
   FLastUpdate     : DWord;
 
   FMouseLast      : TIOPoint;
   FMouse          : TIOPoint;
 public
-  property Driver    : TIODriver  read FIODriver;
-  property Console   : TIOConsoleRenderer read FConsole;
-  property PadState  : TIOPadState read FPadState;
+  property Driver     : TIODriver          read FIODriver;
+  property Console    : TIOConsoleRenderer read FConsole;
+  property PadState   : TIOPadState        read FPadState;
+  property Bindings   : TBindings          read FBindings;
+  property UIBindings : TBindingContext    read FUIBindings;
 end;
-
-var IO : TIO;
 
 implementation
 
-uses vutil, vtig, vtigio, dateutils, math;
+uses dateutils, math, vutil, vtig, vtigio, vioeventstate, vtigconsole;
+
+{ TIOLayer }
+
+procedure TIOLayer.Attach( aOwner : TIO );
+begin
+  FLayerOwner := aOwner;
+  Setup;
+end;
+
+procedure TIOLayer.Setup;
+begin
+end;
+
+procedure TIOLayer.Finish;
+begin
+  FFinished := True;
+end;
+
+function TIOLayer.IsFinished : Boolean;
+begin
+  Exit( FFinished );
+end;
+
+function TIOLayer.IsModal : Boolean;
+begin
+  Exit( False );
+end;
+
+function TIOLayer.HandleEvent( const aEvent : TIOEvent ) : Boolean;
+begin
+  Exit( IsModal );
+end;
+
+function TIOLayer.HandleInput( aInput : Integer ) : Boolean;
+begin
+  Exit( False );
+end;
 
 { TIO }
 
 constructor TIO.Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer );
 begin
   inherited Create;
-  IO := Self;
   FIODriver        := aIODriver;
   FConsole         := nil;
   FLastUpdate      := FIODriver.GetMs;
   FTIGConsoleView  := nil;
   FLayers          := TIOLayerStack.Create;
   FPadState        := TIOPadState.Create;
+  FBindings        := TBindings.Create;
+  FUIBindings       := FBindings.CreateContext;
+  FUIBindings.BindKey( VKEY_UP,     VTIG_IE_UP );
+  FUIBindings.BindKey( VKEY_DOWN,   VTIG_IE_DOWN );
+  FUIBindings.BindKey( VKEY_LEFT,   VTIG_IE_LEFT );
+  FUIBindings.BindKey( VKEY_RIGHT,  VTIG_IE_RIGHT );
+  FUIBindings.BindKey( VKEY_HOME,   VTIG_IE_HOME );
+  FUIBindings.BindKey( VKEY_END,    VTIG_IE_END );
+  FUIBindings.BindKey( VKEY_PGUP,   VTIG_IE_PGUP );
+  FUIBindings.BindKey( VKEY_PGDOWN, VTIG_IE_PGDOWN );
+  FUIBindings.BindKey( VKEY_ESCAPE, VTIG_IE_CANCEL );
+  FUIBindings.BindKey( VKEY_ENTER,  VTIG_IE_CONFIRM );
+  FUIBindings.BindKey( VKEY_SPACE,  VTIG_IE_SELECT );
+  FUIBindings.BindPad( VPAD_BUTTON_DPAD_UP,       VTIG_IE_UP );
+  FUIBindings.BindPad( VPAD_BUTTON_DPAD_DOWN,     VTIG_IE_DOWN );
+  FUIBindings.BindPad( VPAD_BUTTON_DPAD_LEFT,     VTIG_IE_LEFT );
+  FUIBindings.BindPad( VPAD_BUTTON_DPAD_RIGHT,    VTIG_IE_RIGHT );
+  FUIBindings.BindPad( VPAD_BUTTON_B,             VTIG_IE_CANCEL );
+  FUIBindings.BindPad( VPAD_BUTTON_A,             VTIG_IE_CONFIRM );
+  FUIBindings.BindPad( VPAD_BUTTON_LEFTSHOULDER,  VTIG_IE_LEFT );
+  FUIBindings.BindPad( VPAD_BUTTON_RIGHTSHOULDER, VTIG_IE_RIGHT );
   FMouseLast       := Point(-1,-1);
   FMouse           := Point(-1,-1);
 
@@ -82,20 +169,51 @@ end;
 destructor TIO.Destroy;
 var iLayer : TIOLayer;
 begin
-  for iLayer in FLayers do
-    iLayer.Free;
+  if FLayers <> nil then
+    for iLayer in FLayers do
+      iLayer.Free;
   FreeAndNil( FLayers );
   FreeAndNil( FPadState );
   VTIG_Shutdown;
 
+  FreeAndNil( FBindings );
   FreeAndNil( FConsole );
   FreeAndNil( FIODriver );
   inherited Destroy;
 end;
 
-procedure TIO.RegisterDebugConsole ( aKey : TIOKeyCode ) ;
+function TIO.CaptureScreen( const aFileName : AnsiString ) : Boolean;
 begin
-  FIODriver.RegisterInterrupt( aKey, @ConsoleCallback );
+  if FIODriver = nil then Exit( False );
+  Result := FIODriver.CaptureScreen( aFileName );
+end;
+
+function TIO.SaveConsoleTextDump( const aFileName : AnsiString ) : Boolean;
+var iLines : TStringList;
+    iLine  : AnsiString;
+    iX, iY : Integer;
+begin
+  Result := False;
+  if FConsole = nil then Exit;
+
+  iLines := TStringList.Create;
+  try
+    for iY := 1 to FConsole.SizeY do
+    begin
+      SetLength( iLine, FConsole.SizeX );
+      for iX := 1 to FConsole.SizeX do
+        iLine[ iX ] := FConsole.GetChar( iX, iY );
+      iLines.Add( iLine );
+    end;
+    try
+      iLines.SaveToFile( aFileName );
+      Result := True;
+    except
+      on E : Exception do Result := False;
+    end;
+  finally
+    iLines.Free;
+  end;
 end;
 
 procedure TIO.PreUpdate;
@@ -129,6 +247,7 @@ begin
   for iLayer in FLayers do
     iLayer.Free;
   FLayers.Clear;
+  FTIGConsoleView := nil;
   FPadState.Clear;
   FMouseLast := Point(-1,-1);
   FMouse     := Point(-1,-1);
@@ -169,8 +288,26 @@ function TIO.OnEvent( const aEvent : TIOEvent ) : Boolean;
 var i, iInput : Integer;
     iEvent    : TIOEvent;
     iWide     : WideString;
+    iAction   : TBindingAction;
 begin
   FPadState.HandleEvent( aEvent );
+  case aEvent.EType of
+    VEVENT_KEYDOWN,
+    VEVENT_KEYUP:
+      if not aEvent.Key.Repeated then
+      begin
+        iAction := FUIBindings.ResolveKey( TIOKeyCode( aEvent.Key.Code ) );
+        if ( iAction >= 0 ) and ( iAction < VIO_MAXEVENTS ) then
+          VTIG_GetIOState.EventState.SetState( iAction, aEvent.Key.Pressed );
+      end;
+    VEVENT_PADDOWN,
+    VEVENT_PADUP:
+      begin
+        iAction := FUIBindings.ResolvePad( aEvent.Pad.Button );
+        if ( iAction >= 0 ) and ( iAction < VIO_MAXEVENTS ) then
+          VTIG_GetIOState.EventState.SetState( iAction, aEvent.Pad.Pressed );
+      end;
+  end;
 
   if ( aEvent.EType in [ VEVENT_MOUSEMOVE ] ) then
     FMouse := DeviceCoordToConsoleCoord( aEvent.MouseMove.Pos );
@@ -190,53 +327,26 @@ begin
     VTIG_GetIOState.EventState.AppendText( PWideChar( iWide ) );
   end;
 
-  if ( aEvent.EType = VEVENT_KEYDOWN ) or ( aEvent.EType = VEVENT_KEYUP ) and ( not aEvent.Key.Repeated ) then
+  if ( aEvent.EType in [ VEVENT_KEYDOWN, VEVENT_KEYUP ] ) and
+     ( not aEvent.Key.Repeated ) then
   begin
+    VTIG_GetIOState.KeyState.SetState( aEvent.Key.Code, aEvent.Key.Pressed );
     VTIG_GetIOState.EventState.SetState( VTIG_IE_SHIFT, VKMOD_SHIFT in aEvent.Key.ModState );
     case aEvent.Key.Code of
-      VKEY_UP     : VTIG_GetIOState.EventState.SetState( VTIG_IE_UP,        aEvent.Key.Pressed );
-      VKEY_DOWN   : VTIG_GetIOState.EventState.SetState( VTIG_IE_DOWN,      aEvent.Key.Pressed );
-      VKEY_LEFT   : VTIG_GetIOState.EventState.SetState( VTIG_IE_LEFT,      aEvent.Key.Pressed );
-      VKEY_RIGHT  : VTIG_GetIOState.EventState.SetState( VTIG_IE_RIGHT,     aEvent.Key.Pressed );
-      VKEY_HOME   : VTIG_GetIOState.EventState.SetState( VTIG_IE_HOME,      aEvent.Key.Pressed );
-      VKEY_END    : VTIG_GetIOState.EventState.SetState( VTIG_IE_END,       aEvent.Key.Pressed );
-      VKEY_PGUP   : VTIG_GetIOState.EventState.SetState( VTIG_IE_PGUP,      aEvent.Key.Pressed );
-      VKEY_PGDOWN : VTIG_GetIOState.EventState.SetState( VTIG_IE_PGDOWN,    aEvent.Key.Pressed );
-      VKEY_ESCAPE : VTIG_GetIOState.EventState.SetState( VTIG_IE_CANCEL,    aEvent.Key.Pressed );
-      VKEY_ENTER  : VTIG_GetIOState.EventState.SetState( VTIG_IE_CONFIRM,   aEvent.Key.Pressed );
-      VKEY_SPACE  : VTIG_GetIOState.EventState.SetState( VTIG_IE_SELECT,    aEvent.Key.Pressed );
-      VKEY_BACK   : VTIG_GetIOState.EventState.SetState( VTIG_IE_BACKSPACE, aEvent.Key.Pressed );
-      VKEY_TAB    : VTIG_GetIOState.EventState.SetState( VTIG_IE_TAB,       aEvent.Key.Pressed );
-      VKEY_DELETE : VTIG_GetIOState.EventState.SetState( VTIG_IE_DELETE,    aEvent.Key.Pressed );
-      VKEY_0      : VTIG_GetIOState.EventState.SetState( VTIG_IE_0, aEvent.Key.Pressed );
-      VKEY_1      : VTIG_GetIOState.EventState.SetState( VTIG_IE_1, aEvent.Key.Pressed );
-      VKEY_2      : VTIG_GetIOState.EventState.SetState( VTIG_IE_2, aEvent.Key.Pressed );
-      VKEY_3      : VTIG_GetIOState.EventState.SetState( VTIG_IE_3, aEvent.Key.Pressed );
-      VKEY_4      : VTIG_GetIOState.EventState.SetState( VTIG_IE_4, aEvent.Key.Pressed );
-      VKEY_5      : VTIG_GetIOState.EventState.SetState( VTIG_IE_5, aEvent.Key.Pressed );
-      VKEY_6      : VTIG_GetIOState.EventState.SetState( VTIG_IE_6, aEvent.Key.Pressed );
-      VKEY_7      : VTIG_GetIOState.EventState.SetState( VTIG_IE_7, aEvent.Key.Pressed );
-      VKEY_8      : VTIG_GetIOState.EventState.SetState( VTIG_IE_8, aEvent.Key.Pressed );
-      VKEY_9      : VTIG_GetIOState.EventState.SetState( VTIG_IE_9, aEvent.Key.Pressed );
-      VKEY_C      : VTIG_GetIOState.EventState.SetState( VTIG_IE_COPY,  aEvent.Key.Pressed and ( VKMOD_CTRL in aEvent.Key.ModState ) );
-      VKEY_V      : VTIG_GetIOState.EventState.SetState( VTIG_IE_PASTE, aEvent.Key.Pressed and ( VKMOD_CTRL in aEvent.Key.ModState ) );
-    end;
-  end;
-
-  // TODO: auto-repeat
-  if ( aEvent.EType = VEVENT_PADDOWN ) or ( aEvent.EType = VEVENT_PADUP ) then
-  begin
-    case aEvent.Pad.Button of
-      VPAD_BUTTON_DPAD_UP       : VTIG_GetIOState.EventState.SetState( VTIG_IE_UP,        aEvent.Pad.Pressed );
-      VPAD_BUTTON_DPAD_DOWN     : VTIG_GetIOState.EventState.SetState( VTIG_IE_DOWN,      aEvent.Pad.Pressed );
-      VPAD_BUTTON_DPAD_LEFT     : VTIG_GetIOState.EventState.SetState( VTIG_IE_LEFT,      aEvent.Pad.Pressed );
-      VPAD_BUTTON_DPAD_RIGHT    : VTIG_GetIOState.EventState.SetState( VTIG_IE_RIGHT,     aEvent.Pad.Pressed );
-      VPAD_BUTTON_B             : VTIG_GetIOState.EventState.SetState( VTIG_IE_CANCEL,    aEvent.Pad.Pressed );
-      VPAD_BUTTON_A             : VTIG_GetIOState.EventState.SetState( VTIG_IE_CONFIRM,   aEvent.Pad.Pressed );
-      VPAD_BUTTON_LEFTSHOULDER  : VTIG_GetIOState.EventState.SetState( VTIG_IE_LEFT,      aEvent.Pad.Pressed );
-      VPAD_BUTTON_RIGHTSHOULDER : VTIG_GetIOState.EventState.SetState( VTIG_IE_RIGHT,     aEvent.Pad.Pressed );
-      VPAD_BUTTON_Y             : VTIG_GetIOState.EventState.SetState( VTIG_IE_BACKSPACE, aEvent.Pad.Pressed );
-      VPAD_BUTTON_X             : VTIG_GetIOState.EventState.SetState( VTIG_IE_TAB,       aEvent.Pad.Pressed );
+      VKEY_0 : VTIG_GetIOState.EventState.SetState( VTIG_IE_0, aEvent.Key.Pressed );
+      VKEY_1 : VTIG_GetIOState.EventState.SetState( VTIG_IE_1, aEvent.Key.Pressed );
+      VKEY_2 : VTIG_GetIOState.EventState.SetState( VTIG_IE_2, aEvent.Key.Pressed );
+      VKEY_3 : VTIG_GetIOState.EventState.SetState( VTIG_IE_3, aEvent.Key.Pressed );
+      VKEY_4 : VTIG_GetIOState.EventState.SetState( VTIG_IE_4, aEvent.Key.Pressed );
+      VKEY_5 : VTIG_GetIOState.EventState.SetState( VTIG_IE_5, aEvent.Key.Pressed );
+      VKEY_6 : VTIG_GetIOState.EventState.SetState( VTIG_IE_6, aEvent.Key.Pressed );
+      VKEY_7 : VTIG_GetIOState.EventState.SetState( VTIG_IE_7, aEvent.Key.Pressed );
+      VKEY_8 : VTIG_GetIOState.EventState.SetState( VTIG_IE_8, aEvent.Key.Pressed );
+      VKEY_9 : VTIG_GetIOState.EventState.SetState( VTIG_IE_9, aEvent.Key.Pressed );
+      VKEY_C : VTIG_GetIOState.EventState.SetState( VTIG_IE_COPY,
+        aEvent.Key.Pressed and ( VKMOD_CTRL in aEvent.Key.ModState ) );
+      VKEY_V : VTIG_GetIOState.EventState.SetState( VTIG_IE_PASTE,
+        aEvent.Key.Pressed and ( VKMOD_CTRL in aEvent.Key.ModState ) );
     end;
   end;
 
@@ -291,20 +401,28 @@ begin
   end;
 end;
 
-function TIO.ConsoleCallback ( aEvent : TIOEvent ) : Boolean;
+procedure TIO.ToggleDebugConsole( aLua : TLua );
 begin
   if FTIGConsoleView <> nil then
   begin
     FConsole.HideCursor;
-    FTIGConsoleView.SaveHistory('console.history');
+    TTIGConsoleView( FTIGConsoleView ).SaveHistory('console.history');
     FTIGConsoleView.Finish;
     FTIGConsoleView := nil;
-    Exit( True );
+    Exit;
   end;
   FConsole.ShowCursor;
-  FTIGConsoleView := PushLayer( TTIGConsoleView.Create ) as TTIGConsoleView;
-  FTIGConsoleView.LoadHistory('console.history');
-  Exit( True );
+  FTIGConsoleView := PushLayer( TTIGConsoleView.Create(
+    aLua, FIODriver, Point( FConsole.SizeX, FConsole.SizeY ) ) );
+  TTIGConsoleView( FTIGConsoleView ).LoadHistory('console.history');
+end;
+
+procedure TIO.FinishLayers;
+var iLayer : TIOLayer;
+begin
+  if FTIGConsoleView <> nil then ToggleDebugConsole( nil );
+  for iLayer in FLayers do
+    iLayer.Finish;
 end;
 
 procedure TIO.ClearFinishedLayers;
@@ -327,6 +445,7 @@ end;
 function TIO.PushLayer( aLayer : TIOLayer ) : TIOLayer;
 begin
   FLayers.Push( aLayer );
+  aLayer.Attach( Self );
   Result := aLayer;
 end;
 
@@ -339,17 +458,30 @@ function TIO.IsModal : Boolean;
 var iLayer : TIOLayer;
 begin
   for iLayer in FLayers do
-    if iLayer.IsModal then Exit( True );
+    if not iLayer.IsFinished and iLayer.IsModal then Exit( True );
   Exit( False );
 end;
 
-procedure TIO.WaitForLayer;
+procedure TIO.WaitForLayer( aLayer : TIOLayer );
 begin
-  repeat
-    Sleep(10);
+  if aLayer = nil then
+  begin
+    repeat
+      Sleep( 10 );
+      FullUpdate;
+      HandleEvents;
+    until FLayers.IsEmpty or ( not IsModal );
+    Exit;
+  end;
+
+  // Updates may collect the layer; only dereference it while it remains owned.
+  while FLayers.IndexOf( aLayer ) >= 0 do
+  begin
+    if aLayer.IsFinished then Exit;
+    Sleep( 10 );
     FullUpdate;
     HandleEvents;
-  until FLayers.IsEmpty or (not IsModal);
+  end;
 end;
 
 function TIO.EventToUIInput( const aEvent : TIOEvent ) : Integer;

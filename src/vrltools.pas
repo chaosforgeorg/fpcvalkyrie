@@ -26,8 +26,8 @@
 
 unit vrltools;
 interface
-uses SysUtils, Classes, vmath, vutil, vnode, vvector, vcolor, vgenerics,
-  vrandom;
+uses sysutils, classes,
+     vmath, vutil, vobject, vvector, vcolor, vgenerics, vrandom;
 
 const DIR_NONE      = 0;
       DIR_DOWNLEFT  = 1;
@@ -248,6 +248,15 @@ public
   constructor Create( const Area : TArea );
   function MoveNext : Boolean;
   property Current : TCoord2D read FCurrent;
+end;
+
+// Presentation services a game's level and entities use: messages and the
+// presentation RNG. Implemented by TIORL; games extend it with their effects.
+type IRLPresentation = interface
+  procedure Msg( const aMessage : AnsiString ); overload;
+  procedure Msg( const aMessage : AnsiString; const aParams : array of Const ); overload;
+  function GetVisualRNG : TRNG;
+  property VisualRNG : TRNG read GetVisualRNG;
 end;
 
 operator enumerator( a : TArea ) : TAreaEnumerator;

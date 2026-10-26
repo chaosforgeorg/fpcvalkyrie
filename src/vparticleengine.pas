@@ -1,7 +1,8 @@
 unit vparticleengine;
-{$include valkyrie.inc}
+{$INCLUDE valkyrie.inc}
 interface
-uses SysUtils, Math, vvector, vcolor, vrandom, vrltools, vgltypes, vspriteengine;
+uses sysutils, math,
+     vvector, vcolor, vrandom, vrltools, vgltypes, vspriteengine;
 
 const PARTICLE_MAX_DEFAULT = 16384;
 
@@ -17,6 +18,7 @@ type
 
   TParticle = packed record
     Position       : TVec3f;
+    Origin         : TVec3f;
     Velocity       : TVec3f;
     Acceleration   : TVec3f;
     ColorStart     : TColor;
@@ -91,14 +93,16 @@ type
     PoolIndex     : Integer;
   end;
 
-  TParticleDecalCallback = procedure( const aPosition : TVec3f; aDecalSprite : DWord );
+  TParticleDecalCallback = procedure( const aPosition : TVec3f; aDecalSprite : DWord; const aOrigin : TVec3f ) of object;
 
 { TParticleEngine }
 
   TParticleEngine = class
     constructor Create( aRNG : TRNG; aMaxParticles : Integer = PARTICLE_MAX_DEFAULT );
     destructor Destroy; override;
-    procedure Clear;
+    procedure Clear; overload;
+    // Discard all particles and unlisted emitters; keep listed emitters at their current age.
+    procedure Clear( const aKeepEmitters : array of Integer ); overload;
     procedure ClearParticles;
     procedure Update( aDeltaSec : Single );
     procedure Render( aSpriteEngine : TSpriteEngine );
@@ -134,6 +138,7 @@ type
     property DecalCallback : TParticleDecalCallback read FDecalCallback write FDecalCallback;
     property ParticleCount : Integer read FParticleCount;
     property EmitterCount : Integer read FEmitterCount;
+    property RNG           : TRNG    read FRNG;
   end;
 
 implementation
@@ -164,6 +169,28 @@ begin
   FEmitterCount  := 0;
   for i := 0 to FMaxEmitters - 1 do
     FEmitters[i].Used := False;
+end;
+
+procedure TParticleEngine.Clear( const aKeepEmitters : array of Integer );
+var iKeep : array of Boolean;
+    i     : Integer;
+begin
+  SetLength( iKeep, FMaxEmitters );
+  for i in aKeepEmitters do
+    if ( i >= 0 ) and ( i < FMaxEmitters ) then
+      iKeep[i] := True;
+  FParticleCount := 0;
+  FEmitterCount := 0;
+  for i := 0 to FMaxEmitters - 1 do
+  begin
+    FEmitters[i].Used := FEmitters[i].Used and iKeep[i];
+    if FEmitters[i].Used then
+    begin
+      FEmitters[i].ActiveCount := 0;
+      FEmitters[i].TimeSinceEmit := 0;
+      Inc( FEmitterCount );
+    end;
+  end;
 end;
 
 procedure TParticleEngine.ClearParticles;
@@ -269,6 +296,7 @@ begin
   with FParticles[iP] do
   begin
     Position      := RandomPointInShape( iE^.Position, iD );
+    Origin        := iE^.Position;
     iSpeed        := iD^.SpeedRange.Random( FRNG );
     iDir          := RandomDirection( iE^.Direction, iD^.SpreadAngle );
     Velocity.X    := iDir.X * iSpeed;
@@ -415,7 +443,7 @@ begin
       iP^.Position.Z := 0;
       if ( PF_DECAL_ON_GROUND in iP^.Flags ) and ( iP^.DecalSprite <> 0 ) then
         if Assigned( FDecalCallback ) then
-          FDecalCallback( iP^.Position, iP^.DecalSprite );
+          FDecalCallback( iP^.Position, iP^.DecalSprite, iP^.Origin );
       Include( iP^.Flags, PF_DEAD );
       Exit;
     end;
@@ -647,6 +675,7 @@ begin
   iIdx := AllocParticle;
   if iIdx < 0 then Exit( -1 );
   FParticles[iIdx] := aParticle;
+  FParticles[iIdx].Origin := aParticle.Position;
   Include( FParticles[iIdx].Flags, PF_ACTIVE );
   FParticles[iIdx].EmitterIndex := -1;
   Result := iIdx;
@@ -665,6 +694,7 @@ begin
     if iIdx < 0 then Exit;
     iP := @FParticles[iIdx];
     iP^.Position      := RandomPointInShape( aPos, aData );
+    iP^.Origin        := aPos;
     iSpeed            := aData^.SpeedRange.Random( FRNG );
     iDir              := RandomDirection( aDir, aData^.SpreadAngle );
     iP^.Velocity.X    := iDir.X * iSpeed;

@@ -12,8 +12,8 @@ end;
 
 
 type TGLConsoleRenderer = class( TIOConsoleRenderer )
-  constructor Create( aFont : TBitmapFont; aSizeX, aSizeY : DWord; aLineSpace : DWord = 0; aReqCapabilities : TIOConsoleCapSet = [VIO_CON_CURSOR] );
-  constructor Create( aFont : AnsiString; aFontGridX, aFontCount, aFontShift, aSizeX, aSizeY : DWord; aLineSpace : DWord = 0; aReqCapabilities : TIOConsoleCapSet = [VIO_CON_CURSOR] );
+  constructor Create( aDriver : TIODriver; aFont : TBitmapFont; aSizeX, aSizeY : DWord; aLineSpace : DWord = 0; aReqCapabilities : TIOConsoleCapSet = [VIO_CON_CURSOR] );
+  constructor Create( aDriver : TIODriver; aFont : AnsiString; aFontGridX, aFontCount, aFontShift, aSizeX, aSizeY : DWord; aLineSpace : DWord = 0; aReqCapabilities : TIOConsoleCapSet = [VIO_CON_CURSOR] );
   procedure OutputChar( x,y : Integer; aColor : TIOColor; aChar : char ); override;
   procedure OutputChar( x,y : Integer; aFrontColor, aBackColor : TIOColor; aChar : char ); override;
   function GetChar( x,y : Integer ) : Char; override;
@@ -26,16 +26,23 @@ type TGLConsoleRenderer = class( TIOConsoleRenderer )
   procedure Clear; override;
   procedure ClearRect(x1,y1,x2,y2 : Integer; aBackColor : TIOColor = 0 ); override;
   procedure Resize( aNewSizeX, aNewSizeY, aLineSpace : DWord );
+  function MaxScaleForDevice( const aMinimumSize : TIOPoint ) : Integer;
+  function FitToDevice( const aMinimumSize : TIOPoint;
+    aRequestedScale : Integer ) : Integer;
   procedure Update; override;
   destructor Destroy; override;
   function GetDeviceArea : TIORect; override;
   function GetSupportedCapabilities : TIOConsoleCapSet; override;
-  procedure SetPositionScale( x, y : Integer; aLineSpace : Word; aScale : Byte );
+  procedure SetPositionScale( x, y : Integer; aLineSpace : Word; aScale : Byte ); overload;
+  // Fixed-grid placement in an explicit pixel viewport, without clearing cells/cursor.
+  procedure SetPositionScale( x, y : Integer; aLineSpace : Word; aScale : Byte;
+    const aDeviceSize : TIOPoint ); overload;
 private
   procedure Initialize( aFont : TBitmapFont; aLineSpace : DWord );
   procedure SetData( aIndex : DWord; aChar : Char; aFrontColor, aBackColor : TIOColor ); inline;
   function MakeColor( aColor : TIOColor ) : TIOColor;
 private
+  FDriver       : TIODriver; // borrowed; IO destroys the renderer before its driver
   FOwnTextures  : Boolean;
   FFont         : TBitmapFont;
   FCurVisible   : Boolean;
@@ -67,7 +74,7 @@ end;
 
 implementation
 
-uses dateutils, vgl3library, vsdlio, vmath, vutil, vcolor, vtextures;
+uses dateutils, vgl3library, vmath, vutil, vcolor, vtextures;
 
 var EmptyTexCoord  : TGLRawQTexCoord;
 
@@ -217,17 +224,19 @@ begin
   SetCursorType( VIO_CURSOR_SMALL );
 end;
 
-constructor TGLConsoleRenderer.Create ( aFont : TBitmapFont; aSizeX, aSizeY : DWord; aLineSpace : DWord; aReqCapabilities : TIOConsoleCapSet );
+constructor TGLConsoleRenderer.Create( aDriver : TIODriver; aFont : TBitmapFont; aSizeX, aSizeY : DWord; aLineSpace : DWord; aReqCapabilities : TIOConsoleCapSet );
 begin
+  FDriver := aDriver;
   inherited Create( aSizeX, aSizeY, aReqCapabilities );
   Initialize( aFont, aLineSpace );
   FOwnTextures  := False;
   FGlyphStretch := False;
 end;
 
-constructor TGLConsoleRenderer.Create ( aFont : AnsiString; aFontGridX, aFontCount, aFontShift, aSizeX, aSizeY : DWord; aLineSpace : DWord; aReqCapabilities : TIOConsoleCapSet ) ;
+constructor TGLConsoleRenderer.Create( aDriver : TIODriver; aFont : AnsiString; aFontGridX, aFontCount, aFontShift, aSizeX, aSizeY : DWord; aLineSpace : DWord; aReqCapabilities : TIOConsoleCapSet ) ;
 var iTextureID : TTextureID;
 begin
+  FDriver := aDriver;
   inherited Create( aSizeX, aSizeY, aReqCapabilities );
   FOwnTextures  := False;
   FGlyphStretch := False;
@@ -413,7 +422,7 @@ begin
   glBindVertexArray(0);
 
   FProgram.Bind;
-    iPart.Init( SDLIO.GetSizeX / iRect.Dim.X, SDLIO.GetSizeY / iRect.Dim.Y );
+    iPart.Init( FDriver.GetSizeX / iRect.Dim.X, FDriver.GetSizeY / iRect.Dim.Y );
     iMatrix := GLCreateOrtho(-iPart.X, iPart.X, 1 - 2*iPart.Y, 1, -1, 1 );
 
     iPLoc := FProgram.GetUniformLocation('projection');
@@ -443,6 +452,42 @@ begin
     FPCursor := FProgram.GetUniformLocation('ucursor');
   FProgram.Unbind;
 
+end;
+
+function TGLConsoleRenderer.MaxScaleForDevice(
+  const aMinimumSize : TIOPoint ) : Integer;
+var iWidthScale  : Integer;
+    iHeightScale : Integer;
+begin
+  if ( aMinimumSize.X < 1 ) or ( aMinimumSize.Y < 1 ) or
+     ( FFont.GylphSize.X < 1 ) or
+     ( FFont.GylphSize.Y + FLineSpace < 1 ) then Exit( 1 );
+  iWidthScale := FDriver.GetSizeX div
+    ( FFont.GylphSize.X * aMinimumSize.X );
+  iHeightScale := FDriver.GetSizeY div
+    ( ( FFont.GylphSize.Y + FLineSpace ) * aMinimumSize.Y );
+  Result := iWidthScale;
+  if iHeightScale < Result then Result := iHeightScale;
+  if Result < 1 then Result := 1;
+end;
+
+function TGLConsoleRenderer.FitToDevice( const aMinimumSize : TIOPoint;
+  aRequestedScale : Integer ) : Integer;
+var iMaximum : Integer;
+begin
+  iMaximum := MaxScaleForDevice( aMinimumSize );
+  if aRequestedScale < 1
+    then Result := iMaximum
+    else if aRequestedScale > iMaximum
+      then Result := iMaximum
+      else Result := aRequestedScale;
+  FScale := Result;
+  glViewport( 0, 0, FDriver.GetSizeX, FDriver.GetSizeY );
+  Resize(
+    FDriver.GetSizeX div ( FFont.GylphSize.X * FScale ),
+    FDriver.GetSizeY div ( ( FFont.GylphSize.Y + FLineSpace ) * FScale ),
+    FLineSpace
+  );
 end;
 
 procedure TGLConsoleRenderer.Update;
@@ -529,5 +574,27 @@ begin
   Resize( FSizeX, FSizeY, FLineSpace );
 end;
 
-end.
+procedure TGLConsoleRenderer.SetPositionScale( x, y : Integer; aLineSpace : Word;
+  aScale : Byte; const aDeviceSize : TIOPoint );
+var iRect : TIORect;
+    iMatrix : TMatrix44;
+begin
+  if ( aDeviceSize.X <= 0 ) or ( aDeviceSize.Y <= 0 ) or ( aScale = 0 ) then
+    raise EIOException.Create( 'Invalid console viewport' );
+  FPositionX := x;
+  FPositionY := y;
+  FLineSpace := aLineSpace;
+  FScale := aScale;
+  iRect := GetDeviceArea;
+  iMatrix := GLCreateOrtho(
+    -1 - 2 * x / iRect.Dim.X,
+    2 * ( aDeviceSize.X - x ) / iRect.Dim.X - 1,
+    1 - 2 * ( aDeviceSize.Y - y ) / iRect.Dim.Y,
+    1 + 2 * y / iRect.Dim.Y, -1, 1 );
+  FProgram.Bind;
+  glUniformMatrix4fv( FProgram.GetUniformLocation( 'projection' ), 1, GL_FALSE, @iMatrix[0] );
+  glUniform1i( FProgram.GetUniformLocation( 'uline_space' ), FLineSpace );
+  FProgram.UnBind;
+end;
 
+end.

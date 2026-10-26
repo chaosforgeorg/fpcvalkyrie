@@ -1,0 +1,754 @@
+{$INCLUDE valkyrie.inc}
+unit vluastack;
+interface
+
+uses typinfo, variants, classes, sysutils, vlualibrary, vrltools, vluatools, vluatype, vluatable, vvector, vutil;
+
+type
+  ELuaStackException = class(EException);
+  ELuaException      = vlualibrary.ELuaException;
+  Plua_State         = vlualibrary.Plua_State;
+
+type
+
+{ TLuaStack }
+
+TLuaStack = object
+    constructor Init( State : Pointer );
+    constructor Create;
+    procedure Reset;
+    function StackSize : LongInt;
+    procedure Error( const Message : AnsiString );
+    procedure PopRaise( PopAmount : Integer; const Message : AnsiString );
+    function ToString( Index : Integer ) : AnsiString; overload;
+    function ToInteger( Index : Integer ) : Integer; overload;
+    function ToFloat( Index : Integer ) : Single; overload;
+    function ToBoolean( Index : Integer ) : Boolean; overload;
+    function ToChar( Index : Integer ) : Char;
+    function ToFlags( Index : Integer ) : TFlags;
+    function ToFlags32( Index : Integer ) : TFlags32;
+    function ToVariant( Index : Integer ) : Variant;
+    function ToObject( Index : Integer ) : TObject;
+    function ToObjectOrNil( Index : Integer ) : TObject;
+    function ToStringArray( Index : Integer ) : TAnsiStringArray;
+    function ToCoord( Index : Integer ) : TCoord2D;
+    function ToArea( Index : Integer ) : TArea;
+    function ToPoint( Index : Integer ) : TPoint;
+    function ToRect( Index : Integer ) : TRectangle;
+    function ToTable( Index : Integer ) : TLuaTable;
+
+    function ToVec2f( Index : Integer ) : TVec2f;
+    function ToVec3f( Index : Integer ) : TVec3f;
+    function ToVec4f( Index : Integer ) : TVec4f;
+
+    function ToVec2i( Index : Integer ) : TVec2i;
+    function ToVec3i( Index : Integer ) : TVec3i;
+    function ToVec4i( Index : Integer ) : TVec4i;
+
+    function ToVec2b( Index : Integer ) : TVec2b;
+    function ToVec3b( Index : Integer ) : TVec3b;
+    function ToVec4b( Index : Integer ) : TVec4b;
+
+    function ToString( Index : Integer; const DValue : AnsiString ) : AnsiString; overload;
+    function ToInteger( Index : Integer; DValue : Integer ) : Integer; overload;
+    function ToFloat( Index : Integer;   DValue : Single  ) : Single; overload;
+    function ToBoolean( Index : Integer; DValue : Boolean ) : Boolean; overload;
+
+    function IsNil( Index : Integer ) : Boolean;
+    function IsNumber( Index : Integer ) : Boolean;
+    function IsBoolean( Index : Integer ) : Boolean;
+    function IsString( Index : Integer ) : Boolean;
+    function IsTable( Index : Integer ) : Boolean;
+    function IsObject( Index : Integer ) : Boolean;
+    function IsCoord( Index : Integer ) : Boolean;
+    function IsArea( Index : Integer ) : Boolean;
+    function IsPoint( Index : Integer ) : Boolean;
+    function IsRect( Index : Integer ) : Boolean;
+    function IsFunction( aIndex : Integer ) : Boolean;
+
+    function GetField( Index : Integer; const Key : Variant ) : Variant;
+    function GetField( Index : Integer; const Key, DValue : Variant ) : Variant;
+    procedure SetField( Index : Integer; const Key, Value : Variant );
+    function RawGetField( Index : Integer; const Key : Variant ) : Variant;
+    function RawGetField( Index : Integer; const Key, DValue : Variant ) : Variant;
+    procedure RawSetField( Index : Integer; const Key, Value : Variant );
+
+    procedure PushIndex( aIndex : Integer );
+    procedure Push( Value : Single ); overload;
+    procedure Push( Value : Double ); overload;
+    procedure Push( const Value : AnsiString ); overload;
+    procedure Push( Value : Boolean ); overload;
+    procedure Push( Value : LongInt ); overload;
+    procedure Push( Value : ILuaReferencedObject ); overload;
+    procedure Push(const Args: array of const); overload;
+    procedure PushCoord( Value : TCoord2D );
+    procedure PushArea( Value : TArea );
+    procedure PushPoint( Value : TPoint );
+    procedure PushRect( Value : TRectangle );
+    procedure PushNil;
+    procedure PushVariant( Value : Variant );
+    procedure PushUserdata( Value : Pointer );
+    procedure PushReference( Value : Integer );
+    procedure PushNewLuaObject( const Name : AnsiString; const ConstructorParams : array of const );
+    procedure RegisterEnumValues( EnumTypeInfo : PTypeInfo; UpperCase : Boolean = True );
+    procedure SetPrototypeTable(Obj: ILuaReferencedObject; const FieldName : AnsiString = 'proto' );
+    function  RunHook( Obj : ILuaReferencedObject; HookName : AnsiString; const Params : array of const ) : Variant;
+    function  CallFunction( aIdx : Integer; const aParams : array of const ) : Variant;
+    destructor Done;
+    function HasSubTable( Obj : ILuaReferencedObject; const Name : AnsiString ) : Boolean;
+    procedure SubTableToStream( Obj : ILuaReferencedObject; const Name : AnsiString; OSt : TStream );
+    procedure SubTableFromStream( Obj : ILuaReferencedObject; const Name : AnsiString; ISt : TStream );
+    procedure NewSubTableFromStream( Obj : ILuaReferencedObject; const Name : AnsiString; ISt : TStream );
+    procedure ClearLuaProperties( Obj : ILuaReferencedObject );
+    function GetLuaProperty( Obj : ILuaReferencedObject; const aPropertyName : AnsiString ) : Variant;
+    procedure SetLuaProperty( Obj : ILuaReferencedObject; const aPropertyName : AnsiString; aValue : Variant );
+    function GetLuaProperty( Obj : ILuaReferencedObject; const aPropertyPath : array of Const; aDefValue : Variant ) : Variant;
+    procedure SetLuaProperty( Obj : ILuaReferencedObject; const aPropertyPath : array of Const; aValue : Variant );
+
+    // Register raw function
+    procedure Register( const Name : AnsiString; Proc : lua_CFunction );
+    // Register table function
+    procedure Register( const LibName, Name : AnsiString; Proc : lua_CFunction );
+    // Register table functions
+    procedure Register( const libname : AnsiString; const lr : PluaL_Reg );
+
+protected
+    procedure PushPrototypeTable( Obj : ILuaReferencedObject );
+  protected
+    FState      : Pointer;
+    FOwner      : Boolean;
+    FStartStack : Integer;
+  public
+    property Stack[ Index : Integer ] : Variant read ToVariant;
+  end;
+
+implementation
+
+uses vluaext;
+
+{ TLuaStack }
+
+constructor TLuaStack.Init(State: Pointer);
+begin
+  FState      := State;
+  FOwner      := False;
+  FStartStack := lua_gettop( FState );
+end;
+
+constructor TLuaStack.Create;
+begin
+  FState := lua_open();
+end;
+
+procedure TLuaStack.Reset;
+begin
+  lua_settop( FState, FStartStack );
+end;
+
+function TLuaStack.StackSize: LongInt;
+begin
+  Exit( lua_gettop( FState ) );
+end;
+
+procedure TLuaStack.Error(const Message: AnsiString);
+begin
+  luaL_error( FState, PChar(Message));
+end;
+
+procedure TLuaStack.PopRaise(PopAmount: Integer; const Message: AnsiString);
+begin
+  lua_pop( FState, PopAmount );
+  raise ELuaStackException.Create(Message);
+end;
+
+function TLuaStack.ToString(Index: Integer): AnsiString;
+begin
+  Exit( lua_tostring( FState, Index ) );
+end;
+
+function TLuaStack.ToInteger(Index: Integer): Integer;
+begin
+  Exit( lua_tointeger( FState, Index ) );
+end;
+
+function TLuaStack.ToFloat(Index: Integer): Single;
+begin
+  Exit( lua_tonumber( FState, Index ) );
+end;
+
+function TLuaStack.ToBoolean(Index: Integer): Boolean;
+begin
+  Exit( lua_toboolean( FState, Index ) );
+end;
+
+function TLuaStack.ToVariant( Index : Integer ): Variant;
+begin
+  Exit( vlua_tovariant( FState, Index ) );
+end;
+
+function TLuaStack.ToChar( Index: Integer ): Char;
+begin
+  Exit( vlua_tochar( FState, Index ) );
+end;
+
+function TLuaStack.ToFlags( Index: Integer ): TFlags;
+begin
+  Exit( vlua_toflags( FState, Index ) );
+end;
+
+function TLuaStack.ToFlags32( Index: Integer ): TFlags32;
+begin
+  Exit( vlua_toflags32( FState, Index ) );
+end;
+
+function TLuaStack.ToObject(Index: Integer): TObject;
+begin
+  ToObject := vlua_toobject( FState, Index );
+  if ToObject = nil then Error( 'Object expected as parameter '+IntToStr(Index)+'!');
+end;
+
+function TLuaStack.ToObjectOrNil(Index: Integer): TObject;
+begin
+  ToObjectOrNil := vlua_toobject( FState, Index );
+end;
+
+function TLuaStack.ToStringArray(Index: Integer): TAnsiStringArray;
+begin
+  Exit( vlua_tostringarray( FState, Index ) );
+end;
+
+function TLuaStack.ToCoord(Index: Integer): TCoord2D;
+begin
+  Exit( vlua_tocoord( FState, lua_absindex( FState, Index ) ) );
+end;
+
+function TLuaStack.ToArea(Index: Integer): TArea;
+begin
+  Exit( vlua_toarea( FState, lua_absindex( FState, Index ) ) );
+end;
+
+function TLuaStack.ToPoint(Index: Integer): TPoint;
+begin
+  Exit( vlua_topoint( FState, lua_absindex( FState, Index ) ) );
+end;
+
+function TLuaStack.ToRect(Index: Integer): TRectangle;
+begin
+  Exit( vlua_torect( FState, lua_absindex( FState, Index ) ) );
+end;
+
+function TLuaStack.ToTable( Index : Integer ) : TLuaTable;
+begin
+  Exit( TLuaTable.Create( FState, Index ) );
+end;
+
+function TLuaStack.ToVec2f ( Index : Integer ) : TVec2f;
+begin
+  Exit( vlua_tovec2f( FState, Index ) );
+end;
+
+function TLuaStack.ToVec3f ( Index : Integer ) : TVec3f;
+begin
+  Exit( vlua_tovec3f( FState, Index ) );
+end;
+
+function TLuaStack.ToVec4f ( Index : Integer ) : TVec4f;
+begin
+  Exit( vlua_tovec4f( FState, Index ) );
+end;
+
+function TLuaStack.ToVec2i ( Index : Integer ) : TVec2i;
+begin
+  Exit( vlua_tovec2i( FState, Index ) );
+end;
+
+function TLuaStack.ToVec3i ( Index : Integer ) : TVec3i;
+begin
+  Exit( vlua_tovec3i( FState, Index ) );
+end;
+
+function TLuaStack.ToVec4i ( Index : Integer ) : TVec4i;
+begin
+  Exit( vlua_tovec4i( FState, Index ) );
+end;
+
+function TLuaStack.ToVec2b ( Index : Integer ) : TVec2b;
+begin
+  Exit( vlua_tovec2b( FState, Index ) );
+end;
+
+function TLuaStack.ToVec3b ( Index : Integer ) : TVec3b;
+begin
+  Exit( vlua_tovec3b( FState, Index ) );
+end;
+
+function TLuaStack.ToVec4b ( Index : Integer ) : TVec4b;
+begin
+  Exit( vlua_tovec4b( FState, Index ) );
+end;
+
+function TLuaStack.ToString(Index: Integer; const DValue: AnsiString
+  ): AnsiString;
+begin
+  if lua_type( FState, Index ) = LUA_TSTRING
+     then Exit( lua_tostring( FState, Index ) )
+     else Exit( DValue );
+end;
+
+function TLuaStack.ToInteger(Index: Integer; DValue: Integer): Integer;
+begin
+  if lua_type( FState, Index ) = LUA_TNUMBER
+     then Exit( lua_tointeger( FState, Index ) )
+     else Exit( DValue );
+end;
+
+function TLuaStack.ToFloat(Index: Integer; DValue: Single): Single;
+begin
+  if lua_type( FState, Index ) = LUA_TNUMBER
+     then Exit( lua_tonumber( FState, Index ) )
+     else Exit( DValue );
+end;
+
+function TLuaStack.ToBoolean(Index: Integer; DValue: Boolean): Boolean;
+begin
+  if lua_type( FState, Index ) = LUA_TBOOLEAN
+     then Exit( lua_toboolean( FState, Index ) )
+     else Exit( DValue );
+end;
+
+function TLuaStack.IsNil(Index: Integer): Boolean;
+begin
+  Exit( lua_isnil( FState, Index ) or lua_isnone( FState, Index ) );
+end;
+
+function TLuaStack.IsNumber(Index: Integer): Boolean;
+begin
+  Exit( lua_type( FState, Index ) = LUA_TNUMBER );
+end;
+
+function TLuaStack.IsBoolean(Index: Integer): Boolean;
+begin
+  Exit( lua_type( FState, Index ) = LUA_TBOOLEAN );
+end;
+
+function TLuaStack.IsString(Index: Integer): Boolean;
+begin
+  Exit( lua_type( FState, Index ) = LUA_TSTRING );
+end;
+
+function TLuaStack.IsTable(Index: Integer): Boolean;
+begin
+  Exit( lua_type( FState, Index ) = LUA_TTABLE );
+end;
+
+function TLuaStack.IsObject(Index: Integer): Boolean;
+begin
+  Exit( vlua_isobject( FState, Index ) );
+end;
+
+function TLuaStack.IsCoord(Index: Integer): Boolean;
+begin
+  Exit( vlua_iscoord( FState, lua_absindex( FState, Index ) ) );
+end;
+
+function TLuaStack.IsArea(Index: Integer): Boolean;
+begin
+  Exit( vlua_isarea( FState, lua_absindex( FState, Index ) ) );
+end;
+
+function TLuaStack.IsPoint(Index: Integer): Boolean;
+begin
+  Exit( vlua_ispoint( FState, lua_absindex( FState, Index ) ) );
+end;
+
+function TLuaStack.IsRect(Index: Integer): Boolean;
+begin
+  Exit( vlua_isrect( FState, lua_absindex( FState, Index ) ) );
+end;
+
+function TLuaStack.IsFunction( aIndex : Integer ) : Boolean;
+begin
+  Exit( lua_type( FState, aIndex ) = LUA_TFUNCTION );
+end;
+
+
+function TLuaStack.GetField(Index: Integer; const Key: Variant): Variant;
+begin
+  Index := lua_absindex( FState, Index );
+  vlua_pushvariant( FState, Key );
+  lua_gettable( FState, Index );
+  if lua_isnil( FState, -1 ) then PopRaise( 1, 'TLuaStack.GetField - key '+Key+' not present in table!' );
+  GetField := vlua_tovariant( FState, -1 );
+  lua_pop( FState, 1 );
+end;
+
+function TLuaStack.GetField(Index: Integer; const Key, DValue: Variant
+  ): Variant;
+begin
+  Index := lua_absindex( FState, Index );
+  vlua_pushvariant( FState, Key );
+  lua_gettable( FState, Index );
+  if lua_isnil( FState, -1 )
+     then GetField := DValue
+     else GetField := vlua_tovariant( FState, -1 );
+  lua_pop( FState, 1 );
+end;
+
+procedure TLuaStack.SetField(Index: Integer; const Key, Value: Variant);
+begin
+  Index := lua_absindex( FState, Index );
+  vlua_pushvariant( FState, Key );
+  vlua_pushvariant( FState, Value );
+  lua_settable( FState, Index );
+end;
+
+function TLuaStack.RawGetField(Index: Integer; const Key: Variant): Variant;
+begin
+  Index := lua_absindex( FState, Index );
+  vlua_pushvariant( FState, Key );
+  lua_rawget( FState, Index );
+  if lua_isnil( FState, -1 ) then PopRaise( 1, 'TLuaStack.GetField - key '+Key+' not present in table!' );
+  RawGetField := vlua_tovariant( FState, -1 );
+  lua_pop( FState, 1 );
+end;
+
+function TLuaStack.RawGetField(Index: Integer; const Key, DValue: Variant
+  ): Variant;
+begin
+  Index := lua_absindex( FState, Index );
+  vlua_pushvariant( FState, Key );
+  lua_rawget( FState, Index );
+  if lua_isnil( FState, -1 )
+     then RawGetField := DValue
+     else RawGetField := vlua_tovariant( FState, -1 );
+  lua_pop( FState, 1 );
+end;
+
+procedure TLuaStack.RawSetField(Index: Integer; const Key, Value: Variant);
+begin
+  Index := lua_absindex( FState, Index );
+  vlua_pushvariant( FState, Key );
+  vlua_pushvariant( FState, Value );
+  lua_rawset( FState, Index );
+end;
+
+procedure TLuaStack.PushIndex( aIndex : Integer );
+begin
+  lua_pushvalue( FState, aIndex );
+end;
+
+procedure TLuaStack.Push(Value: Single);
+begin
+  lua_pushnumber( FState, Value );
+end;
+
+procedure TLuaStack.Push(Value: Double);
+begin
+  lua_pushnumber( FState, Value );
+end;
+
+procedure TLuaStack.Push(const Value: AnsiString);
+begin
+  lua_pushansistring( FState, Value );
+end;
+
+procedure TLuaStack.Push(Value: Boolean);
+begin
+  lua_pushboolean( FState, Value );
+end;
+
+procedure TLuaStack.Push(Value: LongInt);
+begin
+  lua_pushinteger( FState, Value );
+end;
+
+procedure TLuaStack.Push(Value: ILuaReferencedObject);
+begin
+  if Value = nil
+     then lua_pushnil( FState )
+     else lua_rawgeti( FState, LUA_REGISTRYINDEX, Value.GetLuaIndex );
+end;
+
+procedure TLuaStack.PushNil;
+begin
+  lua_pushnil( FState );
+end;
+
+procedure TLuaStack.PushVariant(Value: Variant);
+begin
+  vlua_pushvariant( FState, Value );
+end;
+
+procedure TLuaStack.PushUserdata(Value: Pointer);
+begin
+  lua_pushlightuserdata( FState, Value );
+end;
+
+procedure TLuaStack.PushReference(Value: Integer);
+begin
+  lua_rawgeti( FState, LUA_REGISTRYINDEX, Value );
+end;
+
+procedure TLuaStack.PushNewLuaObject(const Name: AnsiString;
+  const ConstructorParams: array of const);
+begin
+  lua_getglobal( FState, Name );
+  lua_pushansistring( FState, 'new' );
+  lua_rawget( FState, -2 );
+  lua_insert( FState, -2 ); // swap table,function
+  lua_pop( FState, 1 ); // pop table
+  vlua_push( FState, ConstructorParams );
+  if lua_pcall( FState, High( ConstructorParams ) + 1, 1, 0 ) <> 0 then
+    PopRaise( 1, 'Lua constructor error : '+lua_tostring( FState, -1) );
+  // leave the object on stack
+end;
+
+procedure TLuaStack.RegisterEnumValues(EnumTypeInfo: PTypeInfo; UpperCase : Boolean );
+begin
+  vlua_registerenumvalues( FState, EnumTypeInfo, UpperCase );
+end;
+
+procedure TLuaStack.Push(const Args: array of const);
+begin
+  vlua_push( FState, Args );
+end;
+
+procedure TLuaStack.PushCoord(Value: TCoord2D);
+begin
+  vlua_pushcoord( FState, Value );
+end;
+
+procedure TLuaStack.PushArea(Value: TArea);
+begin
+  vlua_pusharea( FState, Value );
+end;
+
+procedure TLuaStack.PushPoint(Value: TPoint);
+begin
+  vlua_pushpoint( FState, Value );
+end;
+
+procedure TLuaStack.PushRect(Value: TRectangle);
+begin
+  vlua_pushrect( FState, Value );
+end;
+
+function TLuaStack.RunHook(Obj: ILuaReferencedObject; HookName: AnsiString;
+  const Params: array of const): Variant;
+var iCount    : DWord;
+    iFound    : Boolean;
+    iInitial  : Integer;
+begin
+  iInitial  := lua_gettop( FState );
+  iFound    := False;
+
+  lua_rawgeti(FState, LUA_REGISTRYINDEX, Obj.GetLuaIndex);
+  if not lua_istable( FState, -1 ) then PopRaise( 1, 'Object not found!');
+
+  lua_pushansistring( FState, '__hooks' );
+  lua_rawget( FState, -2 );
+  if lua_istable( FState, -1 ) then
+  begin
+    lua_pushansistring( FState, HookName );
+    lua_rawget( FState, -2 );
+    if lua_isnil( FState, -1 ) then
+      lua_pop( FState, 2 ) // was -2 -- IS THIS A BUG??
+    else
+      iFound := True;
+  end
+  else
+    lua_pop( FState, 1 );
+
+  if not iFound then
+  begin
+    PushPrototypeTable( Obj );
+    lua_pushansistring( FState, HookName );
+    lua_rawget( FState, -2 );
+  end;
+
+  if not lua_isfunction( FState, -1) then
+  begin
+    if lua_isnil( FState, -1 ) then PopRaise( 3, Obj.GetProtoTable+'['+Obj.GetID+'].'+HookName+' not found!');
+    lua_getglobal( FState, Obj.GetProtoTable );
+    lua_pushansistring( FState, '__hooks' );
+    lua_rawget( FState, -2 );
+    if lua_isnil( FState, -1 ) then PopRaise( 5, Obj.GetProtoTable+'.__hooks not found!');
+    lua_pushvalue( FState, -3 );
+    lua_rawget( FState, -2 );
+    lua_replace( FState, -4 );
+    lua_pop( FState, 2 );
+  end;
+
+  if not lua_isfunction( FState, -1 ) then
+    PopRaise( 3, Obj.GetProtoTable+'['+Obj.GetID+'].'+HookName+' not found!');
+
+  lua_pushvalue( FState, iInitial + 1 ); // copy object
+
+  iCount := High( Params ) + 2;
+  Push( Params );
+
+  if lua_pcall( FState, iCount, 1, 0 ) <> 0 then PopRaise( 3, 'Lua error : '+lua_tostring( FState, -1 ) );
+
+  RunHook := vlua_tovariant( FState, -1 );
+  lua_settop( FState, iInitial );
+end;
+
+function TLuaStack.CallFunction( aIdx : Integer; const aParams : array of const ) : Variant;
+begin
+  aIdx := lua_absindex( FState, aIdx );
+  if not lua_isfunction( FState, aIdx ) then Error( 'not a function!');
+  lua_pushvalue( FState, aIdx );
+  Push( aParams );
+  if lua_pcall( FState, High( aParams ) + 1, 1, 0 ) <> 0 then PopRaise( 1, 'Lua error : '+lua_tostring( FState, -1) );
+  CallFunction := vlua_tovariant( FState, -1 );
+  lua_pop( FState, 1 );
+end;
+
+
+procedure TLuaStack.SubTableToStream(Obj: ILuaReferencedObject;
+  const Name: AnsiString; OSt: TStream);
+begin
+  lua_rawgeti( FState, LUA_REGISTRYINDEX, Obj.GetLuaIndex );
+  lua_getfield( FState, -1, PChar(Name) );
+  if not lua_istable( FState, -1 ) then PopRaise( 1, Name+' is not a valid table!');
+  vlua_tabletostream( FState, -1, Ost );
+  lua_pop( FState, 2 );
+end;
+
+procedure TLuaStack.SubTableFromStream(Obj: ILuaReferencedObject;
+  const Name: AnsiString; ISt: TStream);
+begin
+  lua_rawgeti( FState, LUA_REGISTRYINDEX, Obj.GetLuaIndex );
+  lua_getfield( FState, -1, PChar(Name) );
+  if not lua_istable( FState, -1 ) then PopRaise( 1, Name+' is not a valid table!');
+  vlua_tablefromstream( FState, -1, Ist );
+  lua_pop( FState, 2 );
+end;
+
+procedure TLuaStack.NewSubTableFromStream( Obj : ILuaReferencedObject; const Name : AnsiString; ISt : TStream );
+begin
+  lua_rawgeti( FState, LUA_REGISTRYINDEX, Obj.GetLuaIndex );
+  lua_pushansistring( FState, Name );
+  lua_createtable( FState, 0, 0 );
+  vlua_tablefromstream( FState, -1, Ist );
+  lua_rawset( FState, -3 );
+  lua_pop( FState, 1 );
+end;
+
+procedure TLuaStack.ClearLuaProperties( Obj : ILuaReferencedObject );
+begin
+  Push( Obj );
+  lua_pushansistring( FState, '__props' );
+  lua_createtable( FState, 0, 0 );
+  lua_rawset( FState, -3 );
+  lua_pop( FState, 1 );
+end;
+
+function TLuaStack.GetLuaProperty ( Obj : ILuaReferencedObject; const aPropertyName : AnsiString ) : Variant;
+begin
+  Push( Obj );
+  lua_getfield( FState, -1, '__props' );
+  if not lua_istable( FState, -1 ) then PopRaise( 2, 'Object has no __props!');
+  lua_getfield( FState, -1, PChar(aPropertyName) );
+  GetLuaProperty := vlua_tovariant( FState, -1 );
+  lua_pop( FState, 3 );
+end;
+
+procedure TLuaStack.SetLuaProperty ( Obj : ILuaReferencedObject; const aPropertyName : AnsiString; aValue : Variant ) ;
+begin
+  Push( Obj );
+  lua_getfield( FState, -1, '__props' );
+  if not lua_istable( FState, -1 ) then PopRaise( 2, 'Object has no __props!');
+  vlua_pushvariant( FState, aValue );
+  lua_setfield( FState, -2, PChar(aPropertyName) );
+  lua_pop( FState, 2 );
+end;
+
+function TLuaStack.GetLuaProperty(Obj: ILuaReferencedObject;
+  const aPropertyPath: array of const; aDefValue: Variant): Variant;
+begin
+  Push( Obj );
+  lua_getfield( FState, -1, '__props' );
+  if not lua_istable( FState, -1 ) then PopRaise( 2, 'Object has no __props!');
+  if not vlua_getpath( FState, aPropertyPath, -1 ) then
+  begin
+    lua_pop( FState, 2 );
+    Exit( aDefValue );
+  end;
+  GetLuaProperty := vlua_tovariant( FState, -1 );
+  lua_pop( FState, 3 );
+end;
+
+procedure TLuaStack.SetLuaProperty(Obj: ILuaReferencedObject;
+  const aPropertyPath: array of const; aValue: Variant);
+begin
+  if High(aPropertyPath) = 0 then
+  begin
+    // Non-strings?
+    SetLuaProperty( Obj, aPropertyPath[0], aValue );
+    Exit;
+  end;
+  Push( Obj );
+  lua_getfield( FState, -1, '__props' );
+  if not lua_istable( FState, -1 ) then PopRaise( 2, 'Object has no __props!');
+  if not vlua_getpath( FState, aPropertyPath, -1, High(aPropertyPath)- 1 ) then
+  begin
+    lua_pop( FState, 2 );
+    Exit;
+  end;
+  vlua_pushvarrec( FState, @aPropertyPath[High( aPropertyPath )] );
+  vlua_pushvariant( FState, aValue );
+  lua_rawset( FState, -3 );
+  lua_pop( FState, 3 );
+end;
+
+procedure TLuaStack.Register(const Name: AnsiString; Proc: lua_CFunction);
+begin
+  vlua_register( FState, name, proc );
+end;
+
+procedure TLuaStack.Register(const LibName, Name: AnsiString; Proc: lua_CFunction);
+begin
+  vlua_register( FState, libname, name, proc );
+end;
+
+procedure TLuaStack.Register(const libname: AnsiString; const lr: PluaL_Reg);
+begin
+  vlua_register( FState, libname, lr );
+end;
+
+procedure TLuaStack.SetPrototypeTable(Obj: ILuaReferencedObject; const FieldName : AnsiString = 'proto' );
+begin
+  Push( Obj );
+  lua_pushansistring( FState, FieldName );
+  PushPrototypeTable( Obj );
+  lua_rawset( FState, -3 );
+  lua_pop( FState, 1 );
+end;
+
+destructor TLuaStack.Done;
+begin
+  if FOwner then lua_close( FState );
+end;
+
+function TLuaStack.HasSubTable ( Obj : ILuaReferencedObject; const Name : AnsiString ) : Boolean;
+begin
+  lua_rawgeti( FState, LUA_REGISTRYINDEX, Obj.GetLuaIndex );
+  lua_pushansistring( FState, PChar(Name) );
+  lua_rawget( FState, -2 );
+  HasSubTable := lua_istable( FState, -1 );
+  lua_pop( FState, 2 );
+end;
+
+procedure TLuaStack.PushPrototypeTable(Obj: ILuaReferencedObject);
+begin
+  lua_getglobal( FState, Obj.GetProtoTable );
+  if not lua_istable( FState, -1 ) then PopRaise( 1, Obj.GetProtoTable+' is not a valid table!');
+  lua_pushansistring( FState, Obj.GetID );
+  lua_gettable( FState, -2 );
+  if not lua_istable( FState, -1 ) then PopRaise( 2, Obj.GetProtoTable+'['+Obj.GetID+'] is not a valid table!');
+  lua_insert( FState, -2 ); // swap
+  lua_pop( FState, 1 ); // free base table
+end;
+
+end.
