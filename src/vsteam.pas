@@ -890,7 +890,7 @@ begin
   iUtils := TSteamCore.GetClient.Utils;
   if ( iUGC = nil ) or ( iUtils = nil ) then Exit( False );
 
-  iAbsPath := aPath;
+  iAbsPath := IncludeTrailingPathDelimiter( ExpandFileName( aPath ) );
   Log( 'Absolute path : '+ iAbsPath );
 
   iHandle := iUGC.StartItemUpdate( FAppId, aModID );

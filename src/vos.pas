@@ -138,7 +138,7 @@ begin
 {$IFDEF Darwin}
   Result := GetOSXBundlePath() + OSXBundleResourcesDirectory;
 {$ENDIF}
-{$IFDEF Win32}
+{$IFDEF WINDOWS}
   Result := ExtractFilePath(ParamStr(0));
 {$ENDIF}
 end;
