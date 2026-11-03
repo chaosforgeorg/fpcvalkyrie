@@ -12,7 +12,7 @@ unit vfmodsound;
 
 interface
 
-uses Classes, SysUtils, vsound, vrltools, vgenerics;
+uses Classes, SysUtils, vsound, vrltools, vgenerics, vfmodlibrary;
 
 type TFMODSoundData = record
     Struct : Pointer;
@@ -63,26 +63,19 @@ type TFMODSound = class(TSound)
        function CalculateMusicVolume( aVolume : Byte ) : Single;
        function PushSimpleData( aPointer : Pointer ) : Pointer;
        function DataToSound( aData : Pointer ) : Pointer; inline;
+       procedure Check( aResult : FMOD_RESULT );
      protected
        FInternalDataArray   : TFMODSoundDataArray;
        FInternalMusicVolume : Single;
+       FSystem              : PFMOD_SYSTEM;
+       FLastError           : FMOD_RESULT;
+       FGroupSounds         : PFMOD_CHANNELGROUP;
+       FGroupMusic          : PFMOD_CHANNELGROUP;
      end;
 
 implementation
 
-uses math, vutil, vdebug, vfmodlibrary;
-
-var GSystem      : PFMOD_SYSTEM;
-    GLastError   : FMOD_RESULT;
-    GGroupSounds : PFMOD_CHANNELGROUP;
-    GGroupMusic  : PFMOD_CHANNELGROUP;
-
-procedure FMOD_CHECK( aResult : FMOD_RESULT );
-begin
-  GLastError := aResult;
-  if aResult <> FMOD_OK then
-    Log( LOGERROR, 'FMOD error : '+FMOD_ErrorString(aResult));
-end;
+uses math, vutil, vdebug;
 
 { TFMODSound }
 
@@ -104,20 +97,20 @@ begin
 
   FreeAndNil( FInternalDataArray );
 
-  if GGroupSounds <> nil then FMOD_ChannelGroup_Release( GGroupSounds );
-  if GGroupMusic <> nil  then FMOD_ChannelGroup_Release( GGroupMusic );
+  if FGroupSounds <> nil then FMOD_ChannelGroup_Release( FGroupSounds );
+  if FGroupMusic <> nil  then FMOD_ChannelGroup_Release( FGroupMusic );
 
-  if GSystem <> nil then
+  if FSystem <> nil then
   begin
-    FMOD_System_Close(GSystem);
-    FMOD_System_Release(GSystem);
+    FMOD_System_Close(FSystem);
+    FMOD_System_Release(FSystem);
   end;
 end;
 
 // Update the sound system
 procedure TFMODSound.Update;
 begin
-  FMOD_System_Update( GSystem );
+  FMOD_System_Update( FSystem );
 end;
 
 // Reset the sound system
@@ -133,29 +126,31 @@ const CPos : FMOD_VECTOR = ( x : 0.0; y : 0.0; z : 0.0 );
       CFWd : FMOD_VECTOR = ( x : 0.0; y : 0.0; z : 1.0 );
       CUp  : FMOD_VECTOR = ( x : 0.0; y : 1.0; z : 0.0 );
 begin
-  GGroupSounds := nil;
-  GGroupMusic  := nil;
+  FGroupSounds := nil;
+  FGroupMusic  := nil;
   Log( LOGINFO, 'Opening FMOD... ' );
-  GLastError := FMOD_System_Create( @GSystem, FMOD_VERSION);
-  if GLastError <> FMOD_OK then
+  FLastError := FMOD_System_Create( @FSystem, FMOD_VERSION);
+  if FLastError <> FMOD_OK then
   begin
     Log( LOGERROR, 'FMOD_System_Create failed, error : ' + GetError() );
-    if GSystem <> nil then FMOD_System_Release(GSystem);
+    if FSystem <> nil then FMOD_System_Release(FSystem);
+    FSystem := nil;
     Exit( False );
   end;
-  GLastError := FMOD_System_Init( GSystem, 128, FMOD_INIT_NORMAL, nil);
-  if GLastError <> FMOD_OK then
+  FLastError := FMOD_System_Init( FSystem, 128, FMOD_INIT_NORMAL, nil);
+  if FLastError <> FMOD_OK then
   begin
     Log( LOGERROR, 'FMOD_System_Init failed, error : ' + GetError() );
-    FMOD_System_Close(GSystem);
-    FMOD_System_Release(GSystem);
+    FMOD_System_Close(FSystem);
+    FMOD_System_Release(FSystem);
+    FSystem := nil;
     Exit( False );
   end;
   Log( LOGINFO, 'FMOD Initialized.' );
 
-  FMOD_CHECK( FMOD_System_CreateChannelGroup( GSystem, 'sound', @GGroupSounds ) );
-  FMOD_CHECK( FMOD_System_CreateChannelGroup( GSystem, 'music', @GGroupMusic ) );
-  FMOD_CHECK( FMOD_System_set3DListenerAttributes( GSystem, 0, @CPos, @CVel, @CFwd, @CUp ) );
+  Check( FMOD_System_CreateChannelGroup( FSystem, 'sound', @FGroupSounds ) );
+  Check( FMOD_System_CreateChannelGroup( FSystem, 'music', @FGroupMusic ) );
+  Check( FMOD_System_set3DListenerAttributes( FSystem, 0, @CPos, @CVel, @CFwd, @CUp ) );
   Exit( True );
 end;
 
@@ -167,7 +162,7 @@ begin
   Initialize( iInfo );
   FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
-  FMOD_CHECK( FMOD_System_CreateStream( GSystem, PChar(aFileName), FMOD_2D or FMOD_CREATESTREAM or FMOD_LOOP_NORMAL, @iInfo, @iStream) );
+  Check( FMOD_System_CreateStream( FSystem, PChar(aFileName), FMOD_2D or FMOD_CREATESTREAM or FMOD_LOOP_NORMAL, @iInfo, @iStream) );
   Exit( PushSimpleData( iStream ) );
 end;
 
@@ -184,7 +179,7 @@ begin
   Initialize( iInfo );
   FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
-  FMOD_CHECK( FMOD_System_CreateSound( GSystem, PChar(aFileName), iMode, @iInfo, @iSound ) );
+  Check( FMOD_System_CreateSound( FSystem, PChar(aFileName), iMode, @iInfo, @iSound ) );
   Exit( PushSimpleData( iSound ) );
 end;
 
@@ -201,7 +196,7 @@ begin
   FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
   iInfo.length := Size;
-  FMOD_CHECK( FMOD_System_CreateStream( GSystem, PChar(iData), FMOD_2D or FMOD_CREATESTREAM or FMOD_LOOP_NORMAL or FMOD_OPENMEMORY, @iInfo, @iStream) );
+  Check( FMOD_System_CreateStream( FSystem, PChar(iData), FMOD_2D or FMOD_CREATESTREAM or FMOD_LOOP_NORMAL or FMOD_OPENMEMORY, @iInfo, @iStream) );
   iStore.Size   := Size;
   iStore.Data   := iData;
   iStore.Struct := iStream;
@@ -227,7 +222,7 @@ begin
   FillChar(iInfo, SizeOf(FMOD_CREATESOUNDEXINFO), 0);
   iInfo.cbsize := SizeOf(FMOD_CREATESOUNDEXINFO);
   iInfo.length := Size;
-  FMOD_CHECK( FMOD_System_CreateSound( GSystem, PChar( iData ), iMode, @iInfo, @iSound ) );
+  Check( FMOD_System_CreateSound( FSystem, PChar( iData ), iMode, @iInfo, @iSound ) );
   FreeMem( iData, Size );
   Exit( PushSimpleData( iSound ) );
 end;
@@ -246,7 +241,7 @@ begin
   Dec( iIndex );
   with FInternalDataArray[ iIndex ] do
   begin
-    FMOD_CHECK( FMOD_Sound_Release(PFMOD_SOUND(Struct)) );
+    Check( FMOD_Sound_Release(PFMOD_SOUND(Struct)) );
     if Data <> nil then
       FreeMem( Data, Size );
   end;
@@ -255,7 +250,7 @@ end;
 function TFMODSound.GetError(): AnsiString;
 var iError : AnsiString;
 begin
-  iError := FMOD_ErrorString(GLastError);
+  iError := FMOD_ErrorString(FLastError);
   Exit( iError );
 end;
 
@@ -268,10 +263,10 @@ begin
   iPosition.x := aRelative.X * 0.2;
   iPosition.y := aRelative.Y * 0.2;
   iPosition.z := 0.0;
-  FMOD_CHECK( FMOD_System_PlaySound( GSystem, iSound, GGroupSounds, 1, @iChannel ) );
-  FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, Single( Min( SoundVolume, 128 ) / 100.0 ) ) );
-  FMOD_CHECK( FMOD_Channel_set3DAttributes( iChannel, @iPosition, nil ) );
-  FMOD_CHECK( FMOD_Channel_SetPaused( iChannel, 0 ) );
+  Check( FMOD_System_PlaySound( FSystem, iSound, FGroupSounds, 1, @iChannel ) );
+  Check( FMOD_Channel_SetVolume( iChannel, Single( Min( SoundVolume, 128 ) / 100.0 ) ) );
+  Check( FMOD_Channel_set3DAttributes( iChannel, @iPosition, nil ) );
+  Check( FMOD_Channel_SetPaused( iChannel, 0 ) );
 end;
 
 procedure TFMODSound.PlaySound(aData: Pointer; aVolume: Byte; aPan: Integer);
@@ -279,38 +274,38 @@ var iChannel : PFMOD_CHANNEL;
     iSound   : PFMOD_SOUND;
 begin
   iSound      := PFMOD_SOUND(DataToSound( aData ));
-  FMOD_CHECK( FMOD_System_PlaySound( GSystem, iSound, GGroupSounds, 1, @iChannel ) );
-  FMOD_CHECK( FMOD_Channel_SetVolume( iChannel, ( Single(aVolume) / 100.0 ) ) );
+  Check( FMOD_System_PlaySound( FSystem, iSound, FGroupSounds, 1, @iChannel ) );
+  Check( FMOD_Channel_SetVolume( iChannel, ( Single(aVolume) / 100.0 ) ) );
   if aPan <> -1
-    then FMOD_CHECK( FMOD_Channel_SetPan( iChannel, ( Single(aPan-128) / 128.0 ) ) )
-    else FMOD_CHECK( FMOD_Channel_SetPan( iChannel, 0 ) );
-  FMOD_CHECK( FMOD_Channel_SetPaused( iChannel, 0 ) );
+    then Check( FMOD_Channel_SetPan( iChannel, ( Single(aPan-128) / 128.0 ) ) )
+    else Check( FMOD_Channel_SetPan( iChannel, 0 ) );
+  Check( FMOD_Channel_SetPaused( iChannel, 0 ) );
 end;
 
 procedure TFMODSound.PlayMusic(aData: Pointer; const aType : Ansistring; aRepeat: Boolean);
 var iSound : PFMOD_SOUND;
 begin
   iSound   := PFMOD_SOUND(DataToSound( aData ));
-  FMOD_ChannelGroup_SetVolume( GGroupMusic, CalculateMusicVolume( MusicVolume ) );
+  FMOD_ChannelGroup_SetVolume( FGroupMusic, CalculateMusicVolume( MusicVolume ) );
   if aRepeat
     then FMOD_Sound_SetLoopCount( iSound, -1 )
     else FMOD_Sound_SetLoopCount( iSound, 0 );
-  FMOD_CHECK( FMOD_System_PlaySound( GSystem, iSound, GGroupMusic, 0, nil ) );
+  Check( FMOD_System_PlaySound( FSystem, iSound, FGroupMusic, 0, nil ) );
 end;
 
 procedure TFMODSound.StopMusic(aData: Pointer; const aType : Ansistring );
 begin
-  FMOD_CHECK( FMOD_ChannelGroup_Stop( GGroupMusic ) );
+  Check( FMOD_ChannelGroup_Stop( FGroupMusic ) );
 end;
 
 procedure TFMODSound.StopSound();
 begin
-  FMOD_CHECK( FMOD_ChannelGroup_Stop( GGroupSounds ) );
+  Check( FMOD_ChannelGroup_Stop( FGroupSounds ) );
 end;
 
 procedure TFMODSound.VolumeMusic(aData: Pointer; const aType : Ansistring; aVolume: Byte );
 begin
-  FMOD_ChannelGroup_SetVolume( GGroupMusic, CalculateMusicVolume( aVolume ) );
+  FMOD_ChannelGroup_SetVolume( FGroupMusic, CalculateMusicVolume( aVolume ) );
 end;
 
 function TFMODSound.CalculateMusicVolume( aVolume : Byte ) : Single;
@@ -339,8 +334,11 @@ begin
   Exit( FInternalDataArray[ iIndex - 1 ].struct );
 end;
 
-initialization
-
-GSystem := nil;
+procedure TFMODSound.Check( aResult : FMOD_RESULT );
+begin
+  FLastError := aResult;
+  if aResult <> FMOD_OK then
+    Log( LOGERROR, 'FMOD error : '+FMOD_ErrorString(aResult));
+end;
 
 end.

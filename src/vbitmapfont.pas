@@ -14,8 +14,8 @@ type TBitmapFontGylph = record
 end;
 
 type TBitmapFont = class(TVObject)
-  constructor CreateFromGrid( aTextureID : TTextureID; aGridX : DWord; aCount : Byte; aShift : Byte = 0 );
-  constructor CreateFromGrid( aTextureID : TTextureID; aCount : DWord; aWidthData : PByte; aShift : Byte = 0; aSkip : Byte = 0 );
+  constructor CreateFromGrid( aTexture : TTexture; aGridX : DWord; aCount : Byte; aShift : Byte = 0 );
+  constructor CreateFromGrid( aTexture : TTexture; aCount : DWord; aWidthData : PByte; aShift : Byte = 0; aSkip : Byte = 0 );
   destructor Destroy; override;
   procedure SetTexCoord( out aTexCoord : TGLRawQTexCoord; aChar : Char );
   function GetPosition( aChar : Char ) : TGLVec2i;
@@ -29,13 +29,13 @@ public
   FGLGylphSize   : TGLVec2f;
   FGylphSize     : TGLVec2i;
   FCount         : DWord;
-  FTextureID     : TTextureID;
+  FTexture       : TTexture; // borrowed; the texture owner outlives the font
   FGylphs        : array of TBitmapFontGylph;
 public
   property Image       : TImage     read GetImage;
   property GLGylphSize : TGLVec2f   read FGLGylphSize;
   property GylphSize   : TGLVec2i   read FGylphSize;
-  property TextureID   : TTextureID read FTextureID;
+  property Texture     : TTexture   read FTexture;
   property GLTexture   : DWord      read GetGLTexture;
 end;
 
@@ -45,17 +45,15 @@ uses math;
 
 { TBitmapFont }
 
-constructor TBitmapFont.CreateFromGrid ( aTextureID : TTextureID; aGridX : DWord; aCount : Byte; aShift : Byte ) ;
+constructor TBitmapFont.CreateFromGrid ( aTexture : TTexture; aGridX : DWord; aCount : Byte; aShift : Byte ) ;
 var iIndex     : Byte;
     iGridY     : Byte;
-    iTexture   : TTexture;
 begin
-  FTextureID := aTextureID;
+  FTexture   := aTexture;
   Prepare( aCount + aShift );
   iGridY     := Ceil( aCount / aGridX );
-  iTexture   := TTextureManager.Get().Texture[ aTextureID ];
-  FGylphSize.Init( iTexture.Size.X div aGridX, iTexture.Size.Y div iGridY );
-  FGLGylphSize.Init( iTexture.GLSize.X / aGridX, iTexture.GLSize.Y / iGridY );
+  FGylphSize.Init( FTexture.Size.X div aGridX, FTexture.Size.Y div iGridY );
+  FGLGylphSize.Init( FTexture.GLSize.X / aGridX, FTexture.GLSize.Y / iGridY );
 
   for iIndex := 0 to aCount - 1 do
   with FGylphs[iIndex+aShift] do
@@ -67,15 +65,13 @@ begin
   end;
 end;
 
-constructor TBitmapFont.CreateFromGrid ( aTextureID : TTextureID; aCount : DWord; aWidthData : System.PByte; aShift : Byte; aSkip : Byte ) ;
+constructor TBitmapFont.CreateFromGrid ( aTexture : TTexture; aCount : DWord; aWidthData : System.PByte; aShift : Byte; aSkip : Byte ) ;
 var iIndex     : Byte;
-    iTexture   : TTexture;
 begin
-  FTextureID := aTextureID;
+  FTexture   := aTexture;
   Prepare( aCount + aShift );
-  iTexture   := TTextureManager.Get().Texture[ aTextureID ];
-  FGylphSize.Init( iTexture.Size.X div 16, iTexture.Size.Y div 16 );
-  FGLGylphSize.Init( iTexture.GLSize.X / 16, iTexture.GLSize.Y / 16 );
+  FGylphSize.Init( FTexture.Size.X div 16, FTexture.Size.Y div 16 );
+  FGLGylphSize.Init( FTexture.GLSize.X / 16, FTexture.GLSize.Y / 16 );
 
   for iIndex := 0 to aCount - 1 do
   with FGylphs[iIndex+aShift] do
@@ -108,12 +104,12 @@ end;
 
 function TBitmapFont.GetGLTexture : DWord;
 begin
-  Exit( TTextureManager.Get().Texture[ FTextureID ].GLTexture )
+  Exit( FTexture.GLTexture )
 end;
 
 function TBitmapFont.GetImage : TImage;
 begin
-  Exit( TTextureManager.Get().Texture[ FTextureID ].Image )
+  Exit( FTexture.Image )
 end;
 
 destructor TBitmapFont.Destroy;

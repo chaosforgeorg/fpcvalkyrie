@@ -75,8 +75,6 @@ type TGamePaths = record
     property Paths : TGamePaths read FPaths;
   end;
 
-var Application : TValkyrieApplication;
-
 implementation
 
 uses

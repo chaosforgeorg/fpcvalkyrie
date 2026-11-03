@@ -1659,19 +1659,23 @@ end;
 
 // -------- Kills table functions ------------------------------------ //
 
-var GKills : TKillTable;
+// The kills natives carry their table as upvalue 1.
+function LuaKills( L : Plua_State ) : TKillTable; inline;
+begin
+  Result := TKillTable( lua_touserdata( L, lua_upvalueindex( 1 ) ) );
+end;
 
 function lua_kills_get( L: Plua_State ): Integer; cdecl;
 begin
   if lua_type( L, 2 ) = LUA_TSTRING
-    then lua_pushinteger( L, GKills.Get( lua_tostring( L, 1 ), lua_tostring( L, 2 ) ) )
-    else lua_pushinteger( L, GKills.Get( lua_tostring( L, 1 ) ) );
+    then lua_pushinteger( L, LuaKills( L ).Get( lua_tostring( L, 1 ), lua_tostring( L, 2 ) ) )
+    else lua_pushinteger( L, LuaKills( L ).Get( lua_tostring( L, 1 ) ) );
   Result := 1;
 end;
 
 function lua_kills_get_type( L: Plua_State ): Integer; cdecl;
 begin
-  lua_pushinteger( L, GKills.GetType( lua_tostring( L, 1 ) ) );
+  lua_pushinteger( L, LuaKills( L ).GetType( lua_tostring( L, 1 ) ) );
   Result := 1;
 end;
 
@@ -1679,56 +1683,60 @@ function lua_kills_index( L: Plua_State ): Integer; cdecl;
 var Index  : AnsiString;
 begin
   Index  := lua_tostring( L, 2 );
-       if Index = 'count'                   then lua_pushinteger( L, GKills.Count )
-  else if Index = 'max_count'               then lua_pushinteger( L, GKills.MaxCount )
-  else if Index = 'this_turn'               then lua_pushinteger( L, GKills.ThisTurn )
-  else if Index = 'best_turn'               then lua_pushinteger( L, GKills.BestTurn )
-  else if Index = 'cur_sequence'            then lua_pushinteger( L, GKills.CurrentSequence )
-  else if Index = 'best_sequence'           then lua_pushinteger( L, GKills.BestSequence )
-  else if Index = 'best_sequence_length'    then lua_pushinteger( L, GKills.BestSequenceLength )
-  else if Index = 'no_damage_sequence'      then lua_pushinteger( L, GKills.NoDamageSequence )
-  else if Index = 'best_no_damage_sequence' then lua_pushinteger( L, GKills.BestNoDamageSequence )
+       if Index = 'count'                   then lua_pushinteger( L, LuaKills( L ).Count )
+  else if Index = 'max_count'               then lua_pushinteger( L, LuaKills( L ).MaxCount )
+  else if Index = 'this_turn'               then lua_pushinteger( L, LuaKills( L ).ThisTurn )
+  else if Index = 'best_turn'               then lua_pushinteger( L, LuaKills( L ).BestTurn )
+  else if Index = 'cur_sequence'            then lua_pushinteger( L, LuaKills( L ).CurrentSequence )
+  else if Index = 'best_sequence'           then lua_pushinteger( L, LuaKills( L ).BestSequence )
+  else if Index = 'best_sequence_length'    then lua_pushinteger( L, LuaKills( L ).BestSequenceLength )
+  else if Index = 'no_damage_sequence'      then lua_pushinteger( L, LuaKills( L ).NoDamageSequence )
+  else if Index = 'best_no_damage_sequence' then lua_pushinteger( L, LuaKills( L ).BestNoDamageSequence )
   else luaL_error( L,'Unknown kills table field: %s', PChar(Index) );
   Exit(1);
 end;
 
 // -------- Stats table functions ------------------------------------ //
 
-var GStatistics : TStatistics;
+// The stats natives carry their table as upvalue 1.
+function LuaStatistics( L : Plua_State ) : TStatistics; inline;
+begin
+  Result := TStatistics( lua_touserdata( L, lua_upvalueindex( 1 ) ) );
+end;
 
 function lua_stats_get( L: Plua_State ): Integer; cdecl;
 begin
-  lua_pushinteger( L, GStatistics.GetValue( lua_tostring( L, 1 ) ) );
+  lua_pushinteger( L, LuaStatistics( L ).GetValue( lua_tostring( L, 1 ) ) );
   Result := 1;
 end;
 
 function lua_stats_set( L: Plua_State ): Integer; cdecl;
 begin
-  GStatistics.SetValue( lua_tostring( L, 1 ), lua_tointeger( L, 2 ) );
+  LuaStatistics( L ).SetValue( lua_tostring( L, 1 ), lua_tointeger( L, 2 ) );
   Result := 0;
 end;
 
 function lua_stats_inc( L: Plua_State ): Integer; cdecl;
 begin
-  GStatistics.Inc( lua_tostring( L, 1 ), luaL_optint( L, 2, 1 ) );
+  LuaStatistics( L ).Inc( lua_tostring( L, 1 ), luaL_optint( L, 2, 1 ) );
   Result := 0;
 end;
 
 function lua_stats_max( L: Plua_State ): Integer; cdecl;
 begin
-  GStatistics.Max( lua_tostring( L, 1 ), lua_tointeger( L, 2 ) );
+  LuaStatistics( L ).Max( lua_tostring( L, 1 ), lua_tointeger( L, 2 ) );
   Result := 0;
 end;
 
 function lua_stats_index( L: Plua_State ): Integer; cdecl;
 begin
-  lua_pushinteger( L, GStatistics.GetValue( lua_tostring( L, 2 ) ) );
+  lua_pushinteger( L, LuaStatistics( L ).GetValue( lua_tostring( L, 2 ) ) );
   Result := 1;
 end;
 
 function lua_stats_newindex( L: Plua_State ): Integer; cdecl;
 begin
-  GStatistics.SetValue( lua_tostring( L, 2 ), lua_tointeger( L, 3 ) );
+  LuaStatistics( L ).SetValue( lua_tostring( L, 2 ), lua_tointeger( L, 3 ) );
   Result := 0;
 end;
 
@@ -2016,24 +2024,26 @@ end;
 
 procedure RegisterKillsClass(L: Plua_State; aKills: TKillTable; const aName : AnsiString = 'kills' );
 begin
-  GKills := aKills;
   lua_pushansistring( L, aName );
   lua_createtable( L, 0, 2 );
-  luaL_register( L, nil, killslib_f );
+  lua_pushlightuserdata( L, aKills );
+  luaL_openlib( L, nil, killslib_f, 1 );
   lua_createtable( L, 0, 2 );
-  luaL_register( L, nil, killslib_m );
+  lua_pushlightuserdata( L, aKills );
+  luaL_openlib( L, nil, killslib_m, 1 );
   lua_setmetatable( L, -2 );
   lua_rawset_global( L );
 end;
 
 procedure RegisterStatisticsClass(L: Plua_State; aStatistics: TStatistics; const aName: AnsiString);
 begin
-  GStatistics := aStatistics;
   lua_pushansistring( L, aName );
   lua_createtable( L, 0, 2 );
-  luaL_register( L, nil, statslib_f );
+  lua_pushlightuserdata( L, aStatistics );
+  luaL_openlib( L, nil, statslib_f, 1 );
   lua_createtable( L, 0, 2 );
-  luaL_register( L, nil, statslib_m );
+  lua_pushlightuserdata( L, aStatistics );
+  luaL_openlib( L, nil, statslib_m, 1 );
   lua_setmetatable( L, -2 );
   lua_rawset_global( L );
 end;

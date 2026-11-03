@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vglconsole;
 interface
-uses Classes, SysUtils, vgltypes, viotypes, vioconsole, vglprogram, vbitmapfont;
+uses Classes, SysUtils, vgltypes, viotypes, vioconsole, vglprogram, vbitmapfont, vtextures;
 
 type TGLCell = packed record
   fgcolor : Cardinal;
@@ -43,7 +43,7 @@ private
   function MakeColor( aColor : TIOColor ) : TIOColor;
 private
   FDriver       : TIODriver; // borrowed; IO destroys the renderer before its driver
-  FOwnTextures  : Boolean;
+  FTextures     : TTextureManager; // owns the font texture loaded from a file, else nil
   FFont         : TBitmapFont;
   FCurVisible   : Boolean;
   FLineSpace    : DWord;
@@ -74,7 +74,7 @@ end;
 
 implementation
 
-uses dateutils, vgl3library, vmath, vutil, vcolor, vtextures;
+uses dateutils, vgl3library, vmath, vutil, vcolor;
 
 var EmptyTexCoord  : TGLRawQTexCoord;
 
@@ -229,29 +229,20 @@ begin
   FDriver := aDriver;
   inherited Create( aSizeX, aSizeY, aReqCapabilities );
   Initialize( aFont, aLineSpace );
-  FOwnTextures  := False;
   FGlyphStretch := False;
 end;
 
 constructor TGLConsoleRenderer.Create( aDriver : TIODriver; aFont : AnsiString; aFontGridX, aFontCount, aFontShift, aSizeX, aSizeY : DWord; aLineSpace : DWord; aReqCapabilities : TIOConsoleCapSet ) ;
-var iTextureID : TTextureID;
+var iTexture : TTexture;
 begin
   FDriver := aDriver;
   inherited Create( aSizeX, aSizeY, aReqCapabilities );
-  FOwnTextures  := False;
   FGlyphStretch := False;
-  if not TTextureManager.Initialized then
-  begin
-    FOwnTextures  := True;
-    TTextureManager.Create();
-  end;
-  with TTextureManager.Get() do
-  begin
-    iTextureID := AddFile( aFont, BlendDefault );
-    Texture[ iTextureID ].Image.SubstituteColor( ColorBlack, ColorZero );
-    Texture[ iTextureID ].Upload;
-  end;
-  Initialize( TBitmapFont.CreateFromGrid( iTextureID, aFontGridX, aFontCount, aFontShift ), aLineSpace );
+  FTextures := TTextureManager.Create();
+  iTexture  := FTextures[ FTextures.AddFile( aFont, FTextures.BlendDefault ) ];
+  iTexture.Image.SubstituteColor( ColorBlack, ColorZero );
+  iTexture.Upload;
+  Initialize( TBitmapFont.CreateFromGrid( iTexture, aFontGridX, aFontCount, aFontShift ), aLineSpace );
 end;
 
 procedure TGLConsoleRenderer.OutputChar ( x, y : Integer; aColor : TIOColor; aChar : char ) ;
@@ -532,7 +523,7 @@ begin
   glDeleteVertexArrays(1, @FTriangleVAO);
   FreeAndNil( FFont );
   FreeAndNil( FProgram );
-  if FOwnTextures then TTextureManager.Get().Free;
+  FreeAndNil( FTextures );
   inherited Destroy;
 end;
 

@@ -30,8 +30,6 @@ type TTextureArray     = specialize TGObjectArray<TTexture>;
 
 type TTextureManager = class( TVObject )
   constructor Create( aDefaultBlend : Boolean = False );
-  class function Get : TTextureManager;
-  class function Initialized : Boolean;
   procedure Clear;
   destructor Destroy; override;
 
@@ -60,8 +58,6 @@ end;
 implementation
 
 uses vgl3library, vglimage, vutil;
-
-var TextureManager : TTextureManager = nil;
 
 constructor TTexture.Create( aImage : TImage; aBlend : Boolean );
 begin
@@ -119,22 +115,9 @@ end;
 constructor TTextureManager.Create( aDefaultBlend : Boolean = False );
 begin
   LoadGL3;
-  Assert( TextureManager = nil );
-  TextureManager := Self;
   FTextureIDs := TTextureIDHashMap.Create( HashMap_RaiseAll );
   FTextures   := TTextureArray.Create;
   FBlendDef   := aDefaultBlend;
-end;
-
-class function TTextureManager.Get : TTextureManager;
-begin
-  Assert( TextureManager <> nil );
-  Exit( TextureManager );
-end;
-
-class function TTextureManager.Initialized : Boolean;
-begin
-  Exit( TextureManager <> nil );
 end;
 
 procedure TTextureManager.Clear;
@@ -145,7 +128,6 @@ end;
 
 destructor TTextureManager.Destroy;
 begin
-  TextureManager := nil;
   FreeAndNil( FTextureIDs );
   FreeAndNil( FTextures );
   inherited Destroy;

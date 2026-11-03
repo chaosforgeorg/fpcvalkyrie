@@ -32,8 +32,6 @@ private
   FLastMousePos : TPoint;
 end;
 
-var TextIO : TTextIODriver = nil;
-
 implementation
 
 uses
@@ -137,7 +135,7 @@ begin
 end;
 
 
-function MouseEventToIOEvent( aMouseEvent: TMouseEvent ) : TIOEvent;
+function MouseEventToIOEvent( aMouseEvent : TMouseEvent; var aLastMousePos : vutil.TPoint ) : TIOEvent;
 begin
   case aMouseEvent.Action of
     MouseActionDown : Result.EType := VEVENT_MOUSEDOWN;
@@ -148,8 +146,8 @@ begin
   begin
     Result.MouseMove.ButtonState := MouseButtonToVMBSet( aMouseEvent.buttons );
     Result.MouseMove.Pos.Init( aMouseEvent.x, aMouseEvent.y );
-    Result.MouseMove.RelPos := Result.MouseMove.Pos - TextIO.FLastMousePos;
-    TextIO.FLastMousePos := Result.MouseMove.Pos;
+    Result.MouseMove.RelPos := Result.MouseMove.Pos - aLastMousePos;
+    aLastMousePos := Result.MouseMove.Pos;
   end
   else
   begin
@@ -230,7 +228,6 @@ begin
   {$ENDIF}
 
   ClearInterrupts;
-  TextIO := Self;
   FMouse := aMouse;
 
   inherited Create;
@@ -312,7 +309,7 @@ begin
   begin
     if (not FMouse) or (not PollMouseEvent( iMouseEvent )) then Exit( False );
     GetMouseEvent( iMouseEvent );
-    aEvent := MouseEventToIOEvent( iMouseEvent );
+    aEvent := MouseEventToIOEvent( iMouseEvent, FLastMousePos );
   end
   else
     aEvent := KeyEventToIOEvent( GetKeyEvent );
@@ -326,7 +323,7 @@ begin
   if PollKey = 0 then
   begin
     if (not FMouse) or (not PollMouseEvent( iMouseEvent )) then Exit( False );
-    aEvent := MouseEventToIOEvent( iMouseEvent );
+    aEvent := MouseEventToIOEvent( iMouseEvent, FLastMousePos );
   end
   else
     aEvent := KeyEventToIOEvent( PollKeyEvent );
