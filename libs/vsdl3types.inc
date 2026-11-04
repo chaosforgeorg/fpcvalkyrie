@@ -152,7 +152,9 @@ type SDL_GamepadType = (
   SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT  = 8,
   SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT = 9,
   SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR  = 10,
-  SDL_GAMEPAD_TYPE_COUNT                  = 11
+  SDL_GAMEPAD_TYPE_GAMECUBE               = 11,
+  SDL_GAMEPAD_TYPE_STEAM                  = 12,
+  SDL_GAMEPAD_TYPE_COUNT                  = 13
 );
 
 type SDL_GamepadButton = (
@@ -529,6 +531,8 @@ SDL_PenProximityEvent = record
   timestamp: UInt64;
   windowID: UInt32;
   which: UInt32; // SDL_PenID
+  pen_state: UInt32; // SDL_PenInputFlags
+  device_type: Sint32; // SDL_PenDeviceType
 end;
 
 // Pen motion
@@ -541,6 +545,7 @@ SDL_PenMotionEvent = record
   pen_state: UInt32; // SDL_PenInputFlags
   x: Single;
   y: Single;
+  device_type: Sint32; // SDL_PenDeviceType
 end;
 
 // Pen touch (down/up)
@@ -555,6 +560,7 @@ SDL_PenTouchEvent = record
   y: Single;
   eraser: SDL_Bool;
   down: SDL_Bool;
+  device_type: Sint32; // SDL_PenDeviceType
 end;
 
 // Pen button
@@ -569,6 +575,7 @@ SDL_PenButtonEvent = record
   y: Single;
   button: UInt8; // first button is 1
   down: SDL_Bool;
+  device_type: Sint32; // SDL_PenDeviceType
 end;
 
 // Pen axis (pressure/tilt/etc)
@@ -583,6 +590,7 @@ SDL_PenAxisEvent = record
   y: Single;
   axis: UInt32;  // SDL_PenAxis
   value: Single;
+  device_type: Sint32; // SDL_PenDeviceType
 end;
 
 // Drag & drop

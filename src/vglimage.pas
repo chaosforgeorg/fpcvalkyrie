@@ -16,50 +16,54 @@ implementation
 
 uses
   vgl3library,
-  vsdl3library,
-  vsdl3imagelibrary;
+  vsdl3library;
 
 
+// Takes ownership of aSurface.
 function LoadImage( aSurface : PSDL_Surface ): TImage;
 var iBufSize : QWord;
     iBuf     : Pointer;
 begin
   Assert( aSurface <> nil );
-  iBufSize := QWord(aSurface^.w) * QWord(aSurface^.h) * 4;
-  GetMem(iBuf, iBufSize);
-  if not SDL_ConvertPixels(
-    aSurface^.w, aSurface^.h,
-    aSurface^.format, aSurface^.pixels, aSurface^.pitch,
-    SDL_PIXELFORMAT_ABGR8888,
-    iBuf, aSurface^.w * 4
-  ) then
-  begin
-    FreeMem(iBuf);
-    raise TImageException.Create(SDL_GetError());
-  end;
+  try
+    iBufSize := QWord(aSurface^.w) * QWord(aSurface^.h) * 4;
+    GetMem(iBuf, iBufSize);
+    if not SDL_ConvertPixels(
+      aSurface^.w, aSurface^.h,
+      aSurface^.format, aSurface^.pixels, aSurface^.pitch,
+      SDL_PIXELFORMAT_ABGR8888,
+      iBuf, aSurface^.w * 4
+    ) then
+    begin
+      FreeMem(iBuf);
+      raise TImageException.Create(SDL_GetError());
+    end;
 
-  Result := TImage.CreateAssign( iBuf, aSurface^.w, aSurface^.h);
-  Result.RawX := aSurface^.w;
-  Result.RawY := aSurface^.h;
+    Result := TImage.CreateAssign( iBuf, aSurface^.w, aSurface^.h);
+    Result.RawX := aSurface^.w;
+    Result.RawY := aSurface^.h;
+  finally
+    SDL_DestroySurface( aSurface );
+  end;
 end;
 
 function LoadImage( const FileName : Ansistring ) : TImage;
 var iSDLSurface : PSDL_Surface;
 begin
-  LoadSDL3Image;
-  iSDLSurface := IMG_Load( PChar( FileName ) );
+  LoadSDL3;
+  iSDLSurface := SDL_LoadPNG( PChar( FileName ) );
   if iSDLSurface = nil then
-    raise TImageException.Create('LoadImage('+FileName+') : '+SDL_GetError()+' (png/jpg library or file missing?)' );
+    raise TImageException.Create('LoadImage('+FileName+') : '+SDL_GetError() );
   Exit( LoadImage( iSDLSurface ) );
 end;
 
 function LoadImage( Stream : TStream; Size : DWord ): TImage;
 var iSDLSurface : PSDL_Surface;
 begin
-  LoadSDL3Image;
-  iSDLSurface := IMG_Load_IO( SDL_IOFromStream( Stream, Size, False, True ), True );
+  LoadSDL3;
+  iSDLSurface := SDL_LoadPNG_IO( SDL_IOFromStream( Stream, Size, False, True ), True );
   if iSDLSurface = nil then
-    raise TImageException.Create('LoadImage(RWOps) : '+SDL_GetError()+' (png/jpg library or file missing?)' );
+    raise TImageException.Create('LoadImage(stream) : '+SDL_GetError() );
   Exit( LoadImage( iSDLSurface ) );
 end;
 

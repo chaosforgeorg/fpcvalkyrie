@@ -24,12 +24,8 @@ const
 {$ELSE}
   {$IFDEF DARWIN}
     SDL3MixerDefaultPath = 'SDL3_mixer.framework/SDL3_mixer';
-    {$linklib SDLmain}
-    {$linkframework Cocoa}
-    {$linkframework SDL}
-    {$PASCALMAINNAME SDL_main}
   {$ELSE}
-  SDL3MixerDefaultPath = 'libSDL3_mixer-3.0.so.0';
+  SDL3MixerDefaultPath = 'libSDL3_mixer.so.0';
   {$ENDIF}
 {$ENDIF}
 
@@ -43,8 +39,8 @@ type
 const
 
   SDL_MIXER_MAJOR_VERSION = 3;
-  SDL_MIXER_MINOR_VERSION = 1;
-  SDL_MIXER_PATCHLEVEL    = 0;
+  SDL_MIXER_MINOR_VERSION = 2;
+  SDL_MIXER_PATCHLEVEL    = 4;
 
 
 
@@ -99,7 +95,7 @@ var
   MIX_LoadRawAudio             : function(mixer: PMIX_Mixer; const data: Pointer; datalen: NativeUInt; const spec: PSDL_AudioSpec): PMIX_Audio; cdecl;
   MIX_LoadRawAudioNoCopy       : function(mixer: PMIX_Mixer; const data: Pointer; datalen: NativeUInt; const spec: PSDL_AudioSpec; free_when_done: Boolean): PMIX_Audio; cdecl;
 
-  MIX_CreateSineWaveAudio      : function(mixer: PMIX_Mixer; hz: Integer; amplitude: Single): PMIX_Audio; cdecl;
+  MIX_CreateSineWaveAudio      : function(mixer: PMIX_Mixer; hz: Integer; amplitude: Single; ms: Int64): PMIX_Audio; cdecl;
 
   MIX_GetAudioProperties       : function(audio: PMIX_Audio): SDL_PropertiesID; cdecl;
   MIX_GetAudioDuration         : function(audio: PMIX_Audio): Int64; cdecl;
@@ -120,7 +116,7 @@ var
 
   MIX_SetTrackPlaybackPosition : function(track: PMIX_Track; frames: Int64): Boolean; cdecl;
   MIX_GetTrackPlaybackPosition : function(track: PMIX_Track): Int64; cdecl;
-  MIX_TrackLooping             : function(track: PMIX_Track): Boolean; cdecl;
+  MIX_GetTrackLoops            : function(track: PMIX_Track): Integer; cdecl;
   MIX_GetTrackAudio            : function(track: PMIX_Track): PMIX_Audio; cdecl;
   MIX_GetTrackAudioStream      : function(track: PMIX_Track): PSDL_AudioStream; cdecl;
   MIX_GetTrackRemaining        : function(track: PMIX_Track): Int64; cdecl;
@@ -151,8 +147,8 @@ var
   MIX_TrackPlaying             : function(track: PMIX_Track): Boolean; cdecl;
   MIX_TrackPaused              : function(track: PMIX_Track): Boolean; cdecl;
 
-  MIX_SetMasterGain            : function(mixer: PMIX_Mixer; gain: Single): Boolean; cdecl;
-  MIX_GetMasterGain            : function(mixer: PMIX_Mixer): Single; cdecl;
+  MIX_SetMixerGain             : function(mixer: PMIX_Mixer; gain: Single): Boolean; cdecl;
+  MIX_GetMixerGain             : function(mixer: PMIX_Mixer): Single; cdecl;
 
   MIX_SetTrackGain             : function(track: PMIX_Track; gain: Single): Boolean; cdecl;
   MIX_GetTrackGain             : function(track: PMIX_Track): Single; cdecl;
@@ -181,7 +177,7 @@ var
   MIX_SetGroupPostMixCallback  : function(group: PMIX_Group; cb: MIX_GroupMixCallback; userdata: Pointer): Boolean; cdecl;
   MIX_SetPostMixCallback       : function(mixer: PMIX_Mixer; cb: MIX_PostMixCallback; userdata: Pointer): Boolean; cdecl;
 
-  MIX_Generate                 : function(mixer: PMIX_Mixer; buffer: Pointer; buflen: Integer): Boolean; cdecl;
+  MIX_Generate                 : function(mixer: PMIX_Mixer; buffer: Pointer; buflen: Integer): Integer; cdecl;
 
   MIX_CreateAudioDecoder       : function(const path: PAnsiChar; props: SDL_PropertiesID): PMIX_AudioDecoder; cdecl;
   MIX_CreateAudioDecoder_IO    : function(io: PSDL_IOStream; closeio: Boolean; props: SDL_PropertiesID): PMIX_AudioDecoder; cdecl;
@@ -243,7 +239,7 @@ begin
   Pointer(MIX_UntagTrack)               := GetSymbol('MIX_UntagTrack');
   Pointer(MIX_SetTrackPlaybackPosition) := GetSymbol('MIX_SetTrackPlaybackPosition');
   Pointer(MIX_GetTrackPlaybackPosition) := GetSymbol('MIX_GetTrackPlaybackPosition');
-  Pointer(MIX_TrackLooping)             := GetSymbol('MIX_TrackLooping');
+  Pointer(MIX_GetTrackLoops)            := GetSymbol('MIX_GetTrackLoops');
   Pointer(MIX_GetTrackAudio)            := GetSymbol('MIX_GetTrackAudio');
   Pointer(MIX_GetTrackAudioStream)      := GetSymbol('MIX_GetTrackAudioStream');
   Pointer(MIX_GetTrackRemaining)        := GetSymbol('MIX_GetTrackRemaining');
@@ -267,8 +263,8 @@ begin
   Pointer(MIX_ResumeTag)                := GetSymbol('MIX_ResumeTag');
   Pointer(MIX_TrackPlaying)             := GetSymbol('MIX_TrackPlaying');
   Pointer(MIX_TrackPaused)              := GetSymbol('MIX_TrackPaused');
-  Pointer(MIX_SetMasterGain)            := GetSymbol('MIX_SetMasterGain');
-  Pointer(MIX_GetMasterGain)            := GetSymbol('MIX_GetMasterGain');
+  Pointer(MIX_SetMixerGain)             := GetSymbol('MIX_SetMixerGain');
+  Pointer(MIX_GetMixerGain)             := GetSymbol('MIX_GetMixerGain');
   Pointer(MIX_SetTrackGain)             := GetSymbol('MIX_SetTrackGain');
   Pointer(MIX_GetTrackGain)             := GetSymbol('MIX_GetTrackGain');
   Pointer(MIX_SetTagGain)               := GetSymbol('MIX_SetTagGain');

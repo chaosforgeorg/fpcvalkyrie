@@ -91,8 +91,7 @@ end;
 
 implementation
 
-uses Math, vdebug, vgl3library,
-     vsdl3imagelibrary{$IFDEF WINDOWS}, Windows{$ENDIF};
+uses Math, vdebug, vgl3library{$IFDEF WINDOWS}, Windows{$ENDIF};
 
 function SDLSymToCode( Key : SDL_Keycode ) : Byte;
 begin
@@ -475,6 +474,7 @@ begin
 end;
 
 constructor TSDLIODriver.Create( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags );
+var iVersion : Sint32;
 begin
   inherited Create;
   ClearPadEventState;
@@ -496,6 +496,12 @@ begin
     raise EIOException.Create( 'Could not load SDL3.' );
 
   Log('Initializing SDL...');
+  iVersion := SDL_GetVersion();
+  Log( LOGINFO, 'SDL Version         : %d.%d.%d (compiled for %d.%d.%d)',
+    [ iVersion div 1000000, ( iVersion div 1000 ) mod 1000, iVersion mod 1000,
+      SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL ] );
+  if iVersion < SDL_VERSION then
+    Log( LOGWARN, 'SDL library is older than the version Valkyrie was compiled for.' );
 
   if not SDL_Init( SDL_INIT_VIDEO or SDL_INIT_GAMEPAD ) then
   begin
@@ -905,7 +911,7 @@ begin
       iRGB := SDL_ConvertSurface(iSurface, SDL_PIXELFORMAT_RGB24);
       if iRGB = nil then raise Exception.Create(SDL_GetError());
       try
-        if not IMG_SavePNG( iRGB, PAnsiChar(aFileName) ) then
+        if not SDL_SavePNG( iRGB, PAnsiChar(aFileName) ) then
           raise Exception.Create(SDL_GetError());
         Result := True;
       finally
