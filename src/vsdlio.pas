@@ -9,7 +9,7 @@ type TSDLIOFlag  = ( SDLIO_OpenGL, SDLIO_FullScreen, SDLIO_Resizable,
 
 // Architectural boundary: owns SDL window, event, and capture mechanics only.
 // Renderer, path, and game policy belong to callers.
-type TSDLIODriver = class( TIODriver )
+type TSDLIODriver = class( TIOWindowDriver )
   class function GetCurrentResolution( out aResult : TIOPoint ) : Boolean;
 
   constructor Create( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags );
@@ -41,6 +41,16 @@ type TSDLIODriver = class( TIODriver )
   procedure SetClipboard( const aValue : Ansistring ); override;
   function GetClipboard : Ansistring; override;
   function Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean; override;
+  function SetWindowMode( aMode : TIOWindowMode ) : Boolean; override;
+  function GetWindowSize( out aSize : TIOPoint ) : Boolean; override;
+  function SetWindowSize( const aSize : TIOPoint; aCenter : Boolean ) : Boolean; override;
+  function GetUsableArea( out aArea : TIORect ) : Boolean; override;
+  function GetWindowDisplay( out aIndex : Integer ) : Boolean; override;
+  function MoveToDisplay( aIndex : Integer ) : Boolean; override;
+  function ReadMetrics( out aMetrics : TIODisplayMetrics ) : Boolean; override;
+  function SetWindowLimits( const aMinimumPixels : TIOPoint; aResizable : Boolean ) : Boolean; override;
+protected
+  procedure RefreshDisplays; override;
 private
   FFlags      : TSDLIOFlags;
   FSizeX      : DWord;
@@ -63,6 +73,13 @@ private
   FPadTriggerState    : TIOPadTriggerState;
   FPendingPadEvent    : TIOEvent;
   FHasPendingPadEvent : Boolean;
+
+  FDisplayIDs     : array of SDL_DisplayID; // parallel to Displays
+  FPixelDensity   : Single;
+  FMinimumPixels  : TIOPoint;
+  FResizable      : Boolean;
+  FLimitsSet      : Boolean;
+  FLimitsDensity  : Single;
 private
   function EventToIOEvent( event : PSDL_Event ) : TIOEvent;
   function MouseEventToIOEvent( event : PSDL_Event ) : TIOEvent;
@@ -75,6 +92,11 @@ private
   function ScanGamepads( aAllowLoop : Boolean = True ) : Boolean;
   procedure SetGamePadSupport( aValue : Boolean  );
   procedure SetMouseSupport( aValue : Boolean );
+  function ConsumeWindowKey( aEvent : PSDL_Event ) : Boolean;
+  function PeekQueuedEvent( out aEvent : SDL_Event ) : Boolean;
+  function MouseScale : Single;
+  function ApplyWindowLimits : Boolean;
+  function IsWindowFullscreen : Boolean;
 public
   property Width : DWord            read FSizeX;
   property Height : DWord           read FSizeY;
@@ -278,8 +300,8 @@ begin
     SDL_EVENT_MOUSE_BUTTON_UP   : Result.EType := VEVENT_MOUSEUP;
   end;
   Result.Mouse.Button  := SDLMouseButtonToVMB( event^.button.button );
-  Result.Mouse.Pos.X   := Trunc( event^.button.x );
-  Result.Mouse.Pos.Y   := Trunc( event^.button.y );
+  Result.Mouse.Pos.X   := Trunc( event^.button.x * MouseScale );
+  Result.Mouse.Pos.Y   := Trunc( event^.button.y * MouseScale );
   Result.Mouse.Pressed := event^.button.down;
 end;
 
@@ -320,15 +342,17 @@ begin
 end;
 
 function TSDLIODriver.MouseMoveEventToIOEvent( event : PSDL_Event ) : TIOEvent;
+var iScale : Single;
 begin
+  iScale := MouseScale;
   Result.EType := VEVENT_MOUSEMOVE;
   Result.MouseMove.ButtonState := SDLMouseButtonSetToVMB( event^.motion.state );
-  Result.MouseMove.Pos.X       := Trunc( event^.motion.x );
-  Result.MouseMove.Pos.Y       := Trunc( event^.motion.y );
-  Result.MouseMove.RelPos.X    := Trunc( event^.motion.xrel );
-  Result.MouseMove.RelPos.Y    := Trunc( event^.motion.yrel );
-  FLastMouseX := Trunc( event^.motion.x );
-  FLastMouseY := Trunc( event^.motion.y );
+  Result.MouseMove.Pos.X       := Trunc( event^.motion.x * iScale );
+  Result.MouseMove.Pos.Y       := Trunc( event^.motion.y * iScale );
+  Result.MouseMove.RelPos.X    := Trunc( event^.motion.xrel * iScale );
+  Result.MouseMove.RelPos.Y    := Trunc( event^.motion.yrel * iScale );
+  FLastMouseX := Result.MouseMove.Pos.X;
+  FLastMouseY := Result.MouseMove.Pos.Y;
 end;
 
 function TSDLIODriver.EventToIOEvent( event : PSDL_Event ) : TIOEvent;
@@ -364,6 +388,36 @@ var iCode : TIOKeyCode;
     iDriver : TSDLIODriver;
 begin
   iDriver := TSDLIODriver( userdata );
+  // State over events: mark display state for a fresh read whatever happens to
+  // the queued event later (ClearEventBuffer, layers, game loops).
+  case event^._type of
+    SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED,
+    SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED :
+      begin
+        iDriver.FPixelDensity := SDL_GetWindowPixelDensity( iDriver.FWindow );
+        iDriver.FDisplayDirty := True;
+      end;
+    SDL_EVENT_WINDOW_MOVED,
+    SDL_EVENT_WINDOW_RESIZED,
+    SDL_EVENT_WINDOW_MINIMIZED,
+    SDL_EVENT_WINDOW_MAXIMIZED,
+    SDL_EVENT_WINDOW_RESTORED,
+    SDL_EVENT_WINDOW_DISPLAY_CHANGED,
+    SDL_EVENT_WINDOW_ENTER_FULLSCREEN,
+    SDL_EVENT_WINDOW_LEAVE_FULLSCREEN :
+      iDriver.FDisplayDirty := True;
+    SDL_EVENT_DISPLAY_ORIENTATION,
+    SDL_EVENT_DISPLAY_ADDED,
+    SDL_EVENT_DISPLAY_REMOVED,
+    SDL_EVENT_DISPLAY_MOVED,
+    SDL_EVENT_DISPLAY_DESKTOP_MODE_CHANGED,
+    SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED,
+    SDL_EVENT_DISPLAY_CONTENT_SCALE_CHANGED :
+      begin
+        iDriver.FDisplaysDirty := True;
+        iDriver.FDisplayDirty  := True;
+      end;
+  end;
   if event^._type = SDL_EVENT_QUIT then
     if Assigned( iDriver.FOnQuit ) then
       if iDriver.FOnQuit( iDriver.EventToIOEvent( event ) ) then
@@ -486,6 +540,11 @@ begin
   FGamePadIndex   := -1;
   FGamePadHandle  := nil;
   FGamePadRumble  := False;
+  FPixelDensity   := 1.0;
+  FMinimumPixels  := vutil.Point( 0, 0 );
+  FResizable      := SDLIO_Resizable in aFlags;
+  FLimitsSet      := False;
+  FLimitsDensity  := 1.0;
   {$IFDEF WINDOWS}
   SetDPIAwareness;
   {$ENDIF}
@@ -518,6 +577,8 @@ begin
   end;
 
   Log('Mode %dx%d/%d set.', [aWidth,aHeight,aBPP]);
+  FPixelDensity := SDL_GetWindowPixelDensity( FWindow );
+  if FPixelDensity <= 0 then FPixelDensity := 1.0;
 
   if SDLIO_OpenGL in aFlags then
   begin
@@ -717,7 +778,9 @@ begin
     Exit( True );
   end;
 
-  Result := SDL_PollEvent( @event );
+  repeat
+    Result := SDL_PollEvent( @event );
+  until not ( Result and ConsumeWindowKey( @event ) );
   if Result then
   begin
     aEvent := EventToIOEvent( @event );
@@ -738,16 +801,41 @@ begin
     Exit( True );
   end;
 
-  Result := SDL_PollEvent( nil );
-  if not Result then Exit;
-  Result := (SDL_PeepEvents( @event, 1, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST ) > 0 );
+  Result := PeekQueuedEvent( event );
   if Result then
     aEvent := EventToIOEvent( @event );
 end;
 
 function TSDLIODriver.EventPending : Boolean;
+var iEvent : SDL_Event;
 begin
-  Result := FHasPendingPadEvent or SDL_PollEvent( nil );
+  Result := FHasPendingPadEvent or PeekQueuedEvent( iEvent );
+end;
+
+// Pumps, then peeks the head of the queue, removing window-control keys so
+// no caller sees an event that PollEvent would not deliver.
+function TSDLIODriver.PeekQueuedEvent( out aEvent : SDL_Event ) : Boolean;
+begin
+  repeat
+    if not SDL_PollEvent( nil ) then Exit( False );
+    if SDL_PeepEvents( @aEvent, 1, SDL_PEEKEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST ) <= 0 then Exit( False );
+    if not ConsumeWindowKey( @aEvent ) then Exit( True );
+    SDL_PeepEvents( @aEvent, 1, SDL_GETEVENT, SDL_EVENT_FIRST, SDL_EVENT_LAST );
+  until False;
+end;
+
+// Alt+Enter is recognized here, on the main thread and outside the event
+// filter, so loops that poll or discard events cannot lose the toggle.
+function TSDLIODriver.ConsumeWindowKey( aEvent : PSDL_Event ) : Boolean;
+begin
+  if not FDisplayManaged then Exit( False );
+  if aEvent^._type <> SDL_EVENT_KEY_DOWN then Exit( False );
+  if aEvent^.key.key <> SDLK_RETURN then Exit( False );
+  if ( aEvent^.key.mod_ and SDL_KMOD_ALT ) = 0 then Exit( False );
+  if ( aEvent^.key.mod_ and ( SDL_KMOD_CTRL or SDL_KMOD_SHIFT or SDL_KMOD_GUI ) ) <> 0 then Exit( False );
+  if not aEvent^.key.repeat_ then
+    FToggleRequest := True;
+  Exit( True );
 end;
 
 procedure TSDLIODriver.ClearPadEventState;
@@ -779,6 +867,9 @@ procedure TSDLIODriver.PreUpdate;
 begin
   if FOpenGL then
   begin
+    // The full drawable each frame; games set no viewport for resolution.
+    if FDisplayManaged then
+      glViewport( 0, 0, FSizeX, FSizeY );
     glClearColor(0.0,0.0,0.0,1.0);
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT);
   end;
@@ -842,7 +933,7 @@ begin
   //if SDL_GetAppState() and SDL_APPMOUSEFOCUS = 0 then Exit( False );
   x := 0; y := 0;
   SDL_GetMouseState(@x,@y);
-  aResult := vutil.Point( Trunc(x), Trunc(y) );
+  aResult := vutil.Point( Trunc( x * MouseScale ), Trunc( y * MouseScale ) );
   Exit( True );
 end;
 
@@ -1123,6 +1214,206 @@ function TSDLIODriver.Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean;
 begin
   if (FGamePadHandle = nil) or (not FGamePadRumble) then Exit( False );
   Exit( SDL_RumbleGamepad( FGamePadHandle, aLow, aHigh, aDuration ) );
+end;
+
+function SDLRectToIORect( const aRect : SDL_Rect ) : TIORect;
+begin
+  Result.Init( aRect.x, aRect.y, aRect.w, aRect.h );
+end;
+
+function TSDLIODriver.MouseScale : Single;
+begin
+  if FDisplayManaged
+    then Exit( FPixelDensity )
+    else Exit( 1.0 );
+end;
+
+function TSDLIODriver.IsWindowFullscreen : Boolean;
+begin
+  Exit( SDL_GetWindowFlags( FWindow ) and SDL_WINDOW_FULLSCREEN <> 0 );
+end;
+
+function TSDLIODriver.SetWindowMode( aMode : TIOWindowMode ) : Boolean;
+var iFullscreen : Boolean;
+begin
+  iFullscreen := aMode = VIO_FULLSCREEN;
+  ResetPadEventState( Int32( FGamePadID ) );
+  if iFullscreen and not SDL_SetWindowFullscreenMode( FWindow, nil ) then
+  begin
+    Log( LOGERROR, 'SDL_SetWindowFullscreenMode failed: %s', [ SDL_GetError() ] );
+    Exit( False );
+  end;
+  Result := SDL_SetWindowFullscreen( FWindow, iFullscreen );
+  if Result
+    then FFScreen := iFullscreen
+    else Log( LOGERROR, 'SDL_SetWindowFullscreen failed: %s', [ SDL_GetError() ] );
+end;
+
+function TSDLIODriver.GetWindowSize( out aSize : TIOPoint ) : Boolean;
+var iWidth, iHeight : LongInt;
+begin
+  aSize := vutil.Point( 0, 0 );
+  Result := SDL_GetWindowSize( FWindow, @iWidth, @iHeight );
+  if Result then aSize := vutil.Point( iWidth, iHeight );
+end;
+
+function TSDLIODriver.SetWindowSize( const aSize : TIOPoint; aCenter : Boolean ) : Boolean;
+var iDisplay : SDL_DisplayID;
+begin
+  if IsWindowFullscreen then Exit( False );
+  Result := SDL_SetWindowSize( FWindow, aSize.X, aSize.Y );
+  if not Result then
+  begin
+    Log( LOGERROR, 'SDL_SetWindowSize %dx%d failed: %s', [ aSize.X, aSize.Y, SDL_GetError() ] );
+    Exit;
+  end;
+  if not aCenter then Exit;
+  iDisplay := SDL_GetDisplayForWindow( FWindow );
+  Result := SDL_SetWindowPosition( FWindow,
+    SDL_WINDOWPOS_CENTERED_DISPLAY( LongInt( iDisplay ) ),
+    SDL_WINDOWPOS_CENTERED_DISPLAY( LongInt( iDisplay ) ) );
+end;
+
+function TSDLIODriver.GetUsableArea( out aArea : TIORect ) : Boolean;
+var iRect : SDL_Rect;
+begin
+  aArea.Init( 0, 0, 0, 0 );
+  Result := SDL_GetDisplayUsableBounds( SDL_GetDisplayForWindow( FWindow ), @iRect );
+  if Result then aArea := SDLRectToIORect( iRect );
+end;
+
+procedure TSDLIODriver.RefreshDisplays;
+var iList    : PSDL_DisplayID;
+    iCount   : LongInt;
+    iPrimary : SDL_DisplayID;
+    iRect    : SDL_Rect;
+    iInfo    : TIODisplayInfo;
+    i, j     : Integer;
+begin
+  FDisplays.Clear;
+  SetLength( FDisplayIDs, 0 );
+  iList := SDL_GetDisplays( @iCount );
+  if iList = nil then
+  begin
+    Log( LOGERROR, 'SDL_GetDisplays failed: %s', [ SDL_GetError() ] );
+    Exit;
+  end;
+  iPrimary := SDL_GetPrimaryDisplay();
+  SetLength( FDisplayIDs, iCount );
+  for i := 0 to iCount - 1 do
+  begin
+    iInfo.Name    := AnsiString( SDL_GetDisplayName( iList[i] ) );
+    iInfo.Ordinal := 0;
+    for j := 0 to FDisplays.Size - 1 do
+      if FDisplays[j].Name = iInfo.Name then
+        Inc( iInfo.Ordinal );
+    if not SDL_GetDisplayBounds( iList[i], @iRect ) then
+      FillChar( iRect, SizeOf( iRect ), 0 );
+    iInfo.Bounds := SDLRectToIORect( iRect );
+    if not SDL_GetDisplayUsableBounds( iList[i], @iRect ) then
+      FillChar( iRect, SizeOf( iRect ), 0 );
+    iInfo.Usable  := SDLRectToIORect( iRect );
+    iInfo.Primary := iList[i] = iPrimary;
+    FDisplays.Push( iInfo );
+    FDisplayIDs[i] := iList[i];
+  end;
+  SDL_free( iList );
+end;
+
+function TSDLIODriver.GetWindowDisplay( out aIndex : Integer ) : Boolean;
+var iDisplay : SDL_DisplayID;
+    i        : Integer;
+begin
+  aIndex := -1;
+  iDisplay := SDL_GetDisplayForWindow( FWindow );
+  if iDisplay = 0 then Exit( False );
+  GetDisplays;
+  for i := 0 to High( FDisplayIDs ) do
+    if FDisplayIDs[i] = iDisplay then
+    begin
+      aIndex := i;
+      Exit( True );
+    end;
+  Exit( False );
+end;
+
+function TSDLIODriver.MoveToDisplay( aIndex : Integer ) : Boolean;
+var iDisplay : SDL_DisplayID;
+    iUsable  : SDL_Rect;
+    iWidth   : LongInt;
+    iHeight  : LongInt;
+begin
+  GetDisplays;
+  if ( aIndex < 0 ) or ( aIndex > High( FDisplayIDs ) ) then Exit( False );
+  iDisplay := FDisplayIDs[ aIndex ];
+  iWidth   := 0;
+  iHeight  := 0;
+  FillChar( iUsable, SizeOf( iUsable ), 0 );
+  // A fullscreen window moves directly and stays fullscreen; its floating
+  // size is applied on leaving, so only a windowed size is clamped.
+  if not IsWindowFullscreen then
+    if SDL_GetDisplayUsableBounds( iDisplay, @iUsable ) and
+       SDL_GetWindowSize( FWindow, @iWidth, @iHeight ) and
+       ( ( iWidth > iUsable.w ) or ( iHeight > iUsable.h ) ) then
+      if not SDL_SetWindowSize( FWindow, Min( iWidth, iUsable.w ), Min( iHeight, iUsable.h ) ) then
+        Log( LOGERROR, 'SDL_SetWindowSize failed: %s', [ SDL_GetError() ] );
+  Result := SDL_SetWindowPosition( FWindow,
+    SDL_WINDOWPOS_CENTERED_DISPLAY( LongInt( iDisplay ) ),
+    SDL_WINDOWPOS_CENTERED_DISPLAY( LongInt( iDisplay ) ) );
+  if not Result then
+    Log( LOGERROR, 'SDL_SetWindowPosition failed: %s', [ SDL_GetError() ] );
+end;
+
+function TSDLIODriver.ReadMetrics( out aMetrics : TIODisplayMetrics ) : Boolean;
+var iFlags  : SDL_WindowFlags;
+    iWidth  : LongInt;
+    iHeight : LongInt;
+begin
+  // Cleared first, so events arriving during the read mark it again.
+  FDisplayDirty := False;
+  iFlags := SDL_GetWindowFlags( FWindow );
+  if iFlags and SDL_WINDOW_FULLSCREEN <> 0
+    then aMetrics.Mode := VIO_FULLSCREEN
+    else aMetrics.Mode := VIO_WINDOWED;
+  aMetrics.Maximized := iFlags and SDL_WINDOW_MAXIMIZED <> 0;
+  aMetrics.Minimized := iFlags and SDL_WINDOW_MINIMIZED <> 0;
+  FPixelDensity := SDL_GetWindowPixelDensity( FWindow );
+  if FPixelDensity <= 0 then FPixelDensity := 1.0;
+  aMetrics.PixelDensity := FPixelDensity;
+  iWidth  := 0;
+  iHeight := 0;
+  Result := SDL_GetWindowSizeInPixels( FWindow, @iWidth, @iHeight );
+  aMetrics.PixelSize := vutil.Point( iWidth, iHeight );
+  if Result and ( iWidth > 0 ) and ( iHeight > 0 ) then
+  begin
+    FSizeX := iWidth;
+    FSizeY := iHeight;
+  end;
+  if FLimitsSet and ( FLimitsDensity <> FPixelDensity ) then
+    ApplyWindowLimits;
+end;
+
+function TSDLIODriver.SetWindowLimits( const aMinimumPixels : TIOPoint; aResizable : Boolean ) : Boolean;
+begin
+  FMinimumPixels := aMinimumPixels;
+  FResizable     := aResizable;
+  FLimitsSet     := True;
+  Result := ApplyWindowLimits;
+end;
+
+function TSDLIODriver.ApplyWindowLimits : Boolean;
+begin
+  FLimitsDensity := FPixelDensity;
+  Result := SDL_SetWindowMinimumSize( FWindow,
+    Ceil( FMinimumPixels.X / FPixelDensity ),
+    Ceil( FMinimumPixels.Y / FPixelDensity ) );
+  if not Result then
+    Log( LOGERROR, 'SDL_SetWindowMinimumSize failed: %s', [ SDL_GetError() ] );
+  if not SDL_SetWindowResizable( FWindow, FResizable ) then
+  begin
+    Log( LOGERROR, 'SDL_SetWindowResizable failed: %s', [ SDL_GetError() ] );
+    Result := False;
+  end;
 end;
 
 end.
