@@ -476,6 +476,11 @@ function TGLConsoleRenderer.FitToDevice( const aMinimumSize : TIOPoint;
 var iMaximum : Integer;
 begin
   iMaximum := MaxScaleForDevice( aMinimumSize );
+  // Automatic on a managed window follows its display, so resizing the
+  // window keeps the scale until it no longer fits.
+  if ( aRequestedScale < 1 ) and ( FDriver is TIOWindowDriver ) and TIOWindowDriver( FDriver ).Managed then
+    aRequestedScale := FitScale( MaxInt, aMinimumSize,
+      Point( FFont.GylphSize.X, FFont.GylphSize.Y + FLineSpace ), TIOWindowDriver( FDriver ).DisplaySize );
   if aRequestedScale < 1
     then Result := iMaximum
     else if aRequestedScale > iMaximum

@@ -59,10 +59,12 @@ TIO = class( TSystem )
   class procedure RegisterWindowSettings( aGroup : TConfigurationGroup );
   // Saved fullscreen and size; the game adds its minimum and limits.
   class function WindowSetup( aConfig : TConfigurationManager ) : TIOWindowSetup;
-  // Keeps the shared entries in step with a managed window: an edited entry
-  // changes the window, and window changes are written to the entries.
-  // aConfig is borrowed and must outlive the IO.
+  // Writes window changes (Alt+Enter, resizing) to the shared entries of a
+  // managed window. aConfig is borrowed and must outlive the IO.
   procedure BindWindowSettings( aConfig : TConfigurationManager );
+  // Applies an edited fullscreen entry; call where the game applies its
+  // settings. An unedited entry leaves the window, and a launch override, alone.
+  procedure ApplyWindowSettings;
 protected
   function HandleInput( aInput : Integer ) : Boolean;
   procedure ClearFinishedLayers;
@@ -81,7 +83,7 @@ protected
   FWindowWidthEntry  : TIntegerConfigurationEntry;
   FWindowHeightEntry : TIntegerConfigurationEntry;
   FSyncedFullscreen  : Boolean; // window state at the last sync
-  FSyncedEntry       : Boolean; // entry value at the last sync
+  FSyncedEntry       : Boolean; // entry value at the last sync or apply
   FSyncedWindowSize  : TIOPoint;
   FConsole        : TIOConsoleRenderer;
   FTIGConsoleView : TIOLayer;
@@ -548,7 +550,8 @@ begin
   FSyncedWindowSize  := FWindowDriver.WindowSize;
 end;
 
-// Frame boundary: Alt+Enter, settings, then a layout pass on change.
+// Frame boundary: Alt+Enter, window changes into the settings, then a layout
+// pass on change.
 procedure TIO.UpdateWindow;
 var iMetrics : TIODisplayMetrics;
 begin
@@ -566,19 +569,25 @@ begin
   DisplayChanged( iMetrics );
 end;
 
-// A window change since the last sync is written to the entry; otherwise an
-// edited entry changes the window. A refused change leaves the actual state.
+procedure TIO.ApplyWindowSettings;
+begin
+  if ( FFullscreenEntry = nil ) or ( FFullscreenEntry.Value = FSyncedEntry ) then Exit;
+  FWindowDriver.SetFullscreen( FFullscreenEntry.Value );
+  // A refused change leaves the actual state in the entry.
+  FFullscreenEntry.Value := FWindowDriver.Fullscreen;
+  FSyncedFullscreen      := FWindowDriver.Fullscreen;
+  FSyncedEntry           := FWindowDriver.Fullscreen;
+end;
+
+// Window changes since the last sync are written to the entries.
 procedure TIO.SyncWindowSettings;
 begin
   if FWindowDriver.Fullscreen <> FSyncedFullscreen then
-    FFullscreenEntry.Value := FWindowDriver.Fullscreen
-  else if FFullscreenEntry.Value <> FSyncedEntry then
   begin
-    FWindowDriver.SetFullscreen( FFullscreenEntry.Value );
-    FFullscreenEntry.Value := FWindowDriver.Fullscreen;
+    FSyncedFullscreen      := FWindowDriver.Fullscreen;
+    FSyncedEntry           := FSyncedFullscreen;
+    FFullscreenEntry.Value := FSyncedFullscreen;
   end;
-  FSyncedFullscreen := FWindowDriver.Fullscreen;
-  FSyncedEntry      := FFullscreenEntry.Value;
   if FWindowDriver.WindowSize <> FSyncedWindowSize then
   begin
     FSyncedWindowSize        := FWindowDriver.WindowSize;
