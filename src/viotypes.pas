@@ -71,72 +71,57 @@ public
   property DisplayModes : TIODisplayModeArray read  FDisplayModes default nil;
 end;
 
-type TIOWindowMode = ( VIO_WINDOWED, VIO_FULLSCREEN );
+// Saved settings and game limits for creating a managed window.
+type TIOWindowSetup = record
+  Fullscreen    : Boolean;
+  WindowSize    : TIOPoint; // logical; zero = default size
+  MinimumPixels : TIOPoint;
+  Resizable     : Boolean;
+  AllowWindowed : Boolean;  // False: fullscreen only, Alt+Enter ignored
+end;
 
 type TIODisplayMetrics = record
-  Mode         : TIOWindowMode;
-  Maximized    : Boolean;
-  Minimized    : Boolean;
   PixelSize    : TIOPoint; // drawable; layout and mouse coordinates use this space
   PixelDensity : Single;
+  DisplaySize  : TIOPoint; // pixels of the window's display
+  Fullscreen   : Boolean;
 end;
 
-type TIODisplayInfo = record
-  Name    : AnsiString; // as reported by the platform
-  Ordinal : Integer;    // 0-based among connected displays with the same name
-  Bounds  : TIORect;
-  Usable  : TIORect;
-  Primary : Boolean;
-end;
-
-type TIODisplayInfoArray = specialize TGArray< TIODisplayInfo >;
-
-// Window and display mechanics for the display controller. Holds no policy:
-// presets, persistence and deciding when to apply belong to the controller.
-// Window sizes and display rectangles are logical; metrics are in pixels.
+// Window mechanics TIO uses for a window created as managed. Window sizes
+// are logical; metrics are in drawable pixels.
 type TIOWindowDriver = class( TIODriver )
   constructor Create;
-  destructor Destroy; override;
-  // Changes only the fullscreen state; the floating geometry is kept.
-  function SetWindowMode( aMode : TIOWindowMode ) : Boolean; virtual; abstract;
-  function GetWindowSize( out aSize : TIOPoint ) : Boolean; virtual; abstract;
-  // Fails while fullscreen, where the platform would discard the size.
-  function SetWindowSize( const aSize : TIOPoint; aCenter : Boolean ) : Boolean; virtual; abstract;
-  // Usable area of the display the window is on.
-  function GetUsableArea( out aArea : TIORect ) : Boolean; virtual; abstract;
-  // Index into Displays.
-  function GetWindowDisplay( out aIndex : Integer ) : Boolean; virtual; abstract;
-  // Centers the window on the display, clamping a windowed size to its usable
-  // area; a fullscreen window moves and stays fullscreen.
-  function MoveToDisplay( aIndex : Integer ) : Boolean; virtual; abstract;
+  procedure SetFullscreen( aValue : Boolean ); virtual; abstract;
+  // While fullscreen it is kept and applied, centered, once windowed again.
+  procedure SetWindowSize( const aSize : TIOPoint ); virtual; abstract;
+  // Kept in pixels and reapplied when the pixel density changes.
+  procedure SetMinimumPixels( const aPixels : TIOPoint ); virtual; abstract;
   // Reads the actual state and clears DisplayDirty.
   function ReadMetrics( out aMetrics : TIODisplayMetrics ) : Boolean; virtual; abstract;
-  // The minimum is kept in pixels and reapplied when the pixel density changes.
-  function SetWindowLimits( const aMinimumPixels : TIOPoint; aResizable : Boolean ) : Boolean; virtual; abstract;
-  // Waits for pending window changes; only for launch placement.
-  function SynchronizeWindow : Boolean; virtual; abstract;
-  // True once per fullscreen toggle key press received while DisplayManaged.
+  // True once per Alt+Enter press.
   function TakeToggleRequest : Boolean;
 protected
-  procedure RefreshDisplays; virtual; abstract;
-  function GetDisplays : TIODisplayInfoArray;
-  procedure SetDisplayManaged( aValue : Boolean );
+  function GetDisplaySize : TIOPoint; virtual; abstract;
+  procedure SetAllowWindowed( aValue : Boolean );
 protected
-  FDisplays       : TIODisplayInfoArray;
-  FDisplaysDirty  : Boolean;
-  FDisplayDirty   : Boolean;
-  FToggleRequest  : Boolean;
-  FDisplayManaged : Boolean;
+  FManaged       : Boolean;
+  FFullscreen    : Boolean;
+  FAllowWindowed : Boolean;
+  FWindowSize    : TIOPoint;
+  FDisplayDirty  : Boolean;
+  FToggleRequest : Boolean;
 public
-  // Connected displays in platform order. Borrowed; rebuilt after displays
-  // are added, removed or changed, so do not keep it across frames.
-  property Displays       : TIODisplayInfoArray read GetDisplays;
+  // Created as managed: drawable-pixel mouse, per-frame viewport, Alt+Enter.
+  property Managed       : Boolean  read FManaged;
+  // Requested, or changed by the platform.
+  property Fullscreen    : Boolean  read FFullscreen;
+  property AllowWindowed : Boolean  read FAllowWindowed write SetAllowWindowed;
+  // Last windowed, unmaximized size (logical).
+  property WindowSize    : TIOPoint read FWindowSize;
+  // Pixels of the display the window is on.
+  property DisplaySize   : TIOPoint read GetDisplaySize;
   // Set when window or display events arrive; cleared by ReadMetrics.
-  property DisplayDirty   : Boolean read FDisplayDirty;
-  // Set by the display controller once it owns the window. Until then the
-  // legacy video-mode path keeps logical mouse coordinates, no per-frame
-  // viewport and no fullscreen toggle key.
-  property DisplayManaged : Boolean read FDisplayManaged write SetDisplayManaged;
+  property DisplayDirty  : Boolean  read FDisplayDirty;
 end;
 
 type IIOElement = interface['viotypes.iioelement']
@@ -239,9 +224,6 @@ const ColorCodes : array[0..15] of Char =
 function IOGylph( aChar : Char; aColor : TIOColor ) : TIOGylph;
 function IOColor( aR, aG, aB : Byte; aA : Byte = 255 ) : TIOColor;
 function TextFileToIOStringArray( const aPath : AnsiString ) : TIOStringArray;
-// Persistent display identity, "name#ordinal". Platform display IDs and list
-// indices do not survive a reboot or a re-plug.
-function IODisplayIdentity( const aInfo : TIODisplayInfo ) : AnsiString;
 
 implementation
 
@@ -317,17 +299,12 @@ end;
 constructor TIOWindowDriver.Create;
 begin
   inherited Create;
-  FDisplays       := TIODisplayInfoArray.Create;
-  FDisplaysDirty  := True;
-  FDisplayDirty   := True;
-  FToggleRequest  := False;
-  FDisplayManaged := False;
-end;
-
-destructor TIOWindowDriver.Destroy;
-begin
-  FreeAndNil( FDisplays );
-  inherited Destroy;
+  FManaged       := False;
+  FFullscreen    := False;
+  FAllowWindowed := True;
+  FWindowSize    := Point( 0, 0 );
+  FDisplayDirty  := True;
+  FToggleRequest := False;
 end;
 
 function TIOWindowDriver.TakeToggleRequest : Boolean;
@@ -336,26 +313,10 @@ begin
   FToggleRequest := False;
 end;
 
-function TIOWindowDriver.GetDisplays : TIODisplayInfoArray;
+procedure TIOWindowDriver.SetAllowWindowed( aValue : Boolean );
 begin
-  if FDisplaysDirty then
-  begin
-    FDisplaysDirty := False;
-    RefreshDisplays;
-  end;
-  Exit( FDisplays );
-end;
-
-procedure TIOWindowDriver.SetDisplayManaged( aValue : Boolean );
-begin
-  FDisplayManaged := aValue;
-  FToggleRequest  := False;
-  FDisplayDirty   := True;
-end;
-
-function IODisplayIdentity( const aInfo : TIODisplayInfo ) : AnsiString;
-begin
-  Exit( aInfo.Name + '#' + IntToStr( aInfo.Ordinal ) );
+  FAllowWindowed := aValue;
+  if not aValue then SetFullscreen( True );
 end;
 
 function TextFileToIOStringArray ( const aPath : AnsiString ) : TIOStringArray;

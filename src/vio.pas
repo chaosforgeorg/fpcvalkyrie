@@ -2,7 +2,7 @@
 unit vio;
 interface
 uses classes, sysutils, vlua, vsystem, vgenerics, vioevent, viopadstate, viotypes, vioconsole, vbindings,
-     viodisplay;
+     vconfiguration;
 
 type TIO = class;
 
@@ -55,15 +55,34 @@ TIO = class( TSystem )
   function ConsoleCoordToDeviceCoord( aCoord : TIOPoint ) : TIOPoint; virtual;
   function CaptureScreen( const aFileName : AnsiString ) : Boolean;
   function SaveConsoleTextDump( const aFileName : AnsiString ) : Boolean;
+  // The shared fullscreen and window size entries of a game's display group.
+  class procedure RegisterWindowSettings( aGroup : TConfigurationGroup );
+  // Saved fullscreen and size; the game adds its minimum and limits.
+  class function WindowSetup( aConfig : TConfigurationManager ) : TIOWindowSetup;
+  // Keeps the shared entries in step with a managed window: an edited entry
+  // changes the window, and window changes are written to the entries.
+  // aConfig is borrowed and must outlive the IO.
+  procedure BindWindowSettings( aConfig : TConfigurationManager );
 protected
   function HandleInput( aInput : Integer ) : Boolean;
   procedure ClearFinishedLayers;
-  // Layout pass after the drawable, density or mode changed. Runs at the
-  // frame boundary, never inside event filtering, dispatch or rendering.
+  // Layout pass after the drawable, density, display or mode changed. Runs
+  // at the frame boundary, never inside event filtering, dispatch or rendering.
   procedure DisplayChanged( const aMetrics : TIODisplayMetrics ); virtual;
+private
+  procedure UpdateWindow;
+  procedure SyncWindowSettings;
 protected
   FIODriver       : TIODriver;
-  FDisplay        : TIODisplay;
+  // The driver as a managed window; nil otherwise.
+  FWindowDriver   : TIOWindowDriver;
+  FWindowMetrics  : TIODisplayMetrics; // last passed to DisplayChanged
+  FFullscreenEntry   : TToggleConfigurationEntry;
+  FWindowWidthEntry  : TIntegerConfigurationEntry;
+  FWindowHeightEntry : TIntegerConfigurationEntry;
+  FSyncedFullscreen  : Boolean; // window state at the last sync
+  FSyncedEntry       : Boolean; // entry value at the last sync
+  FSyncedWindowSize  : TIOPoint;
   FConsole        : TIOConsoleRenderer;
   FTIGConsoleView : TIOLayer;
   FLayers         : TIOLayerStack;
@@ -76,8 +95,6 @@ protected
   FMouse          : TIOPoint;
 public
   property Driver     : TIODriver          read FIODriver;
-  // nil when the driver cannot open windows (console mode).
-  property Display    : TIODisplay         read FDisplay;
   property Console    : TIOConsoleRenderer read FConsole;
   property PadState   : TIOPadState        read FPadState;
   property Bindings   : TBindings          read FBindings;
@@ -131,9 +148,10 @@ constructor TIO.Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer );
 begin
   inherited Create;
   FIODriver        := aIODriver;
-  FDisplay         := nil;
-  if aIODriver is TIOWindowDriver then
-    FDisplay := TIODisplay.Create( TIOWindowDriver( aIODriver ) );
+  FWindowDriver    := nil;
+  if ( aIODriver is TIOWindowDriver ) and TIOWindowDriver( aIODriver ).Managed then
+    FWindowDriver := TIOWindowDriver( aIODriver );
+  FFullscreenEntry := nil;
   FConsole         := nil;
   FLastUpdate      := FIODriver.GetMs;
   FTIGConsoleView  := nil;
@@ -188,8 +206,6 @@ begin
 
   FreeAndNil( FBindings );
   FreeAndNil( FConsole );
-  // The controller borrows the driver.
-  FreeAndNil( FDisplay );
   FreeAndNil( FIODriver );
   inherited Destroy;
 end;
@@ -236,10 +252,8 @@ end;
 procedure TIO.FullUpdate;
 var iTickTime : DWord;
     iNow      : DWord;
-    iMetrics  : TIODisplayMetrics;
 begin
-  if ( FDisplay <> nil ) and FDisplay.Update( iMetrics ) then
-    DisplayChanged( iMetrics );
+  if FWindowDriver <> nil then UpdateWindow;
 
   iNow        := FIODriver.GetMs;
   iTickTime   := iNow - FLastUpdate;
@@ -502,6 +516,75 @@ end;
 
 procedure TIO.DisplayChanged( const aMetrics : TIODisplayMetrics );
 begin
+end;
+
+class procedure TIO.RegisterWindowSettings( aGroup : TConfigurationGroup );
+begin
+  aGroup.AddToggle( 'fullscreen', True )
+    .SetName( 'Fullscreen' )
+    .SetDescription( 'Set to {!Disabled} to play in a window. {!Alt+Enter} switches at any time.' );
+  aGroup.AddInteger( 'window_width', 0 );
+  aGroup.AddInteger( 'window_height', 0 );
+end;
+
+class function TIO.WindowSetup( aConfig : TConfigurationManager ) : TIOWindowSetup;
+begin
+  Result.Fullscreen    := aConfig.GetBoolean( 'fullscreen' );
+  Result.WindowSize    := Point( aConfig.GetInteger( 'window_width' ), aConfig.GetInteger( 'window_height' ) );
+  Result.MinimumPixels := Point( 0, 0 );
+  Result.Resizable     := True;
+  Result.AllowWindowed := True;
+end;
+
+procedure TIO.BindWindowSettings( aConfig : TConfigurationManager );
+begin
+  if FWindowDriver = nil then Exit;
+  FFullscreenEntry   := aConfig.CastBoolean( 'fullscreen' );
+  FWindowWidthEntry  := aConfig.CastInteger( 'window_width' );
+  FWindowHeightEntry := aConfig.CastInteger( 'window_height' );
+  // A launch override (--windowed) stays out of the entry until either side changes.
+  FSyncedFullscreen  := FWindowDriver.Fullscreen;
+  FSyncedEntry       := FFullscreenEntry.Value;
+  FSyncedWindowSize  := FWindowDriver.WindowSize;
+end;
+
+// Frame boundary: Alt+Enter, settings, then a layout pass on change.
+procedure TIO.UpdateWindow;
+var iMetrics : TIODisplayMetrics;
+begin
+  if FWindowDriver.TakeToggleRequest then
+    FWindowDriver.SetFullscreen( not FWindowDriver.Fullscreen );
+  if FFullscreenEntry <> nil then SyncWindowSettings;
+  if not FWindowDriver.DisplayDirty then Exit;
+  // No drawable while minimized: keep the last layout.
+  if not FWindowDriver.ReadMetrics( iMetrics ) then Exit;
+  if ( iMetrics.PixelSize = FWindowMetrics.PixelSize ) and
+     ( iMetrics.PixelDensity = FWindowMetrics.PixelDensity ) and
+     ( iMetrics.DisplaySize = FWindowMetrics.DisplaySize ) and
+     ( iMetrics.Fullscreen = FWindowMetrics.Fullscreen ) then Exit;
+  FWindowMetrics := iMetrics;
+  DisplayChanged( iMetrics );
+end;
+
+// A window change since the last sync is written to the entry; otherwise an
+// edited entry changes the window. A refused change leaves the actual state.
+procedure TIO.SyncWindowSettings;
+begin
+  if FWindowDriver.Fullscreen <> FSyncedFullscreen then
+    FFullscreenEntry.Value := FWindowDriver.Fullscreen
+  else if FFullscreenEntry.Value <> FSyncedEntry then
+  begin
+    FWindowDriver.SetFullscreen( FFullscreenEntry.Value );
+    FFullscreenEntry.Value := FWindowDriver.Fullscreen;
+  end;
+  FSyncedFullscreen := FWindowDriver.Fullscreen;
+  FSyncedEntry      := FFullscreenEntry.Value;
+  if FWindowDriver.WindowSize <> FSyncedWindowSize then
+  begin
+    FSyncedWindowSize        := FWindowDriver.WindowSize;
+    FWindowWidthEntry.Value  := FSyncedWindowSize.X;
+    FWindowHeightEntry.Value := FSyncedWindowSize.Y;
+  end;
 end;
 
 function TIO.EventToUIInput( const aEvent : TIOEvent ) : Integer;

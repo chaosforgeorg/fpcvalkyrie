@@ -26,6 +26,9 @@ type TGLConsoleRenderer = class( TIOConsoleRenderer )
   procedure Clear; override;
   procedure ClearRect(x1,y1,x2,y2 : Integer; aBackColor : TIOColor = 0 ); override;
   procedure Resize( aNewSizeX, aNewSizeY, aLineSpace : DWord );
+  // Largest scale up to aWanted at which aCells glyphs of aGlyph pixels fit
+  // in aArea; at least 1. An unknown glyph or cell size keeps aWanted.
+  class function FitScale( aWanted : Integer; const aCells, aGlyph, aArea : TIOPoint ) : Integer;
   function MaxScaleForDevice( const aMinimumSize : TIOPoint ) : Integer;
   function FitToDevice( const aMinimumSize : TIOPoint;
     aRequestedScale : Integer ) : Integer;
@@ -445,21 +448,27 @@ begin
 
 end;
 
+class function TGLConsoleRenderer.FitScale( aWanted : Integer;
+  const aCells, aGlyph, aArea : TIOPoint ) : Integer;
+begin
+  Result := aWanted;
+  if ( aCells.X >= 1 ) and ( aCells.Y >= 1 ) and ( aGlyph.X >= 1 ) and ( aGlyph.Y >= 1 ) then
+  begin
+    if aArea.X div ( aGlyph.X * aCells.X ) < Result then Result := aArea.X div ( aGlyph.X * aCells.X );
+    if aArea.Y div ( aGlyph.Y * aCells.Y ) < Result then Result := aArea.Y div ( aGlyph.Y * aCells.Y );
+  end;
+  if Result < 1 then Result := 1;
+end;
+
 function TGLConsoleRenderer.MaxScaleForDevice(
   const aMinimumSize : TIOPoint ) : Integer;
-var iWidthScale  : Integer;
-    iHeightScale : Integer;
 begin
   if ( aMinimumSize.X < 1 ) or ( aMinimumSize.Y < 1 ) or
      ( FFont.GylphSize.X < 1 ) or
      ( FFont.GylphSize.Y + FLineSpace < 1 ) then Exit( 1 );
-  iWidthScale := FDriver.GetSizeX div
-    ( FFont.GylphSize.X * aMinimumSize.X );
-  iHeightScale := FDriver.GetSizeY div
-    ( ( FFont.GylphSize.Y + FLineSpace ) * aMinimumSize.Y );
-  Result := iWidthScale;
-  if iHeightScale < Result then Result := iHeightScale;
-  if Result < 1 then Result := 1;
+  Exit( FitScale( MaxInt, aMinimumSize,
+    Point( FFont.GylphSize.X, FFont.GylphSize.Y + FLineSpace ),
+    Point( FDriver.GetSizeX, FDriver.GetSizeY ) ) );
 end;
 
 function TGLConsoleRenderer.FitToDevice( const aMinimumSize : TIOPoint;
