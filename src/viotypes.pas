@@ -92,9 +92,7 @@ end;
 type TIOWindowDriver = class( TIODriver )
   constructor Create;
   procedure SetFullscreen( aValue : Boolean ); virtual; abstract;
-  // While fullscreen it is kept and applied, centered, once windowed again.
-  procedure SetWindowSize( const aSize : TIOPoint ); virtual; abstract;
-  // Kept in pixels and reapplied when the pixel density changes.
+  // Converted to the window size with the current pixel density.
   procedure SetMinimumPixels( const aPixels : TIOPoint ); virtual; abstract;
   // Reads the actual state and clears DisplayDirty.
   function ReadMetrics( out aMetrics : TIODisplayMetrics ) : Boolean; virtual; abstract;
