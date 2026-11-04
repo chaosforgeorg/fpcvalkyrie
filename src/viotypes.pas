@@ -113,6 +113,8 @@ type TIOWindowDriver = class( TIODriver )
   function ReadMetrics( out aMetrics : TIODisplayMetrics ) : Boolean; virtual; abstract;
   // The minimum is kept in pixels and reapplied when the pixel density changes.
   function SetWindowLimits( const aMinimumPixels : TIOPoint; aResizable : Boolean ) : Boolean; virtual; abstract;
+  // Waits for pending window changes; only for launch placement.
+  function SynchronizeWindow : Boolean; virtual; abstract;
   // True once per fullscreen toggle key press received while DisplayManaged.
   function TakeToggleRequest : Boolean;
 protected

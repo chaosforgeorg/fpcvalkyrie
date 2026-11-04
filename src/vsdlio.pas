@@ -15,7 +15,7 @@ type TSDLIODriver = class( TIOWindowDriver )
   constructor Create( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags );
   function ResetVideoMode( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags ) : Boolean;
   function RefreshWindowSize : Boolean;
-  function SynchronizeWindow : Boolean;
+  function SynchronizeWindow : Boolean; override;
   function SetMinimumSize( const aSize : TIOPoint ) : Boolean;
   function SetupOpenGL : Boolean;
   function PollEvent( out aEvent : TIOEvent ) : Boolean; override;

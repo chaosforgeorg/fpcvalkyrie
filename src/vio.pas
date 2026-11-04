@@ -1,7 +1,8 @@
 {$INCLUDE valkyrie.inc}
 unit vio;
 interface
-uses classes, sysutils, vlua, vsystem, vgenerics, vioevent, viopadstate, viotypes, vioconsole, vbindings;
+uses classes, sysutils, vlua, vsystem, vgenerics, vioevent, viopadstate, viotypes, vioconsole, vbindings,
+     viodisplay;
 
 type TIO = class;
 
@@ -57,8 +58,12 @@ TIO = class( TSystem )
 protected
   function HandleInput( aInput : Integer ) : Boolean;
   procedure ClearFinishedLayers;
+  // Layout pass after the drawable, density or mode changed. Runs at the
+  // frame boundary, never inside event filtering, dispatch or rendering.
+  procedure DisplayChanged( const aMetrics : TIODisplayMetrics ); virtual;
 protected
   FIODriver       : TIODriver;
+  FDisplay        : TIODisplay;
   FConsole        : TIOConsoleRenderer;
   FTIGConsoleView : TIOLayer;
   FLayers         : TIOLayerStack;
@@ -71,6 +76,8 @@ protected
   FMouse          : TIOPoint;
 public
   property Driver     : TIODriver          read FIODriver;
+  // nil when the driver cannot open windows (console mode).
+  property Display    : TIODisplay         read FDisplay;
   property Console    : TIOConsoleRenderer read FConsole;
   property PadState   : TIOPadState        read FPadState;
   property Bindings   : TBindings          read FBindings;
@@ -124,6 +131,9 @@ constructor TIO.Create( aIODriver : TIODriver; aConsole : TIOConsoleRenderer );
 begin
   inherited Create;
   FIODriver        := aIODriver;
+  FDisplay         := nil;
+  if aIODriver is TIOWindowDriver then
+    FDisplay := TIODisplay.Create( TIOWindowDriver( aIODriver ) );
   FConsole         := nil;
   FLastUpdate      := FIODriver.GetMs;
   FTIGConsoleView  := nil;
@@ -178,6 +188,8 @@ begin
 
   FreeAndNil( FBindings );
   FreeAndNil( FConsole );
+  // The controller borrows the driver.
+  FreeAndNil( FDisplay );
   FreeAndNil( FIODriver );
   inherited Destroy;
 end;
@@ -224,7 +236,11 @@ end;
 procedure TIO.FullUpdate;
 var iTickTime : DWord;
     iNow      : DWord;
+    iMetrics  : TIODisplayMetrics;
 begin
+  if ( FDisplay <> nil ) and FDisplay.Update( iMetrics ) then
+    DisplayChanged( iMetrics );
+
   iNow        := FIODriver.GetMs;
   iTickTime   := iNow - FLastUpdate;
   FLastUpdate := iNow;
@@ -482,6 +498,10 @@ begin
     FullUpdate;
     HandleEvents;
   end;
+end;
+
+procedure TIO.DisplayChanged( const aMetrics : TIODisplayMetrics );
+begin
 end;
 
 function TIO.EventToUIInput( const aEvent : TIOEvent ) : Integer;
