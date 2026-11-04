@@ -49,12 +49,15 @@ begin
   iName := aName;
   {$IFDEF UNIX}
     {$IFDEF Darwin}
-    if (Pos('.dylib',aName) = 0) and (Pos('/System/',aName) = 0) then
+    if Pos('/System/',aName) = 0 then
     begin
       {$IFDEF OSX_APP_BUNDLE}
-      iName := GetOSXBundleFrameworksPath()+aName;
+      // Frameworks and bare dylib names both ship in the bundle's Frameworks.
+      if (Pos('.dylib',aName) = 0) or (Pos('/',aName) = 0) then
+        iName := GetOSXBundleFrameworksPath()+aName;
       {$ELSE}
-      iName := GetOSXFrameworksPath()+aName;
+      if Pos('.dylib',aName) = 0 then
+        iName := GetOSXFrameworksPath()+aName;
       {$ENDIF}
     end;
     {$ENDIF}

@@ -24,23 +24,25 @@ const
 {$ELSE}
   {$IFDEF DARWIN}
     SDL3DefaultPath = 'SDL3.framework/SDL3';
-    {$linklib SDLmain}
     {$linkframework Cocoa}
-    {$linkframework SDL}
-    {$PASCALMAINNAME SDL_main}
   {$ELSE}
-  SDL3DefaultPath = 'libSDL3.so.0.4.2';
+  SDL3DefaultPath = 'libSDL3.so.0';
   {$ENDIF}
 {$ENDIF}
 
 const
 
   SDL_MAJOR_VERSION = 3;
-  SDL_MINOR_VERSION = 2;
-  SDL_PATCHLEVEL    = 20;
+  SDL_MINOR_VERSION = 4;
+  SDL_PATCHLEVEL    = 18;
+  SDL_VERSION       = SDL_MAJOR_VERSION * 1000000 + SDL_MINOR_VERSION * 1000 + SDL_PATCHLEVEL;
 
 {$include vsdl3types.inc}
 {$include vsdl3const.inc}
+
+{ SDL_version.h }
+var
+  SDL_GetVersion                : function: Sint32; cdecl;
 
 { SDL_init.h }
 var
@@ -69,7 +71,7 @@ var
   SDL_GetKeyboardNameForID          : function(instance_id: SDL_KeyboardID): PAnsiChar; cdecl;
   SDL_GetKeyboardFocus              : function: PSDL_Window; cdecl;
 
-  SDL_GetKeyboardState              : function(numkeys: Sint32): PSDL_bool; cdecl;
+  SDL_GetKeyboardState              : function(numkeys: PSint32): PSDL_bool; cdecl;
   SDL_ResetKeyboard                 : procedure; cdecl;
 
   SDL_GetModState                   : function: SDL_Keymod; cdecl;
@@ -203,6 +205,9 @@ var
   SDL_ConvertPixels                     : function(width, height: LongInt; src_format: SDL_PixelFormat; const src: Pointer; src_pitch: LongInt;
                                                    dst_format: SDL_PixelFormat; dst: Pointer; dst_pitch: LongInt): SDL_bool; cdecl;
   SDL_DestroySurface                    : procedure(surface: PSDL_Surface); cdecl;
+  SDL_LoadPNG_IO                        : function(src: PSDL_IOStream; closeio: SDL_bool): PSDL_Surface; cdecl;
+  SDL_LoadPNG                           : function(const file_: PAnsiChar): PSDL_Surface; cdecl;
+  SDL_SavePNG                           : function(surface: PSDL_Surface; const file_: PAnsiChar): SDL_bool; cdecl;
 
 { SDL_video.h }
 var
@@ -402,16 +407,16 @@ var
   SDL_SaveFile_IO       : function(src: PSDL_IOStream; const data: Pointer; datasize: SizeT; closeio: SDL_bool): SDL_bool; cdecl;
   SDL_SaveFile          : function(const file_: PAnsiChar; const data: Pointer; datasize: SizeT): SDL_bool; cdecl;
 
-  SDL_GetBooleanProperty: function( props : SDL_PropertiesID; const name : PAnsiChar; default : Boolean ) : Boolean;
-  SDL_SetNumberProperty : function( props : SDL_PropertiesID; const name : PAnsiChar; value : Sint32 ) : Boolean;
-  SDL_CreateProperties  : function : SDL_PropertiesID;
-  SDL_DestroyProperties : procedure( props : SDL_PropertiesID );
+  SDL_GetBooleanProperty: function( props : SDL_PropertiesID; const name : PAnsiChar; default : Boolean ) : Boolean; cdecl;
+  SDL_SetNumberProperty : function( props : SDL_PropertiesID; const name : PAnsiChar; value : Sint64 ) : Boolean; cdecl;
+  SDL_CreateProperties  : function : SDL_PropertiesID; cdecl;
+  SDL_DestroyProperties : procedure( props : SDL_PropertiesID ); cdecl;
   SDL_free              : procedure(data: Pointer); cdecl;
 
 { SDL_clipboard.h }
 var
-  SDL_SetClipboardText  : function( const text : PAnsiChar ) : Boolean;
-  SDL_GetClipboardText  : function : PAnsiChar;
+  SDL_SetClipboardText  : function( const text : PAnsiChar ) : Boolean; cdecl;
+  SDL_GetClipboardText  : function : PAnsiChar; cdecl;
 
 var
   SDL3 : TLibrary = nil;
@@ -442,8 +447,11 @@ begin
   SDL3 := TLibrary.Load( aPath );
   if SDL3 = nil then Exit( False );
 
+// SDL_version.h
+  Pointer(SDL_GetVersion)             := GetSymbol('SDL_GetVersion');
+
 // SDL_init.h
-  Pointer(SDL_Init)                   := GetSymbol('SDL_Init');
+  Pointer(SDL_Init)                 := GetSymbol('SDL_Init');
   Pointer(SDL_InitSubSystem)          := GetSymbol('SDL_InitSubSystem');
   Pointer(SDL_QuitSubSystem)          := GetSymbol('SDL_QuitSubSystem');
   Pointer(SDL_WasInit)                := GetSymbol('SDL_WasInit');
@@ -597,6 +605,9 @@ begin
   Pointer(SDL_ConvertSurface)               := GetSymbol('SDL_ConvertSurface');
   Pointer(SDL_ConvertPixels)                := GetSymbol('SDL_ConvertPixels');
   Pointer(SDL_DestroySurface)               := GetSymbol('SDL_DestroySurface');
+  Pointer(SDL_LoadPNG_IO)                   := GetSymbol('SDL_LoadPNG_IO');
+  Pointer(SDL_LoadPNG)                      := GetSymbol('SDL_LoadPNG');
+  Pointer(SDL_SavePNG)                      := GetSymbol('SDL_SavePNG');
 
 // SDL_video.h
   Pointer(SDL_GetNumVideoDrivers)           := GetSymbol('SDL_GetNumVideoDrivers');
@@ -975,8 +986,7 @@ begin
   U^.OwnsStream := aOwnsStream;
   U^.ReadOnly   := aReadOnly;
 
-  Initialize( IFace );
-  FillChar(Iface, 0, SizeOf(Iface));
+  FillChar(Iface, SizeOf(Iface), 0);
   Iface.version := SizeOf(SDL_IOStreamInterface);
   Iface.size    := @IO_Stream_Size;
   Iface.seek    := @IO_Stream_Seek;
