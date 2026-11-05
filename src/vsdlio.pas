@@ -46,6 +46,9 @@ type TSDLIODriver = class( TIOWindowDriver )
   function Rumble( aLow, aHigh : Word; aDuration : DWord ) : Boolean; override;
   procedure SetFullscreen( aValue : Boolean ); override;
   procedure SetMinimumPixels( const aPixels : TIOPoint ); override;
+  // Converted like the minimum. Kept while fullscreen and applied, centered,
+  // when the window is next windowed.
+  procedure SetWindowPixels( const aPixels : TIOPoint );
   function ReadMetrics( out aMetrics : TIODisplayMetrics ) : Boolean; override;
 protected
   function GetDisplaySize : TIOPoint; override;
@@ -73,7 +76,9 @@ private
   FHasPendingPadEvent : Boolean;
 
   FPixelDensity   : Single;
+  FPendingSize    : TIOPoint; // SetWindowPixels while fullscreen; zero = none
 private
+  procedure PlaceWindow( aSize : TIOPoint );
   function EventToIOEvent( event : PSDL_Event ) : TIOEvent;
   function MouseEventToIOEvent( event : PSDL_Event ) : TIOEvent;
   function MouseMoveEventToIOEvent( event : PSDL_Event ) : TIOEvent;
@@ -1217,10 +1222,7 @@ end;
 const DefaultWindowShare = 0.75;
 
 constructor TSDLIODriver.CreateWindow( const aSetup : TIOWindowSetup; aGamepad : Boolean );
-var iFlags   : TSDLIOFlags;
-    iDisplay : SDL_DisplayID;
-    iUsable  : SDL_Rect;
-    iSize    : TIOPoint;
+var iFlags : TSDLIOFlags;
 begin
   iFlags := [ SDLIO_OpenGL ];
   if aSetup.Resizable then Include( iFlags, SDLIO_Resizable );
@@ -1231,21 +1233,7 @@ begin
   FManaged       := True;
   FAllowWindowed := aSetup.AllowWindowed;
   SetMinimumPixels( aSetup.MinimumPixels );
-
-  iDisplay := SDL_GetDisplayForWindow( FWindow );
-  iUsable  := Default( SDL_Rect );
-  SDL_GetDisplayUsableBounds( iDisplay, @iUsable );
-  iSize := aSetup.WindowSize;
-  if ( iSize.X <= 0 ) or ( iSize.Y <= 0 ) then
-    iSize := vutil.Point( Round( iUsable.w * DefaultWindowShare ), Round( iUsable.h * DefaultWindowShare ) );
-  iSize.X := Max( Min( iSize.X, iUsable.w ), Min( Ceil( aSetup.MinimumPixels.X / FPixelDensity ), iUsable.w ) );
-  iSize.Y := Max( Min( iSize.Y, iUsable.h ), Min( Ceil( aSetup.MinimumPixels.Y / FPixelDensity ), iUsable.h ) );
-  if not SDL_SetWindowSize( FWindow, iSize.X, iSize.Y ) then
-    Log( LOGERROR, 'SDL_SetWindowSize %dx%d failed: %s', [ iSize.X, iSize.Y, SDL_GetError() ] );
-  SDL_SetWindowPosition( FWindow,
-    SDL_WINDOWPOS_CENTERED_DISPLAY( LongInt( iDisplay ) ),
-    SDL_WINDOWPOS_CENTERED_DISPLAY( LongInt( iDisplay ) ) );
-  FWindowSize := iSize;
+  PlaceWindow( aSetup.WindowSize );
 
   // SDL applies a fullscreen request on a hidden window when it is shown.
   if aSetup.Fullscreen or not aSetup.AllowWindowed then
@@ -1255,6 +1243,41 @@ begin
   SDL_SyncWindow( FWindow );
   RefreshWindowSize;
   FDisplayDirty := True;
+end;
+
+// The size (zero = default) within the usable area and the minimum, centered.
+procedure TSDLIODriver.PlaceWindow( aSize : TIOPoint );
+var iDisplay : SDL_DisplayID;
+    iUsable  : SDL_Rect;
+    iMinimum : TIOPoint;
+begin
+  iDisplay := SDL_GetDisplayForWindow( FWindow );
+  iUsable  := Default( SDL_Rect );
+  SDL_GetDisplayUsableBounds( iDisplay, @iUsable );
+  iMinimum := vutil.Point( 0, 0 );
+  SDL_GetWindowMinimumSize( FWindow, @iMinimum.X, @iMinimum.Y );
+  if ( aSize.X <= 0 ) or ( aSize.Y <= 0 ) then
+    aSize := vutil.Point( Round( iUsable.w * DefaultWindowShare ), Round( iUsable.h * DefaultWindowShare ) );
+  aSize.X := Max( Min( aSize.X, iUsable.w ), Min( iMinimum.X, iUsable.w ) );
+  aSize.Y := Max( Min( aSize.Y, iUsable.h ), Min( iMinimum.Y, iUsable.h ) );
+  if not SDL_SetWindowSize( FWindow, aSize.X, aSize.Y ) then
+    Log( LOGERROR, 'SDL_SetWindowSize %dx%d failed: %s', [ aSize.X, aSize.Y, SDL_GetError() ] );
+  SDL_SetWindowPosition( FWindow,
+    SDL_WINDOWPOS_CENTERED_DISPLAY( LongInt( iDisplay ) ),
+    SDL_WINDOWPOS_CENTERED_DISPLAY( LongInt( iDisplay ) ) );
+  FWindowSize := aSize;
+end;
+
+procedure TSDLIODriver.SetWindowPixels( const aPixels : TIOPoint );
+var iSize : TIOPoint;
+begin
+  iSize := vutil.Point( Ceil( aPixels.X / FPixelDensity ), Ceil( aPixels.Y / FPixelDensity ) );
+  FPendingSize := vutil.Point( 0, 0 );
+  if iSize = FWindowSize then Exit;
+  // SDL discards a size change on a fullscreen window.
+  if FFullscreen
+    then FPendingSize := iSize
+    else PlaceWindow( iSize );
 end;
 
 function TSDLIODriver.MouseScale : Single;
@@ -1278,9 +1301,17 @@ begin
     Log( LOGERROR, 'SDL_SetWindowFullscreenMode failed: %s', [ SDL_GetError() ] );
     Exit;
   end;
-  if SDL_SetWindowFullscreen( FWindow, aValue )
-    then FFullscreen := aValue
-    else Log( LOGERROR, 'SDL_SetWindowFullscreen failed: %s', [ SDL_GetError() ] );
+  if not SDL_SetWindowFullscreen( FWindow, aValue ) then
+  begin
+    Log( LOGERROR, 'SDL_SetWindowFullscreen failed: %s', [ SDL_GetError() ] );
+    Exit;
+  end;
+  FFullscreen := aValue;
+  if aValue or ( FPendingSize.X <= 0 ) then Exit;
+  // The restored floating geometry must be in place before it is replaced.
+  SDL_SyncWindow( FWindow );
+  PlaceWindow( FPendingSize );
+  FPendingSize := vutil.Point( 0, 0 );
 end;
 
 // Converted with the current density; not reapplied when it changes.
