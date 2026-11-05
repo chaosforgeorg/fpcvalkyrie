@@ -3,24 +3,12 @@ unit vsdlio;
 interface
 uses Classes, SysUtils, vutil, viotypes, vsdl3library, vioevent, viopadstate;
 
-type TSDLIOFlag  = ( SDLIO_OpenGL, SDLIO_FullScreen, SDLIO_Resizable,
-                     SDLIO_Gamepad, SDLIO_DesktopFullScreen );
-     TSDLIOFlags = set of TSDLIOFlag;
-
 // Architectural boundary: owns SDL window, event, and capture mechanics only.
 // Renderer, path, and game policy belong to callers.
 type TSDLIODriver = class( TIOWindowDriver )
-  class function GetCurrentResolution( out aResult : TIOPoint ) : Boolean;
-
-  constructor Create( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags );
-  // A managed OpenGL window: placed from aSetup on the primary display, then
-  // shown directly in its mode.
+  // An OpenGL window placed from aSetup on the primary display, then shown
+  // directly in its mode.
   constructor CreateWindow( const aSetup : TIOWindowSetup; aGamepad : Boolean );
-  function ResetVideoMode( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags ) : Boolean;
-  function RefreshWindowSize : Boolean;
-  function SynchronizeWindow : Boolean;
-  function SetMinimumSize( const aSize : TIOPoint ) : Boolean;
-  function SetupOpenGL : Boolean;
   function PollEvent( out aEvent : TIOEvent ) : Boolean; override;
   function PeekEvent( out aEvent : TIOEvent ) : Boolean; override;
   function EventPending : Boolean; override;
@@ -38,7 +26,6 @@ type TSDLIODriver = class( TIOWindowDriver )
   procedure SetTitle( const aLongTitle : AnsiString; const aShortTitle : AnsiString ); override;
   procedure ShowMouse( aShow : Boolean );
   function CaptureScreen( const aFileName : AnsiString ) : Boolean; override;
-  function SetDisplayMode( aIndex : Integer ) : Boolean;
   procedure StartTextInput; override;
   procedure StopTextInput; override;
   procedure SetClipboard( const aValue : Ansistring ); override;
@@ -53,13 +40,8 @@ type TSDLIODriver = class( TIOWindowDriver )
 protected
   function GetDisplaySize : TIOPoint; override;
 private
-  FFlags      : TSDLIOFlags;
   FSizeX      : DWord;
   FSizeY      : DWord;
-  FBPP        : DWord;
-  FOpenGL     : Boolean;
-  FHidden     : Boolean; // CreateWindow shows the window after placing it
-  FOnResize   : TIOInterrupt;
   FWindow     : PSDL_Window;
   FGLContext  : SDL_GLContext;
   FLastMouseX : Integer;
@@ -78,38 +60,32 @@ private
   FPixelDensity   : Single;
   FPendingSize    : TIOPoint; // SetWindowPixels while fullscreen; zero = none
 private
+  procedure OpenWindow( aResizable : Boolean );
+  procedure SetupOpenGL;
   procedure PlaceWindow( aSize : TIOPoint );
+  function RefreshWindowSize : Boolean;
   function EventToIOEvent( event : PSDL_Event ) : TIOEvent;
   function MouseEventToIOEvent( event : PSDL_Event ) : TIOEvent;
   function MouseMoveEventToIOEvent( event : PSDL_Event ) : TIOEvent;
-  function ResetDesktopVideoMode( aWidth, aHeight, aBPP : Word;
-    aFlags : TSDLIOFlags ) : Boolean;
   procedure ClearPadEventState;
   procedure ResetPadEventState( aWhich : Int32 );
-  procedure ScanDisplayModes;
   function ScanGamepads( aAllowLoop : Boolean = True ) : Boolean;
   procedure SetGamePadSupport( aValue : Boolean  );
   procedure SetMouseSupport( aValue : Boolean );
   function ConsumeWindowKey( aEvent : PSDL_Event ) : Boolean;
   function PeekQueuedEvent( out aEvent : SDL_Event ) : Boolean;
-  function MouseScale : Single;
   function IsWindowFullscreen : Boolean;
 public
   property Width : DWord            read FSizeX;
   property Height : DWord           read FSizeY;
-  property BPP : DWord              read FBPP;
   property GamePadSupport : Boolean read FGamePadSupport write SetGamePadSupport;
   // When False, mouse events are not delivered; polling the position still works.
   property MouseSupport : Boolean read FMouseSupport write SetMouseSupport;
-  property OpenGLMode : Boolean read FOpenGL;
-  property Flags : TSDLIOFlags  read FFlags;
-  property NativeWindow : PSDL_Window read FWindow;
-  property OnResizeEvent : TIOInterrupt write FOnResize;
 end;
 
 implementation
 
-uses Math, vdebug, vgl3library{$IFDEF WINDOWS}, Windows{$ENDIF};
+uses Math, vdebug, vgl3library;
 
 function SDLSymToCode( Key : SDL_Keycode ) : Byte;
 begin
@@ -296,8 +272,8 @@ begin
     SDL_EVENT_MOUSE_BUTTON_UP   : Result.EType := VEVENT_MOUSEUP;
   end;
   Result.Mouse.Button  := SDLMouseButtonToVMB( event^.button.button );
-  Result.Mouse.Pos.X   := Trunc( event^.button.x * MouseScale );
-  Result.Mouse.Pos.Y   := Trunc( event^.button.y * MouseScale );
+  Result.Mouse.Pos.X   := Trunc( event^.button.x * FPixelDensity );
+  Result.Mouse.Pos.Y   := Trunc( event^.button.y * FPixelDensity );
   Result.Mouse.Pressed := event^.button.down;
 end;
 
@@ -340,7 +316,7 @@ end;
 function TSDLIODriver.MouseMoveEventToIOEvent( event : PSDL_Event ) : TIOEvent;
 var iScale : Single;
 begin
-  iScale := MouseScale;
+  iScale := FPixelDensity;
   Result.EType := VEVENT_MOUSEMOVE;
   Result.MouseMove.ButtonState := SDLMouseButtonSetToVMB( event^.motion.state );
   Result.MouseMove.Pos.X       := Trunc( event^.motion.x * iScale );
@@ -397,8 +373,7 @@ begin
     SDL_EVENT_WINDOW_RESIZED :
       begin
         iDriver.FDisplayDirty := True;
-        if iDriver.FManaged and
-           ( SDL_GetWindowFlags( iDriver.FWindow ) and ( SDL_WINDOW_FULLSCREEN or SDL_WINDOW_MAXIMIZED ) = 0 ) then
+        if SDL_GetWindowFlags( iDriver.FWindow ) and ( SDL_WINDOW_FULLSCREEN or SDL_WINDOW_MAXIMIZED ) = 0 then
           iDriver.FWindowSize := vutil.Point( event^.window.data1, event^.window.data2 );
       end;
     // The platform may change the mode itself (macOS, window managers).
@@ -406,8 +381,7 @@ begin
     SDL_EVENT_WINDOW_LEAVE_FULLSCREEN :
       begin
         iDriver.FDisplayDirty := True;
-        if iDriver.FManaged then
-          iDriver.FFullscreen := event^._type = SDL_EVENT_WINDOW_ENTER_FULLSCREEN;
+        iDriver.FFullscreen   := event^._type = SDL_EVENT_WINDOW_ENTER_FULLSCREEN;
       end;
     SDL_EVENT_WINDOW_MOVED,
     SDL_EVENT_WINDOW_MINIMIZED,
@@ -426,10 +400,6 @@ begin
   if event^._type = SDL_EVENT_QUIT then
     if Assigned( iDriver.FOnQuit ) then
       if iDriver.FOnQuit( iDriver.EventToIOEvent( event ) ) then
-        Exit(False);
-  if event^._type = SDL_EVENT_WINDOW_RESIZED then
-    if Assigned( iDriver.FOnResize ) then
-      if iDriver.FOnResize( iDriver.EventToIOEvent( event ) ) then
         Exit(False);
   if event^._type = SDL_EVENT_KEY_DOWN then
   begin
@@ -475,80 +445,25 @@ begin
   Exit(True);
 end;
 
-{$IFDEF WINDOWS}
-function SetProcessDPIAware: BOOL; stdcall; external 'user32.dll';
-
-var GSetDPIAwarenessSet : Boolean = False;
-
-procedure SetDPIAwareness;
-type TProcessDpiAwareness = (
-    PROCESS_DPI_UNAWARE = 0,
-    PROCESS_SYSTEM_DPI_AWARE = 1,
-    PROCESS_PER_MONITOR_DPI_AWARE = 2
-  );
-  TSetProcessDpiAwareness = function( aValue : TProcessDpiAwareness ): HRESULT; stdcall;
-var iShcoreHandle    : HMODULE;
-    iSetDpiAwareness : TSetProcessDpiAwareness;
-begin
-  if GSetDPIAwarenessSet then Exit;
-  GSetDPIAwarenessSet := True;
-  Log('Setting process DPI awareness...');
-  iShcoreHandle := LoadLibrary( 'Shcore.dll' );
-  if iShcoreHandle <> 0 then
-  begin
-    Pointer(iSetDpiAwareness) := GetProcAddress( iShcoreHandle, 'SetProcessDpiAwareness' );
-    if Assigned( iSetDpiAwareness )
-      then iSetDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE)
-      else SetProcessDPIAware;
-    FreeLibrary( iShcoreHandle );
-  end
-  else
-    SetProcessDPIAware;
-end;
-{$ENDIF}
-
 { TSDLIODriver }
 
-class function TSDLIODriver.GetCurrentResolution ( out aResult : TIOPoint ) : Boolean;
-var iCurrent      : PSDL_DisplayMode;
-    iDisplayIndex : SDL_DisplayID;
-begin
-{$IFDEF WINDOWS}
-  SetDPIAwareness;
-{$ENDIF}
-  LoadSDL3;
-  if not SDL_Init(SDL_INIT_VIDEO) then
-  begin
-    SDL_Quit();
-    raise EIOException.Create('Couldn''t initialize SDL : '+SDL_GetError());
-  end;
-  iDisplayIndex := SDL_GetPrimaryDisplay();
-  if iDisplayIndex = 0 then
-    Exit( False );
-  iCurrent := SDL_GetCurrentDisplayMode( iDisplayIndex );
-  if iCurrent = nil then
-     Exit( False );
-  aResult.Init( iCurrent^.w, iCurrent^.h );
-  Exit( True );
-end;
+// Default windowed size, as a share of the usable display area.
+const DefaultWindowShare = 0.75;
 
-constructor TSDLIODriver.Create( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags );
+constructor TSDLIODriver.CreateWindow( const aSetup : TIOWindowSetup; aGamepad : Boolean );
 var iVersion : Sint32;
 begin
   inherited Create;
   ClearPadEventState;
   FWindow    := nil;
   FGLContext := nil;
-  FGamePadSupport := SDLIO_Gamepad in aFlags;
+  FGamePadSupport := aGamepad;
   FMouseSupport   := True;
   FGamePadID      := 0;
   FGamePadIndex   := -1;
   FGamePadHandle  := nil;
   FGamePadRumble  := False;
   FPixelDensity   := 1.0;
-  {$IFDEF WINDOWS}
-  SetDPIAwareness;
-  {$ENDIF}
   {$IF DEFINED(CPUI386) OR DEFINED(CPUX86_64)}
   SetExceptionMask([exInvalidOp, exDenormalized, exZeroDivide, exOverflow, exUnderflow, exPrecision]);
   {$ENDIF}
@@ -569,25 +484,8 @@ begin
     raise EIOException.Create('Couldn''t initialize SDL : '+SDL_GetError());
   end;
 
-  ScanDisplayModes;
-
-  if not ResetVideoMode( aWidth, aHeight, aBPP, aFlags ) then
-  begin
-    // Failed construction destroys acquired resources while SDL is still valid.
-    raise EIOException.Create('Could not set '+IntToStr(aWidth)+'x'+IntToStr(aHeight)+'@'+IntToStr(aBPP)+'bpp!' );
-  end;
-
-  Log('Mode %dx%d/%d set.', [aWidth,aHeight,aBPP]);
-  FPixelDensity := SDL_GetWindowPixelDensity( FWindow );
-  if FPixelDensity <= 0 then FPixelDensity := 1.0;
-
-  if SDLIO_OpenGL in aFlags then
-  begin
-    Log( LOGINFO, 'OpenGL Vendor       : %s', [ glGetString(GL_VENDOR) ] );
-    Log( LOGINFO, 'OpenGL Renderer     : %s', [ glGetString(GL_RENDERER) ] );
-    Log( LOGINFO, 'OpenGL Version      : %s', [ glGetString(GL_VERSION) ] );
-    Log( LOGINFO, 'OpenGL GLSL Version : %s', [ glGetString(35724) ] );
-  end;
+  // Failed construction destroys acquired resources while SDL is still valid.
+  OpenWindow( aSetup.Resizable );
 
   // One SDL driver owns the process event filter. Registration may call it
   // synchronously for queued events, so all receiver state is ready here.
@@ -597,150 +495,50 @@ begin
 
   if FGamePadSupport then ScanGamepads;
 
+  FAllowWindowed := aSetup.AllowWindowed;
+  SetMinimumPixels( aSetup.MinimumPixels );
+  PlaceWindow( aSetup.WindowSize );
+  // SDL applies a fullscreen request on a hidden window when it is shown.
+  if aSetup.Fullscreen or not aSetup.AllowWindowed then
+    SetFullscreen( True );
+  SDL_ShowWindow( FWindow );
+  SDL_SyncWindow( FWindow );
+  RefreshWindowSize;
+  FDisplayDirty := True;
   Log('SDL IO system ready.');
 end;
 
-function TSDLIODriver.ResetDesktopVideoMode( aWidth, aHeight, aBPP : Word;
-  aFlags : TSDLIOFlags ) : Boolean;
-var iWindowedFlags : TSDLIOFlags;
+// A hidden OpenGL 3.3 core window and its context. CreateWindow sizes and
+// places it before showing it.
+procedure TSDLIODriver.OpenWindow( aResizable : Boolean );
+var iFlags : DWord;
 begin
-  if ( FWindow <> nil ) and FFullscreen and
-     ( SDLIO_DesktopFullScreen in FFlags ) and
-     ( SDL_GetWindowFlags( FWindow ) and SDL_WINDOW_FULLSCREEN <> 0 ) then Exit( True );
+  iFlags := SDL_WINDOW_HIGH_PIXEL_DENSITY or SDL_WINDOW_OPENGL or SDL_WINDOW_HIDDEN;
+  if aResizable then iFlags := iFlags or SDL_WINDOW_RESIZABLE;
 
-  iWindowedFlags := aFlags - [ SDLIO_FullScreen, SDLIO_DesktopFullScreen ];
-  if not ResetVideoMode( aWidth, aHeight, aBPP, iWindowedFlags ) then
-    Exit( False );
+  SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 8 );
+  SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 8 );
+  SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 8 );
+  SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, 24 );
+  SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
+  SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 3 );
+  SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 3 );
+  SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE );
 
-  ResetPadEventState( Int32( FGamePadID ) );
-  if not SDL_SetWindowFullscreenMode( FWindow, nil ) then Exit( False );
-  if not SDL_SetWindowFullscreen( FWindow, True ) then Exit( False );
+  FWindow := SDL_CreateWindow( 'Valkyrie SDL Application', 1280, 720, iFlags );
+  if FWindow = nil then
+    raise EIOException.Create( 'Could not create the window: ' + SDL_GetError() );
+  SetupOpenGL;
+  FPixelDensity := SDL_GetWindowPixelDensity( FWindow );
+  if FPixelDensity <= 0 then FPixelDensity := 1.0;
 
-  FFullscreen := True;
-  FFlags := aFlags;
-  SDL_SetWindowPosition( FWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED );
-  Exit( True );
+  Log( LOGINFO, 'OpenGL Vendor       : %s', [ glGetString(GL_VENDOR) ] );
+  Log( LOGINFO, 'OpenGL Renderer     : %s', [ glGetString(GL_RENDERER) ] );
+  Log( LOGINFO, 'OpenGL Version      : %s', [ glGetString(GL_VERSION) ] );
+  Log( LOGINFO, 'OpenGL GLSL Version : %s', [ glGetString(35724) ] );
 end;
 
-function TSDLIODriver.ResetVideoMode ( aWidth, aHeight, aBPP : Word; aFlags : TSDLIOFlags ) : Boolean;
-var iSDLFlags : DWord;
-    iDM       : PSDL_DisplayMode;
-
-// Resize/Toggle
-var iFScreen : Boolean;
-    iClosest : SDL_DisplayMode;
-    iCurrent : SDL_DisplayID;
-    iWindowWidth, iWindowHeight : LongInt;
-begin
-  if SDLIO_DesktopFullScreen in aFlags then
-    Exit( ResetDesktopVideoMode( aWidth, aHeight, aBPP, aFlags ) );
-
-  iCurrent := 0;
-//  if FWindow <> nil then
-//    iCurrent := SDL_GetWindowDisplay(FWindow);
-  if iCurrent = 0 then
-    iCurrent := SDL_GetPrimaryDisplay();
-  if iCurrent = 0 then
-    raise EIOException.Create('No primary display: ' + SDL_GetError());
-
-  if ( aWidth * aHeight = 0 ) then
-  begin
-    iDM := SDL_GetCurrentDisplayMode( iCurrent );
-    if iDM = nil then
-      raise EIOException.Create(' SDL_GetCurrentDisplayMode returned 0 : '+SDL_GetError());
-    aWidth  := iDM^.w;
-    aHeight := iDM^.h;
-  end;
-
-  if FWindow <> nil then
-  begin
-    FFullscreen := SDL_GetWindowFlags( FWindow ) and SDL_WINDOW_FULLSCREEN <> 0;
-    iFScreen  := ( SDLIO_FullScreen in aFlags );
-    iWindowWidth := 0;
-    iWindowHeight := 0;
-    if not iFScreen then
-      if not SDL_GetWindowSize( FWindow, @iWindowWidth, @iWindowHeight ) then Exit( False );
-    if ( FFullscreen = iFScreen )
-      and ( FSizeX = aWidth )
-      and ( FSizeY = aHeight )
-      and ( iFScreen or ( ( iWindowWidth = aWidth ) and ( iWindowHeight = aHeight ) ) )
-          then Exit( True );
-    ResetPadEventState( Int32( FGamePadID ) );
-    if iFScreen then
-    begin
-      if not SDL_GetClosestFullscreenDisplayMode( iCurrent, aWidth, aHeight, 60.0, True, @iClosest) then
-      begin
-        Log('Failed to find fullscreen mode %dx%d/%dbit', [aWidth, aHeight, aBPP]);
-        Exit(False);
-      end;
-
-      // If we were fullscreen already, drop out first to avoid mode churn
-      if FFullscreen then SDL_SetWindowFullscreen(FWindow, False);
-
-      if not SDL_SetWindowFullscreenMode( FWindow, @iClosest ) then
-        Exit(False);
-      if not SDL_SetWindowFullscreen( FWindow, True ) then
-        Exit(False);
-    end
-    else
-    begin
-      if FFullscreen then
-        if not SDL_SetWindowFullscreen( FWindow, False ) then Exit( False );
-      if not SDL_SetWindowSize( FWindow, aWidth, aHeight ) then Exit( False );
-    end;
-  end;
-
-  FFullscreen  := SDLIO_FullScreen in aFlags;
-  FOpenGL   := SDLIO_OpenGL in aFlags;
-  FSizeX    := aWidth;
-  FSizeY    := aHeight;
-  FBPP      := aBPP;
-  FFlags    := aFlags;
-
-  if FWindow <> nil then
-  begin
-    SDL_SetWindowPosition( FWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED );
-    Exit( True );
-  end;
-
-  iSDLFlags := SDL_WINDOW_HIGH_PIXEL_DENSITY;
-  if FOpenGL  then iSDLFlags := iSDLFlags or SDL_WINDOW_OPENGL;
-  if FFullscreen then iSDLFlags := iSDLFlags or SDL_WINDOW_FULLSCREEN;
-
-  if SDLIO_Resizable in aFlags then iSDLFlags := iSDLFlags or SDL_WINDOW_RESIZABLE;
-
-  Log('Checking mode %dx%d/%dbit...', [aWidth,aHeight,aBPP]);
-
-  if FOpenGL then
-  begin
-
-    SDL_GL_SetAttribute( SDL_GL_RED_SIZE, 8 );
-    SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, 8 );
-    SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, 8 );
-    SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, 24 );
-    SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
-
-    SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, 3 );
-    SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, 3 );
-    // TODO: Change to CORE profile
-    //       This at least needs to remove GL_QUADS from all rendering
-    SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE );
-  end;
-
-  FWindow := SDL_CreateWindow( 'Valkyrie SDL Application', aWidth, aHeight, iSDLFlags or SDL_WINDOW_HIDDEN );
-  if FWindow = nil then Exit( False );
-  SDL_SetWindowPosition( FWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED );
-  if not FHidden then
-    SDL_ShowWindow( FWindow );
-
-  if FOpenGL then
-    if not SetupOpenGL then
-       Exit( False );
-
-  Exit( True );
-end;
-
-function TSDLIODriver.SetupOpenGL : Boolean;
+procedure TSDLIODriver.SetupOpenGL;
 begin
   FGLContext := SDL_GL_CreateContext( FWindow );
   if FGLContext = nil then raise EIOException.Create('OpenGL context could not be created! SDL_Error: ' + SDL_GetError() );
@@ -760,8 +558,6 @@ begin
   glCullFace( GL_BACK );
   glFrontFace( GL_CCW );
   glClearColor( 0, 0, 0, 0 );
-  glViewport( 0, 0, FSizeX, FSizeY );
-  Exit( True );
 end;
 
 procedure TSDLIODriver.Sleep ( Milliseconds : DWord ) ;
@@ -830,7 +626,6 @@ end;
 // filter, so loops that poll or discard events cannot lose the toggle.
 function TSDLIODriver.ConsumeWindowKey( aEvent : PSDL_Event ) : Boolean;
 begin
-  if not FManaged then Exit( False );
   if aEvent^._type <> SDL_EVENT_KEY_DOWN then Exit( False );
   if aEvent^.key.key <> SDLK_RETURN then Exit( False );
   if ( aEvent^.key.mod_ and SDL_KMOD_ALT ) = 0 then Exit( False );
@@ -867,23 +662,15 @@ end;
 
 procedure TSDLIODriver.PreUpdate;
 begin
-  if FOpenGL then
-  begin
-    // The full drawable each frame; games set no viewport for resolution.
-    if FManaged then
-      glViewport( 0, 0, FSizeX, FSizeY );
-    glClearColor(0.0,0.0,0.0,1.0);
-    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT);
-  end;
+  // The full drawable each frame; games set no viewport for resolution.
+  glViewport( 0, 0, FSizeX, FSizeY );
+  glClearColor(0.0,0.0,0.0,1.0);
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT);
 end;
 
 procedure TSDLIODriver.PostUpdate;
 begin
-  if FOpenGL then
-     SDL_GL_SwapWindow( FWindow )
-  else
-    Assert( False, 'Non-OpenGL IODriver not implemented!' );
-//    SDL_Flip( SDL_GetVideoSurface() );
+  SDL_GL_SwapWindow( FWindow );
 end;
 
 destructor TSDLIODriver.Destroy;
@@ -894,29 +681,20 @@ begin
   if FGamePadHandle <> nil then SDL_CloseGamepad( FGamePadHandle );
   if FGLContext <> nil then SDL_GL_DestroyContext( FGLContext );
   if FWindow <> nil then SDL_DestroyWindow( FWindow );
-  FreeAndNil( FDisplayModes );
   inherited Destroy;
 end;
 
 function TSDLIODriver.RefreshWindowSize : Boolean;
 var iWidth, iHeight : LongInt;
 begin
-  Result := SDL_GetWindowSizeInPixels( FWindow, @iWidth, @iHeight );
-  if not Result then Exit;
-  Result := (iWidth > 0) and (iHeight > 0);
+  // The drawable in pixels; without one (minimized) the last size stays.
+  iWidth  := 0;
+  iHeight := 0;
+  Result := SDL_GetWindowSizeInPixels( FWindow, @iWidth, @iHeight ) and
+    ( iWidth > 0 ) and ( iHeight > 0 );
   if not Result then Exit;
   FSizeX := iWidth;
   FSizeY := iHeight;
-end;
-
-function TSDLIODriver.SynchronizeWindow : Boolean;
-begin
-  Result := SDL_SyncWindow( FWindow );
-end;
-
-function TSDLIODriver.SetMinimumSize( const aSize : TIOPoint ) : Boolean;
-begin
-  Result := SDL_SetWindowMinimumSize( FWindow, aSize.X, aSize.Y );
 end;
 
 function TSDLIODriver.GetSizeX : DWord;
@@ -935,7 +713,7 @@ begin
   //if SDL_GetAppState() and SDL_APPMOUSEFOCUS = 0 then Exit( False );
   x := 0; y := 0;
   SDL_GetMouseState(@x,@y);
-  aResult := vutil.Point( Trunc( x * MouseScale ), Trunc( y * MouseScale ) );
+  aResult := vutil.Point( Trunc( x * FPixelDensity ), Trunc( y * FPixelDensity ) );
   Exit( True );
 end;
 
@@ -1018,56 +796,6 @@ begin
     FreeMem(iFlipBuf);
     FreeMem(iBuf);
   end;
-end;
-
-procedure TSDLIODriver.ScanDisplayModes;
-var i, iCount   : Integer;
-    iMode       : PSDL_DisplayMode;
-    iModes      : PPSDL_DisplayMode;
-    iEntry      : TIODisplayMode;
-    iIdn, iLast : Integer;
-    iCD         : SDL_DisplayID;
-begin
-  if Assigned( FDisplayModes )
-    then FDisplayModes.Clear
-    else FDisplayModes := TIODisplayModeArray.Create;
-
-  iCD := SDL_GetPrimaryDisplay();
-  if iCD = 0 then
-    raise EIOException.Create('No primary display: ' + SDL_GetError());
-
-  iModes := SDL_GetFullscreenDisplayModes( iCD, @iCount );
-  if iModes = nil then
-    raise EIOException.Create('SDL_GetFullscreenDisplayModes failed: ' + SDL_GetError());
-
-  iLast  := -1;
-  i      := 0;
-  while iModes[i] <> nil do
-  begin
-    iMode := iModes[i];
-    iIdn  := Int64(iMode^.h) * 100000 + iMode^.w;
-
-    if (iMode^.w >= 1280) and (iIdn <> iLast) then
-    begin
-      iLast := iIdn;
-      iEntry.Name    := Format('%dx%d (%dr)', [iMode^.w, iMode^.h, Round(iMode^.refresh_rate)]);
-      iEntry.Width   := iMode^.w;
-      iEntry.Height  := iMode^.h;
-      iEntry.Refresh := Round(iMode^.refresh_rate);
-      iEntry.Index   := FDisplayModes.Size;
-      FDisplayModes.Push(iEntry);
-    end;
-    Inc( i );
-  end;
-
-  SDL_free( iModes );
-end;
-
-function TSDLIODriver.SetDisplayMode( aIndex : Integer ) : Boolean;
-begin
-  if ( aIndex < 0 ) or ( aIndex >= FDisplayModes.Size ) then Exit( False );
-  with FDisplayModes[ aIndex ] do
-    Exit( ResetVideoMode( Width, Height, 32, FFlags ) );
 end;
 
 function TSDLIODriver.ScanGamepads( aAllowLoop : Boolean ) : Boolean;
@@ -1218,33 +946,6 @@ begin
   Exit( SDL_RumbleGamepad( FGamePadHandle, aLow, aHigh, aDuration ) );
 end;
 
-// Default windowed size, as a share of the usable display area.
-const DefaultWindowShare = 0.75;
-
-constructor TSDLIODriver.CreateWindow( const aSetup : TIOWindowSetup; aGamepad : Boolean );
-var iFlags : TSDLIOFlags;
-begin
-  iFlags := [ SDLIO_OpenGL ];
-  if aSetup.Resizable then Include( iFlags, SDLIO_Resizable );
-  if aGamepad then Include( iFlags, SDLIO_Gamepad );
-  FHidden := True;
-  // Placeholder size; the window is sized below, before it is shown.
-  Create( 1280, 720, 32, iFlags );
-  FManaged       := True;
-  FAllowWindowed := aSetup.AllowWindowed;
-  SetMinimumPixels( aSetup.MinimumPixels );
-  PlaceWindow( aSetup.WindowSize );
-
-  // SDL applies a fullscreen request on a hidden window when it is shown.
-  if aSetup.Fullscreen or not aSetup.AllowWindowed then
-    SetFullscreen( True );
-  SDL_ShowWindow( FWindow );
-  FHidden := False;
-  SDL_SyncWindow( FWindow );
-  RefreshWindowSize;
-  FDisplayDirty := True;
-end;
-
 // The size (zero = default) within the usable area and the minimum, centered.
 procedure TSDLIODriver.PlaceWindow( aSize : TIOPoint );
 var iDisplay : SDL_DisplayID;
@@ -1278,13 +979,6 @@ begin
   if FFullscreen
     then FPendingSize := iSize
     else PlaceWindow( iSize );
-end;
-
-function TSDLIODriver.MouseScale : Single;
-begin
-  if FManaged
-    then Exit( FPixelDensity )
-    else Exit( 1.0 );
 end;
 
 function TSDLIODriver.IsWindowFullscreen : Boolean;
@@ -1331,8 +1025,6 @@ begin
 end;
 
 function TSDLIODriver.ReadMetrics( out aMetrics : TIODisplayMetrics ) : Boolean;
-var iWidth  : LongInt;
-    iHeight : LongInt;
 begin
   // Cleared first, so events arriving during the read mark it again.
   FDisplayDirty := False;
@@ -1341,15 +1033,8 @@ begin
   aMetrics.Fullscreen   := IsWindowFullscreen;
   aMetrics.PixelDensity := FPixelDensity;
   aMetrics.DisplaySize  := GetDisplaySize;
-  iWidth  := 0;
-  iHeight := 0;
-  Result := SDL_GetWindowSizeInPixels( FWindow, @iWidth, @iHeight ) and ( iWidth > 0 ) and ( iHeight > 0 );
-  aMetrics.PixelSize := vutil.Point( iWidth, iHeight );
-  if Result then
-  begin
-    FSizeX := iWidth;
-    FSizeY := iHeight;
-  end;
+  Result := RefreshWindowSize;
+  aMetrics.PixelSize := vutil.Point( FSizeX, FSizeY );
 end;
 
 end.

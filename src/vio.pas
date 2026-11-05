@@ -151,7 +151,7 @@ begin
   inherited Create;
   FIODriver        := aIODriver;
   FWindowDriver    := nil;
-  if ( aIODriver is TIOWindowDriver ) and TIOWindowDriver( aIODriver ).Managed then
+  if aIODriver is TIOWindowDriver then
     FWindowDriver := TIOWindowDriver( aIODriver );
   FFullscreenEntry := nil;
   FConsole         := nil;

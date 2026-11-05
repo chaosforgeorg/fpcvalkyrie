@@ -21,16 +21,6 @@ type TIOGylph = packed object
   procedure Init( aASCII : Char; aColor : TIOColor );
 end;
 
-type TIODisplayMode = record
-   Index   : Integer;
-   Width   : Integer;
-   Height  : Integer;
-   Refresh : Integer;
-   Name    : AnsiString;
- end;
-
-type TIODisplayModeArray = specialize TGArray< TIODisplayMode >;
-
 type TIOTerminateEventHandler = function : Boolean of object;
 type TIOInterrupt = function( aEvent : TIOEvent ) : Boolean of object;
 type TIOInterrupts = array[0..IOKeyCodeMax] of TIOInterrupt;
@@ -64,11 +54,9 @@ type TIODriver = class( TVObject )
 protected
   FOnQuit        : TIOInterrupt;
   FInterrupts    : TIOInterrupts;
-  FDisplayModes  : TIODisplayModeArray;
   FFakeClipboard : Ansistring;
 public
   property OnQuitEvent  : TIOInterrupt        write FOnQuit;
-  property DisplayModes : TIODisplayModeArray read  FDisplayModes default nil;
 end;
 
 // Saved settings and game limits for creating a managed window.
@@ -87,7 +75,7 @@ type TIODisplayMetrics = record
   Fullscreen   : Boolean;
 end;
 
-// Window mechanics TIO uses for a window created as managed. Window sizes
+// Window mechanics TIO uses at the frame boundary. Window sizes
 // are logical; metrics are in drawable pixels.
 type TIOWindowDriver = class( TIODriver )
   constructor Create;
@@ -102,15 +90,12 @@ protected
   function GetDisplaySize : TIOPoint; virtual; abstract;
   procedure SetAllowWindowed( aValue : Boolean );
 protected
-  FManaged       : Boolean;
   FFullscreen    : Boolean;
   FAllowWindowed : Boolean;
   FWindowSize    : TIOPoint;
   FDisplayDirty  : Boolean;
   FToggleRequest : Boolean;
 public
-  // Created as managed: drawable-pixel mouse, per-frame viewport, Alt+Enter.
-  property Managed       : Boolean  read FManaged;
   // Requested, or changed by the platform.
   property Fullscreen    : Boolean  read FFullscreen;
   property AllowWindowed : Boolean  read FAllowWindowed write SetAllowWindowed;
@@ -297,7 +282,6 @@ end;
 constructor TIOWindowDriver.Create;
 begin
   inherited Create;
-  FManaged       := False;
   FFullscreen    := False;
   FAllowWindowed := True;
   FWindowSize    := Point( 0, 0 );
