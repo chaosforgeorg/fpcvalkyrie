@@ -59,18 +59,21 @@ TIO = class( TSystem )
   class procedure RegisterWindowSettings( aGroup : TConfigurationGroup );
   // Saved fullscreen and size; the game adds its minimum and limits.
   class function WindowSetup( aConfig : TConfigurationManager ) : TIOWindowSetup;
-  // Writes window changes (Alt+Enter, resizing) to the shared entries of a
-  // managed window. aConfig is borrowed and must outlive the IO.
+  // Writes window changes (Alt+Enter, resizing) to the shared entries of the
+  // window. Hides the fullscreen entry where only fullscreen is allowed.
+  // aConfig is borrowed and must outlive the IO.
   procedure BindWindowSettings( aConfig : TConfigurationManager );
-  // Applies an edited fullscreen entry; call where the game applies its
-  // settings. An unedited entry leaves the window, and a launch override, alone.
-  procedure ApplyWindowSettings;
+  // Call where the game applies its settings: applies an edited fullscreen
+  // entry, then runs DisplayChanged for the new settings. An unedited entry
+  // leaves the window, and a launch override, alone. Nothing without a window.
+  procedure ApplyDisplaySettings;
 protected
   function HandleInput( aInput : Integer ) : Boolean;
   procedure ClearFinishedLayers;
-  // Layout pass after the drawable, density, display or mode changed. Runs
-  // at the frame boundary, never inside event filtering, dispatch or rendering.
-  procedure DisplayChanged( const aMetrics : TIODisplayMetrics ); virtual;
+  // Layout pass for the drawable (driver size) and display settings. Runs at
+  // the frame boundary after a window change, and from ApplyDisplaySettings;
+  // never inside event filtering, dispatch or rendering.
+  procedure DisplayChanged; virtual;
 private
   procedure UpdateWindow;
   procedure SyncWindowSettings;
@@ -516,7 +519,7 @@ begin
   end;
 end;
 
-procedure TIO.DisplayChanged( const aMetrics : TIODisplayMetrics );
+procedure TIO.DisplayChanged;
 begin
 end;
 
@@ -535,7 +538,6 @@ begin
   Result.WindowSize    := Point( aConfig.GetInteger( 'window_width' ), aConfig.GetInteger( 'window_height' ) );
   Result.MinimumPixels := Point( 0, 0 );
   Result.Resizable     := True;
-  Result.AllowWindowed := True;
 end;
 
 procedure TIO.BindWindowSettings( aConfig : TConfigurationManager );
@@ -544,6 +546,7 @@ begin
   FFullscreenEntry   := aConfig.CastBoolean( 'fullscreen' );
   FWindowWidthEntry  := aConfig.CastInteger( 'window_width' );
   FWindowHeightEntry := aConfig.CastInteger( 'window_height' );
+  if not FWindowDriver.AllowWindowed then FFullscreenEntry.SetName( '' );
   // A launch override (--windowed) stays out of the entry until either side changes.
   FSyncedFullscreen  := FWindowDriver.Fullscreen;
   FSyncedEntry       := FFullscreenEntry.Value;
@@ -566,17 +569,21 @@ begin
      ( iMetrics.DisplaySize = FWindowMetrics.DisplaySize ) and
      ( iMetrics.Fullscreen = FWindowMetrics.Fullscreen ) then Exit;
   FWindowMetrics := iMetrics;
-  DisplayChanged( iMetrics );
+  DisplayChanged;
 end;
 
-procedure TIO.ApplyWindowSettings;
+procedure TIO.ApplyDisplaySettings;
 begin
-  if ( FFullscreenEntry = nil ) or ( FFullscreenEntry.Value = FSyncedEntry ) then Exit;
-  FWindowDriver.SetFullscreen( FFullscreenEntry.Value );
-  // A refused change leaves the actual state in the entry.
-  FFullscreenEntry.Value := FWindowDriver.Fullscreen;
-  FSyncedFullscreen      := FWindowDriver.Fullscreen;
-  FSyncedEntry           := FWindowDriver.Fullscreen;
+  if FWindowDriver = nil then Exit;
+  if ( FFullscreenEntry <> nil ) and ( FFullscreenEntry.Value <> FSyncedEntry ) then
+  begin
+    FWindowDriver.SetFullscreen( FFullscreenEntry.Value );
+    // A refused change leaves the actual state in the entry.
+    FFullscreenEntry.Value := FWindowDriver.Fullscreen;
+    FSyncedFullscreen      := FWindowDriver.Fullscreen;
+    FSyncedEntry           := FWindowDriver.Fullscreen;
+  end;
+  DisplayChanged;
 end;
 
 // Window changes since the last sync are written to the entries.

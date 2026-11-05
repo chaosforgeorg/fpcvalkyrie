@@ -59,13 +59,12 @@ public
   property OnQuitEvent  : TIOInterrupt        write FOnQuit;
 end;
 
-// Saved settings and game limits for creating a managed window.
+// Saved settings and game limits for creating the window.
 type TIOWindowSetup = record
   Fullscreen    : Boolean;
   WindowSize    : TIOPoint; // logical; zero = default size
   MinimumPixels : TIOPoint;
   Resizable     : Boolean;
-  AllowWindowed : Boolean;  // False: fullscreen only, Alt+Enter ignored
 end;
 
 type TIODisplayMetrics = record
@@ -88,7 +87,6 @@ type TIOWindowDriver = class( TIODriver )
   function TakeToggleRequest : Boolean;
 protected
   function GetDisplaySize : TIOPoint; virtual; abstract;
-  procedure SetAllowWindowed( aValue : Boolean );
 protected
   FFullscreen    : Boolean;
   FAllowWindowed : Boolean;
@@ -98,7 +96,8 @@ protected
 public
   // Requested, or changed by the platform.
   property Fullscreen    : Boolean  read FFullscreen;
-  property AllowWindowed : Boolean  read FAllowWindowed write SetAllowWindowed;
+  // False under gamescope (Steam Deck Gaming Mode): fullscreen only, Alt+Enter ignored.
+  property AllowWindowed : Boolean  read FAllowWindowed;
   // Last windowed, unmaximized size (logical).
   property WindowSize    : TIOPoint read FWindowSize;
   // Pixels of the display the window is on.
@@ -293,12 +292,6 @@ function TIOWindowDriver.TakeToggleRequest : Boolean;
 begin
   Result := FToggleRequest;
   FToggleRequest := False;
-end;
-
-procedure TIOWindowDriver.SetAllowWindowed( aValue : Boolean );
-begin
-  FAllowWindowed := aValue;
-  if not aValue then SetFullscreen( True );
 end;
 
 function TextFileToIOStringArray ( const aPath : AnsiString ) : TIOStringArray;

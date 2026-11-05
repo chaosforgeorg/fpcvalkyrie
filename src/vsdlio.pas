@@ -445,6 +445,19 @@ begin
   Exit(True);
 end;
 
+// Gamescope (Steam Deck Gaming Mode, SteamOS sessions) presents one
+// fullscreen window, so a windowed mode has no meaning there. Desktop Mode on
+// a Steam Deck is not a gamescope session and keeps windowed play.
+function RunningUnderGamescope : Boolean;
+begin
+  {$IFDEF UNIX}
+  Exit( ( GetEnvironmentVariable( 'GAMESCOPE_WAYLAND_DISPLAY' ) <> '' ) or
+        ( GetEnvironmentVariable( 'XDG_CURRENT_DESKTOP' ) = 'gamescope' ) );
+  {$ELSE}
+  Exit( False );
+  {$ENDIF}
+end;
+
 { TSDLIODriver }
 
 // Default windowed size, as a share of the usable display area.
@@ -495,11 +508,12 @@ begin
 
   if FGamePadSupport then ScanGamepads;
 
-  FAllowWindowed := aSetup.AllowWindowed;
+  FAllowWindowed := not RunningUnderGamescope;
+  if not FAllowWindowed then Log( 'Gamescope session: fullscreen only.' );
   SetMinimumPixels( aSetup.MinimumPixels );
   PlaceWindow( aSetup.WindowSize );
   // SDL applies a fullscreen request on a hidden window when it is shown.
-  if aSetup.Fullscreen or not aSetup.AllowWindowed then
+  if aSetup.Fullscreen or not FAllowWindowed then
     SetFullscreen( True );
   SDL_ShowWindow( FWindow );
   SDL_SyncWindow( FWindow );

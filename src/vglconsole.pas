@@ -395,8 +395,8 @@ begin
   if FBSupport then
     SetLength( FBColor, iSize );
 
-  SetCursorType( VIO_CURSOR_SMALL );
-  MoveCursor( 1, 1 );
+  // The cursor keeps its type and visibility; its position is clamped.
+  MoveCursor( FCursorX + 1, FCursorY + 1 );
   Clear;
 
   iRect   := GetDeviceArea();
