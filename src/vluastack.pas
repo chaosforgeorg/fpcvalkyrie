@@ -18,7 +18,7 @@ TLuaStack = object
     constructor Create;
     procedure Reset;
     function StackSize : LongInt;
-    procedure Error( const Message : AnsiString );
+    procedure Error( const Message : AnsiString ); noreturn;
     procedure PopRaise( PopAmount : Integer; const Message : AnsiString );
     function ToString( Index : Integer ) : AnsiString; overload;
     function ToInteger( Index : Integer ) : Integer; overload;

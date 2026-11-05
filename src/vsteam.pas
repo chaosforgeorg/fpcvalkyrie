@@ -598,7 +598,10 @@ begin
         Log( LOGERROR, 'TOO MANY INSTALLED MODS!' );
         iUGCMods := 255;
       end;
-      if iClient.UGC.GetSubscribedItems( iMods, iUGCMods ) > 0 then
+      iMods[0] := 0;
+      // Steam may fill fewer entries than requested.
+      iUGCMods := iClient.UGC.GetSubscribedItems( iMods, iUGCMods );
+      if iUGCMods > 0 then
       begin
         // TODO : >=8? Unhack this
         for i := 0 to iUGCMods-1 do
@@ -698,6 +701,7 @@ begin
   if ( not IsInitialized ) then Exit;
   iDispatch := TSteamCore.GetClient.Dispatch;
   iDispatch.Update;
+  iMsg := Default( TSteamCallbackMsg );
   while iDispatch.GetNextCallback(@iMsg) do
   begin
     case iMsg.unCallback of
