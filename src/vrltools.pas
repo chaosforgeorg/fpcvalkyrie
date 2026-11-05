@@ -507,8 +507,8 @@ begin
  if Code = 0 then Exit(0);
  case Code mod 3 of
    0 : Exit(+1);
-   2 : Exit(0);
    1 : Exit(-1);
+ else Exit(0);
  end;
 end;
 
@@ -517,8 +517,8 @@ begin
  if Code = 0 then Exit(0);
  case Code of
    1..3 : Exit(+1);
-   4..6 : Exit(0);
    7..9 : Exit(-1);
+ else Exit(0);
  end;
 end;
 
@@ -992,7 +992,7 @@ end;
 
 function TAutoTarget.First: TCoord2D;
 begin
-  if CurrentEntry = nil then Exit();
+  if CurrentEntry = nil then Exit( Source );
   Exit(FirstEntry^.Target);
 end;
 

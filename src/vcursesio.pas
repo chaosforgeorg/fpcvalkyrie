@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vcursesio;
 interface
-uses Classes, SysUtils, vutil, viotypes, vioevent;
+uses Classes, SysUtils, viotypes, vioevent;
 
 type TCursesIODriver = class( TIODriver )
   constructor Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False );
@@ -31,7 +31,7 @@ end;
 implementation
 
 uses
-  nCurses, math, dateutils;
+  ncurses, dateutils;
 
 constructor TCursesIODriver.Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False );
 var i,c : Word;
@@ -171,7 +171,7 @@ begin
   FLastGet := wgetch(stdscr);
 
   // Zero-init so fields not set below dont leak to consumers
-  FillChar( aEvent, SizeOf(aEvent), 0 );
+  aEvent := Default( TIOEvent );
 
   // If value is err, return none event
   if FLastGet = -1 then Exit( False );

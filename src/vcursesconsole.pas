@@ -37,7 +37,7 @@ end;
 
 implementation
 
-uses vutil, nCurses, vcursesio;
+uses vutil, ncurses;
 
 const ColorMask     = $000000FF;
       ForeColorMask = $0000000F;

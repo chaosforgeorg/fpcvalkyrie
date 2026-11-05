@@ -301,7 +301,7 @@ function luaL_newmetatable(L : Plua_State; const tname : PChar) : Integer; calld
 function luaL_checkudata(L : Plua_State; ud : Integer; const tname : PChar) : Pointer; calldecl; external;
 procedure luaL_where(L : Plua_State; lvl : Integer); calldecl; external;
 function  luaL_error(L : Plua_State; const fmt : PChar) : Integer; varargs; calldecl; external;
-function luaL_checkoption(L : Plua_State; narg : Integer; const def : PChar; const lst : array of PChar) : Integer; calldecl; external;
+function luaL_checkoption(L : Plua_State; narg : Integer; const def : PChar; const lst : PPChar) : Integer; calldecl; external;
 function  luaL_ref(L : Plua_State; t : Integer) : Integer; calldecl; external;
 procedure luaL_unref(L : Plua_State; t, ref : Integer); calldecl; external;
 

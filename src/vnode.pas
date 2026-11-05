@@ -1442,7 +1442,6 @@ function lua_node_property_set(L: Plua_State): Integer; cdecl;
 var State  : TLuaStack;
     Node   : TNode;
     Prop   : AnsiString;
-    HookID : Integer;
 begin
   State.Init(L);
   lua_settop( L, 3 );

@@ -57,7 +57,7 @@ end;
 
 implementation
 
-uses vgl3library, vglimage, vutil;
+uses vgl3library, vglimage;
 
 constructor TTexture.Create( aImage : TImage; aBlend : Boolean );
 begin

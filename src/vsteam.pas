@@ -284,6 +284,7 @@ end;
 function TSteamUGC.GetItemInstallInfo( aItem : TSteamItemId; out aInfo : TSteamUGCInfo ) : Boolean;
 var iBuffer : array[0..255] of Char;
 begin
+  iBuffer[0] := #0;
   Result := SteamAPI_ISteamUGC_GetItemInstallInfo( FUGC, aItem, @(aInfo.Size), iBuffer, 255, @(aInfo.TimeStamp) );
   aInfo.Path:= Ansistring( PChar( iBuffer ) );
 end;
@@ -816,6 +817,7 @@ begin
   if ( not IsInitialized ) or ( TSteamCore.GetClient.Friends = nil ) then Exit( False );
   if aAppID = 0 then aAppID := FAppID;
   TSteamCore.GetClient.Friends.ActivateOverlayWebpage( 'https://store.steampowered.com/app/' + IntToStr( aAppId ) + '/' );
+  Exit( True );
 end;
 
 function TSteam.GetStoreType : TStoreType;

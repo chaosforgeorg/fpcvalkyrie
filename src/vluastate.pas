@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vluastate;
 interface
-uses variants, classes, vlualibrary, vobject, vutil, vdf, vrandom;
+uses variants, classes, vlualibrary, vobject, vdf, vrandom;
 
 type ELuaException = vlualibrary.ELuaException;
      Plua_State    = vlualibrary.Plua_State;

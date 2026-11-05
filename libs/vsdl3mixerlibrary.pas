@@ -9,13 +9,7 @@ uses Classes, SysUtils, vlibrary, vsdl3library,
   Windows;
 {$ENDIF}
 {$IFDEF UNIX}
-  pthreads,
-  baseunix,
-  {$IFDEF DARWIN}
-     unix;
-  {$ELSE}
-     unix, x, xlib;
-  {$ENDIF}
+  unix;
 {$ENDIF}
 
 const

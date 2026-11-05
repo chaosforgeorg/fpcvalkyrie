@@ -102,7 +102,7 @@ end;
 
 implementation
 
-uses math, vtig, vutil;
+uses vtig, vutil;
 
 { TIORL }
 

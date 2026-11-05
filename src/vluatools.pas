@@ -60,7 +60,7 @@ function LuaStackRef( aL : Plua_State; aIndex : Integer ) : TLuaType;
 
 implementation
 
-uses vluastack, vluaext, vuid, vlua, vrandom;
+uses vluaext, vuid, vlua, vrandom;
 
 function vlua_toflags( L : Plua_State; Index : Integer ): TFlags;
 begin

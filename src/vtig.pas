@@ -520,9 +520,11 @@ var i, iParamIndex : Integer;
             iParamStr := PAnsiChar(AnsiString(aParameters[aParameterIndex].VAnsiString));
             Exit( VTIG_Length( iParamStr, aParameters ) );
           end;
+        vtInteger: Exit( Length( IntToStr( aParameters[aParameterIndex].VInteger ) ) );
         // Add handling for other parameter types if needed
       end;
     end;
+    Exit( 0 );
   end;
 begin
   Result    := 0;
@@ -1152,6 +1154,7 @@ begin
   iPosition := Float( iWindow.FScroll ) / Float( iMaxScroll );
   iYPos     := Floor( Float( iCmd.Area.Dim.Y - 3 ) * iPosition );
   VTIG_RenderChar( iFrame[4], Point(iWindow.DC.FClip.X2 + 1, iWindow.DC.FClip.Y + iYpos) );
+  Exit( True );
 end;
 
 procedure VTIG_ResetScroll( aName : AnsiString = ''; aValue : Integer = 0 );

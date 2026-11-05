@@ -325,16 +325,11 @@ begin
 end;
 
 procedure TGLConsoleRenderer.SetCursorType ( aType : TIOCursorType ) ;
-var iChar : Char;
+const CursorChars : array[TIOCursorType] of Char = ( '_', #220, #219 );
 begin
   if not (VIO_CON_CURSOR in FCapabilities) then Exit;
   FCurVisible := True;
-  case aType of
-     VIO_CURSOR_SMALL : iChar := '_';
-     VIO_CURSOR_HALF  : iChar := #220;
-     VIO_CURSOR_BLOCK : iChar := #219;
-  end;
-  FCGlyph := Ord( iChar );
+  FCGlyph := Ord( CursorChars[aType] );
   inherited SetCursorType( aType );
 end;
 

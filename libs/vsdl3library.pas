@@ -9,13 +9,7 @@ uses Classes, SysUtils, vlibrary,
   Windows;
 {$ENDIF}
 {$IFDEF UNIX}
-  pthreads,
-  baseunix,
-  {$IFDEF DARWIN}
-     unix;
-  {$ELSE}
-     unix, x, xlib;
-  {$ENDIF}
+  unix;
 {$ENDIF}
 
 const
@@ -986,7 +980,7 @@ begin
   U^.OwnsStream := aOwnsStream;
   U^.ReadOnly   := aReadOnly;
 
-  FillChar(Iface, SizeOf(Iface), 0);
+  Iface := Default( SDL_IOStreamInterface );
   Iface.version := SizeOf(SDL_IOStreamInterface);
   Iface.size    := @IO_Stream_Size;
   Iface.seek    := @IO_Stream_Seek;

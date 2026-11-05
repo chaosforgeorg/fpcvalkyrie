@@ -201,13 +201,9 @@ begin
 end;
 
 function VModKeyToString ( aModKey : TIOModKey ) : AnsiString;
+const ModKeyNames : array[TIOModKey] of AnsiString = ( 'UNKNOWN', 'CTRL', 'SHIFT', 'ALT' );
 begin
-  case aModKey of
-    VKMOD_CTRL    : Exit( 'CTRL' );
-    VKMOD_SHIFT   : Exit( 'SHIFT' );
-    VKMOD_ALT     : Exit( 'ALT' );
-    VKMOD_UNKNOWN : Exit( 'UNKNOWN' );
-  end;
+  Exit( ModKeyNames[aModKey] );
 end;
 
 function VModKeySetToString ( const aModKeySet : TIOModKeySet ) : AnsiString;
@@ -290,15 +286,10 @@ end;
 
 
 function VMBToString ( aMB : TIOMouseButton ) : AnsiString;
+const MouseButtonNames : array[TIOMouseButton] of AnsiString =
+  ( 'UNKNOWN', 'BUTTON_LEFT', 'BUTTON_MIDDLE', 'BUTTON_RIGHT', 'WHEEL_UP', 'WHEEL_DOWN' );
 begin
-  case aMB of
-    VMB_UNKNOWN       : Exit( 'UNKNOWN' );
-    VMB_BUTTON_LEFT   : Exit( 'BUTTON_LEFT' );
-    VMB_BUTTON_MIDDLE : Exit( 'BUTTON_MIDDLE' );
-    VMB_BUTTON_RIGHT  : Exit( 'BUTTON_RIGHT' );
-    VMB_WHEEL_UP      : Exit( 'WHEEL_UP' );
-    VMB_WHEEL_DOWN    : Exit( 'WHEEL_DOWN' );
-  end;
+  Exit( MouseButtonNames[aMB] );
 end;
 
 function VMBSetToString ( aMB : TIOMouseButtonSet ) : AnsiString;
@@ -536,20 +527,11 @@ begin
 end;
 
 function IOEventTypeToString ( aType : TIOEventType ) : AnsiString;
+const EventTypeNames : array[TIOEventType] of AnsiString =
+  ( 'System', 'KeyDown', 'KeyUp', 'MouseMove', 'MouseDown', 'MouseUp',
+    'PadAxis', 'PadDown', 'PadUp', 'PadDevice', 'Text' );
 begin
-  case aType of
-    VEVENT_SYSTEM     : Exit('System');
-    VEVENT_KEYDOWN    : Exit('KeyDown');
-    VEVENT_KEYUP      : Exit('KeyUp');
-    VEVENT_MOUSEMOVE  : Exit('MouseMove');
-    VEVENT_MOUSEDOWN  : Exit('MouseDown');
-    VEVENT_MOUSEUP    : Exit('MouseUp');
-    VEVENT_PADAXIS    : Exit('PadAxis');
-    VEVENT_PADDOWN    : Exit('PadDown');
-    VEVENT_PADUP      : Exit('PadUp');
-    VEVENT_PADDEVICE  : Exit('PadDevice');
-    VEVENT_TEXT       : Exit('Text');
-  end;
+  Exit( EventTypeNames[aType] );
 end;
 
 function IOKeyCode ( aKey : Byte; aModState : TIOModKeySet ) : TIOKeyCode;
@@ -579,7 +561,7 @@ end;
 function PrintableToIOEvent ( aKey : Char ) : TIOEvent;
 begin
   Assert( Ord(aKey) in VKEY_PRINTABLESET );
-  FillChar( Result, SizeOf(Result), 0 );
+  Result := Default( TIOEvent );
   Result.EType        := VEVENT_KEYDOWN;
   Result.Key.ASCII    := aKey;
   Result.Key.Code     := Ord(Unshift( aKey ));

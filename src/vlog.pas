@@ -13,7 +13,7 @@
 unit vlog;
 interface
 uses Classes, SysUtils, vutil, vgenerics
-  {$IFDEF WINDOWS}, Windows {$ELSE}, BaseUnix {$ENDIF};
+  {$IFDEF WINDOWS}, Windows {$ENDIF};
 
 type
   // Log callback type for TCallbackLogSink.

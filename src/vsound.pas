@@ -567,7 +567,7 @@ begin
   end;
   if vlua_iscoord( L, 2 ) then
   begin
-    Sound.PlaySample( iSoundID, vlua_tocoord( L, 2 ) );
+    Sound.PlaySample( iSoundNID, vlua_tocoord( L, 2 ) );
   end
   else
   begin
@@ -575,7 +575,7 @@ begin
     iPan    := -1;
     if lua_isnumber( L, 2 ) then iVolume := lua_tointeger( L, 2 );
     if lua_isnumber( L, 3 ) then iPan    := lua_tointeger( L, 3 );
-    Sound.PlaySample( iSoundID, iVolume, iPan );
+    Sound.PlaySample( iSoundNID, iVolume, iPan );
   end;
   Result := 0;
 end;

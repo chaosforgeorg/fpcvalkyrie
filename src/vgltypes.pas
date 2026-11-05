@@ -226,75 +226,75 @@ begin
 end;
 
 function GLPixelFormatToEnum( aFormat : TGLPixelFormat ) : Integer;
+const Enums : array[TGLPixelFormat] of Integer = (
+  { RGB8    } GL_RGB,
+  { RGBA8   } GL_RGBA,
+  { R8      } GL_RED,
+  { DEPTH16 } GL_DEPTH_COMPONENT,
+  { DEPTH24 } GL_DEPTH_COMPONENT,
+  { DEPTH32 } GL_DEPTH_COMPONENT,
+  { R8I     } GL_RED_INTEGER,
+  { R8UI    } GL_RED_INTEGER,
+  { R16F    } GL_RED,
+  { R32F    } GL_RED,
+  { RGBA16F } GL_RGBA,
+  { RGBA32F } GL_RGBA );
 begin
-  case aFormat of
-    RGB8    : Exit( GL_RGB );
-    RGBA8   : Exit( GL_RGBA );
-    R8      : Exit( GL_RED );
-    DEPTH16 : Exit( GL_DEPTH_COMPONENT );
-    DEPTH24 : Exit( GL_DEPTH_COMPONENT );
-    DEPTH32 : Exit( GL_DEPTH_COMPONENT );
-    R8I     : Exit( GL_RED_INTEGER );
-    R8UI    : Exit( GL_RED_INTEGER );
-    R16F    : Exit( GL_RED );
-    R32F    : Exit( GL_RED );
-    RGBA16F : Exit( GL_RGBA );
-    RGBA32F : Exit( GL_RGBA );
-  end;
+  Exit( Enums[aFormat] );
 end;
 
 function GLPixelFormatToInternalEnum( aFormat : TGLPixelFormat ) : Integer;
+const InternalEnums : array[TGLPixelFormat] of Integer = (
+  { RGB8    } GL_RGB8,
+  { RGBA8   } GL_RGBA8,
+  { R8      } GL_R8,
+  { DEPTH16 } GL_DEPTH_COMPONENT16,
+  { DEPTH24 } GL_DEPTH_COMPONENT24,
+  { DEPTH32 } GL_DEPTH_COMPONENT32,
+  { R8I     } GL_R8I,
+  { R8UI    } GL_R8UI,
+  { R16F    } GL_R16F,
+  { R32F    } GL_R32F,
+  { RGBA16F } GL_RGBA16F,
+  { RGBA32F } GL_RGBA32F );
 begin
-  case aFormat of
-    RGB8    : Exit( GL_RGB8 );
-    RGBA8   : Exit( GL_RGBA8 );
-    R8      : Exit( GL_R8 );
-    DEPTH16 : Exit( GL_DEPTH_COMPONENT16 );
-    DEPTH24 : Exit( GL_DEPTH_COMPONENT24 );
-    DEPTH32 : Exit( GL_DEPTH_COMPONENT32 );
-    R8I     : Exit( GL_R8I );
-    R8UI    : Exit( GL_R8UI );
-    R16F    : Exit( GL_R16F );
-    R32F    : Exit( GL_R32F );
-    RGBA16F : Exit( GL_RGBA16F );
-    RGBA32F : Exit( GL_RGBA32F );
-  end;
+  Exit( InternalEnums[aFormat] );
 end;
 
 function GLPixelFormatToSize( aFormat : TGLPixelFormat ) : Integer;
+const Sizes : array[TGLPixelFormat] of Integer = (
+  { RGB8    } 3,
+  { RGBA8   } 4,
+  { R8      } 1,
+  { DEPTH16 } 1,
+  { DEPTH24 } 1,
+  { DEPTH32 } 1,
+  { R8I     } 1,
+  { R8UI    } 1,
+  { R16F    } 1,
+  { R32F    } 1,
+  { RGBA16F } 4,
+  { RGBA32F } 4 );
 begin
-  case aFormat of
-    RGB8    : Exit( 3 );
-    RGBA8   : Exit( 4 );
-    R8      : Exit( 1 );
-    DEPTH16 : Exit( 1 );
-    DEPTH24 : Exit( 1 );
-    DEPTH32 : Exit( 1 );
-    R8I     : Exit( 1 );
-    R8UI    : Exit( 1 );
-    R16F    : Exit( 1 );
-    R32F    : Exit( 1 );
-    RGBA16F : Exit( 4 );
-    RGBA32F : Exit( 4 );
-  end;
+  Exit( Sizes[aFormat] );
 end;
 
 function GLPixelFormatToType( aFormat : TGLPixelFormat ) : Integer;
+const DataTypes : array[TGLPixelFormat] of Integer = (
+  { RGB8    } GL_UNSIGNED_BYTE,
+  { RGBA8   } GL_UNSIGNED_BYTE,
+  { R8      } GL_UNSIGNED_BYTE,
+  { DEPTH16 } GL_UNSIGNED_SHORT,
+  { DEPTH24 } GL_UNSIGNED_INT,
+  { DEPTH32 } GL_UNSIGNED_INT,
+  { R8I     } GL_BYTE,
+  { R8UI    } GL_UNSIGNED_BYTE,
+  { R16F    } GL_HALF_FLOAT,
+  { R32F    } GL_FLOAT,
+  { RGBA16F } GL_HALF_FLOAT,
+  { RGBA32F } GL_FLOAT );
 begin
-  case aFormat of
-    RGB8    : Exit( GL_UNSIGNED_BYTE );
-    RGBA8   : Exit( GL_UNSIGNED_BYTE );
-    R8      : Exit( GL_UNSIGNED_BYTE );
-    DEPTH16 : Exit( GL_UNSIGNED_SHORT );
-    DEPTH24 : Exit( GL_UNSIGNED_INT );
-    DEPTH32 : Exit( GL_UNSIGNED_INT );
-    R8I     : Exit( GL_BYTE );
-    R8UI    : Exit( GL_UNSIGNED_BYTE );
-    R16F    : Exit( GL_HALF_FLOAT );
-    R32F    : Exit( GL_FLOAT );
-    RGBA16F : Exit( GL_HALF_FLOAT );
-    RGBA32F : Exit( GL_FLOAT );
-  end;
+  Exit( DataTypes[aFormat] );
 end;
 
 end.

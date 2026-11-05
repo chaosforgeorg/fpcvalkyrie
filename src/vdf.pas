@@ -93,8 +93,6 @@ const VDF_SIGNATURE = 'VDFILE02';
 
 implementation
 
-uses vutil;
-
 
 { TVDataFile }
 

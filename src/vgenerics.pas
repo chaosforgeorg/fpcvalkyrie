@@ -1317,7 +1317,7 @@ begin
     else
     if (FPolicy = HashMap_RaiseAll) or (FPolicy = HashMap_RaiseUndefined)
       then raise EUndefinedError.Create('Key '+aKey+' undefined in HashMap!')
-      else FillByte(Get, sizeof(T), 0);
+      else Get := Default( T );
 end;
 
 function TGHashMap.Get( const aKey : AnsiString; const DefVal : T ) : T;

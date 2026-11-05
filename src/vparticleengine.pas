@@ -247,10 +247,10 @@ function TParticleEngine.RandomPointInShape( const aPos : TVec3f; aData : PParti
 var iAngle, iRadius : Single;
     iBase : TVec3f;
 begin
-  iBase := aPos + aData^.PositionOffset;
+  iBase  := aPos + aData^.PositionOffset;
+  Result := iBase;
   case aData^.Shape of
-    ES_POINT:
-      Result := iBase;
+    ES_POINT: ;
     ES_SPHERE:
     begin
       iAngle := FRNG.RFloat * 2 * PI;

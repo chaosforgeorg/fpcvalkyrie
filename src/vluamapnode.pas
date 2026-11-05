@@ -184,7 +184,7 @@ end;
 
 implementation
 
-uses math, vgenerics, vmath, vluatools, vluatype, vlualibrary;
+uses vgenerics, vmath, vluatools, vluatype, vlualibrary;
 
 type TMinCoordChoice = specialize TGMinimalChoice<TCoord2D>;
      TCoordArray     = specialize TGArray<TCoord2D>;

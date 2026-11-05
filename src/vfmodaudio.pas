@@ -100,7 +100,7 @@ begin
   GetMem( iAsset^.Memory, aSize );
   iAsset^.Size := aSize;
   aStream.ReadBuffer( iAsset^.Memory^, aSize );
-  FillChar( iInfo, SizeOf(iInfo), 0 );
+  iInfo := Default( FMOD_CREATESOUNDEXINFO );
   iInfo.cbsize := SizeOf(iInfo);
   iInfo.length := aSize;
   iMode := FMOD_2D or FMOD_OPENMEMORY;
