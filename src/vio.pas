@@ -57,8 +57,12 @@ TIO = class( TSystem )
   function SaveConsoleTextDump( const aFileName : AnsiString ) : Boolean;
   // The shared fullscreen and window size entries of a game's display group.
   class procedure RegisterWindowSettings( aGroup : TConfigurationGroup );
-  // Saved fullscreen and size; the game adds its minimum and limits.
-  class function WindowSetup( aConfig : TConfigurationManager ) : TIOWindowSetup;
+  // Saved fullscreen and size with the launch flags applied; the game adds
+  // its minimum and limits.
+  class function WindowSetup( aConfig : TConfigurationManager; const aLaunch : TIOLaunchOptions ) : TIOWindowSetup;
+  // Call before creating the window. Windows: releases the launching console,
+  // or, with aKeepAsLog (god mode), keeps it and mirrors the log there.
+  class procedure ReleaseConsole( aKeepAsLog : Boolean );
   // Writes window changes (Alt+Enter, resizing) to the shared entries of the
   // window. Hides the fullscreen entry where only fullscreen is allowed.
   // aConfig is borrowed and must outlive the IO.
@@ -108,7 +112,7 @@ end;
 
 implementation
 
-uses dateutils, math, vutil, vtig, vtigio, vioeventstate, vtigconsole;
+uses {$IFDEF WINDOWS} windows, {$ENDIF} dateutils, math, vutil, vlog, vtig, vtigio, vioeventstate, vtigconsole;
 
 { TIOLayer }
 
@@ -532,12 +536,21 @@ begin
   aGroup.AddInteger( 'window_height', 0 );
 end;
 
-class function TIO.WindowSetup( aConfig : TConfigurationManager ) : TIOWindowSetup;
+class function TIO.WindowSetup( aConfig : TConfigurationManager; const aLaunch : TIOLaunchOptions ) : TIOWindowSetup;
 begin
-  Result.Fullscreen    := aConfig.GetBoolean( 'fullscreen' );
+  Result.Fullscreen    := aLaunch.FullscreenMode( aConfig.GetBoolean( 'fullscreen' ) );
   Result.WindowSize    := Point( aConfig.GetInteger( 'window_width' ), aConfig.GetInteger( 'window_height' ) );
   Result.MinimumPixels := Point( 0, 0 );
   Result.Resizable     := True;
+end;
+
+class procedure TIO.ReleaseConsole( aKeepAsLog : Boolean );
+begin
+  {$IFDEF WINDOWS}
+  if aKeepAsLog
+    then Logger.AddSink( TConsoleLogSink.Create( LOGDEBUG, True ) )
+    else FreeConsole;
+  {$ENDIF}
 end;
 
 procedure TIO.BindWindowSettings( aConfig : TConfigurationManager );

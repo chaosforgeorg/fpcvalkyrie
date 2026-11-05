@@ -3,7 +3,7 @@
 unit vrlapp;
 interface
 
-uses sysutils, vapp, vsystem, vrandom, viorl, vlua, vioevent;
+uses sysutils, vapp, vsystem, vrandom, viorl, vlua, vioevent, viotypes;
 
 type
   ERLRuntimeState = class( Exception );
@@ -61,7 +61,13 @@ type TRLApplication = class abstract( TValkyrieApplication )
   private
     FConfiguration : TObject;
     FRuntime       : TRLRuntime;
+    FLaunch        : TIOLaunchOptions;
   protected
+    // Adds --console, --graphics, --fullscreen and --windowed; descendants
+    // call inherited first.
+    procedure DefineOptions; override;
+    // Reads the display flags into Launch and rejects contradicting pairs.
+    procedure ValidateOptions; override;
     function CreateConfiguration( var aPaths : TGamePaths ) : TObject; virtual; abstract;
     function CreateRuntime( const aPaths : TGamePaths; var aConfiguration : TObject ) : TRLRuntime; virtual; abstract;
 
@@ -71,6 +77,7 @@ type TRLApplication = class abstract( TValkyrieApplication )
 
     property Configuration : TObject read FConfiguration;
     property Runtime : TRLRuntime read FRuntime;
+    property Launch : TIOLaunchOptions read FLaunch;
   end;
 
 implementation
@@ -216,6 +223,28 @@ begin
 end;
 
 { TRLApplication }
+
+procedure TRLApplication.DefineOptions;
+begin
+  inherited DefineOptions;
+  AddFlag( 'console',    #0, 'Use the text console this session.' );
+  AddFlag( 'graphics',   #0, 'Use the graphics window this session.' );
+  AddFlag( 'fullscreen', #0, 'Start the graphics window fullscreen.' );
+  AddFlag( 'windowed',   #0, 'Start the graphics window windowed.' );
+end;
+
+procedure TRLApplication.ValidateOptions;
+begin
+  inherited ValidateOptions;
+  FLaunch.Console    := HasOption( 'console' );
+  FLaunch.Graphics   := HasOption( 'graphics' );
+  FLaunch.Fullscreen := HasOption( 'fullscreen' );
+  FLaunch.Windowed   := HasOption( 'windowed' );
+  if FLaunch.Console and FLaunch.Graphics then
+    FailOption( 'Use only one of --console and --graphics.' )
+  else if FLaunch.Fullscreen and FLaunch.Windowed then
+    FailOption( 'Use only one of --fullscreen and --windowed.' );
+end;
 
 procedure TRLApplication.LoadConfiguration( var aPaths : TGamePaths );
 begin

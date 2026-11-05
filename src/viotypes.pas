@@ -67,6 +67,17 @@ type TIOWindowSetup = record
   Resizable     : Boolean;
 end;
 
+// Display choices from the command line, fixed for the process. Each one
+// overrides the saved setting for this session only.
+type TIOLaunchOptions = record
+  Console    : Boolean; // --console
+  Graphics   : Boolean; // --graphics
+  Fullscreen : Boolean; // --fullscreen
+  Windowed   : Boolean; // --windowed
+  function GraphicsMode( aSetting : Boolean ) : Boolean;
+  function FullscreenMode( aSetting : Boolean ) : Boolean;
+end;
+
 type TIODisplayMetrics = record
   PixelSize    : TIOPoint; // drawable; layout and mouse coordinates use this space
   PixelDensity : Single;
@@ -218,6 +229,22 @@ end;
 function IOColor(aR, aG, aB: Byte; aA: Byte): TIOColor;
 begin
   IOColor := aA + aB shl 8 + aG shl 16 + aR shl 24;
+end;
+
+{ TIOLaunchOptions }
+
+function TIOLaunchOptions.GraphicsMode( aSetting : Boolean ) : Boolean;
+begin
+  if Graphics then Exit( True );
+  if Console  then Exit( False );
+  Exit( aSetting );
+end;
+
+function TIOLaunchOptions.FullscreenMode( aSetting : Boolean ) : Boolean;
+begin
+  if Fullscreen then Exit( True );
+  if Windowed   then Exit( False );
+  Exit( aSetting );
 end;
 
 { TIOGylph }
