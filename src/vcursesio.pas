@@ -41,6 +41,11 @@ begin
   Log('Initializing CursesIO driver...');
 
   initscr();
+  // resize_term only changes what curses assumes, so the real terminal must
+  // fit. A failed constructor runs Destroy, which ends curses.
+  if ( getmaxx( stdscr ) < aCols ) or ( getmaxy( stdscr ) < aRows ) then
+    raise EIOException.CreateFmt( 'Too small console available (%dx%d), resize your console to %dx%d!',
+      [ getmaxx( stdscr ), getmaxy( stdscr ), aCols, aRows ] );
   resize_term( aRows, aCols );
   raw();
   cbreak();

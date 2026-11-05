@@ -186,6 +186,7 @@ end;
 
 constructor TTextIODriver.Create( aCols : Word = 80; aRows : Word = 25; aMouse : Boolean = False );
 var iVideoMode : TVideoMode;
+    iWanted    : TIOPoint;
     {$IFDEF WINDOWS}
     iHandle    : HANDLE;
 //    iIHandle   : HANDLE;
@@ -195,6 +196,7 @@ var iVideoMode : TVideoMode;
     iConsole   : AnsiString;
     {$ENDIF}
 begin
+  iWanted.Init( aCols, aRows );
   {$IFDEF WINDOWS}
   iConsole := GetConsoleWindowClassName;
 
@@ -272,6 +274,10 @@ begin
     Log('Terminal video mode - %dx%d color.',[FSizeX,FSizeY])
   else
     Log('Terminal video mode - %dx%d NO COLOR.',[FSizeX,FSizeY]);
+  // A failed constructor runs Destroy, which restores the terminal.
+  if ( FSizeX < DWord( iWanted.X ) ) or ( FSizeY < DWord( iWanted.Y ) ) then
+    raise EIOException.CreateFmt( 'Too small console available (%dx%d), resize your console to %dx%d!',
+      [ FSizeX, FSizeY, iWanted.X, iWanted.Y ] );
 
   FFirstUpdate := True;
   FStartTime   := Now;

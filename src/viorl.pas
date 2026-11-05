@@ -91,6 +91,13 @@ protected
   FLevel     : TLuaMapNode;
   FPlayer    : TLuaEntityNode;
   FBreakLoop : Boolean;
+
+  // The platform's native terminal for ASCII mode: curses on Unix, the text
+  // console elsewhere. Raises EIOException when the terminal is smaller than
+  // aCols x aRows.
+  class function CreateTerminalDriver( aCols, aRows : Word ) : TIODriver;
+  // A renderer for the terminal driver, with background colors and a cursor.
+  class function CreateTerminalRenderer( aCols, aRows : Word ) : TIOConsoleRenderer;
 public
   property Config       : TLuaConfig read FConfig;
   property MapShift     : TIOPoint read GetMapShift;
@@ -102,9 +109,28 @@ end;
 
 implementation
 
-uses vtig, vutil;
+uses vtig, vutil,
+     {$IFDEF UNIX} vcursesio, vcursesconsole {$ELSE} vtextio, vtextconsole {$ENDIF};
 
 { TIORL }
+
+class function TIORL.CreateTerminalDriver( aCols, aRows : Word ) : TIODriver;
+begin
+  {$IFDEF UNIX}
+  Result := TCursesIODriver.Create( aCols, aRows );
+  {$ELSE}
+  Result := TTextIODriver.Create( aCols, aRows );
+  {$ENDIF}
+end;
+
+class function TIORL.CreateTerminalRenderer( aCols, aRows : Word ) : TIOConsoleRenderer;
+begin
+  {$IFDEF UNIX}
+  Result := TCursesConsoleRenderer.Create( aCols, aRows, [ VIO_CON_BGCOLOR, VIO_CON_CURSOR ] );
+  {$ELSE}
+  Result := TTextConsoleRenderer.Create( aCols, aRows, [ VIO_CON_BGCOLOR, VIO_CON_CURSOR ] );
+  {$ENDIF}
+end;
 
 constructor TIORL.Create ( aIODriver : TIODriver; aConsole : TIOConsoleRenderer ) ;
 begin
