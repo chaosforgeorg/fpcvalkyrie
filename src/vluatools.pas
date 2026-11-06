@@ -20,7 +20,6 @@ procedure RegisterKillsClass( L: Plua_State; aKills : TKillTable; const aName : 
 procedure RegisterStatisticsClass( L: Plua_State; aStatistics : TStatistics; const aName : AnsiString = 'stats' );
 procedure RegisterCoordClass( L: Plua_State );
 procedure RegisterAreaClass( L: Plua_State );
-procedure RegisterAreaFull( L: Plua_State; Area : TArea );
 procedure RegisterPointClass( L: Plua_State );
 procedure RegisterRectClass( L: Plua_State );
 
@@ -1988,16 +1987,6 @@ begin
   luaL_register( L, nil, arealib_sm );
   lua_setmetatable( L, -2 );
   lua_pop( L, 2 );
-end;
-
-procedure RegisterAreaFull(L: Plua_State; Area: TArea);
-begin
-  lua_getglobal( L, 'area' );
-  vlua_pusharea( L, Area );
-  lua_setfield( L, -2, 'FULL' );
-  vlua_pusharea( L, Area.Shrinked() );
-  lua_setfield( L, -2, 'FULL_SHRINKED' );
-  lua_pop( L, 1 );
 end;
 
 procedure RegisterPointClass(L: Plua_State);
