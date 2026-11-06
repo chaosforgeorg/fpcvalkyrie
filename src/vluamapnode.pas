@@ -756,6 +756,14 @@ begin
   Result := 1;
 end;
 
+function lua_map_node_clamp_coord(L: Plua_State): Integer; cdecl;
+var iState : TLuaMapStack;
+begin
+  iState.Init(L);
+  iState.Map.Area.Clamp( vlua_topcoord( L, 2 )^ );
+  Result := 0;
+end;
+
 function lua_map_node_is_empty( L: Plua_State ): Integer; cdecl;
 var iState : TLuaMapStack;
 begin
@@ -1373,8 +1381,9 @@ begin
 end;
 
 
-const lua_map_node_lib : array[0..35] of luaL_Reg = (
+const lua_map_node_lib : array[0..36] of luaL_Reg = (
   ( name : 'get_area';                func : @lua_map_node_get_area ),
+  ( name : 'clamp_coord';             func : @lua_map_node_clamp_coord ),
   ( name : 'set_hp';                  func : @lua_map_node_set_hp ),
   ( name : 'get_hp';                  func : @lua_map_node_get_hp ),
   ( name : 'set_cell';                func : @lua_map_node_set_cell ),
