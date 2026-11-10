@@ -205,6 +205,112 @@ begin
   Exit( 1 );
 end;
 
+// random_door_spot( map, wall_cells, open_cells [, door_cells [, min_door_distance [, area [, edge_only ]]]] )
+// A door spot is a wall cell in a straight wall: its left and right
+// neighbours are wall cells and its upper and lower ones open cells, or the
+// other way around. With door_cells, spots with a door cell within
+// min_door_distance ( default 1: the 8 neighbours ) are skipped. area
+// defaults to the map without its edge. With edge_only, only the edge cells
+// of area without its corners are considered. Spots are counted in row order
+// and one is picked uniformly with a single RNG draw; returns nil if none.
+function lua_dungen_random_door_spot( L : Plua_State ) : Integer; cdecl;
+var iState    : TLuaMapStack;
+    iArea     : TArea;
+    iWalls    : TFlags;
+    iOpen     : TFlags;
+    iDoors    : TFlags;
+    iHasDoors : Boolean;
+    iDistance : Integer;
+    iEdgeOnly : Boolean;
+    iCount    : Integer;
+    iPick     : Integer;
+    iX, iY    : Integer;
+
+  // with edge_only, rows between the first and last only visit both ends
+  function NextX( aX, aY : Integer ) : Integer;
+  begin
+    if iEdgeOnly and ( aY <> iArea.A.Y ) and ( aY <> iArea.B.Y ) and ( aX = iArea.A.X ) and ( iArea.B.X > iArea.A.X )
+      then Exit( iArea.B.X )
+      else Exit( aX + 1 );
+  end;
+
+  function InSet( aX, aY : Integer; const aSet : TFlags ) : Boolean;
+  var iCoord : TCoord2D;
+  begin
+    iCoord := NewCoord2D( aX, aY );
+    Exit( iState.Map.isProperCoord( iCoord ) and ( iState.Map.GetCell( iCoord ) in aSet ) );
+  end;
+
+  function IsSpot( aX, aY : Integer ) : Boolean;
+  var iDX, iDY : Integer;
+  begin
+    if iEdgeOnly then
+    begin
+      if ( aX <> iArea.A.X ) and ( aX <> iArea.B.X ) and ( aY <> iArea.A.Y ) and ( aY <> iArea.B.Y ) then Exit( False );
+      if ( ( aX = iArea.A.X ) or ( aX = iArea.B.X ) ) and ( ( aY = iArea.A.Y ) or ( aY = iArea.B.Y ) ) then Exit( False );
+    end;
+    if not InSet( aX, aY, iWalls ) then Exit( False );
+    if not ( ( InSet( aX - 1, aY, iWalls ) and InSet( aX + 1, aY, iWalls ) and InSet( aX, aY - 1, iOpen ) and InSet( aX, aY + 1, iOpen ) )
+          or ( InSet( aX, aY - 1, iWalls ) and InSet( aX, aY + 1, iWalls ) and InSet( aX - 1, aY, iOpen ) and InSet( aX + 1, aY, iOpen ) ) ) then
+      Exit( False );
+    if iHasDoors then
+      for iDY := -iDistance to iDistance do
+        for iDX := -iDistance to iDistance do
+          if ( ( iDX <> 0 ) or ( iDY <> 0 ) ) and InSet( aX + iDX, aY + iDY, iDoors ) then
+            Exit( False );
+    Exit( True );
+  end;
+
+begin
+  iState.Init( L );
+  iWalls    := iState.ToCellSet( 2 );
+  iOpen     := iState.ToCellSet( 3 );
+  iHasDoors := not lua_isnoneornil( L, 4 );
+  if iHasDoors then iDoors := iState.ToCellSet( 4 );
+  iDistance := 1;
+  if lua_isnumber( L, 5 ) then iDistance := lua_tointeger( L, 5 );
+  if iState.IsArea( 6 )
+    then iArea := iState.ToOptionalArea( 6 )
+    else iArea := iState.Map.Area.Shrinked;
+  iState.Map.Area.Clamp( iArea );
+  iEdgeOnly := lua_toboolean( L, 7 );
+
+  iCount := 0;
+  for iY := iArea.A.Y to iArea.B.Y do
+  begin
+    iX := iArea.A.X;
+    while iX <= iArea.B.X do
+    begin
+      if IsSpot( iX, iY ) then Inc( iCount );
+      iX := NextX( iX, iY );
+    end;
+  end;
+
+  if iCount > 0 then
+  begin
+    iPick := TLuaContext.RequireRNG( L ).RLongInt( iCount );
+    for iY := iArea.A.Y to iArea.B.Y do
+    begin
+      iX := iArea.A.X;
+      while iX <= iArea.B.X do
+      begin
+        if IsSpot( iX, iY ) then
+        begin
+          if iPick = 0 then
+          begin
+            iState.PushCoord( NewCoord2D( iX, iY ) );
+            Exit( 1 );
+          end;
+          Dec( iPick );
+        end;
+        iX := NextX( iX, iY );
+      end;
+    end;
+  end;
+  lua_pushnil( L );
+  Exit( 1 );
+end;
+
 function lua_dungen_read_rooms( L : Plua_State ) : Integer; cdecl;
 var iState   : TLuaMapStack;
     iMap     : TLuaMapNode;
@@ -866,12 +972,13 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..11] of luaL_Reg = (
+  dungenlib_f : array[0..12] of luaL_Reg = (
     ( Name : 'tile_new'; func : @lua_dungen_tile_new ),
     ( Name : 'tile_place'; func : @lua_dungen_tile_place; ),
     ( Name : 'plot_line'; func : @lua_dungen_plot_line; ),
     ( Name : 'get_endpoints'; func : @lua_dungen_get_endpoints; ),
     ( Name : 'fill_dead_ends'; func : @lua_dungen_fill_dead_ends; ),
+    ( Name : 'random_door_spot'; func : @lua_dungen_random_door_spot; ),
     ( Name : 'read_rooms'; func : @lua_dungen_read_rooms; ),
     ( Name : 'run_drunkard_walk'; func : @lua_dungen_run_drunkard_walk; ),
     ( Name : 'cellular_init'; func : @lua_dungen_cellular_init; ),
