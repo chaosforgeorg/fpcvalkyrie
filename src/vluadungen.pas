@@ -66,21 +66,22 @@ begin
   Exit( 0 );
 end;
 
-// get_endpoints( map, where, horiz, floor_cells [, wall_cells [, limit_area ]] )
-// Scans both ways from where over floor_cells and returns the two end coords.
-// A line leaving the map ( or limit_area ) ends on its last cell inside.
-// Without wall_cells any other cell ends the line. With wall_cells the line
-// must end on one of them; meeting any other cell returns nil instead.
+// get_endpoints( map, where, horiz, open_cells, stop_cells [, limit_area ] )
+// Walks from where in both directions ( left/up first ) over open_cells and
+// returns the two end coords, or nil. At each step, in order: a stop cell
+// ends the line on that cell; a cell outside limit_area ends the line on that
+// cell; leaving the map or any other non-open cell fails. limit_area should
+// lie inside the map.
 function lua_dungen_get_endpoints( L : Plua_State ) : Integer; cdecl;
-var iState  : TLuaMapStack;
-    iWhere  : TCoord2D;
-    iStep   : TCoord2D;
-    iFloors : TFlags;
-    iWalls  : TFlags;
-    iStrict : Boolean;
-    iLimit  : TArea;
-    iEnd1   : TCoord2D;
-    iEnd2   : TCoord2D;
+var iState    : TLuaMapStack;
+    iWhere    : TCoord2D;
+    iStep     : TCoord2D;
+    iOpen     : TFlags;
+    iStop     : TFlags;
+    iHasLimit : Boolean;
+    iLimit    : TArea;
+    iEnd1     : TCoord2D;
+    iEnd2     : TCoord2D;
 
   function ScanEnd( aStep : TCoord2D; out aEnd : TCoord2D ) : Boolean;
   var iCell : Byte;
@@ -89,27 +90,21 @@ var iState  : TLuaMapStack;
     while True do
     begin
       aEnd += aStep;
-      if ( not iState.Map.isProperCoord( aEnd ) ) or ( iStrict and ( not iLimit.Contains( aEnd ) ) ) then
-      begin
-        aEnd -= aStep;
-        Exit( True );
-      end;
+      if not iState.Map.isProperCoord( aEnd ) then Exit( False );
       iCell := iState.Map.GetCell( aEnd );
-      if not ( iCell in iFloors ) then
-        Exit( ( not iStrict ) or ( iCell in iWalls ) );
+      if iCell in iStop then Exit( True );
+      if iHasLimit and ( not iLimit.Contains( aEnd ) ) then Exit( True );
+      if not ( iCell in iOpen ) then Exit( False );
     end;
   end;
 
 begin
   iState.Init( L );
-  iWhere  := iState.ToCoord( 2 );
-  iFloors := iState.ToCellSet( 4 );
-  iStrict := not lua_isnoneornil( L, 5 );
-  if iStrict then
-  begin
-    iWalls := iState.ToCellSet( 5 );
-    iLimit := iState.ToOptionalArea( 6 );
-  end;
+  iWhere    := iState.ToCoord( 2 );
+  iOpen     := iState.ToCellSet( 4 );
+  iStop     := iState.ToCellSet( 5 );
+  iHasLimit := iState.IsArea( 6 );
+  if iHasLimit then iLimit := iState.ToOptionalArea( 6 );
 
   if iState.ToBoolean( 3 )
     then iStep := NewCoord2D( -1, 0 )
