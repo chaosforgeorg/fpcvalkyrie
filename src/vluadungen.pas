@@ -120,6 +120,91 @@ begin
   Exit( 2 );
 end;
 
+// fill_dead_ends( map, open_cells, wall_cells, fill_cell [, area [, max_passes ]] )
+// An open cell in area with at least 3 of its 4 direct neighbours in
+// wall_cells is a dead end. Each pass turns every cell that is a dead end at
+// its start into fill_cell, removing one layer. Passes repeat until none is
+// left, or for at most max_passes passes ( omitted or 0: no limit ). area
+// defaults to the map without its edge; fill_cell must not be an open cell.
+// Returns the number of filled cells.
+function lua_dungen_fill_dead_ends( L : Plua_State ) : Integer; cdecl;
+var iState      : TLuaMapStack;
+    iOpen       : TFlags;
+    iWalls      : TFlags;
+    iFill       : Byte;
+    iArea       : TArea;
+    iMaxPasses  : Integer;
+    iPass       : Integer;
+    iFilled     : Integer;
+    iLayer      : array of TCoord2D;
+    iLayerCount : Integer;
+    iNext       : array of TCoord2D;
+    iNextCount  : Integer;
+    iIndex      : Integer;
+    iX, iY      : Integer;
+
+  procedure AddIfDeadEnd( const aCoord : TCoord2D );
+  begin
+    if not iArea.Contains( aCoord ) then Exit;
+    if not ( iState.Map.GetCell( aCoord ) in iOpen ) then Exit;
+    if iState.Map.CellsCrossAround( aCoord, iWalls ) < 3 then Exit;
+    if iNextCount = Length( iNext ) then SetLength( iNext, iNextCount * 2 + 16 );
+    iNext[ iNextCount ] := aCoord;
+    Inc( iNextCount );
+  end;
+
+begin
+  iState.Init( L );
+  iOpen  := iState.ToCellSet( 2 );
+  iWalls := iState.ToCellSet( 3 );
+  iFill  := iState.ToCell( 4 );
+  if iState.IsArea( 5 )
+    then iArea := iState.ToOptionalArea( 5 )
+    else iArea := iState.Map.Area.Shrinked;
+  iState.Map.Area.Clamp( iArea );
+  iMaxPasses := 0;
+  if lua_isnumber( L, 6 ) then iMaxPasses := lua_tointeger( L, 6 );
+  if iFill in iOpen then
+    Exit( luaL_error( L, 'fill_dead_ends: fill_cell must not be an open cell' ) );
+
+  iNextCount := 0;
+  for iY := iArea.A.Y to iArea.B.Y do
+    for iX := iArea.A.X to iArea.B.X do
+      AddIfDeadEnd( NewCoord2D( iX, iY ) );
+
+  iFilled := 0;
+  iPass   := 0;
+  while ( iNextCount > 0 ) and ( ( iMaxPasses <= 0 ) or ( iPass < iMaxPasses ) ) do
+  begin
+    Inc( iPass );
+    iLayer      := iNext;
+    iLayerCount := iNextCount;
+    iNext       := nil;
+    iNextCount  := 0;
+
+    // a cell can be listed twice; the second time it is no longer open
+    for iIndex := 0 to iLayerCount - 1 do
+      if iState.Map.GetCell( iLayer[ iIndex ] ) in iOpen then
+      begin
+        iState.Map.PutCell( iLayer[ iIndex ], iFill );
+        Inc( iFilled );
+      end;
+
+    // only neighbours of the filled layer can have become dead ends
+    for iIndex := 0 to iLayerCount - 1 do
+      with iLayer[ iIndex ] do
+      begin
+        AddIfDeadEnd( NewCoord2D( X - 1, Y ) );
+        AddIfDeadEnd( NewCoord2D( X + 1, Y ) );
+        AddIfDeadEnd( NewCoord2D( X, Y - 1 ) );
+        AddIfDeadEnd( NewCoord2D( X, Y + 1 ) );
+      end;
+  end;
+
+  lua_pushinteger( L, iFilled );
+  Exit( 1 );
+end;
+
 function lua_dungen_read_rooms( L : Plua_State ) : Integer; cdecl;
 var iState   : TLuaMapStack;
     iMap     : TLuaMapNode;
@@ -781,11 +866,12 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..10] of luaL_Reg = (
+  dungenlib_f : array[0..11] of luaL_Reg = (
     ( Name : 'tile_new'; func : @lua_dungen_tile_new ),
     ( Name : 'tile_place'; func : @lua_dungen_tile_place; ),
     ( Name : 'plot_line'; func : @lua_dungen_plot_line; ),
     ( Name : 'get_endpoints'; func : @lua_dungen_get_endpoints; ),
+    ( Name : 'fill_dead_ends'; func : @lua_dungen_fill_dead_ends; ),
     ( Name : 'read_rooms'; func : @lua_dungen_read_rooms; ),
     ( Name : 'run_drunkard_walk'; func : @lua_dungen_run_drunkard_walk; ),
     ( Name : 'cellular_init'; func : @lua_dungen_cellular_init; ),
