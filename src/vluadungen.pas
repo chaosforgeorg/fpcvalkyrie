@@ -118,55 +118,62 @@ begin
   Exit( 2 );
 end;
 
+// get_endpoint_coords( map, where, horiz, floor_cells [, wall_cells [, limit_area ]] )
+// Scans both ways from where over floor_cells and returns the two end coords.
+// A line leaving the map ( or limit_area ) ends on its last cell inside.
+// Without wall_cells any other cell ends the line. With wall_cells the line
+// must end on one of them; meeting any other cell returns nil instead.
 function lua_dungen_get_endpoint_coords( L : Plua_State ) : Integer; cdecl;
-var iState   : TLuaMapStack;
-    iCoord   : TCoord2D;
-    iWhere   : TCoord2D;
-    iStep    : TCoord2D;
-    iHoriz   : Boolean;
-    iCellSet : TFlags;
-    iCell    : Byte;
+var iState  : TLuaMapStack;
+    iWhere  : TCoord2D;
+    iStep   : TCoord2D;
+    iFloors : TFlags;
+    iWalls  : TFlags;
+    iStrict : Boolean;
+    iLimit  : TArea;
+    iEnd1   : TCoord2D;
+    iEnd2   : TCoord2D;
+
+  function ScanEnd( aStep : TCoord2D; out aEnd : TCoord2D ) : Boolean;
+  var iCell : Byte;
+  begin
+    aEnd := iWhere;
+    while True do
+    begin
+      aEnd += aStep;
+      if ( not iState.Map.isProperCoord( aEnd ) ) or ( iStrict and ( not iLimit.Contains( aEnd ) ) ) then
+      begin
+        aEnd -= aStep;
+        Exit( True );
+      end;
+      iCell := iState.Map.GetCell( aEnd );
+      if not ( iCell in iFloors ) then
+        Exit( ( not iStrict ) or ( iCell in iWalls ) );
+    end;
+  end;
+
 begin
   iState.Init( L );
-  iWhere   := iState.ToCoord( 2 );
-  iHoriz   := iState.ToBoolean( 3 );
-  iCellSet := iState.ToCellSet( 4 );
+  iWhere  := iState.ToCoord( 2 );
+  iFloors := iState.ToCellSet( 4 );
+  iStrict := not lua_isnoneornil( L, 5 );
+  if iStrict then
+  begin
+    iWalls := iState.ToCellSet( 5 );
+    iLimit := iState.ToOptionalArea( 6 );
+  end;
 
-  iCoord := iWhere;
-  if iHoriz
+  if iState.ToBoolean( 3 )
     then iStep := NewCoord2D( -1, 0 )
     else iStep := NewCoord2D( 0, -1 );
-  while True do
+
+  if not ( ScanEnd( iStep, iEnd1 ) and ScanEnd( NewCoord2D( -iStep.x, -iStep.y ), iEnd2 ) ) then
   begin
-    iCoord += iStep;
-    if not iState.Map.isProperCoord( iCoord ) then
-    begin
-      iState.PushCoord( iCoord - iStep );
-      Break;
-    end;
-    iCell := iState.Map.GetCell( iCoord );
-    if not ( iCell in iCellSet ) then
-    begin
-      iState.PushCoord( iCoord );
-      Break;
-    end;
+    lua_pushnil( L );
+    Exit( 1 );
   end;
-  iCoord := iWhere;
-  while True do
-  begin
-    iCoord -= iStep;
-    if not iState.Map.isProperCoord( iCoord ) then
-    begin
-      iState.PushCoord( iCoord + iStep );
-      Break;
-    end;
-    iCell := iState.Map.GetCell( iCoord );
-    if not ( iCell in iCellSet ) then
-    begin
-      iState.PushCoord( iCoord );
-      Break;
-    end;
-  end;
+  iState.PushCoord( iEnd1 );
+  iState.PushCoord( iEnd2 );
   Exit( 2 );
 end;
 
