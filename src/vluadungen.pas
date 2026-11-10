@@ -66,64 +66,12 @@ begin
   Exit( 0 );
 end;
 
-function lua_dungen_get_endpoints( L : Plua_State ) : Integer; cdecl;
-var iState   : TLuaMapStack;
-    iCoord   : TCoord2D;
-    iWhere   : TCoord2D;
-    iStep    : TCoord2D;
-    iHoriz   : Boolean;
-    iCellSet : TFlags;
-    iCell    : Byte;
-begin
-  iState.Init( L );
-  iWhere   := iState.ToCoord( 2 );
-  iHoriz   := iState.ToBoolean( 3 );
-  iCellSet := iState.ToCellSet( 4 );
-
-  iCoord := iWhere;
-  if iHoriz
-    then iStep := NewCoord2D( -1, 0 )
-    else iStep := NewCoord2D( 0, -1 );
-  while True do
-  begin
-    iCoord += iStep;
-    if not iState.Map.isProperCoord( iCoord ) then
-    begin
-      lua_pushnil( L );
-      Break;
-    end;
-    iCell := iState.Map.GetCell( iCoord );
-    if not ( iCell in iCellSet ) then
-    begin
-      lua_pushinteger( L, iCell );
-      Break;
-    end;
-  end;
-  iCoord := iWhere;
-  while True do
-  begin
-    iCoord -= iStep;
-    if not iState.Map.isProperCoord( iCoord ) then
-    begin
-      lua_pushnil( L );
-      Break;
-    end;
-    iCell := iState.Map.GetCell( iCoord );
-    if not ( iCell in iCellSet ) then
-    begin
-      lua_pushinteger( L, iCell );
-      Break;
-    end;
-  end;
-  Exit( 2 );
-end;
-
-// get_endpoint_coords( map, where, horiz, floor_cells [, wall_cells [, limit_area ]] )
+// get_endpoints( map, where, horiz, floor_cells [, wall_cells [, limit_area ]] )
 // Scans both ways from where over floor_cells and returns the two end coords.
 // A line leaving the map ( or limit_area ) ends on its last cell inside.
 // Without wall_cells any other cell ends the line. With wall_cells the line
 // must end on one of them; meeting any other cell returns nil instead.
-function lua_dungen_get_endpoint_coords( L : Plua_State ) : Integer; cdecl;
+function lua_dungen_get_endpoints( L : Plua_State ) : Integer; cdecl;
 var iState  : TLuaMapStack;
     iWhere  : TCoord2D;
     iStep   : TCoord2D;
@@ -838,12 +786,11 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..11] of luaL_Reg = (
+  dungenlib_f : array[0..10] of luaL_Reg = (
     ( Name : 'tile_new'; func : @lua_dungen_tile_new ),
     ( Name : 'tile_place'; func : @lua_dungen_tile_place; ),
     ( Name : 'plot_line'; func : @lua_dungen_plot_line; ),
     ( Name : 'get_endpoints'; func : @lua_dungen_get_endpoints; ),
-    ( Name : 'get_endpoint_coords'; func : @lua_dungen_get_endpoint_coords; ),
     ( Name : 'read_rooms'; func : @lua_dungen_read_rooms; ),
     ( Name : 'run_drunkard_walk'; func : @lua_dungen_run_drunkard_walk; ),
     ( Name : 'cellular_init'; func : @lua_dungen_cellular_init; ),
