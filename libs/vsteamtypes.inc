@@ -239,6 +239,16 @@ type TSteamSubmitItemUpdateResult = record
     PublishedFileId : TSteamItemId;
   end;
 
+const STEAM_USER_STATS_RECEIVED_CALLBACK = STEAM_USERSTATS_CALLBACKS + 1;
+type TSteamUserStatsReceived = record
+    // CALLBACK = 1101
+    GameId : QWord;
+    Result : Steam_EResult;
+    // The user's CSteamID follows at an offset that depends on the platform's
+    // callback packing; it is not read.
+  end;
+type PSteamUserStatsReceived = ^TSteamUserStatsReceived;
+
 const STEAM_GLOBAL_STATS_RECEIVED_RESULT_CALLBACK = STEAM_USERSTATS_CALLBACKS + 12;
 type TSteamGlobalStatsReceivedResult = record
     // CALLBACK = 1112

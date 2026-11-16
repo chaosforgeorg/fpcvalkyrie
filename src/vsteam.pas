@@ -27,11 +27,15 @@ type  TSteam = class( TStoreInterface )
   class function TryLoadLibrary : Boolean;
 protected
   function DoSetAchievement( const aID : Ansistring ) : Boolean; override;
+  procedure DoReconcileAchievements( const aIDs : TAnsiStringArray ); override;
   function DoIncStat( const aID : Ansistring; aAmount : Integer ) : Boolean; override;
   function DoMarkStat( const aID : Ansistring ) : Boolean; override;
 private
   function LoadGlobalStats : Boolean;
+  procedure ApplyAchievements( const aIDs : TAnsiStringArray );
 private
+  FStatsReady : Boolean;
+  FPendingAch : TAnsiStringArray;
   FUserName   : Ansistring;
   FGlobals    : Boolean;
   FAppId      : DWord;
@@ -170,6 +174,7 @@ type TSteamUserStats = class( TVObject )
     function RequestGlobalStats( aDays : Integer = 0 ) : TSteamAPICall;
     function GetGlobalStat( const aName : Ansistring; out aValue : Int64 ) : Boolean;
     function GetGlobalStat( const aName : Ansistring; out aValue : Double ) : Boolean;
+    function GetAchievement( const aName : Ansistring; out aAchieved : Boolean ) : Boolean;
     function SetAchievement( const aName : Ansistring ) : Boolean;
     function StoreStats : Boolean;
   private
@@ -215,6 +220,12 @@ end;
 function TSteamUserStats.GetGlobalStat( const aName : Ansistring; out aValue : Double ) : Boolean;
 begin
   Exit( SteamAPI_ISteamUserStats_GetGlobalStatDouble( FUserStats, PChar( aName ), @aValue ) );
+end;
+
+function TSteamUserStats.GetAchievement( const aName : Ansistring; out aAchieved : Boolean ) : Boolean;
+begin
+  aAchieved := False;
+  Exit( SteamAPI_ISteamUserStats_GetAchievement( FUserStats, PChar( aName ), @aAchieved ) );
 end;
 
 function TSteamUserStats.SetAchievement( const aName : Ansistring ) : Boolean;
@@ -558,6 +569,8 @@ begin
   FText       := '';
   FTextReady  := False;
   FTextCancel := False;
+  FStatsReady := False;
+  FPendingAch := nil;
 
   iClient := TSteamCore.GetClient;
   if not iClient.IsInitialized then Exit;
@@ -672,6 +685,7 @@ var iDispatch : TSteamManualDispatch;
     iMsg      : TSteamCallbackMsg;
     iBuf      : array[0..255] of AnsiChar;
     iLength   : Integer;
+    iStats    : PSteamUserStatsReceived;
 
   function GamepadBufToASCII( const aP: PAnsiChar; aBufCap : SizeInt ): AnsiString;
   type ASCIIString = type AnsiString(20127); // US-ASCII
@@ -718,17 +732,36 @@ begin
                 FText := GamepadBufToASCII(iBuf, iLength);
           end;
         end;
+      STEAM_USER_STATS_RECEIVED_CALLBACK :
+        // An app's game ID carries no type or mod bits, so it equals the app ID.
+        begin
+          iStats := PSteamUserStatsReceived(iMsg.pubParam);
+          if iStats^.GameId = FAppId then
+            if iStats^.Result = k_EResultOK then
+              FStatsReady := True
+            else
+              Log( LOGWARN, 'UserStatsReceived - failed, error code %d!', [Integer( iStats^.Result )] );
+        end;
     end;
     iDispatch.FreeLastCallback;
+  end;
+
+  if FStatsReady and ( FPendingAch <> nil ) then
+  begin
+    ApplyAchievements( FPendingAch );
+    FPendingAch := nil;
   end;
 end;
 
 function TSteam.DoSetAchievement( const aID : Ansistring ) : Boolean;
 var iUserStats : TSteamUserStats;
+    iAchieved  : Boolean;
 begin
   if ( not IsInitialized ) then Exit( False );
   iUserStats := TSteamCore.GetClient.UserStats;
   if iUserStats = nil then Exit( False );
+  // Already unlocked: nothing to commit.
+  if iUserStats.GetAchievement( aID, iAchieved ) and iAchieved then Exit( True );
   if not iUserStats.SetAchievement( aID ) then
   begin
     Log( LOGWARN, 'SetAchievement('+aID+') failed!' );
@@ -740,6 +773,46 @@ begin
     Exit( False );
   end;
   Exit( True );
+end;
+
+procedure TSteam.DoReconcileAchievements( const aIDs : TAnsiStringArray );
+begin
+  if ( not IsInitialized ) then Exit;
+  if FStatsReady then
+  begin
+    FPendingAch := nil;
+    ApplyAchievements( aIDs );
+  end
+  else
+    FPendingAch := aIDs;
+end;
+
+procedure TSteam.ApplyAchievements( const aIDs : TAnsiStringArray );
+var iUserStats : TSteamUserStats;
+    iID        : AnsiString;
+    iAchieved  : Boolean;
+    iRestored  : Integer;
+begin
+  iUserStats := TSteamCore.GetClient.UserStats;
+  if iUserStats = nil then Exit;
+  iRestored := 0;
+  for iID in aIDs do
+    if not iUserStats.GetAchievement( iID, iAchieved ) then
+      Log( LOGWARN, 'GetAchievement('+iID+') failed!' )
+    else if not iAchieved then
+    begin
+      if iUserStats.SetAchievement( iID ) then
+      begin
+        Log( 'ReconcileAchievements - '+iID+' restored' );
+        Inc( iRestored );
+      end
+      else
+        Log( LOGWARN, 'SetAchievement('+iID+') failed!' );
+    end;
+
+  if iRestored = 0 then Exit;
+  if not iUserStats.StoreStats then
+    Log( LOGWARN, 'StoreStats failed!' );
 end;
 
 function TSteam.DoIncStat( const aID : Ansistring; aAmount : Integer ) : Boolean;

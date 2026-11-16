@@ -1,7 +1,7 @@
 {$INCLUDE valkyrie.inc}
 unit vstoreinterface;
 interface
-uses vnode, vgenerics;
+uses vnode, vgenerics, vutil;
 
 type TStoreType = ( StoreNone, StoreSteam );
 
@@ -33,6 +33,7 @@ public
   function GetUsername : Ansistring; virtual;
   procedure Update; virtual;
   function SetAchievement( const aID : Ansistring ) : Boolean;
+  procedure ReconcileAchievements( const aIDs : TAnsiStringArray );
   function IncStat( const aID : Ansistring; aAmount : Integer = 1 ) : Boolean;
   function MarkStat( const aID : Ansistring ) : Boolean;
   function GetGlobalStat( const aID : Ansistring ) : Int64; virtual;
@@ -53,6 +54,7 @@ protected
   constructor Create;
 {$WARNINGS ON}
   function DoSetAchievement( const aID : Ansistring ) : Boolean; virtual;
+  procedure DoReconcileAchievements( const aIDs : TAnsiStringArray ); virtual;
   function DoIncStat( const aID : Ansistring; aAmount : Integer ) : Boolean; virtual;
   function DoMarkStat( const aID : Ansistring ) : Boolean; virtual;
 end;
@@ -116,6 +118,12 @@ begin
   Exit( DoSetAchievement( aID ) );
 end;
 
+procedure TStoreInterface.ReconcileAchievements( const aIDs : TAnsiStringArray );
+begin
+  if FSuppressProgress then Exit;
+  DoReconcileAchievements( aIDs );
+end;
+
 function TStoreInterface.IncStat( const aID : Ansistring; aAmount : Integer ) : Boolean;
 begin
   if FSuppressProgress then Exit( False );
@@ -131,6 +139,10 @@ end;
 function TStoreInterface.DoSetAchievement( const aID : Ansistring ) : Boolean;
 begin
   Exit( False );
+end;
+
+procedure TStoreInterface.DoReconcileAchievements( const aIDs : TAnsiStringArray );
+begin
 end;
 
 function TStoreInterface.DoIncStat( const aID : Ansistring; aAmount : Integer ) : Boolean;
