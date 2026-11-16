@@ -205,6 +205,52 @@ begin
   Exit( 1 );
 end;
 
+// transform_around( map, from_cells, to_cell, around_cells, min, max [, area ] )
+// Each cell in area that is in from_cells and has between min and max
+// ( inclusive ) of its 8 neighbours in around_cells becomes to_cell.
+// Neighbours outside the map are not counted. Cells change in place, row by
+// row, so later cells see earlier changes. area defaults to the map without
+// its edge. Returns the number of changed cells.
+function lua_dungen_transform_around( L : Plua_State ) : Integer; cdecl;
+var iState   : TLuaMapStack;
+    iFrom    : TFlags;
+    iTo      : Byte;
+    iAround  : TFlags;
+    iMin     : Integer;
+    iMax     : Integer;
+    iArea    : TArea;
+    iCount   : Integer;
+    iChanged : Integer;
+    iCoord   : TCoord2D;
+    iX, iY   : Integer;
+begin
+  iState.Init( L );
+  iFrom   := iState.ToCellSet( 2 );
+  iTo     := iState.ToCell( 3 );
+  iAround := iState.ToCellSet( 4 );
+  iMin    := luaL_checkinteger( L, 5 );
+  iMax    := luaL_checkinteger( L, 6 );
+  if iState.IsArea( 7 )
+    then iArea := iState.ToOptionalArea( 7 )
+    else iArea := iState.Map.Area.Shrinked;
+  iState.Map.Area.Clamp( iArea );
+
+  iChanged := 0;
+  for iY := iArea.A.Y to iArea.B.Y do
+    for iX := iArea.A.X to iArea.B.X do
+    begin
+      iCoord := NewCoord2D( iX, iY );
+      if not ( iState.Map.GetCell( iCoord ) in iFrom ) then Continue;
+      iCount := iState.Map.CellsAround( iCoord, iAround );
+      if ( iCount < iMin ) or ( iCount > iMax ) then Continue;
+      iState.Map.PutCell( iCoord, iTo );
+      Inc( iChanged );
+    end;
+
+  lua_pushinteger( L, iChanged );
+  Exit( 1 );
+end;
+
 // random_door_spot( map, wall_cells, open_cells [, door_cells [, min_door_distance [, area [, edge_only ]]]] )
 // A door spot is a wall cell in a straight wall: its left and right
 // neighbours are wall cells and its upper and lower ones open cells, or the
@@ -972,12 +1018,13 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..12] of luaL_Reg = (
+  dungenlib_f : array[0..13] of luaL_Reg = (
     ( Name : 'tile_new'; func : @lua_dungen_tile_new ),
     ( Name : 'tile_place'; func : @lua_dungen_tile_place; ),
     ( Name : 'plot_line'; func : @lua_dungen_plot_line; ),
     ( Name : 'get_endpoints'; func : @lua_dungen_get_endpoints; ),
     ( Name : 'fill_dead_ends'; func : @lua_dungen_fill_dead_ends; ),
+    ( Name : 'transform_around'; func : @lua_dungen_transform_around; ),
     ( Name : 'random_door_spot'; func : @lua_dungen_random_door_spot; ),
     ( Name : 'read_rooms'; func : @lua_dungen_read_rooms; ),
     ( Name : 'run_drunkard_walk'; func : @lua_dungen_run_drunkard_walk; ),
