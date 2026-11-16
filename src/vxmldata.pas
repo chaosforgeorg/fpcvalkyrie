@@ -394,6 +394,7 @@ var iInserted   : Boolean;
     iCount      : DWord;
     iXMLValue   : TDOMNode;
 begin
+  FLastEntry := 0;
   if FEntries >= FMaxEntries then
   begin
     if aScore <= StrToInt(TDOMElement(FXML.DocumentElement.LastChild).GetAttribute('score') ) then Exit( nil );
@@ -424,7 +425,11 @@ begin
   while FEntries > FMaxEntries do
   begin
     iXMLValue := FXML.DocumentElement.LastChild;
-    if iXMLValue = Result then Result := nil;
+    if iXMLValue = Result then
+    begin
+      Result     := nil;
+      FLastEntry := 0;
+    end;
     FXML.DocumentElement.RemoveChild( FXML.DocumentElement.LastChild );
     Dec( FEntries );
   end;
