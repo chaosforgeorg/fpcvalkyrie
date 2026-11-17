@@ -40,8 +40,6 @@ protected
   FUID      : TUID;
   FBlocking : Boolean;
   function TryBlend( aAnimation : TAnimation ) : Boolean; virtual;
-  // The entity's earlier animations run for aBusy more.
-  procedure QueueAfter( aBusy : DWord ); virtual;
 public
   property Expired  : Boolean read IsExpired;
   property Duration : DWord   read FDuration;
@@ -133,11 +131,6 @@ begin
   Exit( FTime > 0 );
 end;
 
-procedure TAnimation.QueueAfter( aBusy : DWord );
-begin
-  FDelay := Max( FDelay, aBusy );
-end;
-
 constructor TAnimations.Create;
 begin
   FAnimations := TAnimationArray.Create;
@@ -166,7 +159,7 @@ begin
       end;
       Break;
     end;
-  if aAnimation.FUID <> 0 then aAnimation.QueueAfter( UIDDuration( aAnimation.FUID ) );
+  if aAnimation.FUID <> 0 then aAnimation.FDelay := aAnimation.FDelay + UIDDuration( aAnimation.FUID );
   FAnimations.Push( aAnimation );
   Result := aAnimation.FDelay;
 end;
