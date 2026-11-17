@@ -357,49 +357,73 @@ begin
   Exit( 1 );
 end;
 
+// read_rooms( map, room_cells, area [, min_size ] )
+// Returns the rooms found in area, in row order of their start cells, each
+// as an area that includes its frame. A start is a cell of area not in
+// room_cells whose lower right neighbour is in room_cells and whose right and
+// lower neighbours are not. The frame's right column is the first column whose
+// cell on the row below the start is not in room_cells; its bottom row is the
+// first row whose cell on the column right of the start is not in
+// room_cells. A room is dropped when a cell of the start's row or column up to
+// the frame corner is in room_cells, when the right column lies past area or
+// the bottom row on or past area's last row, or when it is smaller than
+// min_size ( omitted: no minimum ). Cells inside the frame are not checked.
+// Coordinates outside the map read the nearest map cell. Same definition as
+// nv's read_rooms.
 function lua_dungen_read_rooms( L : Plua_State ) : Integer; cdecl;
-var iState   : TLuaMapStack;
-    iMap     : TLuaMapNode;
-    iArea    : TArea;
-    iCell    : Byte;
-    iCount   : Word;
-    iC       : TCoord2D;
-    iRx, iRy : TCoord2D;
+var iState : TLuaMapStack;
+    iRooms : TFlags;
+    iArea  : TArea;
+    iMin   : TCoord2D;
+    iEnd   : TCoord2D;
+    iCount : Integer;
+    iX, iY : Integer;
 
-  function RoomStart( aX, aY : Integer ) : Boolean;
+  function InRoom( aX, aY : Integer ) : Boolean;
   begin
-    Exit( ( iMap.GetCell( NewCoord2D( aX + 1, aY ) ) = iCell ) and ( iMap.GetCell(
-      NewCoord2D( aX, aY + 1 ) ) = iCell ) and ( iMap.GetCell( NewCoord2D( aX - 1, aY ) ) <> iCell ) and
-      ( iMap.GetCell( NewCoord2D( aX, aY - 1 ) ) <> iCell ) );
+    Exit( iState.Map.GetCell( iState.Map.Area.Clamped( NewCoord2D( aX, aY ) ) ) in iRooms );
+  end;
+
+  function IsStart( aX, aY : Integer ) : Boolean;
+  begin
+    Exit( ( not InRoom( aX, aY ) ) and InRoom( aX + 1, aY + 1 ) and
+          ( not InRoom( aX, aY + 1 ) ) and ( not InRoom( aX + 1, aY ) ) );
+  end;
+
+  function ReadRoom( aX, aY : Integer; out aEnd : TCoord2D ) : Boolean;
+  begin
+    aEnd := NewCoord2D( aX, aY );
+    repeat
+      if aEnd.X >= iArea.B.X then Exit( False );
+      Inc( aEnd.X );
+      if InRoom( aEnd.X, aY ) then Exit( False );
+    until not InRoom( aEnd.X, aY + 1 );
+    repeat
+      Inc( aEnd.Y );
+      if aEnd.Y >= iArea.B.Y then Exit( False );
+      if InRoom( aX, aEnd.Y ) then Exit( False );
+    until not InRoom( aX + 1, aEnd.Y );
+    Exit( ( aEnd.X - aX + 1 >= iMin.X ) and ( aEnd.Y - aY + 1 >= iMin.Y ) );
   end;
 
 begin
   iState.Init( L );
-  iArea  := iState.ToArea( 2 );
-  iCell  := iState.ToCell( 3 );
-  iCount := 1;
-  iMap   := iState.Map;
-  iC     := iArea.a;
+  iRooms := iState.ToCellSet( 2 );
+  iArea  := iState.ToArea( 3 );
+  if iState.IsCoord( 4 )
+    then iMin := iState.ToCoord( 4 )
+    else iMin := NewCoord2D( 0, 0 );
+
   lua_createtable( L, 0, 0 );
-  repeat
-    if iMap.GetCell( iC ) = iCell then
-      if RoomStart( iC.x, iC.y ) then
+  iCount := 0;
+  for iY := iArea.A.Y to iArea.B.Y do
+    for iX := iArea.A.X to iArea.B.X do
+      if IsStart( iX, iY ) and ReadRoom( iX, iY, iEnd ) then
       begin
-        iRx := iC;
-        iRy := iC;
-        repeat Inc( iRx.x ); until iMap.GetCell( iRx ) <> iCell;
-        repeat Inc( iRy.y ); until iMap.GetCell( iRy ) <> iCell;
-        vlua_pusharea( L, NewArea( iC, NewCoord2D( iRx.x - 1, iRy.y - 1 ) ) );
-        lua_rawseti( L, -2, iCount );
         Inc( iCount );
+        iState.PushArea( NewArea( NewCoord2D( iX, iY ), iEnd ) );
+        lua_rawseti( L, -2, iCount );
       end;
-    Inc( iC.x );
-    if iC.x > iArea.b.x then
-    begin
-      Inc( iC.y );
-      iC.x := iArea.a.x;
-    end;
-  until iC.y > iArea.b.y;
   Exit( 1 );
 end;
 
