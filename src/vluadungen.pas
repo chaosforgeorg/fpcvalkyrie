@@ -568,72 +568,155 @@ begin
   Exit( 0 );
 end;
 
+const
+  FloodStepX : array[0..7] of Integer = ( 1, -1, 0,  0, 1, -1,  1, -1 );
+  FloodStepY : array[0..7] of Integer = ( 0,  0, 1, -1, 1,  1, -1, -1 );
+
+// flood_fill( map, start, from_cells, to_cell [, area [, diagonal ]] )
+// Changes every cell of area in from_cells that is connected to start through
+// cells of area in from_cells into to_cell, and returns their count, start
+// included. Cells connect through their 4 orthogonal neighbours, or through
+// all 8 with diagonal. Returns 0 without changes when start is outside area or
+// not in from_cells. area defaults to the map and is clamped to it. to_cell in
+// from_cells is an error. Same definition as nv's flood_fill.
 function lua_dungen_flood_fill( L : Plua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
     iStart : TCoord2D;
     iCur   : TCoord2D;
     iC     : TCoord2D;
-    iFrom  : TCellSet;
+    iFrom  : TFlags;
     iTo    : Byte;
     iArea  : TArea;
-    iAround: TArea;
-
+    iSteps : Integer;
+    iStep  : Integer;
     iQueue : array of TCoord2D;
     iHead  : Integer;
     iTail  : Integer;
-    iCount : Integer;
-
-    iFFrom : Boolean;
-    iFTo   : Boolean;
 begin
   iState.Init( L );
-  iStart  := iState.ToCoord( 2 );
-  iFTo    := iState.IsFunction( 3 );
-  if not iFTo   then iTo := iState.ToCell( 3 );
-  iFFrom  := iState.IsFunction( 4 );
-  if not iFFrom then iFrom   := iState.ToCellSet( 4 );
-  iArea   := iState.ToOptionalArea( 5 );
+  iStart := iState.ToCoord( 2 );
+  iFrom  := iState.ToCellSet( 3 );
+  iTo    := iState.ToCell( 4 );
+  iArea  := iState.ToOptionalArea( 5 );
+  if iState.ToBoolean( 6, False )
+    then iSteps := 8
+    else iSteps := 4;
+  if iTo in iFrom then iState.Error( 'flood_fill : to_cell is in from_cells!' );
   iState.Map.Area.Clamp( iArea );
 
-  if not iState.Map.isProperCoord( iStart ) then Exit( 0 );
-  if not iArea.Contains( iStart )           then Exit( 0 );
+  if ( not iArea.Contains( iStart ) ) or ( not ( iState.Map.GetCell( iStart ) in iFrom ) ) then
+  begin
+    iState.Push( 0 );
+    Exit( 1 );
+  end;
 
+  // a cell is queued once: changing it to to_cell takes it out of from_cells
+  Initialize( iQueue );
+  SetLength( iQueue, ( iArea.Width + 1 ) * ( iArea.Height + 1 ) + 1 );
+  iState.Map.PutCell( iStart, iTo );
+  iQueue[ 0 ] := iStart;
+  iHead := 0;
+  iTail := 1;
+  while iHead < iTail do
+  begin
+    iCur := iQueue[ iHead ];
+    Inc( iHead );
+    for iStep := 0 to iSteps - 1 do
+    begin
+      iC := NewCoord2D( iCur.X + FloodStepX[ iStep ], iCur.Y + FloodStepY[ iStep ] );
+      if iArea.Contains( iC ) and ( iState.Map.GetCell( iC ) in iFrom ) then
+      begin
+        iState.Map.PutCell( iC, iTo );
+        iQueue[ iTail ] := iC;
+        Inc( iTail );
+      end;
+    end;
+  end;
+  iState.Push( iTail );
+  Exit( 1 );
+end;
+
+// fill_unreachable( map, start, passable_cells, fill_cell [, area [, diagonal [, max_count ]]] )
+// Changes every cell of area in passable_cells that is not connected to start
+// ( connected as in flood_fill ) into fill_cell, and returns their count.
+// Returns nil without changes when start is outside area or not in
+// passable_cells, or when more than max_count ( omitted: no limit ) cells
+// would change. area defaults to the map and is clamped to it. Same definition
+// as nv's fill_unreachable.
+function lua_dungen_fill_unreachable( L : Plua_State ) : Integer; cdecl;
+var iState    : TLuaMapStack;
+    iStart    : TCoord2D;
+    iCur      : TCoord2D;
+    iC        : TCoord2D;
+    iPassable : TFlags;
+    iFill     : Byte;
+    iArea     : TArea;
+    iSteps    : Integer;
+    iStep     : Integer;
+    iMax      : Integer;
+    iCount    : Integer;
+    iQueue    : array of TCoord2D;
+    iHead     : Integer;
+    iTail     : Integer;
+begin
+  iState.Init( L );
+  iStart    := iState.ToCoord( 2 );
+  iPassable := iState.ToCellSet( 3 );
+  iFill     := iState.ToCell( 4 );
+  iArea     := iState.ToOptionalArea( 5 );
+  if iState.ToBoolean( 6, False )
+    then iSteps := 8
+    else iSteps := 4;
+  iMax      := iState.ToInteger( 7, -1 );
+  iState.Map.Area.Clamp( iArea );
+
+  if ( not iArea.Contains( iStart ) ) or ( not ( iState.Map.GetCell( iStart ) in iPassable ) ) then
+  begin
+    lua_pushnil( L );
+    Exit( 1 );
+  end;
+
+  // reached cells are marked with vlfFloodFill
   iState.Map.ClearLightMapBits( [vlfFloodFill] );
   Initialize( iQueue );
   SetLength( iQueue, ( iArea.Width + 1 ) * ( iArea.Height + 1 ) + 1 );
-  iHead  := 0;
-  iTail  := 0;
-  iCount := 0;
-
   iState.Map.LightFlag[ iStart, vlfFloodFill ] := True;
-  if iFTo
-    then iState.CallFunction( 3, [LuaCoord( iStart )] )
-    else iState.Map.putCell( iStart, iTo );
-
-  iQueue[ iTail ] := iStart;
-  Inc( iTail );
+  iQueue[ 0 ] := iStart;
+  iHead := 0;
+  iTail := 1;
   while iHead < iTail do
   begin
-    iCur := iQueue[iHead];
+    iCur := iQueue[ iHead ];
     Inc( iHead );
-    iAround := NewArea( iCur, 1 ).Clamped( iArea );
-    for iC in iAround do
-      if iC <> iCur then
-        if not iState.Map.LightFlag[ iC, vlfFloodFill ] then
-        begin
-          iState.Map.LightFlag[ iC, vlfFloodFill ] := True;
-          if ( ( not iFFrom ) and ( iState.Map.getCell( iC ) in iFrom ) ) or
-             ( iFFrom and Boolean( iState.CallFunction( 4, [LuaCoord( iC )] ) ) ) then
-          begin
-            if iFTo
-              then iState.CallFunction( 3, [LuaCoord( iC )] )
-              else iState.Map.putCell( iC, iTo );
-            iQueue[iTail] := iC;
-            Inc( iTail );
-            Inc( iCount );
-          end;
-        end;
+    for iStep := 0 to iSteps - 1 do
+    begin
+      iC := NewCoord2D( iCur.X + FloodStepX[ iStep ], iCur.Y + FloodStepY[ iStep ] );
+      if iArea.Contains( iC ) and ( not iState.Map.LightFlag[ iC, vlfFloodFill ] )
+         and ( iState.Map.GetCell( iC ) in iPassable ) then
+      begin
+        iState.Map.LightFlag[ iC, vlfFloodFill ] := True;
+        iQueue[ iTail ] := iC;
+        Inc( iTail );
+      end;
+    end;
   end;
+
+  iCount := 0;
+  for iC in iArea do
+    if ( not iState.Map.LightFlag[ iC, vlfFloodFill ] ) and ( iState.Map.GetCell( iC ) in iPassable ) then
+      Inc( iCount );
+
+  if ( iMax >= 0 ) and ( iCount > iMax ) then
+  begin
+    iState.Map.ClearLightMapBits( [vlfFloodFill] );
+    lua_pushnil( L );
+    Exit( 1 );
+  end;
+
+  if iCount > 0 then
+    for iC in iArea do
+      if ( not iState.Map.LightFlag[ iC, vlfFloodFill ] ) and ( iState.Map.GetCell( iC ) in iPassable ) then
+        iState.Map.PutCell( iC, iFill );
   iState.Map.ClearLightMapBits( [vlfFloodFill] );
   iState.Push( iCount );
   Exit( 1 );
@@ -1042,7 +1125,7 @@ end;
 // -------- Registration tables and functions ------------------------- //
 
 const
-  dungenlib_f : array[0..13] of luaL_Reg = (
+  dungenlib_f : array[0..14] of luaL_Reg = (
     ( Name : 'tile_new'; func : @lua_dungen_tile_new ),
     ( Name : 'tile_place'; func : @lua_dungen_tile_place; ),
     ( Name : 'plot_line'; func : @lua_dungen_plot_line; ),
@@ -1056,6 +1139,7 @@ const
     ( Name : 'cellular_random'; func : @lua_dungen_cellular_random; ),
     ( Name : 'cellular_clear'; func : @lua_dungen_cellular_clear; ),
     ( Name : 'flood_fill'; func : @lua_dungen_flood_fill; ),
+    ( Name : 'fill_unreachable'; func : @lua_dungen_fill_unreachable; ),
     ( Name : nil; func : nil; )
     );
 
