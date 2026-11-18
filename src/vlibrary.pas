@@ -79,7 +79,7 @@ end;
 function TLibrary.Get( const aSymbol : AnsiString ) : Pointer;
 begin
   Get := GetProcedureAddress( FHandle, PChar( aSymbol ) );
-  if (Get = nil) and FRaise then ELibraryError.Create('Symbol "'+aSymbol+'" not found in library "'+FName+'"!');
+  if (Get = nil) and FRaise then raise ELibraryError.Create('Symbol "'+aSymbol+'" not found in library "'+FName+'"!');
 end;
 
 destructor TLibrary.Destroy;

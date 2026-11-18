@@ -50,7 +50,8 @@ end;
 function LoadImage( const FileName : Ansistring ) : TImage;
 var iSDLSurface : PSDL_Surface;
 begin
-  LoadSDL3;
+  if not LoadSDL3 then
+    raise TImageException.Create('LoadImage('+FileName+') : Could not load SDL3.' );
   iSDLSurface := SDL_LoadPNG( PChar( FileName ) );
   if iSDLSurface = nil then
     raise TImageException.Create('LoadImage('+FileName+') : '+SDL_GetError() );
@@ -60,7 +61,8 @@ end;
 function LoadImage( Stream : TStream; Size : DWord ): TImage;
 var iSDLSurface : PSDL_Surface;
 begin
-  LoadSDL3;
+  if not LoadSDL3 then
+    raise TImageException.Create('LoadImage(stream) : Could not load SDL3.' );
   iSDLSurface := SDL_LoadPNG_IO( SDL_IOFromStream( Stream, Size, False, True ), True );
   if iSDLSurface = nil then
     raise TImageException.Create('LoadImage(stream) : '+SDL_GetError() );
