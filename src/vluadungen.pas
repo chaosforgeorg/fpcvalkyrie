@@ -469,6 +469,22 @@ begin
   Exit( 0 );
 end;
 
+// Area argument of the cellular functions: defaults to the map without its
+// edge, and is clamped to it.
+function CellularArea( var aState : TLuaMapStack; aIndex : Integer ) : TArea;
+var iInner : TArea;
+begin
+  iInner := aState.Map.Area.Shrinked( 1 );
+  if not aState.IsArea( aIndex ) then Exit( iInner );
+  Result := aState.ToArea( aIndex );
+  iInner.Clamp( Result );
+end;
+
+// cellular_init( map, full_cell, empty_cell, chance [, area ] )
+// Sets each cell of area to full_cell with probability chance, otherwise to
+// empty_cell; one RNG draw per cell, in row order. area defaults to the map
+// without its edge and is clamped to it. Same definition as nv's
+// cellular_init.
 function lua_dungen_cellular_init( L : PLua_State ) : Integer; cdecl;
 var iState  : TLuaMapStack;
     iRNG    : TRNG;
@@ -483,10 +499,7 @@ begin
   iFull   := iState.ToCell( 2 );
   iEmpty  := iState.ToCell( 3 );
   iChance := iState.ToFloat( 4 );
-  iArea   := iState.ToOptionalArea( 5 );
-  if iArea = iState.Map.Area
-    then iArea := iArea.Shrinked( 1 )
-    else iState.Map.Area.Clamp( iArea );
+  iArea   := CellularArea( iState, 5 );
 
   for iCoord in iArea do
     if iRNG.RDouble < iChance
@@ -496,6 +509,12 @@ begin
   Exit( 0 );
 end;
 
+// cellular_random( map, full_cell, empty_cell, neighbours, count [, area [, strict ]] )
+// count times, picks a random cell of area and sets it to full_cell if more
+// than neighbours cells of its 3x3 block ( itself included ) are full_cell,
+// otherwise to empty_cell. With strict, a pick that is neither full_cell nor
+// empty_cell is drawn again and not counted. area defaults to the map without
+// its edge and is clamped to it. Same definition as nv's cellular_random.
 function lua_dungen_cellular_random( L : PLua_State ) : Integer; cdecl;
 var iState  : TLuaMapStack;
     iRNG    : TRNG;
@@ -516,24 +535,21 @@ begin
   iEmpty  := iState.ToCell( 3 );
   iNeigh  := iState.ToInteger( 4 );
   iCount  := iState.ToInteger( 5 );
-  iArea   := iState.ToOptionalArea( 6 );
+  iArea   := CellularArea( iState, 6 );
   iStrict := iState.ToBoolean( 7, False );
-  iState.Map.Area.Clamp( iArea );
   i := 0;
-  repeat
-    Inc( i );
+  while i < iCount do
+  begin
     iCoord := iArea.RandomCoord( iRNG );
     if iStrict then
     begin
       iCell := iState.Map.getCell( iCoord );
-      if ( iCell <> iFull ) and ( iCell <> iEmpty ) then
-      begin
-        Dec( i );
-        Continue;
-      end;
+      if ( iCell <> iFull ) and ( iCell <> iEmpty ) then Continue;
     end;
+    Inc( i );
+    // area lies inside the edge, so the block is inside the map
     iCnt := 0;
-    for iC in NewArea( iCoord, 1 ).Clamped(iArea) do
+    for iC in NewArea( iCoord, 1 ) do
       if iState.Map.GetCell( iC ) = iFull then
       begin
         Inc( iCnt );
@@ -544,10 +560,15 @@ begin
     if iCnt > iNeigh
       then iState.Map.putCell( iCoord, iFull )
       else iState.Map.putCell( iCoord, iEmpty );
-  until i >= iCount;
+  end;
   Exit( 0 );
 end;
 
+// cellular_clear( map, cell, neighbours [, area ] )
+// Sets each cell of area that is not cell to cell if at least neighbours of
+// its 4 orthogonal neighbours are cell; in place, in row order. area defaults
+// to the map without its edge and is clamped to it. Same definition as nv's
+// cellular_clear.
 function lua_dungen_cellular_clear( L : Plua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
     iCoord : TCoord2D;
@@ -558,9 +579,8 @@ begin
   iState.Init( L );
   iCell   := iState.ToCell( 2 );
   iNeigh  := iState.ToInteger( 3 );
-  iArea   := iState.ToOptionalArea( 4 );
+  iArea   := CellularArea( iState, 4 );
 
-  iState.Map.Area.Clamp( iArea );
   for iCoord in iArea do
     if iState.Map.getCell( iCoord ) <> iCell then
       if iState.Map.CellsCrossAround( iCoord, [ iCell ] ) >= iNeigh then
