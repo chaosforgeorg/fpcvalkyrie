@@ -1141,7 +1141,9 @@ begin
   Exit( 1 );
 end;
 
-function lua_map_node_transmute_by_flag( L : Plua_State ) : Integer; cdecl;
+// transform_by_flag( map, from_cells, to_cell, light_flag [, area ] ) -> count
+// As transform, but only cells with light_flag set change.
+function lua_map_node_transform_by_flag( L : Plua_State ) : Integer; cdecl;
 var iState     : TLuaMapStack;
     iFrom      : TFlags;
     iTo        : Byte;
@@ -1155,6 +1157,7 @@ begin
   iTo   := iState.ToCell( 3 );
   iLightFlag := iState.ToInteger( 4 );
   iArea      := iState.ToOptionalArea( 5 );
+  iState.Map.Area.Clamp( iArea );
   iResult    := 0;
   for iCoord in iArea do
     if iState.Map.getCell( iCoord ) in iFrom then
@@ -1336,6 +1339,34 @@ begin
   Exit( 0 );
 end;
 
+// find_coords( map, cells [, area ] ) -> list
+// Returns a new list of the coords of area whose cell is in cells, in row
+// order; empty if there are none. area defaults to the map and is clamped to
+// it. Same definition as nv's find_coords.
+function lua_map_node_find_coords( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapStack;
+    iCoord : TCoord2D;
+    iCells : TFlags;
+    iArea  : TArea;
+    iCount : Integer;
+begin
+  iState.Init( L );
+  iCells := iState.ToCellSet( 2 );
+  iArea  := iState.ToOptionalArea( 3 );
+  iState.Map.Area.Clamp( iArea );
+
+  lua_createtable( L, 0, 0 );
+  iCount := 0;
+  for iCoord in iArea do
+    if iState.Map.GetCell( iCoord ) in iCells then
+    begin
+      Inc( iCount );
+      vlua_pushcoord( L, iCoord );
+      lua_rawseti( L, -2, iCount );
+    end;
+  Exit( 1 );
+end;
+
 function lua_map_node_find_empty_coord( L : Plua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
     iCoord : TCoord2D;
@@ -1414,7 +1445,7 @@ begin
 end;
 
 
-const lua_map_node_lib : array[0..38] of luaL_Reg = (
+const lua_map_node_lib : array[0..39] of luaL_Reg = (
   ( name : 'get_area';                func : @lua_map_node_get_area ),
   ( name : 'clamp_coord';             func : @lua_map_node_clamp_coord ),
   ( name : 'set_hp';                  func : @lua_map_node_set_hp ),
@@ -1444,12 +1475,13 @@ const lua_map_node_lib : array[0..38] of luaL_Reg = (
   ( name : 'scan';                    func : @lua_map_node_scan ),
   ( name : 'coords';                  func : @lua_map_node_coords ),
   ( name : 'transform';               func : @lua_map_node_transform ),
-  ( name : 'transmute_by_flag';       func : @lua_map_node_transmute_by_flag ),
+  ( name : 'transform_by_flag';       func : @lua_map_node_transform_by_flag ),
   ( name : 'random_square';           func : @lua_map_node_random_square ),
   ( name : 'random_coord';            func : @lua_map_node_random_coord ),
   ( name : 'random_empty_coord';      func : @lua_map_node_random_empty_coord ),
   ( name : 'drop_coord';              func : @lua_map_node_drop_coord ),
   ( name : 'find_coord';              func : @lua_map_node_find_coord ),
+  ( name : 'find_coords';             func : @lua_map_node_find_coords ),
   ( name : 'find_empty_coord';        func : @lua_map_node_find_empty_coord ),
   ( name : 'find_random_coord';       func : @lua_map_node_find_random_coord ),
   ( name : 'find_random_empty_coord'; func : @lua_map_node_find_random_empty_coord ),
