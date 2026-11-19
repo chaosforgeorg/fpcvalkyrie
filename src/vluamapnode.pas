@@ -688,6 +688,25 @@ begin
   Result := 1;
 end;
 
+// get_nid( map, cell ) -> nid of cell ( an id or a nid ). Same as nv's get_nid.
+function lua_map_node_get_nid( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapStack;
+begin
+  iState.Init( L );
+  iState.Push( iState.ToCell( 2 ) );
+  Exit( 1 );
+end;
+
+// get_size( map ) -> coord of the map's width and height. Same as nv's
+// get_size.
+function lua_map_node_get_size( L : Plua_State ) : Integer; cdecl;
+var iState : TLuaMapStack;
+begin
+  iState.Init( L );
+  vlua_pushcoord( L, iState.Map.Area.Dim );
+  Exit( 1 );
+end;
+
 function lua_map_node_around( L : Plua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
     iRange : Integer;
@@ -897,6 +916,9 @@ begin
   Result := 1;
 end;
 
+// fill( map, cell [, area ] )
+// Sets every cell of area to cell. area defaults to the map and is clamped to
+// it. Same definition as nv's fill.
 function lua_map_node_fill( L : Plua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
     iFill  : Byte;
@@ -906,6 +928,7 @@ begin
   iState.Init( L );
   iFill := iState.ToCell( 2 );
   iArea := iState.ToOptionalArea( 3 );
+  iState.Map.Area.Clamp( iArea );
   for iCoord in iArea do
     iState.Map.PutCell( iCoord, iFill );
   Exit( 0 );
@@ -1027,16 +1050,18 @@ begin
   Exit( 1 );
 end;
 
-function lua_map_node_each_closure( L : Plua_State ) : Integer; cdecl;
+function lua_map_node_coords_closure( L : Plua_State ) : Integer; cdecl;
 var iMap   : TLuaMapNode;
     iArea  : PArea;
     iCoord : PCoord2D;
-    iCell  : Byte;
+    iCells : PFlags;
+    iAll   : Boolean;
 begin
   iArea  := vlua_toparea( L, lua_upvalueindex( 1 ) );
   iCoord := vlua_topcoord( L, lua_upvalueindex( 2 ) );
-  iCell  := lua_tointeger( L, lua_upvalueindex( 3 ) );
+  iCells := PFlags( lua_touserdata( L, lua_upvalueindex( 3 ) ) );
   iMap   := TObject( lua_touserdata( L, lua_upvalueindex( 4 ) ) ) as TLuaMapNode;
+  iAll   := iCells^ = [];
 
   repeat
     iCoord^.x := iCoord^.x + 1;
@@ -1050,36 +1075,49 @@ begin
         Exit( 1 );
       end;
     end;
-  until iMap.GetCell( iCoord^ ) = iCell;
+  until iAll or ( iMap.GetCell( iCoord^ ) in iCells^ );
   // push modified coord
   lua_pushvalue( L, lua_upvalueindex( 2 ) );
   Exit( 1 );
 end;
 
-function lua_map_node_each( L : Plua_State ) : Integer; cdecl;
+// coords( map [, cells [, area ]] )
+// Iterates, in row order, the coords of area ( default: the map ) whose cell
+// is in cells: one cell, a list of cells, or nil ( or an empty list ) for
+// every cell. Each cell is read when the iteration reaches it. The yielded
+// coord may be reused by the next step; clone it to keep it. Same definition
+// as nv's coords.
+function lua_map_node_coords( L : Plua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
     iCoord : TCoord2D;
-    iCell  : Byte;
+    iCells : PFlags;
 begin
   iState.Init( L );
-  iCell := iState.ToCell( 2 );
-  if vlua_isarea( L, 3 )
-    then iCoord := vlua_toparea( L, 3 )^.A
-    else
-    begin
-      lua_settop( L, 2 );
-      vlua_pusharea( L, iState.Map.Area );
-      iCoord := iState.Map.Area.A;
-    end;
+  if vlua_isarea( L, 3 ) then
+  begin
+    iCoord := vlua_toparea( L, 3 )^.A;
+    lua_settop( L, 3 );
+  end
+  else
+  begin
+    lua_settop( L, 2 );
+    vlua_pusharea( L, iState.Map.Area );
+    iCoord := iState.Map.Area.A;
+  end;
   iCoord.X := iCoord.X - 1;
   vlua_pushcoord( L, iCoord );
-  lua_pushinteger( L, iCell );
+  iCells  := PFlags( lua_newuserdata( L, SizeOf( TFlags ) ) );
+  iCells^ := iState.ToCellSet( 2 );
   lua_pushlightuserdata( L, iState.Map );
-  lua_pushcclosure( L, @lua_map_node_each_closure, 4 );
+  lua_pushcclosure( L, @lua_map_node_coords_closure, 4 );
   Exit( 1 );
 end;
 
-function lua_map_node_transmute( L : Plua_State ) : Integer; cdecl;
+// transform( map, from_cells, to_cell [, area ] ) -> count
+// Sets every cell of area that is in from_cells to to_cell and returns how
+// many were set. area defaults to the map and is clamped to it. Same
+// definition as nv's transform.
+function lua_map_node_transform( L : Plua_State ) : Integer; cdecl;
 var iState  : TLuaMapStack;
     iFrom   : TFlags;
     iTo     : Byte;
@@ -1091,6 +1129,7 @@ begin
   iFrom   := iState.ToCellSet( 2 );
   iTo     := iState.ToCell( 3 );
   iArea   := iState.ToOptionalArea( 4 );
+  iState.Map.Area.Clamp( iArea );
   iResult := 0;
   for iCoord in iArea do
     if iState.Map.getCell( iCoord ) in iFrom then
@@ -1161,42 +1200,36 @@ begin
   Exit( 0 );
 end;
 
+// random_coord( map, cells [, area [, limit ]] )
+// Draws up to limit random coords of area and returns the first whose cell is
+// in cells; if none is, returns find_coord( cells, area ) ( nil if there is
+// none ). limit defaults to area width times height, where width and height
+// are max - min. area defaults to the map. Same definition as nv's
+// random_coord.
 function lua_map_node_random_coord( L : PLua_State ) : Integer; cdecl;
-const kLimit = 5000;
 var iState   : TLuaMapStack;
     iRNG     : TRNG;
-    iType2   : Integer;
     iCellSet : TFlags;
     iArea    : TArea;
+    iLimit   : Integer;
     iCount   : Integer;
     iCoord   : TCoord2D;
 begin
   iState.Init( L );
   iRNG := iState.Map.GameRNG;
-  iType2 := lua_type( L, 2 );
-  if iType2 <= LUA_TNIL then
-  begin
-    vlua_pushcoord( L, iState.Map.Area.RandomCoord( iRNG ) );
-    Exit( 1 );
-  end;
-  if iType2 = LUA_TUSERDATA then
-  begin
-    vlua_pushcoord( L, vlua_toparea( L, 2 )^.RandomCoord( iRNG ) );
-    Exit( 1 );
-  end;
   iCellSet := iState.ToCellSet( 2 );
   iArea    := iState.ToOptionalArea( 3 );
+  iLimit   := iState.ToInteger( 4, iArea.Width * iArea.Height );
 
-  iCount := 0;
-  repeat
+  for iCount := 1 to iLimit do
+  begin
     iCoord := iArea.RandomCoord( iRNG );
     if iState.Map.GetCell( iCoord ) in iCellSet then
     begin
       vlua_pushcoord( L, iCoord );
       Exit( 1 );
     end;
-    Inc( iCount );
-  until iCount > kLimit;
+  end;
 
   for iCoord in iArea do
     if iState.Map.GetCell( iCoord ) in iCellSet then
@@ -1381,7 +1414,7 @@ begin
 end;
 
 
-const lua_map_node_lib : array[0..36] of luaL_Reg = (
+const lua_map_node_lib : array[0..38] of luaL_Reg = (
   ( name : 'get_area';                func : @lua_map_node_get_area ),
   ( name : 'clamp_coord';             func : @lua_map_node_clamp_coord ),
   ( name : 'set_hp';                  func : @lua_map_node_set_hp ),
@@ -1389,6 +1422,8 @@ const lua_map_node_lib : array[0..36] of luaL_Reg = (
   ( name : 'set_cell';                func : @lua_map_node_set_cell ),
   ( name : 'get_cell';                func : @lua_map_node_get_cell ),
   ( name : 'get_cell_id';             func : @lua_map_node_get_cell_id ),
+  ( name : 'get_nid';                 func : @lua_map_node_get_nid ),
+  ( name : 'get_size';                func : @lua_map_node_get_size ),
   ( name : 'around';                  func : @lua_map_node_around ),
   ( name : 'cross_around';            func : @lua_map_node_cross_around ),
   ( name : 'eye_contact';             func : @lua_map_node_eye_contact ),
@@ -1407,8 +1442,8 @@ const lua_map_node_lib : array[0..36] of luaL_Reg = (
   ( name : 'fill_pattern';            func : @lua_map_node_fill_pattern ),
   ( name : 'fill_edges';              func : @lua_map_node_fill_edges ),
   ( name : 'scan';                    func : @lua_map_node_scan ),
-  ( name : 'each';                    func : @lua_map_node_each ),
-  ( name : 'transmute';               func : @lua_map_node_transmute ),
+  ( name : 'coords';                  func : @lua_map_node_coords ),
+  ( name : 'transform';               func : @lua_map_node_transform ),
   ( name : 'transmute_by_flag';       func : @lua_map_node_transmute_by_flag ),
   ( name : 'random_square';           func : @lua_map_node_random_square ),
   ( name : 'random_coord';            func : @lua_map_node_random_coord ),
