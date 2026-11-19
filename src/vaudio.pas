@@ -63,13 +63,15 @@ type
     function InstanceGain( aIndex : Integer ) : Single;
     procedure ApplyGain( aIndex : Integer );
     procedure ClearInstance( aIndex : Integer );
+    function PlaySound( aAsset : TAudioAssetHandle; aVolumePercent : Integer;
+      aLoop : Boolean; aFadeInMS : DWord; aPan : Single; aPosition : PVec3f ) : TAudioInstanceHandle;
   protected
     function LoadBackend( const aFileName : AnsiString; aStream : Boolean ) : Pointer; virtual; abstract;
     function LoadBackendStream( aStream : TStream; aSize : DWord;
       const aNameHint : AnsiString; aStreamed : Boolean ) : Pointer; virtual; abstract;
     procedure FreeBackendAsset( aData : Pointer ); virtual; abstract;
     function StartBackend( aAssetData : Pointer; aStream, aLoop : Boolean;
-      aMusic : Boolean; aGain : Single ) : Pointer; virtual; abstract;
+      aMusic : Boolean; aGain, aPan : Single; aPosition : PVec3f ) : Pointer; virtual; abstract;
     procedure StopBackend( aInstanceData : Pointer ); virtual; abstract;
     function BackendPlaying( aInstanceData : Pointer ) : Boolean; virtual; abstract;
     procedure SetBackendGain( aInstanceData : Pointer; aGain : Single ); virtual; abstract;
@@ -87,6 +89,14 @@ type
 
     function Play( aAsset : TAudioAssetHandle; aVolumePercent : Integer = 100;
       aLoop : Boolean = False; aFadeInMS : DWord = 0 ) : TAudioInstanceHandle;
+    // Pan ranges from -1 (left) through 0 (center) to 1 (right).
+    function PlayPanned( aAsset : TAudioAssetHandle; aPan : Single;
+      aVolumePercent : Integer = 100; aLoop : Boolean = False;
+      aFadeInMS : DWord = 0 ) : TAudioInstanceHandle;
+    // The listener-relative position uses X right, Y up, and Z back.
+    // The caller supplies the distance-adjusted volume.
+    function PlayAt( aAsset : TAudioAssetHandle; const aPosition : TVec3f;
+      aVolumePercent : Integer = 100 ) : TAudioInstanceHandle;
     function PlayMusic( aAsset : TAudioAssetHandle; aLoop : Boolean = True;
       aFadeInMS : DWord = 0 ) : TAudioInstanceHandle;
     procedure Stop( aInstance : TAudioInstanceHandle; aFadeOutMS : DWord = 0 );
@@ -115,6 +125,8 @@ type
 const Audio : TAudio = nil;
 
 implementation
+
+uses vmath;
 
 function ClampPercent( aPercent : Integer ) : Integer; inline;
 begin
@@ -253,6 +265,31 @@ end;
 
 function TAudio.Play( aAsset : TAudioAssetHandle; aVolumePercent : Integer;
   aLoop : Boolean; aFadeInMS : DWord ) : TAudioInstanceHandle;
+begin
+  Result := PlaySound( aAsset, aVolumePercent, aLoop, aFadeInMS, 0.0, nil );
+end;
+
+function TAudio.PlayPanned( aAsset : TAudioAssetHandle; aPan : Single;
+  aVolumePercent : Integer; aLoop : Boolean; aFadeInMS : DWord ) : TAudioInstanceHandle;
+begin
+  Result := PlaySound( aAsset, aVolumePercent, aLoop, aFadeInMS, Clampf( aPan, -1.0, 1.0 ), nil );
+end;
+
+function TAudio.PlayAt( aAsset : TAudioAssetHandle; const aPosition : TVec3f;
+  aVolumePercent : Integer ) : TAudioInstanceHandle;
+var iDistance      : Single;
+    iMixerPosition : TVec3f;
+begin
+  iDistance := aPosition.Length;
+  if iDistance = 0.0 then Exit( Play( aAsset, aVolumePercent ) );
+
+  // Keep the source in the same direction at a distance where mixer gain is unity.
+  iMixerPosition := aPosition.Scaled( 1.0 / iDistance );
+  Result := PlaySound( aAsset, aVolumePercent, False, 0, 0.0, @iMixerPosition );
+end;
+
+function TAudio.PlaySound( aAsset : TAudioAssetHandle; aVolumePercent : Integer;
+  aLoop : Boolean; aFadeInMS : DWord; aPan : Single; aPosition : PVec3f ) : TAudioInstanceHandle;
 var iAsset, iInstance : Integer;
     iGain             : Single;
 begin
@@ -262,7 +299,6 @@ begin
   with FInstances[iInstance] do
   begin
     Asset := aAsset;
-    Playing := True;
     Loop := aLoop;
     Volume := ClampPercent( aVolumePercent );
     FadeTo := 1.0;
@@ -276,13 +312,14 @@ begin
   end;
   iGain := InstanceGain( iInstance );
   FInstances[iInstance].Data := StartBackend(
-    FAssets[iAsset].Data, FAssets[iAsset].Stream, aLoop, False, iGain
+    FAssets[iAsset].Data, FAssets[iAsset].Stream, aLoop, False, iGain, aPan, aPosition
   );
   if FInstances[iInstance].Data = nil then
   begin
     ClearInstance( iInstance );
     Exit( 0 );
   end;
+  FInstances[iInstance].Playing := True;
   Result := iInstance + 1;
 end;
 
@@ -313,7 +350,7 @@ begin
   end;
   iGain := InstanceGain( iInstance );
   FInstances[iInstance].Data := StartBackend(
-    FAssets[iAsset].Data, FAssets[iAsset].Stream, aLoop, True, iGain
+    FAssets[iAsset].Data, FAssets[iAsset].Stream, aLoop, True, iGain, 0.0, nil
   );
   if FInstances[iInstance].Data = nil then
   begin

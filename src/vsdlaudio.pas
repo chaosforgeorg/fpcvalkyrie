@@ -3,7 +3,7 @@ unit vsdlaudio;
 
 interface
 
-uses Classes, SysUtils, vaudio, vsdl3library, vsdl3mixerlibrary;
+uses classes, sysutils, vaudio, vsdl3library, vsdl3mixerlibrary, vvector;
 
 type
   TSDLAudio = class(TAudio)
@@ -22,7 +22,7 @@ type
       const aNameHint : AnsiString; aStreamed : Boolean ) : Pointer; override;
     procedure FreeBackendAsset( aData : Pointer ); override;
     function StartBackend( aAssetData : Pointer; aStream, aLoop : Boolean;
-      aMusic : Boolean; aGain : Single ) : Pointer; override;
+      aMusic : Boolean; aGain, aPan : Single; aPosition : PVec3f ) : Pointer; override;
     procedure StopBackend( aInstanceData : Pointer ); override;
     function BackendPlaying( aInstanceData : Pointer ) : Boolean; override;
     procedure SetBackendGain( aInstanceData : Pointer; aGain : Single ); override;
@@ -32,6 +32,8 @@ type
   end;
 
 implementation
+
+uses math;
 
 constructor TSDLAudio.Create;
 begin
@@ -99,10 +101,12 @@ begin
 end;
 
 function TSDLAudio.StartBackend( aAssetData : Pointer; aStream, aLoop : Boolean;
-  aMusic : Boolean; aGain : Single ) : Pointer;
-var iAsset : PSDLAsset;
-    iTrack : PMIX_Track;
-    iProps : SDL_PropertiesID;
+  aMusic : Boolean; aGain, aPan : Single; aPosition : PVec3f ) : Pointer;
+var iAsset    : PSDLAsset;
+    iTrack    : PMIX_Track;
+    iProps    : SDL_PropertiesID;
+    iGains    : MIX_StereoGains;
+    iPosition : MIX_Point3D;
 begin
   iAsset := PSDLAsset(aAssetData);
   iTrack := MIX_CreateTrack(FMixer);
@@ -110,6 +114,23 @@ begin
   if iAsset^.Stream then MIX_SetTrackIOStream( iTrack, iAsset^.IO, False )
                     else MIX_SetTrackAudio( iTrack, iAsset^.Audio );
   MIX_SetTrackGain( iTrack, aGain );
+  if aPosition <> nil then
+  begin
+    iPosition.X := aPosition^.X;
+    iPosition.Y := aPosition^.Y;
+    iPosition.Z := aPosition^.Z;
+    if not MIX_SetTrack3DPosition( iTrack, @iPosition ) then
+    begin
+      MIX_DestroyTrack( iTrack );
+      Exit( nil );
+    end;
+  end
+  else if aPan <> 0.0 then
+  begin
+    iGains.left  := 1.0 - Max( aPan, 0.0 );
+    iGains.right := 1.0 + Min( aPan, 0.0 );
+    MIX_SetTrackStereo( iTrack, @iGains );
+  end;
   iProps := SDL_CreateProperties();
   if aLoop then SDL_SetNumberProperty(iProps, 'SDL_mixer.play.loops', -1);
   if not MIX_PlayTrack( iTrack, iProps ) then

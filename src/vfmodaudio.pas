@@ -7,7 +7,7 @@ unit vfmodaudio;
 
 interface
 
-uses Classes, SysUtils, vaudio, vfmodlibrary;
+uses classes, sysutils, vaudio, vfmodlibrary, vvector;
 
 type TFMODAudio = class( TAudio )
   private type
@@ -28,7 +28,7 @@ type TFMODAudio = class( TAudio )
       const aNameHint : AnsiString; aStreamed : Boolean ) : Pointer; override;
     procedure FreeBackendAsset( aData : Pointer ); override;
     function StartBackend( aAssetData : Pointer; aStream, aLoop : Boolean;
-      aMusic : Boolean; aGain : Single ) : Pointer; override;
+      aMusic : Boolean; aGain, aPan : Single; aPosition : PVec3f ) : Pointer; override;
     procedure StopBackend( aInstanceData : Pointer ); override;
     function BackendPlaying( aInstanceData : Pointer ) : Boolean; override;
     procedure SetBackendGain( aInstanceData : Pointer; aGain : Single ); override;
@@ -120,22 +120,39 @@ begin
 end;
 
 function TFMODAudio.StartBackend( aAssetData : Pointer; aStream, aLoop : Boolean;
-  aMusic : Boolean; aGain : Single ) : Pointer;
-var iAsset   : PFMODAsset;
-    iChannel : PFMOD_CHANNEL;
+  aMusic : Boolean; aGain, aPan : Single; aPosition : PVec3f ) : Pointer;
+var iAsset    : PFMODAsset;
+    iChannel  : PFMOD_CHANNEL;
+    iMode     : FMOD_MODE;
+    iPosition : FMOD_VECTOR;
 begin
   iAsset := PFMODAsset( aAssetData );
   iChannel := nil;
   if aMusic then Check(FMOD_System_PlaySound(FSystem, iAsset^.Sound, FMusicGroup, 1, @iChannel))
             else Check(FMOD_System_PlaySound(FSystem, iAsset^.Sound, FSoundGroup, 1, @iChannel));
-  if aMusic then Check( FMOD_Channel_SetPriority(iChannel, 0) );
-  if aLoop then
-  begin
-    Check( FMOD_Channel_SetMode(iChannel, FMOD_LOOP_NORMAL) );
-    Check( FMOD_Channel_SetLoopCount(iChannel, -1) );
+  try
+    if aMusic then Check( FMOD_Channel_SetPriority(iChannel, 0) );
+    iMode := 0;
+    if aLoop then iMode := FMOD_LOOP_NORMAL;
+    if aPosition <> nil then
+      iMode := iMode or FMOD_3D or FMOD_3D_HEADRELATIVE or FMOD_3D_INVERSEROLLOFF;
+    if iMode <> 0 then Check( FMOD_Channel_SetMode( iChannel, iMode ) );
+    if aLoop then Check( FMOD_Channel_SetLoopCount( iChannel, -1 ) );
+    if aPosition <> nil then
+    begin
+      iPosition.X := aPosition^.X;
+      iPosition.Y := aPosition^.Y;
+      iPosition.Z := -aPosition^.Z; // FMOD's default coordinates use +Z for forward.
+      Check( FMOD_Channel_Set3DAttributes( iChannel, @iPosition, nil ) );
+    end
+    else if aPan <> 0.0 then
+      Check( FMOD_Channel_SetPan( iChannel, aPan ) );
+    Check( FMOD_Channel_SetVolume( iChannel, aGain ) );
+    Check( FMOD_Channel_SetPaused( iChannel, 0 ) );
+  except
+    FMOD_Channel_Stop( iChannel );
+    raise;
   end;
-  Check(FMOD_Channel_SetVolume(iChannel, aGain));
-  Check(FMOD_Channel_SetPaused(iChannel, 0));
   Result := iChannel;
 end;
 
