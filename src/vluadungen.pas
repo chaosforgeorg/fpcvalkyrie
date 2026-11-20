@@ -120,14 +120,15 @@ begin
   Exit( 2 );
 end;
 
-// fill_dead_ends( map, open_cells, wall_cells, fill_cell [, area [, max_passes ]] )
+// fill_dead_end_cells( map, open_cells, wall_cells, fill_cell [, area [, max_passes ]] )
 // An open cell in area with at least 3 of its 4 direct neighbours in
 // wall_cells is a dead end. Each pass turns every cell that is a dead end at
 // its start into fill_cell, removing one layer. Passes repeat until none is
 // left, or for at most max_passes passes ( omitted or 0: no limit ). area
 // defaults to the map without its edge; fill_cell must not be an open cell.
-// Returns the number of filled cells.
-function lua_dungen_fill_dead_ends( L : Plua_State ) : Integer; cdecl;
+// Returns the number of filled cells. Same definition as nv's
+// fill_dead_end_cells.
+function lua_dungen_fill_dead_end_cells( L : Plua_State ) : Integer; cdecl;
 var iState      : TLuaMapStack;
     iOpen       : TFlags;
     iWalls      : TFlags;
@@ -165,7 +166,7 @@ begin
   iMaxPasses := 0;
   if lua_isnumber( L, 6 ) then iMaxPasses := lua_tointeger( L, 6 );
   if iFill in iOpen then
-    Exit( luaL_error( L, 'fill_dead_ends: fill_cell must not be an open cell' ) );
+    Exit( luaL_error( L, 'fill_dead_end_cells: fill_cell must not be an open cell' ) );
 
   iNextCount := 0;
   for iY := iArea.A.Y to iArea.B.Y do
@@ -357,7 +358,7 @@ begin
   Exit( 1 );
 end;
 
-// read_rooms( map, room_cells, area [, min_size ] )
+// read_room_frames( map, room_cells, area [, min_size ] )
 // Returns the rooms found in area, in row order of their start cells, each
 // as an area that includes its frame. A start is a cell of area not in
 // room_cells whose lower right neighbour is in room_cells and whose right and
@@ -369,8 +370,8 @@ end;
 // the bottom row on or past area's last row, or when it is smaller than
 // min_size ( omitted: no minimum ). Cells inside the frame are not checked.
 // Coordinates outside the map read the nearest map cell. Same definition as
-// nv's read_rooms.
-function lua_dungen_read_rooms( L : Plua_State ) : Integer; cdecl;
+// nv's read_room_frames.
+function lua_dungen_read_room_frames( L : Plua_State ) : Integer; cdecl;
 var iState : TLuaMapStack;
     iRooms : TFlags;
     iArea  : TArea;
@@ -1150,10 +1151,10 @@ const
     ( Name : 'tile_place'; func : @lua_dungen_tile_place; ),
     ( Name : 'plot_line'; func : @lua_dungen_plot_line; ),
     ( Name : 'get_endpoints'; func : @lua_dungen_get_endpoints; ),
-    ( Name : 'fill_dead_ends'; func : @lua_dungen_fill_dead_ends; ),
+    ( Name : 'fill_dead_end_cells'; func : @lua_dungen_fill_dead_end_cells; ),
     ( Name : 'transform_around'; func : @lua_dungen_transform_around; ),
     ( Name : 'random_door_spot'; func : @lua_dungen_random_door_spot; ),
-    ( Name : 'read_rooms'; func : @lua_dungen_read_rooms; ),
+    ( Name : 'read_room_frames'; func : @lua_dungen_read_room_frames; ),
     ( Name : 'run_drunkard_walk'; func : @lua_dungen_run_drunkard_walk; ),
     ( Name : 'cellular_init'; func : @lua_dungen_cellular_init; ),
     ( Name : 'cellular_random'; func : @lua_dungen_cellular_random; ),
