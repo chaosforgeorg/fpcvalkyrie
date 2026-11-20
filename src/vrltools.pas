@@ -198,6 +198,8 @@ TArea = object
   function EnclosedArea : Word;
   function Width : Word;
   function Height : Word;
+  // Number of columns and rows: B - A + 1.
+  function Dim : TCoord2D;
   function RandomCoord( aRNG : TRNG ) : TCoord2D;
   function Center : TCoord2D;
   function NextCoord( var Coord : TCoord2D; Horiz : Boolean = True ) : Boolean;
@@ -1239,6 +1241,11 @@ end;
 function TArea.Height: Word;
 begin
   Exit( Max( B.y - A.y, 0 ) );
+end;
+
+function TArea.Dim : TCoord2D;
+begin
+  Exit( B - A + UnitCoord2D );
 end;
 
 function TArea.RandomCoord( aRNG : TRNG ) : TCoord2D;

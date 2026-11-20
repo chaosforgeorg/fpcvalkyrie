@@ -886,7 +886,7 @@ function lua_area_dim( L: Plua_State): Integer; cdecl;
 var Area : PArea;
 begin
   Area := vlua_toparea( L, 1 );
-  vlua_pushcoord( L, Area^.b - Area^.a + UnitCoord2D );
+  vlua_pushcoord( L, Area^.Dim );
   Exit(1);
 end;
 
