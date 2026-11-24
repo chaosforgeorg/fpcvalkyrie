@@ -82,9 +82,11 @@ TVisualThings = class
 protected
   function CreateThing( aUID : TUID ) : TVisualThing; virtual;
 private
-  FThings : TVisualThingArray;
-  FCount  : Integer;
-  FTime   : QWord;
+  FThings    : TVisualThingArray;
+  FCount     : Integer;
+  FTime      : QWord;
+  FClips     : Integer;
+  FHoldUntil : QWord;
   function Search( aUID : TUID; out aIndex : Integer ) : Boolean;
   function Insert( aIndex : Integer; aUID : TUID ) : TVisualThing;
   procedure Delete( aIndex : Integer );
@@ -124,8 +126,10 @@ constructor TVisualThings.Create;
 begin
   inherited Create;
   FThings := nil;
-  FCount  := 0;
-  FTime   := 0;
+  FCount     := 0;
+  FTime      := 0;
+  FClips     := 0;
+  FHoldUntil := 0;
 end;
 
 destructor TVisualThings.Destroy;
@@ -142,7 +146,8 @@ begin
     Assert( FThings[i].FClips = 0, 'Visual thing cleared while a clip owns it' );
     FreeAndNil( FThings[i] );
   end;
-  FCount := 0;
+  FCount     := 0;
+  FHoldUntil := 0;
 end;
 
 function TVisualThings.CreateThing( aUID : TUID ) : TVisualThing;
@@ -212,12 +217,14 @@ begin
   // A clip shows the thing even when a hold has not yet revealed it.
   Result.FShown := True;
   Inc( Result.FClips );
+  Inc( FClips );
 end;
 
 procedure TVisualThings.Release( aThing : TVisualThing );
 begin
   Assert( aThing.FClips > 0, 'Visual thing released more often than acquired' );
   Dec( aThing.FClips );
+  Dec( FClips );
 end;
 
 procedure TVisualThings.Hold( aUID : TUID; aUntil : QWord );
@@ -229,6 +236,7 @@ begin
     then iThing := FThings[iIndex]
     else iThing := Insert( iIndex, aUID );
   if iThing.FHoldUntil < aUntil then iThing.FHoldUntil := aUntil;
+  if FHoldUntil < aUntil then FHoldUntil := aUntil;
 end;
 
 procedure TVisualThings.BeginSync( aTime : QWord );
@@ -263,12 +271,8 @@ begin
 end;
 
 function TVisualThings.Busy : Boolean;
-var i : Integer;
 begin
-  for i := 0 to FCount - 1 do
-    with FThings[i] do
-      if ( FClips > 0 ) or ( FTime < FHoldUntil ) then Exit( True );
-  Exit( False );
+  Exit( ( FClips > 0 ) or ( FTime < FHoldUntil ) );
 end;
 
 end.

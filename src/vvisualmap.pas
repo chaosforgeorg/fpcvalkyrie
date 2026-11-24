@@ -3,11 +3,12 @@
 //
 // A turn-based game resolves a whole action at once, while its presentation
 // plays out over time. TGVisualMap keeps the per-cell state a renderer shows
-// and converges on the game's state by itself: each Update compares every
-// cell with its source and starts a fade where they differ, unless the cell
-// is held. Holds are the only timing input. Once holds and fades have ended
-// the map equals its source, so a change made without a hold is shown at
-// once rather than lost.
+// and converges on the game's state by itself: Update compares every cell
+// with its source and starts a fade where they differ, unless the cell is
+// held. Holds are the only timing input. Once holds and fades have ended the
+// map equals its source, so a change made without a hold is shown at once
+// rather than lost. The comparison runs only when SourceChanged reports a
+// change or a fade or a held change is due, so an idle map costs nothing.
 //
 //  @html <div class="license">
 //  This library is free software; you can redistribute it and/or modify it
@@ -46,12 +47,12 @@ public type
 public
   constructor Create( const aArea : TArea );
   // Advances presentation time by aTime ms and follows the source.
-  procedure Update( aTime : DWord ); virtual;
+  procedure Update( aTime : DWord );
   // Hides changes of aCoord and its neighbours for aDelay ms. Neighbours
   // are included because their appearance is derived from the cell.
   procedure Hold( const aCoord : TCoord2D; aDelay : DWord );
   // Ends every hold and fade: afterwards the map equals its source.
-  procedure Synchronize; virtual;
+  procedure Synchronize;
   function Contains( const aCoord : TCoord2D ) : Boolean; inline;
   function State( const aCoord : TCoord2D; aLayer : TVisualLayer ) : T; inline;
   function Fading( const aCoord : TCoord2D ) : Boolean;
@@ -63,6 +64,12 @@ public
   function NeighbourhoodFade( const aCoord : TCoord2D; out aProgress : Single ) : Boolean;
   destructor Destroy; override;
 protected
+  // Whether the source may differ from what it was at the previous call;
+  // called on every Update and Synchronize. The default always reports a
+  // change, so every Update compares all cells.
+  function SourceChanged : Boolean; virtual;
+  // Called before cells are compared, with Time already advanced.
+  procedure BeginCompare; virtual;
   // The state the source has now; aTarget is the state currently shown.
   function Sample( const aCoord : TCoord2D; const aTarget : T ) : T; virtual; abstract;
   // Duration of the fade between two states in ms; 0 switches at once.
@@ -75,6 +82,8 @@ private
   FCells   : array of TVisualCell;
   FFades   : Integer;
   FPending : Integer;
+  // When the next fade ends or held change is due.
+  FNextDue : QWord;
   function CellProgress( const aCell : TVisualCell ) : Single; inline;
 protected
   FTime    : QWord;
@@ -100,6 +109,7 @@ begin
   FTime    := 0;
   FFades   := 0;
   FPending := 0;
+  FNextDue := 0;
 end;
 
 destructor TGVisualMap.Destroy;
@@ -136,14 +146,26 @@ begin
   Exit( Min( ( FTime - aCell.FadeStart ) / aCell.FadeTime, 1.0 ) );
 end;
 
+function TGVisualMap.SourceChanged : Boolean;
+begin
+  Exit( True );
+end;
+
+procedure TGVisualMap.BeginCompare;
+begin
+end;
+
 procedure TGVisualMap.Update( aTime : DWord );
 var iCoord  : TCoord2D;
     iCell   : PVisualCell;
     iSample : T;
 begin
-  FTime    += aTime;
+  FTime += aTime;
+  if ( not SourceChanged ) and ( FTime < FNextDue ) then Exit;
+  BeginCompare;
   FFades   := 0;
   FPending := 0;
+  FNextDue := High( QWord );
   for iCoord in FArea do
   begin
     iCell := Cell( iCoord );
@@ -156,7 +178,10 @@ begin
     if not Equal( iSample, iCell^.Target ) then
     begin
       if FTime < iCell^.HoldUntil then
-        Inc( FPending )
+      begin
+        Inc( FPending );
+        FNextDue := Min( FNextDue, iCell^.HoldUntil );
+      end
       else
       begin
         // A fade still running ends here; its target starts the next one.
@@ -167,7 +192,11 @@ begin
         if iCell^.FadeTime = 0 then iCell^.Shown := iCell^.Target;
       end;
     end;
-    if iCell^.FadeTime > 0 then Inc( FFades );
+    if iCell^.FadeTime > 0 then
+    begin
+      Inc( FFades );
+      FNextDue := Min( FNextDue, iCell^.FadeStart + iCell^.FadeTime );
+    end;
   end;
 end;
 
@@ -187,16 +216,25 @@ procedure TGVisualMap.Synchronize;
 var iCoord : TCoord2D;
     iCell  : PVisualCell;
 begin
+  // Holds end before sampling, so samples are not held back.
   for iCoord in FArea do
   begin
     iCell := Cell( iCoord );
-    iCell^.Target    := Sample( iCoord, iCell^.Target );
-    iCell^.Shown     := iCell^.Target;
     iCell^.HoldUntil := 0;
     iCell^.FadeTime  := 0;
   end;
+  // Records the source state; the comparison below is complete anyway.
+  SourceChanged;
+  BeginCompare;
+  for iCoord in FArea do
+  begin
+    iCell := Cell( iCoord );
+    iCell^.Target := Sample( iCoord, iCell^.Target );
+    iCell^.Shown  := iCell^.Target;
+  end;
   FFades   := 0;
   FPending := 0;
+  FNextDue := High( QWord );
 end;
 
 function TGVisualMap.Fading( const aCoord : TCoord2D ) : Boolean;
