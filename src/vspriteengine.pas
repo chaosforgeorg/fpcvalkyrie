@@ -31,7 +31,13 @@ end;
 type TSpriteProgramUniforms = record
   Transform : Integer;
   Position  : Integer;
+  Scale     : Integer;
 end;
+
+// Temporal dither of the quads pushed while it is set. One state is drawn
+// twice with the same progress: sdOutgoing keeps the game pixels that
+// sdIncoming discards, so together they cover every pixel exactly once.
+type TSpriteDitherPass = ( sdNone, sdOutgoing, sdIncoming );
 
 type
 
@@ -65,6 +71,7 @@ private
   FOrder       : Integer;
   procedure EnableTransitions;
   function GetSupportsTransitions : Boolean;
+  procedure SetDither( const aDither : TVec2f );
 public
   property SupportsTransitions : Boolean read GetSupportsTransitions;
   property TexUnit     : TVec2f  read FTexUnit;
@@ -94,10 +101,14 @@ TSpriteEngine = class
   procedure Update( aProjection : TMatrix44 );
   procedure DrawSet( const aData : TSpriteDataSet );
   function Add( aNormal, aCosplay, aEmissive, aOutline : TTexture; aOrder : Integer; aTransitions : Boolean = False ) : Integer;
+  // Applies to every quad pushed until changed; Clear and Reset restore sdNone.
+  // aProgress is the share of game pixels the incoming pass shows.
+  procedure SetDither( aPass : TSpriteDitherPass; aProgress : Single = 0.0 );
   destructor Destroy; override;
 private
   procedure SetTexture( aTextureID : DWord );
-  procedure UpdatePosition( aLocation : Integer );
+  // Sets the camera position and game-pixel scale of the bound program.
+  procedure UpdatePosition( const aUniforms : TSpriteProgramUniforms );
   procedure WarmUpDataSet( aData : TSpriteDataSet );
 private
 
@@ -118,6 +129,7 @@ private
   FLayers             : TSpriteDataSetArray;
   FLayersSorted       : TSpriteDataSetArray;
   FTZeroID            : DWord;
+  FDither             : TVec2f;
 public
   property Scale     : Single read FScale;
   property Grid      : TVec2i read FGrid;
@@ -133,12 +145,22 @@ type TGLTexturedColored4Quads = class( TGLTexturedQuads )
   procedure PushQuad ( aCoord : TGLQVec3i; aColorQuad : TGLQVec4f; aCosColor, aGlowColor, aEmissive : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
   procedure PushRotatedQuad ( aCenter, aSize : TGLVec3i; aDegrees : Single; aColor, aCosColor, aGlowColor, aEmissive : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
   procedure Append( aList : TGLTexturedColored4Quads );
+private
+  FDither : TGLVec2f;
+  procedure PushAttributes( const aColorQuad : TGLQVec4f; const aCosColor, aGlowColor, aEmissive : TGLVec4f );
+public
+  // Temporal dither recorded with each pushed quad; see TSpriteDitherPass.
+  property Dither : TGLVec2f read FDither write FDither;
 end;
 
 type TGLSpriteTransitionQuads = class( TGLTexturedQuads )
   constructor Create;
   procedure PushQuad( aPa, aPb : TVec2i; aSourceA, aSourceB : TVec2f; aZ : Integer;
     const aLight : TGLQVec4f; const aPayload : TSpriteTransitionPayload );
+private
+  FDither : TGLVec2f;
+public
+  property Dither : TGLVec2f read FDither write FDither;
 end;
 
 implementation
@@ -156,6 +178,25 @@ VGL_TRANSITION_ORIGINS23   = 5;
 VGL_TRANSITION_MASKS       = 6;
 VGL_TRANSITION_TINTS       = 7;
 VGL_TRANSITION_EMISSIONS   = 11;
+VGL_TRANSITION_DITHER      = 15;
+// Match VSpriteVertexShader's attribute locations.
+VGL_SPRITE_DITHER          = 6;
+
+// Temporal dither on world game pixels, which come from the unshifted vertex
+// position, so every quad of a tile shares one pattern at any scale. The 8x8
+// ordered matrix is independent of the 4x4 one used for spatial transitions.
+VSpriteDitherFunctions =
+'int temporal_bayer(ivec2 p) {'+#10+
+'  int x = p.x & 7;'+#10+
+'  int y = p.y & 7;'+#10+
+'  int xy = x ^ y;'+#10+
+'  return ((xy & 1) << 5) | ((y & 1) << 4) | ((xy & 2) << 2) | ((y & 2) << 1) | ((xy & 4) >> 1) | ((y & 4) >> 2);'+#10+
+'}'+#10+
+'void temporal_dither(vec2 pixel, vec2 dither) {'+#10+
+'  if (dither.y == 0.0) return;'+#10+
+'  bool incoming = (float(temporal_bayer(ivec2(floor(pixel)))) + 0.5) / 64.0 < dither.x;'+#10+
+'  if (incoming != (dither.y > 0.0)) discard;'+#10+
+'}'+#10;
 
 // Both material-selection paths use the same tint, light and emission rules.
 VSpriteShadingFunctions =
@@ -180,14 +221,18 @@ VSpriteVertexShader : Ansistring =
 'layout (location = 3) in vec4 cos_color;'+#10+
 'layout (location = 4) in vec4 glow_color;'+#10+
 'layout (location = 5) in vec4 emissive_color;'+#10+
+'layout (location = 6) in vec2 dither;'+#10+
 'uniform mat4 utransform;'+#10+
 'uniform vec3 uposition;'+#10+
+'uniform float uscale;'+#10+
 #10+
 'out vec4 ocolor;'+#10+
 'out vec4 ocos_color;'+#10+
 'out vec4 oglow_color;'+#10+
 'out vec4 oemissive_color;'+#10+
 'out vec2 otexcoord;'+#10+
+'out vec2 opixel;'+#10+
+'flat out vec2 odither;'+#10+
 #10+
 'void main() {'+#10+
 'ocolor          = color;'+#10+
@@ -195,6 +240,8 @@ VSpriteVertexShader : Ansistring =
 'oglow_color     = glow_color;'+#10+
 'oemissive_color = emissive_color;'+#10+
 'otexcoord = texcoord;'+#10+
+'opixel    = position.xy / uscale;'+#10+
+'odither   = dither;'+#10+
 'gl_Position = utransform * vec4(uposition + position, 1.0);'+#10+
 '}'+#10;
 VSpriteFragmentShader : Ansistring =
@@ -204,6 +251,8 @@ VSpriteFragmentShader : Ansistring =
 'in vec4 oglow_color;'+#10+
 'in vec4 oemissive_color;'+#10+
 'in vec2 otexcoord;'+#10+
+'in vec2 opixel;'+#10+
+'flat in vec2 odither;'+#10+
 'uniform sampler2D unormal;'+#10+
 'uniform sampler2D ucosplay;'+#10+
 'uniform sampler2D uemissive;'+#10+
@@ -211,7 +260,9 @@ VSpriteFragmentShader : Ansistring =
 'layout (location = 0) out vec4 frag_color;'+#10+
 'layout (location = 1) out vec4 emissive_color;'+#10+
 VSpriteShadingFunctions+
+VSpriteDitherFunctions+
 'void main() {'+#10+
+'temporal_dither(opixel, odither);'+#10+
 'float emissive;'+#10+
 'vec4 out_color = shade_sprite(otexcoord, ocolor, ocos_color, oemissive_color, emissive);'+#10+
 'float outline    = texture(uoutline, otexcoord).x;'+#10+
@@ -234,9 +285,13 @@ VSpriteTransitionVertexShader : Ansistring =
 'layout (location = 6) in vec4 masks;'+#10+
 'layout (location = 7) in vec4 colors[4];'+#10+
 'layout (location = 11) in vec4 emissions[4];'+#10+
+'layout (location = 15) in vec2 dither;'+#10+
 'uniform mat4 utransform;'+#10+
 'uniform vec3 uposition;'+#10+
+'uniform float uscale;'+#10+
 'out vec2 osource;'+#10+
+'out vec2 opixel;'+#10+
+'flat out vec2 odither;'+#10+
 'out vec4 ocolor;'+#10+
 'flat out vec4 opivot_width;'+#10+
 'flat out vec4 oorigins01;'+#10+
@@ -246,6 +301,8 @@ VSpriteTransitionVertexShader : Ansistring =
 'flat out vec4 oemissions[4];'+#10+
 'void main() {'+#10+
 '  osource = source_position;'+#10+
+'  opixel = position.xy / uscale;'+#10+
+'  odither = dither;'+#10+
 '  ocolor = color;'+#10+
 '  opivot_width = pivot_width;'+#10+
 '  oorigins01 = origins01;'+#10+
@@ -260,6 +317,8 @@ VSpriteTransitionVertexShader : Ansistring =
 VSpriteTransitionFragmentShader : Ansistring =
 '#version 330 core'+#10+
 'in vec2 osource;'+#10+
+'in vec2 opixel;'+#10+
+'flat in vec2 odither;'+#10+
 'in vec4 ocolor;'+#10+
 'flat in vec4 opivot_width;'+#10+
 'flat in vec4 oorigins01;'+#10+
@@ -275,8 +334,10 @@ VSpriteTransitionFragmentShader : Ansistring =
 'layout (location = 0) out vec4 frag_color;'+#10+
 'layout (location = 1) out vec4 emissive_color;'+#10+
 VSpriteShadingFunctions+
+VSpriteDitherFunctions+
 'const int bayer[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);'+#10+
 'void main() {'+#10+
+'  temporal_dither(opixel, odither);'+#10+
 '  ivec2 pixel = ivec2(floor(osource));'+#10+
 '  vec2 fraction = clamp(0.5 + (vec2(pixel) + 0.5 - opivot_width.xy) / (2.0 * opivot_width.z), 0.0, 1.0);'+#10+
 '  vec4 corners = vec4((1.0-fraction.x)*(1.0-fraction.y), fraction.x*(1.0-fraction.y),'+#10+
@@ -348,6 +409,13 @@ end;
 procedure TSpriteDataSet.EnableTransitions;
 begin
   if FTransitions = nil then FTransitions := TGLSpriteTransitionQuads.Create;
+  FTransitions.Dither := FData.Dither;
+end;
+
+procedure TSpriteDataSet.SetDither( const aDither : TVec2f );
+begin
+  FData.Dither := aDither;
+  if FTransitions <> nil then FTransitions.Dither := aDither;
 end;
 
 function TSpriteDataSet.GetSupportsTransitions : Boolean;
@@ -647,7 +715,7 @@ begin
     end;
 end;
 
-procedure TSpriteEngine.UpdatePosition( aLocation : Integer );
+procedure TSpriteEngine.UpdatePosition( const aUniforms : TSpriteProgramUniforms );
 var iX, iY : Single;
 begin
   iX := -FPosition.X;
@@ -657,7 +725,20 @@ begin
     iX += 0.01;
     iY += 0.01;
   end;
-  glUniform3f( aLocation, iX, iY, 0 );
+  glUniform3f( aUniforms.Position, iX, iY, 0 );
+  glUniform1f( aUniforms.Scale, FScale );
+end;
+
+procedure TSpriteEngine.SetDither( aPass : TSpriteDitherPass; aProgress : Single );
+var iSet : TSpriteDataSet;
+begin
+  case aPass of
+    sdNone     : FDither := TVec2f.Create( 0, 0 );
+    sdOutgoing : FDither := TVec2f.Create( aProgress, -1 );
+    sdIncoming : FDither := TVec2f.Create( aProgress, 1 );
+  end;
+  for iSet in FLayers do
+    iSet.SetDither( FDither );
 end;
 
 procedure TSpriteEngine.DrawSet( const aData : TSpriteDataSet );
@@ -689,7 +770,7 @@ begin
     if (aData.FTransitions <> nil) and (not aData.FTransitions.Empty) then
     begin
       FTransitionProgram.Bind;
-      UpdatePosition( FTransitionUniforms.Position );
+      UpdatePosition( FTransitionUniforms );
       glUniform2f( FTransitionTexUnit, aData.FTexUnit.X, aData.FTexUnit.Y );
       aData.FTransitions.Update;
       aData.FTransitions.Draw;
@@ -742,8 +823,10 @@ begin
   FTransitionProgram := TGLProgram.Create( VSpriteTransitionVertexShader, VSpriteTransitionFragmentShader );
   FSpriteUniforms.Transform := FProgram.GetUniformLocation( 'utransform' );
   FSpriteUniforms.Position := FProgram.GetUniformLocation( 'uposition' );
+  FSpriteUniforms.Scale := FProgram.GetUniformLocation( 'uscale' );
   FTransitionUniforms.Transform := FTransitionProgram.GetUniformLocation( 'utransform' );
   FTransitionUniforms.Position := FTransitionProgram.GetUniformLocation( 'uposition' );
+  FTransitionUniforms.Scale := FTransitionProgram.GetUniformLocation( 'uscale' );
   FTransitionTexUnit := FTransitionProgram.GetUniformLocation( 'utex_unit' );
   FProgram.Bind;
   FProgram.SetUniformi( 'unormal', 0 );
@@ -760,6 +843,7 @@ begin
 
   FLayers       := TSpriteDataSetArray.Create;
   FLayersSorted := TSpriteDataSetArray.Create;
+  FDither       := TVec2f.Create( 0, 0 );
 
   // Create dummy texture
   glGenTextures(1, @FTZeroID );
@@ -782,6 +866,7 @@ begin
     iSet.Free;
   FLayers.Clear;
   FLayersSorted.Clear;
+  FDither := TVec2f.Create( 0, 0 );
 end;
 
 procedure TSpriteEngine.Clear;
@@ -792,6 +877,7 @@ begin
     iSet.FData.Clear;
     if iSet.FTransitions <> nil then iSet.FTransitions.Clear;
   end;
+  SetDither( sdNone );
 end;
 
 procedure TSpriteEngine.WarmUpDataSet( aData : TSpriteDataSet );
@@ -888,7 +974,7 @@ begin
     FPosition := Vec2i( 0, 0 );
     Update( GLCreateOrtho( 0, FGrid.X, FGrid.Y, 0, -16384, 16384 ) );
     FProgram.Bind;
-    UpdatePosition( FSpriteUniforms.Position );
+    UpdatePosition( FSpriteUniforms );
     for iTarget in aTargets do
     begin
       if iTarget <> nil then iTarget.BindAndClear
@@ -907,9 +993,9 @@ begin
     FPosition := iPosition;
     Update( iProjection );
     FProgram.Bind;
-    UpdatePosition( FSpriteUniforms.Position );
+    UpdatePosition( FSpriteUniforms );
     FTransitionProgram.Bind;
-    UpdatePosition( FTransitionUniforms.Position );
+    UpdatePosition( FTransitionUniforms );
     for i := 0 to 1 do
       if iBlend[i] <> GL_FALSE then glEnablei( GL_BLEND, i ) else glDisablei( GL_BLEND, i );
     glBlendFuncSeparate( iBlendSrcRGB, iBlendDstRGB, iBlendSrcA, iBlendDstA );
@@ -980,7 +1066,7 @@ begin
 
   FCurrentTexture := 0;
   FProgram.Bind;
-  UpdatePosition( FSpriteUniforms.Position );
+  UpdatePosition( FSpriteUniforms );
   for iSet in FLayersSorted do
     DrawSet( iSet );
 
@@ -996,43 +1082,42 @@ begin
   PushArray( TGLQVec4fArray.Create, 4, GL_FLOAT, VGL_COLOR2_LOCATION );
   PushArray( TGLQVec4fArray.Create, 4, GL_FLOAT, VGL_COLOR3_LOCATION );
   PushArray( TGLQVec4fArray.Create, 4, GL_FLOAT, VGL_COLOR4_LOCATION );
+  PushArray( TGLQVec2fArray.Create, 2, GL_FLOAT, VGL_SPRITE_DITHER );
+  FDither := TGLVec2f.Create( 0, 0 );
+end;
+
+procedure TGLTexturedColored4Quads.PushAttributes( const aColorQuad : TGLQVec4f; const aCosColor, aGlowColor, aEmissive : TGLVec4f );
+begin
+  TGLQVec4fArray(FArrays[2]).Push( aColorQuad );
+  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
+  TGLQVec4fArray(FArrays[4]).Push( TGLQVec4f.CreateAll( aGlowColor ) );
+  TGLQVec4fArray(FArrays[5]).Push( TGLQVec4f.CreateAll( aEmissive ) );
+  TGLQVec2fArray(FArrays[6]).Push( TGLQVec2f.CreateAll( FDither ) );
 end;
 
 procedure TGLTexturedColored4Quads.PushQuad ( aUR, aLL : TGLVec3i; aColor, aCosColor, aGlowColor, aEmissive : TGLVec4f; aTUR, aTLL : TGLVec2f ) ;
 begin
   inherited PushQuad(aUR, aLL, aTUR, aTLL );
-  TGLQVec4fArray(FArrays[2]).Push( TGLQVec4f.CreateAll( aColor ) );
-  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
-  TGLQVec4fArray(FArrays[4]).Push( TGLQVec4f.CreateAll( aGlowColor ) );
-  TGLQVec4fArray(FArrays[5]).Push( TGLQVec4f.CreateAll( aEmissive ) );
+  PushAttributes( TGLQVec4f.CreateAll( aColor ), aCosColor, aGlowColor, aEmissive );
 end;
 
 procedure TGLTexturedColored4Quads.PushQuad(aUR, aLL: TGLVec3i; aColorQuad: TGLQVec4f; aCosColor, aGlowColor, aEmissive : TGLVec4f; aTUR, aTLL: TGLVec2f);
 begin
   inherited PushQuad(aUR, aLL, aTUR, aTLL );
-  TGLQVec4fArray(FArrays[2]).Push( aColorQuad );
-  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
-  TGLQVec4fArray(FArrays[4]).Push( TGLQVec4f.CreateAll( aGlowColor ) );
-  TGLQVec4fArray(FArrays[5]).Push( TGLQVec4f.CreateAll( aEmissive ) );
+  PushAttributes( aColorQuad, aCosColor, aGlowColor, aEmissive );
 end;
 
 procedure TGLTexturedColored4Quads.PushQuad(aCoord: TGLQVec3i; aColorQuad: TGLQVec4f; aCosColor, aGlowColor, aEmissive : TGLVec4f; aTUR, aTLL: TGLVec2f);
 begin
   inherited PushQuad(aCoord, aTUR, aTLL );
-  TGLQVec4fArray(FArrays[2]).Push( aColorQuad );
-  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
-  TGLQVec4fArray(FArrays[4]).Push( TGLQVec4f.CreateAll( aGlowColor ) );
-  TGLQVec4fArray(FArrays[5]).Push( TGLQVec4f.CreateAll( aEmissive ) );
+  PushAttributes( aColorQuad, aCosColor, aGlowColor, aEmissive );
 end;
 
 procedure TGLTexturedColored4Quads.PushRotatedQuad(aCenter, aSize: TGLVec3i;
   aDegrees: Single; aColor, aCosColor, aGlowColor, aEmissive : TGLVec4f; aTUR, aTLL: TGLVec2f);
 begin
   inherited PushRotatedQuad( aCenter, aSize, aDegrees, aTUR, aTLL );
-  TGLQVec4fArray(FArrays[2]).Push( TGLQVec4f.CreateAll( aColor ) );
-  TGLQVec4fArray(FArrays[3]).Push( TGLQVec4f.CreateAll( aCosColor ) );
-  TGLQVec4fArray(FArrays[4]).Push( TGLQVec4f.CreateAll( aGlowColor ) );
-  TGLQVec4fArray(FArrays[5]).Push( TGLQVec4f.CreateAll( aEmissive ) );
+  PushAttributes( TGLQVec4f.CreateAll( aColor ), aCosColor, aGlowColor, aEmissive );
 end;
 
 procedure TGLTexturedColored4Quads.Append( aList : TGLTexturedColored4Quads );
@@ -1042,6 +1127,7 @@ begin
   TGLQVec4fArray(FArrays[3]).Append( TGLQVec4fArray(aList.FArrays[3]) );
   TGLQVec4fArray(FArrays[4]).Append( TGLQVec4fArray(aList.FArrays[4]) );
   TGLQVec4fArray(FArrays[5]).Append( TGLQVec4fArray(aList.FArrays[5]) );
+  TGLQVec2fArray(FArrays[6]).Append( TGLQVec2fArray(aList.FArrays[6]) );
 end;
 
 { TGLSpriteTransitionQuads }
@@ -1053,6 +1139,8 @@ begin
   // The base class supplies position/source coordinates at locations 0/1.
   for i := VGL_TRANSITION_LIGHT to VGL_TRANSITION_EMISSIONS+3 do
     PushArray( TGLQVec4fArray.Create, 4, GL_FLOAT, i );
+  PushArray( TGLQVec2fArray.Create, 2, GL_FLOAT, VGL_TRANSITION_DITHER );
+  FDither := TGLVec2f.Create( 0, 0 );
 end;
 
 procedure TGLSpriteTransitionQuads.PushQuad( aPa, aPb : TVec2i; aSourceA, aSourceB : TVec2f; aZ : Integer;
@@ -1070,6 +1158,7 @@ begin
     TGLQVec4fArray( FArrays[VGL_TRANSITION_TINTS+i] ).Push( TGLQVec4f.CreateAll( aPayload.Tints[i] ) );
     TGLQVec4fArray( FArrays[VGL_TRANSITION_EMISSIONS+i] ).Push( TGLQVec4f.CreateAll( aPayload.Emissions[i] ) );
   end;
+  TGLQVec2fArray( FArrays[VGL_TRANSITION_DITHER] ).Push( TGLQVec2f.CreateAll( FDither ) );
 end;
 
 initialization
