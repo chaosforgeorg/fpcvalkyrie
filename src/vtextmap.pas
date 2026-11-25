@@ -45,8 +45,9 @@ protected
   FLength     : TIOPoint;
   FConsole    : TIOConsoleRenderer;
 public
-  property Shift   : TIOPoint           read FShift    write FShift;
-  property Console : TIOConsoleRenderer read FConsole;
+  property Shift      : TIOPoint           read FShift    write FShift;
+  property Console    : TIOConsoleRenderer read FConsole;
+  property Animations : TAnimations        read FAnimations;
 end;
 
 type TTextMarkAnimation = class(TTextAnimation)
