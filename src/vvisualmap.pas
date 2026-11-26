@@ -52,7 +52,7 @@ public
   // are included because their appearance is derived from the cell.
   procedure Hold( const aCoord : TCoord2D; aDelay : DWord );
   // Ends every hold and fade: afterwards the map equals its source.
-  procedure Synchronize;
+  procedure Synchronize; virtual;
   function Contains( const aCoord : TCoord2D ) : Boolean; inline;
   function State( const aCoord : TCoord2D; aLayer : TVisualLayer ) : T; inline;
   function Fading( const aCoord : TCoord2D ) : Boolean;
@@ -92,7 +92,7 @@ public
   property Time : QWord read FTime;
   // Something is still to be shown: a fade runs or a held change waits.
   // Valid since the last Update.
-  function Busy : Boolean;
+  function Busy : Boolean; virtual;
 end;
 
 implementation
