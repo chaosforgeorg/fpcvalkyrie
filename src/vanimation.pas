@@ -159,7 +159,10 @@ begin
       end;
       Break;
     end;
-  if aAnimation.FUID <> 0 then aAnimation.FDelay := aAnimation.FDelay + UIDDuration( aAnimation.FUID );
+  // Delays are measured from now; animations of one UID never overlap, so
+  // one starts no earlier than the end of those queued before it.
+  if aAnimation.FUID <> 0 then
+    aAnimation.FDelay := Max( aAnimation.FDelay, UIDDuration( aAnimation.FUID ) );
   FAnimations.Push( aAnimation );
   Result := aAnimation.FDelay;
 end;

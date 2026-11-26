@@ -143,6 +143,11 @@ protected
   procedure SetBeing( const aCoord : TCoord2D; aBeing : TLuaEntityNode ); virtual;
   // Set Item at position aCoord
   procedure SetItem( const aCoord : TCoord2D; aItem : TLuaEntityNode ); virtual;
+  // Advances Revision; subclasses call it when they write per-cell state
+  // of their own.
+  procedure NoteChange; inline;
+private
+  FRevision  : DWord;
 protected
   // Borrowed from Runtime; never freed or serialized by the map.
   FGameRNG   : TRNG;
@@ -166,6 +171,10 @@ public
   property Cell[ const aIndex : TCoord2D ] : Byte read getCell write putCell; default;
   // Property for Cell ID access.
   property HitPoints[ const aIndex : TCoord2D ] : Byte read getHitPoints write setHitPoints;
+  // Changes whenever cell IDs or light flags (vision included) are written,
+  // so a presentation can skip comparing an unchanged map. Entities and hit
+  // points are not counted.
+  property Revision  : DWord           read FRevision;
 public
   property LightFlag[ const aCoord : TCoord2D; aFlag : Byte ] : Boolean read GetLightFlag write SetLightFlag;
 end;
@@ -209,11 +218,20 @@ begin
   FGameRNG := aGameRNG;
 end;
 
+procedure TLuaMapNode.NoteChange; inline;
+begin
+  // Wraps; readers only compare for equality.
+  {$PUSH}{$Q-}{$R-}
+  Inc( FRevision );
+  {$POP}
+end;
+
 procedure TLuaMapNode.ClearLightMapBits ( aValue : TWordSet ) ;
 var i : DWord;
 begin
   for i := 0 to FArea.B.X * FArea.B.Y - 1 do
     FCellMap[ i ].Light := FCellMap[ i ].Light - aValue;
+  NoteChange;
 end;
 
 procedure TLuaMapNode.ClearLightMap ( aValue : TWordSet ) ;
@@ -221,6 +239,7 @@ var i : DWord;
 begin
   for i := 0 to FArea.B.X * FArea.B.Y - 1 do
     FCellMap[ i ].Light := aValue;
+  NoteChange;
 end;
 
 procedure TLuaMapNode.ClearMap ( aValue : Byte ) ;
@@ -228,6 +247,7 @@ var i : DWord;
 begin
   for i := 0 to FArea.B.X * FArea.B.Y - 1 do
     FCellMap[ i ].Cell := aValue;
+  NoteChange;
 end;
 
 procedure TLuaMapNode.ClearEntities;
@@ -251,6 +271,7 @@ begin
     FCellMap[ i ].Light := aLightValue;
     FCellMap[ i ].HP    := aHPValue;
   end;
+  NoteChange;
 end;
 
 procedure TLuaMapNode.PrepareVision ( const aSource : TCoord2D; aRange : Byte ) ;
@@ -276,6 +297,7 @@ begin
            Include( FCellMap[index].Light,vlfExplored );
         end;
       end;
+  NoteChange;
 end;
 
 procedure TLuaMapNode.RunVision ( const aSource : TCoord2D; aVisionRange : Byte; aLightRange : Byte = 0 ) ;
@@ -355,6 +377,7 @@ end;
 procedure TLuaMapNode.putCell ( const aCoord : TCoord2D; const aValue : Byte ) ;
 begin
   FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Cell := aValue;
+  NoteChange;
 end;
 
 function TLuaMapNode.getCell ( const aCoord : TCoord2D ) : Byte;
@@ -379,6 +402,7 @@ begin
   if aValue
     then Include( FCellMap[ iIndex ].Light, aFlag )
     else Exclude( FCellMap[ iIndex ].Light, aFlag );
+  NoteChange;
 end;
 
 function TLuaMapNode.GetLightFlag ( const aCoord : TCoord2D; aFlag : Byte ) : Boolean;
@@ -389,6 +413,7 @@ end;
 procedure TLuaMapNode.SetLightValue( const aCoord : TCoord2D; aValue : DWord );
 begin
   FCellMap[ ( aCoord.y - 1 ) * FArea.B.X + ( aCoord.x - 1 ) ].Light := TWordSet( aValue );
+  NoteChange;
 end;
 
 function TLuaMapNode.GetLightValue( const aCoord : TCoord2D ) : DWord;
